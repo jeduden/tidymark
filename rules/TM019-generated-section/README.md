@@ -6,7 +6,6 @@ Generated sections must match the content their directive would produce.
 - **Name**: `generated-section`
 - **Default**: enabled
 - **Fixable**: yes
-- **Severity**: error
 - **Implementation**: [`internal/rules/generatedsection/`](../../internal/rules/generatedsection/)
 
 ## Marker Syntax
@@ -28,7 +27,8 @@ The opening comment has two parts:
    case-sensitive; `Catalog` or `CATALOG` trigger the "unknown directive"
    diagnostic. The directive name is required; omitting it produces a
    diagnostic. Leading and trailing whitespace around the directive name is
-   trimmed. Only the first word after `start` is used as the directive name.
+   trimmed. Only the first whitespace-delimited word after `start` is used as
+   the directive name; additional text on the first line is ignored.
 2. **YAML body** -- all subsequent lines until `-->` are parsed as YAML. This
    body contains both parameters (e.g., `glob`, `sort`) and template sections
    (e.g., `header`, `row`, `footer`, `empty`).
@@ -147,6 +147,10 @@ YAML, non-string values) short-circuit further validation. Parameter validation
   between the markers (preserving original line endings) versus the freshly
   generated text (which uses `\n` line endings). Any difference, including
   line-ending mismatches, constitutes a mismatch.
+- The end marker is recognized when a line, after trimming leading and
+  trailing whitespace, equals `<!-- tidymark:gen:end -->`. It must appear on
+  its own line (no other content on that line).
+- All diagnostics are reported at column 1.
 - Diagnostics are reported on the start marker line, except for orphaned
   end markers which are reported on the end marker line.
 
@@ -166,12 +170,14 @@ The `sort` value has the format `[-]KEY` where:
 - `-` prefix (optional): descending order. Without prefix, ascending order.
   Only the first `-` is consumed as the direction prefix; `sort: --priority`
   means descending by key `-priority`.
-- `KEY`: a non-empty string without whitespace. One of the built-in keys or
-  any front matter field name.
+- `KEY`: a non-empty string without whitespace. No whitespace trimming is
+  performed on the key after stripping the prefix. One of the built-in keys
+  or any front matter field name. A sort value containing whitespace (e.g.,
+  `sort: "foo bar"`) triggers the "invalid sort value" diagnostic.
 
-If the key name is empty after stripping the optional `-` prefix (i.e.,
-`sort: ""` or `sort: "-"`), the sort value is invalid and a diagnostic is
-emitted.
+If the sort value is empty (`sort: ""`), the "empty sort value" diagnostic
+is emitted. If the key name is empty after stripping the `-` prefix (i.e.,
+`sort: "-"`), the "invalid sort value" diagnostic is emitted.
 
 **Built-in keys:**
 
@@ -544,6 +550,7 @@ Diagnostic: `generated section directive has absolute glob path`
 | Empty `row` value | Diagnostic (empty string or whitespace-only) |
 | Empty `sort` value | Diagnostic |
 | `sort: "-"` (dash only) | Diagnostic (invalid sort value) |
+| Sort value with whitespace | Diagnostic (invalid sort value) |
 | Unknown YAML keys | Ignored (forward-compatible with future parameters) |
 | Non-string YAML values | Diagnostic per key |
 | `empty` without `row` | Valid; only `header`/`footer` require `row` |

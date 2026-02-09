@@ -213,6 +213,7 @@ interpolate the underlying Go error string as-is.
 - [ ] Table template renders static header + per-file rows
 - [ ] Multi-line `row` value with YAML `|` produces multi-line output per file
 - [ ] Multi-line `row` value with YAML `|+` preserves trailing blank lines
+- [ ] YAML `|-` strips trailing newlines; implicit `\n` rule adds one back
 - [ ] Each row is followed by implicit trailing `\n`
 - [ ] `footer` renders static content after rows
 - [ ] `empty` renders fallback text when glob matches zero files
@@ -257,7 +258,10 @@ interpolate the underlying Go error string as-is.
 - [ ] Glob matching the linted file includes it
 - [ ] Windows `\r\n` files flagged as stale (generated content uses `\n`)
 - [ ] Directive name is case-sensitive (`Catalog` -> unknown directive)
-- [ ] Directive name whitespace is trimmed
+- [ ] Directive name whitespace is trimmed; extra words after name ignored
+- [ ] End marker matched after trimming whitespace (`<!-- tidymark:gen:end -->`)
+- [ ] Sort value with whitespace (e.g., `"foo bar"`) produces diagnostic
+- [ ] All diagnostics report column 1
 - [ ] Validation short-circuits on structural errors
 - [ ] Fix regenerates stale sections correctly
 - [ ] Fix is idempotent on fresh content
