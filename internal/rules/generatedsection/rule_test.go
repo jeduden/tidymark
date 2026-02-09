@@ -801,6 +801,17 @@ sort: "foo bar"
 	expectDiagMsg(t, diags, "invalid sort value")
 }
 
+func TestDiag_SortWithTab(t *testing.T) {
+	// Sort value with tab character produces diagnostic.
+	src := "<!-- tidymark:gen:start catalog\nglob: \"*.md\"\nsort: \"foo\tbar\"\n-->\n<!-- tidymark:gen:end -->\n"
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, "invalid sort value")
+}
+
 // =====================================================================
 // Sort
 // =====================================================================
@@ -964,6 +975,26 @@ sort: -path
 		"a.md": {Data: []byte("# A\n")},
 		"b.md": {Data: []byte("# B\n")},
 		"z.md": {Data: []byte("# Z\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestSort_FilenameDescending(t *testing.T) {
+	// sort: -filename orders by basename descending.
+	src := `<!-- tidymark:gen:start catalog
+glob: "**/*.md"
+sort: -filename
+-->
+- [beta.md](a/beta.md)
+- [alpha.md](z/alpha.md)
+<!-- tidymark:gen:end -->
+`
+	mapFS := fstest.MapFS{
+		"z/alpha.md": {Data: []byte("# Alpha\n")},
+		"a/beta.md":  {Data: []byte("# Beta\n")},
 	}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -1229,6 +1260,37 @@ row: "- [{{.title}}]({{.filename}})"
 	}
 }
 
+func TestFix_SkipsInvalidPairLeavesValidPair(t *testing.T) {
+	// When one marker pair has validation errors and another is valid,
+	// fix should skip the invalid pair and regenerate the valid one.
+	src := `<!-- tidymark:gen:start foobar
+glob: "*.md"
+-->
+old invalid content
+<!-- tidymark:gen:end -->
+
+<!-- tidymark:gen:start catalog
+glob: "*.md"
+-->
+old
+<!-- tidymark:gen:end -->
+`
+	mapFS := fstest.MapFS{
+		"a.md": {Data: []byte("# A\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	result := string(r.Fix(f))
+	// The invalid section should remain unchanged.
+	if !strings.Contains(result, "old invalid content") {
+		t.Error("Fix should leave invalid section content unchanged")
+	}
+	// The valid section should be regenerated.
+	if !strings.Contains(result, "- [a.md](a.md)") {
+		t.Errorf("Fix should regenerate valid section.\nGot:\n%s", result)
+	}
+}
+
 // =====================================================================
 // Edge cases
 // =====================================================================
@@ -1242,9 +1304,57 @@ func TestEdge_MarkersInsideFencedCodeBlock(t *testing.T) {
 	expectDiags(t, diags, 0)
 }
 
+func TestEdge_MarkersInsideIndentedCodeBlock(t *testing.T) {
+	// Indented code blocks (4-space indent) should also ignore markers.
+	src := "Paragraph before.\n\n    <!-- tidymark:gen:start catalog\n    glob: \"*.md\"\n    -->\n    <!-- tidymark:gen:end -->\n\nParagraph after.\n"
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
 func TestEdge_MarkersInsideHTMLBlock(t *testing.T) {
 	// goldmark treats <div>...</div> as an HTML block.
 	src := "<div>\n<!-- tidymark:gen:start catalog\nglob: \"*.md\"\n-->\n<!-- tidymark:gen:end -->\n</div>\n"
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestEdge_MarkersInsideHTMLBlockWithClosure(t *testing.T) {
+	// HTML block type 6 with a closing blank line as closure.
+	// <table> is recognized as an HTML block that includes content until a blank line.
+	src := "<table>\n<tr><td><!-- tidymark:gen:start catalog\nglob: \"*.md\"\n--></td></tr>\n</table>\n\nText after.\n"
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	// Markers inside HTML block should be ignored. No structural errors expected.
+	for _, d := range diags {
+		if strings.Contains(d.Message, "no closing marker") ||
+			strings.Contains(d.Message, "unexpected") {
+			t.Errorf("markers inside HTML block should be ignored: %s", d.Message)
+		}
+	}
+}
+
+func TestEdge_MarkersInsidePreBlock(t *testing.T) {
+	// goldmark HTML block type 1 (<pre>) has explicit closure (</pre>).
+	// Markers inside should be ignored.
+	src := "<pre>\n<!-- tidymark:gen:start catalog\nglob: \"*.md\"\n-->\n<!-- tidymark:gen:end -->\n</pre>\n"
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestEdge_MarkersInsideScriptBlock(t *testing.T) {
+	// goldmark HTML block type 1 (<script>) has explicit closure (</script>).
+	src := "<script>\n<!-- tidymark:gen:start catalog\nglob: \"*.md\"\n-->\n<!-- tidymark:gen:end -->\n</script>\n"
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -2136,6 +2246,23 @@ func TestParseSort_EmptyValue(t *testing.T) {
 	}
 }
 
+func TestParseRowTemplate_Valid(t *testing.T) {
+	tmpl, err := parseRowTemplate("- [{{.title}}]({{.filename}})")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tmpl == nil {
+		t.Fatal("expected non-nil template")
+	}
+}
+
+func TestParseRowTemplate_Invalid(t *testing.T) {
+	_, err := parseRowTemplate("{{.title")
+	if err == nil {
+		t.Error("expected error for invalid template")
+	}
+}
+
 func TestContainsDotDot(t *testing.T) {
 	tests := []struct {
 		pattern string
@@ -2193,6 +2320,45 @@ func TestSplitLines(t *testing.T) {
 	}
 	if string(lines[2]) != "c" {
 		t.Errorf("line 2: got %q", string(lines[2]))
+	}
+}
+
+func TestSplitLines_Empty(t *testing.T) {
+	lines := splitLines([]byte(""))
+	if len(lines) != 1 {
+		t.Fatalf("expected 1 line for empty input, got %d", len(lines))
+	}
+	if string(lines[0]) != "" {
+		t.Errorf("expected empty line, got %q", string(lines[0]))
+	}
+}
+
+func TestSplitLines_SingleNewline(t *testing.T) {
+	lines := splitLines([]byte("\n"))
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines for single newline, got %d", len(lines))
+	}
+	if string(lines[0]) != "" {
+		t.Errorf("expected empty first line, got %q", string(lines[0]))
+	}
+	if string(lines[1]) != "" {
+		t.Errorf("expected empty second line, got %q", string(lines[1]))
+	}
+}
+
+func TestSplitLines_TrailingNewline(t *testing.T) {
+	lines := splitLines([]byte("a\nb\n"))
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
+	}
+	if string(lines[0]) != "a" {
+		t.Errorf("line 0: got %q", string(lines[0]))
+	}
+	if string(lines[1]) != "b" {
+		t.Errorf("line 1: got %q", string(lines[1]))
+	}
+	if string(lines[2]) != "" {
+		t.Errorf("line 2: expected empty, got %q", string(lines[2]))
 	}
 }
 
@@ -2266,6 +2432,51 @@ func TestRenderTemplate_RowOnly(t *testing.T) {
 	}
 }
 
+func TestRenderTemplate_FooterOnly(t *testing.T) {
+	params := map[string]string{
+		"row":    "- {{.filename}}",
+		"footer": "---",
+	}
+	entries := []fileEntry{
+		{fields: map[string]string{"filename": "a.md"}},
+	}
+	got, err := renderTemplate(params, entries)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := "- a.md\n---\n"
+	if got != expected {
+		t.Errorf("renderTemplate mismatch.\nExpected:\n%s\nGot:\n%s", expected, got)
+	}
+}
+
+func TestRenderTemplate_InvalidTemplateReturnsError(t *testing.T) {
+	params := map[string]string{
+		"row": "{{.title",
+	}
+	entries := []fileEntry{
+		{fields: map[string]string{"filename": "a.md"}},
+	}
+	_, err := renderTemplate(params, entries)
+	if err == nil {
+		t.Error("expected error for invalid template syntax")
+	}
+}
+
+func TestRenderTemplate_ExecutionErrorReturnsError(t *testing.T) {
+	// Calling a non-existent function in the template triggers an execution error.
+	params := map[string]string{
+		"row": "{{call .missing}}",
+	}
+	entries := []fileEntry{
+		{fields: map[string]string{"filename": "a.md"}},
+	}
+	_, err := renderTemplate(params, entries)
+	if err == nil {
+		t.Error("expected error for template execution failure")
+	}
+}
+
 func TestSortEntries_PathAscending(t *testing.T) {
 	entries := []fileEntry{
 		{fields: map[string]string{"filename": "c.md"}},
@@ -2315,6 +2526,29 @@ func TestSortEntries_Tiebreaker(t *testing.T) {
 	sortEntries(entries, "title", false)
 	if entries[0].fields["filename"] != "a.md" {
 		t.Errorf("expected a.md first (tiebreaker), got %s", entries[0].fields["filename"])
+	}
+}
+
+func TestSortEntries_TiebreakerDescending(t *testing.T) {
+	// Even when descending, the tiebreaker is path ascending.
+	entries := []fileEntry{
+		{fields: map[string]string{"filename": "b.md", "title": "Same"}},
+		{fields: map[string]string{"filename": "a.md", "title": "Same"}},
+	}
+	sortEntries(entries, "title", true)
+	if entries[0].fields["filename"] != "a.md" {
+		t.Errorf("expected a.md first (tiebreaker ascending), got %s", entries[0].fields["filename"])
+	}
+}
+
+func TestSortEntries_FilenameDescending(t *testing.T) {
+	entries := []fileEntry{
+		{fields: map[string]string{"filename": "a/alpha.md"}},
+		{fields: map[string]string{"filename": "z/zulu.md"}},
+	}
+	sortEntries(entries, "filename", true)
+	if entries[0].fields["filename"] != "z/zulu.md" {
+		t.Errorf("expected z/zulu.md first (filename descending), got %s", entries[0].fields["filename"])
 	}
 }
 
@@ -2404,6 +2638,53 @@ func TestReadFrontMatter_UnreadableFile(t *testing.T) {
 	}
 }
 
+func TestReadFrontMatter_EmptyFile(t *testing.T) {
+	fs := fstest.MapFS{
+		"empty.md": {Data: []byte("")},
+	}
+	fm := readFrontMatter(fs, "empty.md")
+	if fm != nil {
+		t.Errorf("expected nil for empty file, got %v", fm)
+	}
+}
+
+func TestReadFrontMatter_OnlyOpeningDelimiter(t *testing.T) {
+	// File starts with --- but has no closing ---.
+	fs := fstest.MapFS{
+		"a.md": {Data: []byte("---\ntitle: Hello\n")},
+	}
+	fm := readFrontMatter(fs, "a.md")
+	if fm != nil {
+		t.Errorf("expected nil for unclosed front matter, got %v", fm)
+	}
+}
+
+func TestReadFrontMatter_BooleanValue(t *testing.T) {
+	// Boolean YAML values should be converted via fmt.Sprintf.
+	fs := fstest.MapFS{
+		"a.md": {Data: []byte("---\ntitle: Hello\ndraft: true\n---\n")},
+	}
+	fm := readFrontMatter(fs, "a.md")
+	if fm["draft"] != "true" {
+		t.Errorf("expected draft 'true', got %q", fm["draft"])
+	}
+}
+
+func TestReadFrontMatter_ListValue(t *testing.T) {
+	// List values in front matter should be converted via fmt.Sprintf.
+	fs := fstest.MapFS{
+		"a.md": {Data: []byte("---\ntitle: Hello\ntags: [go, lint]\n---\n")},
+	}
+	fm := readFrontMatter(fs, "a.md")
+	if fm["title"] != "Hello" {
+		t.Errorf("expected title Hello, got %q", fm["title"])
+	}
+	// List value is formatted as a Go slice string.
+	if fm["tags"] == "" {
+		t.Error("expected non-empty tags value")
+	}
+}
+
 // =====================================================================
 // extractContent and replaceContent
 // =====================================================================
@@ -2442,6 +2723,56 @@ end
 	content := extractContent(f, mp)
 	if content != "" {
 		t.Errorf("expected empty content, got %q", content)
+	}
+}
+
+func TestExtractContent_SingleLine(t *testing.T) {
+	src := `start
+middle
+end
+`
+	f := newTestFile(t, "test.md", src)
+	mp := markerPair{
+		startLine:   1,
+		endLine:     3,
+		contentFrom: 2,
+		contentTo:   2,
+	}
+	content := extractContent(f, mp)
+	if content != "middle\n" {
+		t.Errorf("expected 'middle\\n', got %q", content)
+	}
+}
+
+func TestReplaceContent_Normal(t *testing.T) {
+	src := "start\nold1\nold2\nend\ntrailing\n"
+	f := newTestFile(t, "test.md", src)
+	mp := markerPair{
+		startLine:   1,
+		endLine:     4,
+		contentFrom: 2,
+		contentTo:   3,
+	}
+	result := replaceContent(f, mp, "new1\nnew2\n")
+	expected := "start\nnew1\nnew2\nend\ntrailing\n"
+	if string(result) != expected {
+		t.Errorf("replaceContent mismatch.\nExpected:\n%s\nGot:\n%s", expected, string(result))
+	}
+}
+
+func TestReplaceContent_EmptyContent(t *testing.T) {
+	src := "start\nold\nend\n"
+	f := newTestFile(t, "test.md", src)
+	mp := markerPair{
+		startLine:   1,
+		endLine:     3,
+		contentFrom: 2,
+		contentTo:   2,
+	}
+	result := replaceContent(f, mp, "")
+	expected := "start\nend\n"
+	if string(result) != expected {
+		t.Errorf("replaceContent with empty content mismatch.\nExpected:\n%s\nGot:\n%s", expected, string(result))
 	}
 }
 

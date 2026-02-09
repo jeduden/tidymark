@@ -80,7 +80,7 @@ func Discover(startDir string) (string, error) {
 	}
 }
 
-// Defaults returns a Config with all 18 built-in rules enabled
+// Defaults returns a Config with all 19 built-in rules enabled
 // with default settings (no custom settings).
 func Defaults() *Config {
 	rules := make(map[string]RuleCfg, len(allRuleNames))

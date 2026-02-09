@@ -270,10 +270,7 @@ func validateSort(f *lint.File, mp markerPair, sortVal string) []lint.Diagnostic
 		}}
 	}
 
-	key := sortVal
-	if strings.HasPrefix(key, "-") {
-		key = key[1:]
-	}
+	key := strings.TrimPrefix(sortVal, "-")
 
 	if key == "" {
 		return []lint.Diagnostic{{

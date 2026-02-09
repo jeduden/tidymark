@@ -9,7 +9,7 @@ tidymark — a Markdown linter written in Go.
 - `go build ./...` — build all packages
 - `go test ./...` — run all tests
 - `go test -run TestName ./pkg/...` — run a specific test
-- `golangci-lint run` — run linter
+- `go tool golangci-lint run` — run linter
 - `go vet ./...` — run go vet
 
 ## Project Layout

@@ -324,6 +324,7 @@ func TestDefaultsAllRulesEnabled(t *testing.T) {
 		"list-indent",
 		"no-trailing-punctuation-in-heading",
 		"no-emphasis-as-heading",
+		"generated-section",
 	}
 
 	if len(cfg.Rules) != 19 {

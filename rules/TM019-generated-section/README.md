@@ -52,8 +52,9 @@ Parameters and template sections share the same YAML namespace. All values
 must be strings. Non-string values (null, numbers, booleans, arrays, maps) produce
 a diagnostic per key.
 
-Duplicate YAML keys use the last value (standard YAML behavior). YAML anchors,
-aliases, and merge keys are supported (standard YAML features).
+Duplicate YAML keys produce an invalid YAML diagnostic (the Go `yaml.v3`
+parser rejects them). YAML anchors, aliases, and merge keys are supported
+(standard YAML features).
 
 **Parameters** (directive-specific):
 
@@ -160,7 +161,7 @@ Lists files matching a glob pattern with configurable output.
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| `glob` | yes | -- | File glob pattern, resolved relative to the directory of the file containing the marker. Supports `*`, `?`, `[...]`, and `**` (recursive). Absolute paths are rejected. Parent traversal (`..`) is not supported. Brace expansion (`{a,b}`) is not supported. Dotfiles are not matched by `*` or `**` unless the pattern explicitly includes a leading dot. |
+| `glob` | yes | -- | File glob pattern, resolved relative to the directory of the file containing the marker. Supports `*`, `?`, `[...]`, and `**` (recursive). Absolute paths are rejected. Parent traversal (`..`) is not supported. Brace expansion (`{a,b}`) is not supported. Dotfiles are matched by `*` and `**`; to exclude them, add dotfiles to the project's ignore list. |
 | `sort` | no | `path` | Sort key with optional `-` prefix for descending order. See Sort behavior. |
 
 ### Sort behavior
@@ -542,7 +543,7 @@ Diagnostic: `generated section directive has absolute glob path`
 | Markers inside HTML blocks | Ignored |
 | Multiple marker pairs in one file | Each processed independently |
 | Symlinks in glob results | Followed (doublestar handles cycles) |
-| Dotfiles | Not matched by `*` or `**` unless pattern has leading dot |
+| Dotfiles | Matched by `*` and `**`; exclude via ignore list if needed |
 | Absolute glob path | Diagnostic |
 | Glob with `..` | Diagnostic (parent traversal not supported by `io/fs.FS`) |
 | Brace expansion in glob | Not supported; treated as literal characters |
@@ -555,7 +556,7 @@ Diagnostic: `generated section directive has absolute glob path`
 | Non-string YAML values | Diagnostic per key |
 | `empty` without `row` | Valid; only `header`/`footer` require `row` |
 | `empty` + `header` without `row` | Diagnostic (missing `row` still fires) |
-| Duplicate YAML keys | Last value wins (standard YAML) |
+| Duplicate YAML keys | Invalid YAML diagnostic (`yaml.v3` rejects duplicates) |
 | Single-line start marker | Valid; empty YAML body triggers missing-parameter diagnostic |
 | Windows-style line endings (`\r\n`) | Generated content uses `\n`; will flag `\r\n` files as stale |
 | Template execution error | Diagnostic emitted; fix leaves section unchanged |

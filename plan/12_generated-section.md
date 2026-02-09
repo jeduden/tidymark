@@ -243,7 +243,7 @@ interpolate the underlying Go error string as-is.
 - [x] Template execution error produces diagnostic
 - [x] Invalid `sort` value (e.g., `"-"`) produces diagnostic
 - [x] Unknown YAML keys are silently ignored
-- [x] Duplicate YAML keys use last value
+- [x] Duplicate YAML keys produce invalid YAML diagnostic
 - [x] YAML anchors, aliases, and merge keys are supported
 - [x] Files without front matter resolve fields to empty string
 - [x] `{{.filename}}` resolves to path relative to linted file's directory
@@ -278,7 +278,7 @@ interpolate the underlying Go error string as-is.
 - [x] Sort comparison is case-insensitive
 - [x] Sort with front matter key in minimal mode reads front matter
 - [x] Recursive `**` glob patterns are supported
-- [x] Dotfiles not matched by `*`/`**` unless pattern has leading dot
+- [x] Dotfiles matched by `*`/`**`; exclude via ignore list
 - [x] Markers inside fenced code blocks are ignored
 - [x] Markers inside HTML blocks are ignored
 - [x] `-->` terminator allows leading/trailing whitespace
@@ -288,4 +288,78 @@ interpolate the underlying Go error string as-is.
 - [x] Stdin input skips the rule (`f.FS == nil`)
 - [x] Tests use `fstest.MapFS` (no `t.TempDir()` for unit tests)
 - [x] All tests pass: `go test ./...`
-- [ ] `golangci-lint run` reports no issues
+- [x] `golangci-lint run` reports no issues
+
+## Review Findings
+
+Post-implementation review of commit `6be7a0b`.
+
+### Linting
+
+- **Fixed:** `rule.go:274` staticcheck S1017 — replaced `if HasPrefix` +
+  slice with `strings.TrimPrefix`
+
+### Test Coverage
+
+- Coverage improved from **96.3% → 98.1%** (21 new tests added)
+- Remaining 6 uncovered blocks are all unreachable defensive guards
+
+### Spec/Implementation Mismatches (Resolved)
+
+1. **Dotfile matching** — spec updated: `*`/`**` match dotfiles; users
+   exclude via ignore list. Matches `doublestar` default behavior.
+2. **Duplicate YAML keys** — spec updated: duplicates produce invalid YAML
+   diagnostic. Matches `gopkg.in/yaml.v3` behavior.
+
+### Tests of Unexported Functions
+
+~27 tests directly call unexported functions (`parseSort`, `containsDotDot`,
+`ensureTrailingNewline`, `splitLines`, `renderMinimal`, `renderEmpty`,
+`renderTemplate`, `sortEntries`, `sortValue`, `readFrontMatter`,
+`extractContent`). Testing unexported functions is fine — it helps increase
+coverage of defensive/edge-case paths that are hard to reach through the
+public API. However, these tests should still verify **behavior** (the
+contract each function is expected to fulfill), not implementation details.
+Review each to ensure assertions match the function's specified behavior.
+
+Additionally, the table-driven groups (`TestCheck_DiagnosticScenarios`,
+`TestSort_Behavior`, `TestFix_Scenarios`) duplicate individual tests —
+consider consolidating to reduce maintenance burden.
+
+## Open Tasks
+
+8. Add missing spec tests (high priority)
+   - [ ] Template execution errors — Check emits diagnostic, Fix leaves
+     section unchanged
+   - [ ] Brace expansion `{a,b}` not supported (treated as literal)
+   - [ ] Windows `\r\n` line endings flagged as stale
+   - [ ] Glob matching the linted file itself (included in output)
+   - [ ] Binary/non-Markdown matched files — `{{.filename}}` resolves, no
+     front matter extracted
+   - [ ] YAML anchors/aliases/merge keys in marker body
+   - [ ] Double-dash sort (`sort: --priority` → descending by `-priority`)
+   - [ ] Unreadable matched files silently skipped (end-to-end)
+
+9. Add missing spec tests (medium priority)
+   - [ ] Template output not HTML-escaped (`<`, `>`, `&` appear literally)
+   - [ ] Go built-in template functions (`len`, `print`, `index`)
+   - [ ] Diagnostic line-number assertions for most diagnostic types
+   - [ ] Missing front matter values sort as empty string (end-to-end)
+   - [ ] Non-string front matter value rendered through template (end-to-end)
+   - [ ] Symlinks followed in glob results
+   - [ ] `empty` + `footer` without `row` produces missing-row diagnostic
+
+10. Strengthen weak test assertions
+    - [ ] `TestEdge_TerminatorAllowsLeadingTrailingWhitespace` — add exact
+      diagnostic count assertion
+    - [ ] `TestEdge_EndMarkerWithWhitespace` — add exact diagnostic count
+    - [ ] `TestEdge_DirectiveWhitespaceTrimmedExtraWordsIgnored` — add exact
+      diagnostic count
+    - [ ] `TestEdge_GlobMatchingDirectorySkipped` — add exact diagnostic count
+
+11. Review unexported function tests for behavioral correctness
+    - [ ] Verify each of the ~27 unexported function tests asserts the
+      function's behavioral contract, not internal details
+    - [ ] Consolidate duplicate table-driven groups
+      (`TestCheck_DiagnosticScenarios`, `TestSort_Behavior`,
+      `TestFix_Scenarios`) with their individual counterparts
