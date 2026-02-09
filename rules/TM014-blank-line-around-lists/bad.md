@@ -1,11 +1,11 @@
 ---
 diagnostics:
-  - line: 2
+  - line: 4
     column: 1
     message: "list should be preceded by a blank line"
 ---
 # Title
-- item one
-- item two
 
 Content here.
+- item one
+- item two
