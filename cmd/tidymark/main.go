@@ -105,10 +105,13 @@ func run() int {
 		return 2
 	}
 
+	stripFM := frontMatterEnabled(cfg)
+
 	if fix {
 		fixer := &fixpkg.Fixer{
-			Config: cfg,
-			Rules:  rule.All(),
+			Config:           cfg,
+			Rules:            rule.All(),
+			StripFrontMatter: stripFM,
 		}
 
 		fixResult := fixer.Fix(files)
@@ -145,8 +148,9 @@ func run() int {
 
 	// Create runner with config and all registered rules.
 	runner := &engine.Runner{
-		Config: cfg,
-		Rules:  rule.All(),
+		Config:           cfg,
+		Rules:            rule.All(),
+		StripFrontMatter: stripFM,
 	}
 
 	result := runner.Run(files)
@@ -206,15 +210,19 @@ func runStdin(fix bool, format string, noColor, quiet bool, configPath string) i
 		return 2
 	}
 
-	f, err := lint.NewFile("<stdin>", source)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "tidymark: parsing stdin: %v\n", err)
-		return 2
-	}
-
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
+		return 2
+	}
+
+	if frontMatterEnabled(cfg) {
+		_, source = lint.StripFrontMatter(source)
+	}
+
+	f, err := lint.NewFile("<stdin>", source)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: parsing stdin: %v\n", err)
 		return 2
 	}
 
@@ -257,6 +265,15 @@ func runStdin(fix bool, format string, noColor, quiet bool, configPath string) i
 	}
 
 	return 0
+}
+
+// frontMatterEnabled returns whether front matter stripping is enabled.
+// Defaults to true if not set in config.
+func frontMatterEnabled(cfg *config.Config) bool {
+	if cfg.FrontMatter != nil {
+		return *cfg.FrontMatter
+	}
+	return true
 }
 
 // loadConfig loads configuration by either using the specified path or

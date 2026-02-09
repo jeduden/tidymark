@@ -15,8 +15,9 @@ import (
 
 // Fixer applies auto-fixes for fixable rules and reports remaining diagnostics.
 type Fixer struct {
-	Config *config.Config
-	Rules  []rule.Rule
+	Config           *config.Config
+	Rules            []rule.Rule
+	StripFrontMatter bool
 }
 
 // FixResult holds the outcome of a fix run.
@@ -52,6 +53,13 @@ func (f *Fixer) Fix(paths []string) *FixResult {
 			continue
 		}
 
+		// Strip front matter before fixing; re-prepend when writing.
+		var fmPrefix []byte
+		content := source
+		if f.StripFrontMatter {
+			fmPrefix, content = lint.StripFrontMatter(source)
+		}
+
 		effective := config.Effective(f.Config, path)
 
 		// Collect enabled fixable rules, sorted by ID.
@@ -61,7 +69,7 @@ func (f *Fixer) Fix(paths []string) *FixResult {
 		// A later rule's fix may introduce violations caught by an
 		// earlier rule, so we loop until no pass produces changes.
 		const maxPasses = 10
-		current := source
+		current := content
 		for pass := 0; pass < maxPasses; pass++ {
 			before := current
 			for _, fr := range fixable {
@@ -84,8 +92,9 @@ func (f *Fixer) Fix(paths []string) *FixResult {
 		}
 
 		// Write back only if content changed.
-		if !bytes.Equal(source, current) {
-			if err := os.WriteFile(path, current, info.Mode()); err != nil {
+		if !bytes.Equal(content, current) {
+			out := append(fmPrefix, current...)
+			if err := os.WriteFile(path, out, info.Mode()); err != nil {
 				res.Errors = append(res.Errors, fmt.Errorf("writing %q: %w", path, err))
 				continue
 			}
