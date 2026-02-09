@@ -15,13 +15,17 @@ func init() {
 // Rule checks that lists have blank lines before and after them.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM014" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM014" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "blank-line-around-lists" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -162,16 +166,12 @@ func isBlank(line []byte) bool {
 	return len(bytes.TrimSpace(line)) == 0
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
-	type insertion struct {
-		beforeLine int // 1-based line number to insert blank line before
-		afterLine  int // 1-based line number to insert blank line after
-	}
-
 	var insertBefore []int
 	var insertAfter []int
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

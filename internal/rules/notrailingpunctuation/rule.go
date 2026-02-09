@@ -17,13 +17,17 @@ func init() {
 // Rule checks that heading text does not end with trailing punctuation.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM017" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM017" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-trailing-punctuation-in-heading" }
 
 // flaggedPunctuation contains the punctuation characters that are not allowed
 // at the end of a heading.
 const flaggedPunctuation = ".,;:!"
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 

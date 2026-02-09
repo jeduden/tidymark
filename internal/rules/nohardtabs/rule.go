@@ -15,9 +15,13 @@ func init() {
 // Rule checks that no line contains hard tab characters.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM007" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM007" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-hard-tabs" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	for i, line := range f.Lines {
@@ -37,6 +41,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	var result []string
 	for _, line := range f.Lines {

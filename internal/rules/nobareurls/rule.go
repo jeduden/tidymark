@@ -19,13 +19,17 @@ var urlPattern = regexp.MustCompile(`https?://[^\s)>\]]+`)
 // definitions are not considered bare.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM012" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM012" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-bare-urls" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -87,6 +91,7 @@ func isInsideNonBareContext(n ast.Node) bool {
 	return false
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	type replacement struct {
 		start int
@@ -95,7 +100,7 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	}
 	var replacements []replacement
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

@@ -15,9 +15,13 @@ func init() {
 // Rule checks that no line ends with trailing spaces or tabs.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM006" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM006" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-trailing-spaces" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	for i, line := range f.Lines {
@@ -37,6 +41,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	var result []string
 	for _, line := range f.Lines {

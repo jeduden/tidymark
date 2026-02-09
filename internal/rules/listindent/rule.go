@@ -19,9 +19,13 @@ type Rule struct {
 	Spaces int
 }
 
-func (r *Rule) ID() string   { return "TM016" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM016" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "list-indent" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	spaces := r.Spaces
@@ -29,7 +33,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		spaces = 2
 	}
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -170,6 +174,7 @@ func itoa(n int) string {
 	return s
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	spaces := r.Spaces
 	if spaces <= 0 {
@@ -182,7 +187,7 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	}
 	var adjustments []lineAdjust
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

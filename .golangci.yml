@@ -1,23 +1,22 @@
+version: "2"
+
 linters:
   enable:
     - errcheck
     - govet
     - staticcheck
     - unused
-    - gosimple
     - ineffassign
-    - typecheck
-    - gofmt
-    - goimports
     - misspell
     - revive
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: blank-imports
 
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-      - name: var-naming
-      - name: blank-imports
-
-issues:
-  exclude-use-default: false
+formatters:
+  enable:
+    - gofmt
+    - goimports

@@ -14,9 +14,13 @@ func init() {
 // A paragraph whose only content is emphasis or strong emphasis is flagged.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM018" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM018" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-emphasis-as-heading" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 

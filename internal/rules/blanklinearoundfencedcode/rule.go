@@ -17,13 +17,17 @@ func init() {
 // Rule checks that fenced code blocks have blank lines before and after.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM015" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM015" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "blank-line-around-fenced-code" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -79,6 +83,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	// Collect fence line numbers (1-based) that need blank lines
 	type blankNeeded struct {
@@ -87,7 +92,7 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	}
 	var needs []blankNeeded
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

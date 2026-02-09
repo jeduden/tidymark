@@ -14,13 +14,17 @@ func init() {
 // Rule checks that fenced code blocks have a language tag.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM011" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM011" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "fenced-code-language" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

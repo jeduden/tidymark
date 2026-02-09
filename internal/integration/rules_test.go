@@ -203,4 +203,3 @@ func formatBytes(b []byte) string {
 	s = strings.ReplaceAll(s, " \n", "·\\n")
 	return s
 }
-

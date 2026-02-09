@@ -15,9 +15,13 @@ func init() {
 // Rule checks that heading levels only increment by one.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM003" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM003" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "heading-increment" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	prevLevel := 0

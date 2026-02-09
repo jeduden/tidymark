@@ -294,7 +294,7 @@ func TestFix_NonFixableViolationsReportedAfterFix(t *testing.T) {
 
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{
-			"mock-trailing":  {Enabled: true},
+			"mock-trailing":   {Enabled: true},
 			"mock-nonfixable": {Enabled: true},
 		},
 	}

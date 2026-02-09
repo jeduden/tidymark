@@ -8,6 +8,7 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
+// File holds a parsed Markdown document and its source.
 type File struct {
 	Path   string
 	Source []byte
@@ -15,6 +16,7 @@ type File struct {
 	AST    ast.Node
 }
 
+// NewFile parses source as Markdown and returns a File.
 func NewFile(path string, source []byte) (*File, error) {
 	reader := text.NewReader(source)
 	parser := goldmark.DefaultParser()

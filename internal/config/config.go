@@ -8,10 +8,10 @@ import (
 
 // Config is the top-level configuration.
 type Config struct {
-	Rules          map[string]RuleCfg `yaml:"rules"`
-	Ignore         []string           `yaml:"ignore"`
-	Overrides      []Override         `yaml:"overrides"`
-	FrontMatter    *bool              `yaml:"front-matter"`
+	Rules       map[string]RuleCfg `yaml:"rules"`
+	Ignore      []string           `yaml:"ignore"`
+	Overrides   []Override         `yaml:"overrides"`
+	FrontMatter *bool              `yaml:"front-matter"`
 }
 
 // Override applies rule settings to files matching glob patterns.

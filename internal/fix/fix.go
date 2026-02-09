@@ -20,8 +20,8 @@ type Fixer struct {
 	StripFrontMatter bool
 }
 
-// FixResult holds the outcome of a fix run.
-type FixResult struct {
+// Result holds the outcome of a fix run.
+type Result struct {
 	// Diagnostics contains remaining diagnostics after fixing (from non-fixable
 	// rules and any violations that could not be auto-fixed).
 	Diagnostics []lint.Diagnostic
@@ -31,10 +31,10 @@ type FixResult struct {
 	Errors []error
 }
 
-// Fix applies auto-fixes to the files at the given paths and returns a FixResult
+// Fix applies auto-fixes to the files at the given paths and returns a Result
 // containing remaining diagnostics, modified file paths, and any errors.
-func (f *Fixer) Fix(paths []string) *FixResult {
-	res := &FixResult{}
+func (f *Fixer) Fix(paths []string) *Result {
+	res := &Result{}
 
 	for _, path := range paths {
 		if f.isIgnored(path) {

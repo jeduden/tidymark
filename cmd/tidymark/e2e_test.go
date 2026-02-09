@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	os.RemoveAll(tmp)
+	_ = os.RemoveAll(tmp)
 	os.Exit(code)
 }
 

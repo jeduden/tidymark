@@ -19,9 +19,13 @@ type Rule struct {
 	Style string // "atx" or "setext"
 }
 
-func (r *Rule) ID() string   { return "TM002" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM002" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "heading-style" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	style := r.Style
@@ -73,6 +77,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	style := r.Style
 	if style == "" {

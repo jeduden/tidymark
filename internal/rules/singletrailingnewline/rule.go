@@ -14,9 +14,13 @@ func init() {
 // Rule checks that a file ends with exactly one trailing newline.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM009" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM009" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "single-trailing-newline" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	src := f.Source
 
@@ -65,6 +69,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return nil
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	src := f.Source
 

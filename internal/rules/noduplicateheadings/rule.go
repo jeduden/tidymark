@@ -16,9 +16,13 @@ func init() {
 // Rule checks that no two headings have the same text content.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM005" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM005" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-duplicate-headings" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	seen := make(map[string]int) // text -> first occurrence line

@@ -15,7 +15,10 @@ func init() {
 // Rule checks that there are no consecutive blank lines.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM008" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM008" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-multiple-blanks" }
 
 // isBlank returns true if the line contains only whitespace.
@@ -23,6 +26,7 @@ func isBlank(line []byte) bool {
 	return len(bytes.TrimSpace(line)) == 0
 }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	prevBlank := false
@@ -44,6 +48,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	var result []string
 	prevBlank := false

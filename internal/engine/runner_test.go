@@ -38,8 +38,8 @@ type silentRule struct {
 	name string
 }
 
-func (r *silentRule) ID() string                       { return r.id }
-func (r *silentRule) Name() string                     { return r.name }
+func (r *silentRule) ID() string                           { return r.id }
+func (r *silentRule) Name() string                         { return r.name }
 func (r *silentRule) Check(_ *lint.File) []lint.Diagnostic { return nil }
 
 func TestRunner_MockRuleReportsDiagnostics(t *testing.T) {

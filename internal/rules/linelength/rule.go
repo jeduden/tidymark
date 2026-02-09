@@ -22,12 +22,16 @@ type Rule struct {
 	Strict bool
 }
 
-func (r *Rule) ID() string   { return "TM001" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM001" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "line-length" }
 
 // urlOnlyRe matches a line whose trimmed content is a single URL.
 var urlOnlyRe = regexp.MustCompile(`^https?://\S+$`)
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	max := r.Max
 	if max <= 0 {
@@ -78,7 +82,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 func collectCodeBlockLines(f *lint.File) map[int]bool {
 	lines := map[int]bool{}
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

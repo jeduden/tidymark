@@ -15,9 +15,13 @@ func init() {
 // Rule checks that headings have blank lines before and after them.
 type Rule struct{}
 
-func (r *Rule) ID() string   { return "TM013" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM013" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "blank-line-around-headings" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
@@ -75,6 +79,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	type headingInfo struct {
 		line     int // 1-based

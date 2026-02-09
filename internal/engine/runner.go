@@ -16,8 +16,8 @@ import (
 // builds a File (parsing the AST once), determines the effective rule
 // configuration, runs enabled rules, and collects diagnostics.
 type Runner struct {
-	Config          *config.Config
-	Rules           []rule.Rule
+	Config           *config.Config
+	Rules            []rule.Rule
 	StripFrontMatter bool
 }
 

@@ -19,13 +19,17 @@ type Rule struct {
 	Style string // "backtick" or "tilde"
 }
 
-func (r *Rule) ID() string   { return "TM010" }
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "TM010" }
+
+// Name implements rule.Rule.
 func (r *Rule) Name() string { return "fenced-code-style" }
 
+// Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
@@ -64,6 +68,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
+// Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
 	type fenceRange struct {
 		openStart, openEnd   int
@@ -71,7 +76,7 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	}
 	var ranges []fenceRange
 
-	ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}

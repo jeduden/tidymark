@@ -6,9 +6,9 @@ import (
 
 func TestStripFrontMatter(t *testing.T) {
 	tests := []struct {
-		name       string
-		input      string
-		wantPrefix string
+		name        string
+		input       string
+		wantPrefix  string
 		wantContent string
 	}{
 		{
