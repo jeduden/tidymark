@@ -138,7 +138,11 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	for i, line := range lines {
 		lineNum := i + 1
 		if insertBefore[lineNum] {
-			result = append(result, "")
+			// Avoid inserting a blank line if one was just inserted
+			// after the previous line (prevents double blank lines).
+			if !insertAfter[lineNum-1] {
+				result = append(result, "")
+			}
 		}
 		result = append(result, line)
 		if insertAfter[lineNum] {

@@ -65,7 +65,8 @@ func (f *Fixer) Fix(paths []string) *Result {
 		effective := config.Effective(f.Config, path)
 
 		// Collect enabled fixable rules, sorted by ID.
-		fixable := f.fixableRules(effective)
+		fixable, settingsErrs := f.fixableRules(effective)
+		res.Errors = append(res.Errors, settingsErrs...)
 
 		// Apply fixable rules in repeated passes until stable.
 		// A later rule's fix may introduce violations caught by an
@@ -117,7 +118,22 @@ func (f *Fixer) Fix(paths []string) *Result {
 			if !ok || !cfg.Enabled {
 				continue
 			}
-			diags := rl.Check(lf)
+
+			checkRule := rl
+			if cfg.Settings != nil {
+				if _, ok := rl.(rule.Configurable); ok {
+					clone := rule.CloneRule(rl)
+					if c, ok := clone.(rule.Configurable); ok {
+						if err := c.ApplySettings(cfg.Settings); err != nil {
+							// Error already reported by fixableRules; skip silently.
+							continue
+						}
+					}
+					checkRule = clone
+				}
+			}
+
+			diags := checkRule.Check(lf)
 			res.Diagnostics = append(res.Diagnostics, diags...)
 		}
 	}
@@ -137,21 +153,39 @@ func (f *Fixer) Fix(paths []string) *Result {
 }
 
 // fixableRules returns enabled rules that implement FixableRule, sorted by ID.
-func (f *Fixer) fixableRules(effective map[string]config.RuleCfg) []rule.FixableRule {
+// If a rule implements Configurable and has settings, it is cloned and
+// configured before being returned.
+func (f *Fixer) fixableRules(effective map[string]config.RuleCfg) ([]rule.FixableRule, []error) {
 	var fixable []rule.FixableRule
+	var errs []error
 	for _, rl := range f.Rules {
 		cfg, ok := effective[rl.Name()]
 		if !ok || !cfg.Enabled {
 			continue
 		}
-		if fr, ok := rl.(rule.FixableRule); ok {
+
+		checkRule := rl
+		if cfg.Settings != nil {
+			if _, ok := rl.(rule.Configurable); ok {
+				clone := rule.CloneRule(rl)
+				if c, ok := clone.(rule.Configurable); ok {
+					if err := c.ApplySettings(cfg.Settings); err != nil {
+						errs = append(errs, fmt.Errorf("applying settings for %s: %w", rl.Name(), err))
+						continue
+					}
+				}
+				checkRule = clone
+			}
+		}
+
+		if fr, ok := checkRule.(rule.FixableRule); ok {
 			fixable = append(fixable, fr)
 		}
 	}
 	sort.Slice(fixable, func(i, j int) bool {
 		return fixable[i].ID() < fixable[j].ID()
 	})
-	return fixable
+	return fixable, errs
 }
 
 // isIgnored returns true if the file path matches any of the configured

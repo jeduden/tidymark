@@ -110,11 +110,11 @@ func TestRuleFixtures(t *testing.T) {
 					t.Fatalf("parsing good.md: %v", err)
 				}
 				f.FS = os.DirFS(dir)
-				diags := filterByRule(r.Check(f), ruleID)
+				diags := checkAllRules(f)
 				if len(diags) != 0 {
-					t.Errorf("good.md: expected 0 diagnostics, got %d", len(diags))
+					t.Errorf("good.md: expected 0 diagnostics from all rules, got %d", len(diags))
 					for _, d := range diags {
-						t.Logf("  line %d col %d: %s", d.Line, d.Column, d.Message)
+						t.Logf("  %s line %d col %d: %s", d.RuleID, d.Line, d.Column, d.Message)
 					}
 				}
 			})
@@ -176,6 +176,20 @@ func TestRuleFixtures(t *testing.T) {
 						t.Errorf("Fix output does not match fixed.md\ngot:\n%s\nwant:\n%s",
 							formatBytes(got), formatBytes(want))
 					}
+
+					// Verify fixed.md passes ALL rules.
+					fixedFile, err := lint.NewFile("fixed.md", want)
+					if err != nil {
+						t.Fatalf("parsing fixed.md: %v", err)
+					}
+					fixedFile.FS = os.DirFS(dir)
+					diags := checkAllRules(fixedFile)
+					if len(diags) != 0 {
+						t.Errorf("fixed.md: expected 0 diagnostics from all rules, got %d", len(diags))
+						for _, d := range diags {
+							t.Logf("  %s line %d col %d: %s", d.RuleID, d.Line, d.Column, d.Message)
+						}
+					}
 				})
 			}
 		})
@@ -189,6 +203,14 @@ func readFixture(t *testing.T, path string) []byte {
 		t.Fatalf("reading %s: %v", path, err)
 	}
 	return data
+}
+
+func checkAllRules(f *lint.File) []lint.Diagnostic {
+	var all []lint.Diagnostic
+	for _, r := range rule.All() {
+		all = append(all, r.Check(f)...)
+	}
+	return all
 }
 
 func filterByRule(diags []lint.Diagnostic, ruleID string) []lint.Diagnostic {

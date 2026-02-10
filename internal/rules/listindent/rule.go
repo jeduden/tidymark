@@ -2,6 +2,7 @@ package listindent
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"github.com/jeduden/tidymark/internal/lint"
@@ -245,3 +246,42 @@ func (r *Rule) Fix(f *lint.File) []byte {
 
 	return []byte(strings.Join(resultLines, "\n"))
 }
+
+// ApplySettings implements rule.Configurable.
+func (r *Rule) ApplySettings(settings map[string]any) error {
+	for k, v := range settings {
+		switch k {
+		case "spaces":
+			n, ok := toIntSetting(v)
+			if !ok {
+				return fmt.Errorf("list-indent: spaces must be an integer, got %T", v)
+			}
+			r.Spaces = n
+		default:
+			return fmt.Errorf("list-indent: unknown setting %q", k)
+		}
+	}
+	return nil
+}
+
+// DefaultSettings implements rule.Configurable.
+func (r *Rule) DefaultSettings() map[string]any {
+	return map[string]any{
+		"spaces": 2,
+	}
+}
+
+// toIntSetting converts a value to int.
+func toIntSetting(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case float64:
+		return int(n), true
+	case int64:
+		return int(n), true
+	}
+	return 0, false
+}
+
+var _ rule.Configurable = (*Rule)(nil)

@@ -97,6 +97,20 @@ func TestFix_InsertsBlankLines(t *testing.T) {
 	}
 }
 
+func TestFix_AdjacentHeadings_NoDoubleBlanks(t *testing.T) {
+	src := []byte("# Title\n## Section\n\nContent here.\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	result := r.Fix(f)
+	expected := "# Title\n\n## Section\n\nContent here.\n"
+	if string(result) != expected {
+		t.Errorf("expected %q, got %q", expected, string(result))
+	}
+}
+
 func TestID(t *testing.T) {
 	r := &Rule{}
 	if r.ID() != "TM013" {

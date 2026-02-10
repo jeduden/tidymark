@@ -3,7 +3,6 @@ id: TM008
 name: no-multiple-blanks
 description: No more than one consecutive blank line.
 ---
-
 # TM008: no-multiple-blanks
 
 No more than one consecutive blank line.

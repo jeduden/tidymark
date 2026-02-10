@@ -55,3 +55,17 @@ func (r *RuleCfg) UnmarshalYAML(value *yaml.Node) error {
 
 	return fmt.Errorf("rule config must be a bool or a mapping, got %v", value.Kind)
 }
+
+// MarshalYAML implements custom YAML marshalling for RuleCfg.
+// A disabled rule (Enabled=false, no Settings) serializes as `false`.
+// An enabled rule with settings serializes as the settings mapping.
+// An enabled rule with no settings serializes as `true`.
+func (r RuleCfg) MarshalYAML() (any, error) {
+	if !r.Enabled && r.Settings == nil {
+		return false, nil
+	}
+	if r.Enabled && len(r.Settings) > 0 {
+		return r.Settings, nil
+	}
+	return true, nil
+}

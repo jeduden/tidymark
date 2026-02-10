@@ -100,3 +100,47 @@ func TestName(t *testing.T) {
 		t.Errorf("expected first-line-heading, got %s", r.Name())
 	}
 }
+
+// --- Configurable tests ---
+
+func TestApplySettings_ValidLevel(t *testing.T) {
+	r := &Rule{Level: 1}
+	if err := r.ApplySettings(map[string]any{"level": 2}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.Level != 2 {
+		t.Errorf("expected Level=2, got %d", r.Level)
+	}
+}
+
+func TestApplySettings_InvalidLevelType(t *testing.T) {
+	r := &Rule{Level: 1}
+	err := r.ApplySettings(map[string]any{"level": "not-a-number"})
+	if err == nil {
+		t.Fatal("expected error for non-int level")
+	}
+}
+
+func TestApplySettings_LevelOutOfRange(t *testing.T) {
+	r := &Rule{Level: 1}
+	err := r.ApplySettings(map[string]any{"level": 7})
+	if err == nil {
+		t.Fatal("expected error for level > 6")
+	}
+}
+
+func TestApplySettings_UnknownKey(t *testing.T) {
+	r := &Rule{Level: 1}
+	err := r.ApplySettings(map[string]any{"unknown": true})
+	if err == nil {
+		t.Fatal("expected error for unknown key")
+	}
+}
+
+func TestDefaultSettings_FirstLineHeading(t *testing.T) {
+	r := &Rule{}
+	ds := r.DefaultSettings()
+	if ds["level"] != 1 {
+		t.Errorf("expected level=1, got %v", ds["level"])
+	}
+}

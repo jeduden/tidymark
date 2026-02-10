@@ -7,19 +7,21 @@ import (
 
 	"github.com/jeduden/tidymark/internal/lint"
 	"github.com/jeduden/tidymark/internal/rule"
-	"github.com/yuin/goldmark/ast"
 )
 
 func init() {
-	rule.Register(&Rule{Max: 80, Strict: false})
+	rule.Register(&Rule{
+		Max:     80,
+		Exclude: []string{"code-blocks", "tables", "urls"},
+	})
 }
 
 // Rule checks that no line exceeds the configured maximum length.
-// When Strict is false (the default), lines inside fenced or indented code
-// blocks and lines whose only non-whitespace content is a URL are excluded.
+// Lines matching categories in Exclude are skipped. Valid exclude
+// values: "code-blocks", "tables", "urls".
 type Rule struct {
-	Max    int
-	Strict bool
+	Max     int
+	Exclude []string
 }
 
 // ID implements rule.Rule.
@@ -31,6 +33,66 @@ func (r *Rule) Name() string { return "line-length" }
 // urlOnlyRe matches a line whose trimmed content is a single URL.
 var urlOnlyRe = regexp.MustCompile(`^https?://\S+$`)
 
+// tableLineRe matches a line whose trimmed content starts with a pipe.
+var tableLineRe = regexp.MustCompile(`^\s*\|`)
+
+// isExcluded returns true if the given category is in the Exclude list.
+func (r *Rule) isExcluded(category string) bool {
+	for _, e := range r.Exclude {
+		if e == category {
+			return true
+		}
+	}
+	return false
+}
+
+// ApplySettings implements rule.Configurable.
+func (r *Rule) ApplySettings(settings map[string]any) error {
+	for k, v := range settings {
+		switch k {
+		case "max":
+			n, ok := toInt(v)
+			if !ok {
+				return fmt.Errorf("line-length: max must be an integer, got %T", v)
+			}
+			r.Max = n
+		case "exclude":
+			list, ok := toStringSlice(v)
+			if !ok {
+				return fmt.Errorf("line-length: exclude must be a list of strings, got %T", v)
+			}
+			for _, item := range list {
+				if !isValidExclude(item) {
+					return fmt.Errorf("line-length: invalid exclude value %q (valid: code-blocks, tables, urls)", item)
+				}
+			}
+			r.Exclude = list
+		case "strict":
+			b, ok := v.(bool)
+			if !ok {
+				return fmt.Errorf("line-length: strict must be a bool, got %T", v)
+			}
+			// Deprecation shim: translate strict to exclude.
+			if b {
+				r.Exclude = []string{}
+			} else {
+				r.Exclude = []string{"code-blocks", "tables", "urls"}
+			}
+		default:
+			return fmt.Errorf("line-length: unknown setting %q", k)
+		}
+	}
+	return nil
+}
+
+// DefaultSettings implements rule.Configurable.
+func (r *Rule) DefaultSettings() map[string]any {
+	return map[string]any{
+		"max":     80,
+		"exclude": []string{"code-blocks", "tables", "urls"},
+	}
+}
+
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	max := r.Max
@@ -40,8 +102,14 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 	// Build the set of 1-based line numbers inside code blocks.
 	codeLines := map[int]bool{}
-	if !r.Strict {
-		codeLines = collectCodeBlockLines(f)
+	if r.isExcluded("code-blocks") {
+		codeLines = lint.CollectCodeBlockLines(f)
+	}
+
+	// Build the set of 1-based line numbers that are table rows.
+	tableLines := map[int]bool{}
+	if r.isExcluded("tables") {
+		tableLines = collectTableLines(f)
 	}
 
 	var diags []lint.Diagnostic
@@ -52,13 +120,18 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 			continue
 		}
 
-		// When not strict, skip code-block lines.
-		if !r.Strict && codeLines[lineNum] {
+		// Skip code-block lines when excluded.
+		if r.isExcluded("code-blocks") && codeLines[lineNum] {
 			continue
 		}
 
-		// When not strict, skip URL-only lines.
-		if !r.Strict && urlOnlyRe.MatchString(strings.TrimSpace(string(line))) {
+		// Skip table lines when excluded.
+		if r.isExcluded("tables") && tableLines[lineNum] {
+			continue
+		}
+
+		// Skip URL-only lines when excluded.
+		if r.isExcluded("urls") && urlOnlyRe.MatchString(strings.TrimSpace(string(line))) {
 			continue
 		}
 
@@ -76,94 +149,53 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
-// collectCodeBlockLines walks the AST and returns a set of 1-based line
-// numbers that belong to fenced code blocks (including fence lines) or
-// indented code blocks.
-func collectCodeBlockLines(f *lint.File) map[int]bool {
+// collectTableLines returns a set of 1-based line numbers that are table rows.
+func collectTableLines(f *lint.File) map[int]bool {
 	lines := map[int]bool{}
-
-	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
+	for i, line := range f.Lines {
+		if tableLineRe.Match(line) {
+			lines[i+1] = true
 		}
-
-		switch cb := n.(type) {
-		case *ast.FencedCodeBlock:
-			addFencedCodeBlockLines(f, cb, lines)
-		case *ast.CodeBlock:
-			addBlockLines(f, cb, lines)
-		}
-
-		return ast.WalkContinue, nil
-	})
-
+	}
 	return lines
 }
 
-// addFencedCodeBlockLines marks the opening fence line, all content lines,
-// and the closing fence line.
-func addFencedCodeBlockLines(f *lint.File, fcb *ast.FencedCodeBlock, set map[int]bool) {
-	// Determine the opening fence line by looking at the node's info or
-	// the first content line. The opening fence is always the line before
-	// the first content line (or, when there are no content lines, we find
-	// it via the Info segment).
-	openLine := findFencedOpenLine(f, fcb)
-	if openLine > 0 {
-		set[openLine] = true
+// toInt converts a value to int. Supports int and float64 (YAML decodes
+// numbers as int or float64 depending on context).
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case float64:
+		return int(n), true
+	case int64:
+		return int(n), true
 	}
+	return 0, false
+}
 
-	// Content lines from the code block's segments.
-	segs := fcb.Lines()
-	lastContentLine := 0
-	for i := 0; i < segs.Len(); i++ {
-		seg := segs.At(i)
-		ln := f.LineOfOffset(seg.Start)
-		set[ln] = true
-		if ln > lastContentLine {
-			lastContentLine = ln
+// toStringSlice converts a value to []string. YAML decodes sequences as
+// []any with string elements.
+func toStringSlice(v any) ([]string, bool) {
+	switch s := v.(type) {
+	case []string:
+		return s, true
+	case []any:
+		result := make([]string, 0, len(s))
+		for _, item := range s {
+			str, ok := item.(string)
+			if !ok {
+				return nil, false
+			}
+			result = append(result, str)
 		}
+		return result, true
 	}
-
-	// Closing fence line is the line after the last content line.
-	// If there are no content lines, the closing fence is the line after
-	// the opening fence.
-	closeLine := 0
-	if lastContentLine > 0 {
-		closeLine = lastContentLine + 1
-	} else if openLine > 0 {
-		closeLine = openLine + 1
-	}
-	if closeLine > 0 && closeLine <= len(f.Lines) {
-		set[closeLine] = true
-	}
+	return nil, false
 }
 
-// findFencedOpenLine returns the 1-based line number of the opening fence.
-func findFencedOpenLine(f *lint.File, fcb *ast.FencedCodeBlock) int {
-	// If the code block has an info string, walk backwards from it to find
-	// the start of the line.
-	if fcb.Info != nil {
-		return f.LineOfOffset(fcb.Info.Segment.Start)
-	}
-	// If there are content lines, the opening fence is on the previous line.
-	if fcb.Lines().Len() > 0 {
-		firstContentLine := f.LineOfOffset(fcb.Lines().At(0).Start)
-		if firstContentLine > 1 {
-			return firstContentLine - 1
-		}
-		return 1
-	}
-	// Empty fenced code block with no info: scan from the node's text position.
-	// Fall back to using previous sibling or document start.
-	return 0
+func isValidExclude(s string) bool {
+	return s == "code-blocks" || s == "tables" || s == "urls"
 }
 
-// addBlockLines marks all content lines of an indented code block.
-func addBlockLines(f *lint.File, cb *ast.CodeBlock, set map[int]bool) {
-	segs := cb.Lines()
-	for i := 0; i < segs.Len(); i++ {
-		seg := segs.At(i)
-		ln := f.LineOfOffset(seg.Start)
-		set[ln] = true
-	}
-}
+var _ rule.Configurable = (*Rule)(nil)

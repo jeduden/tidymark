@@ -14,12 +14,22 @@ type fileEntry struct {
 
 // renderTemplate renders header + row-per-file + footer. Each section is
 // terminated by \n; if the value already ends with \n, no extra is added.
-func renderTemplate(params map[string]string, entries []fileEntry) (string, error) {
+// If columns config is provided, column constraints (truncation/wrapping)
+// are applied to table rows after template expansion.
+func renderTemplate(params map[string]string, entries []fileEntry, columns ...map[string]columnConfig) (string, error) {
 	var buf strings.Builder
 
 	header := params["header"]
 	row := params["row"]
 	footer := params["footer"]
+
+	// Build column map from the row template if we have column constraints.
+	var cols map[string]columnConfig
+	var colMap map[int]string
+	if len(columns) > 0 && columns[0] != nil && len(columns[0]) > 0 {
+		cols = columns[0]
+		colMap = buildColumnMap(row)
+	}
 
 	if header != "" {
 		buf.WriteString(ensureTrailingNewline(header))
@@ -35,7 +45,14 @@ func renderTemplate(params map[string]string, entries []fileEntry) (string, erro
 		if err := tmpl.Execute(&rowBuf, entry.fields); err != nil {
 			return "", err
 		}
-		buf.WriteString(ensureTrailingNewline(rowBuf.String()))
+		rendered := rowBuf.String()
+
+		// Apply column constraints to table rows.
+		if cols != nil && colMap != nil {
+			rendered = applyColumnConstraints(rendered, cols, colMap)
+		}
+
+		buf.WriteString(ensureTrailingNewline(rendered))
 	}
 
 	if footer != "" {

@@ -64,6 +64,33 @@ func runBinary(t *testing.T, stdin string, args ...string) (stdout, stderr strin
 	return outBuf.String(), errBuf.String(), exitCode
 }
 
+// runBinaryInDir runs the tidymark binary with the given args in the given directory.
+func runBinaryInDir(t *testing.T, dir, stdin string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+
+	cmd := exec.Command(binaryPath, args...)
+	cmd.Dir = dir
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
+
+	err := cmd.Run()
+	exitCode = 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			t.Fatalf("unexpected error running binary: %v", err)
+		}
+	}
+
+	return outBuf.String(), errBuf.String(), exitCode
+}
+
 // writeFixture creates a file with the given content in the given directory.
 func writeFixture(t *testing.T, dir, name, content string) string {
 	t.Helper()
@@ -74,29 +101,89 @@ func writeFixture(t *testing.T, dir, name, content string) string {
 	return path
 }
 
-func TestE2E_NoArgs_ExitsZero(t *testing.T) {
-	_, _, exitCode := runBinary(t, "")
+// --- Top-level behavior tests ---
+
+func TestE2E_NoArgs_PrintsUsage_ExitsZero(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "")
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0, got %d", exitCode)
 	}
+	if !strings.Contains(stderr, "Usage:") {
+		t.Errorf("expected usage text in stderr, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "check") {
+		t.Errorf("expected 'check' subcommand in usage, got: %s", stderr)
+	}
 }
 
-func TestE2E_CleanFile_ExitsZero(t *testing.T) {
+func TestE2E_Help_PrintsUsage_ExitsZero(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "", "--help")
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "Usage:") {
+		t.Errorf("expected usage text in stderr, got: %s", stderr)
+	}
+}
+
+func TestE2E_HelpShorthand_PrintsUsage_ExitsZero(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "", "-h")
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "Usage:") {
+		t.Errorf("expected usage text in stderr, got: %s", stderr)
+	}
+}
+
+func TestE2E_Version(t *testing.T) {
+	stdout, _, exitCode := runBinary(t, "", "--version")
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.HasPrefix(stdout, "tidymark ") {
+		t.Errorf("expected version output to start with 'tidymark ', got: %s", stdout)
+	}
+}
+
+func TestE2E_VersionShorthand(t *testing.T) {
+	stdout, _, exitCode := runBinary(t, "", "-v")
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+	if !strings.HasPrefix(stdout, "tidymark ") {
+		t.Errorf("expected version output to start with 'tidymark ', got: %s", stdout)
+	}
+}
+
+func TestE2E_UnknownCommand_ExitsTwo(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "", "bogus")
+	if exitCode != 2 {
+		t.Errorf("expected exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "unknown command") {
+		t.Errorf("expected 'unknown command' in stderr, got: %s", stderr)
+	}
+}
+
+// --- Check subcommand tests ---
+
+func TestE2E_Check_CleanFile_ExitsZero(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
 
-	_, _, exitCode := runBinary(t, "", "--no-color", path)
+	_, _, exitCode := runBinary(t, "", "check", "--no-color", path)
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0 for clean file, got %d", exitCode)
 	}
 }
 
-func TestE2E_Violations_ExitsOne(t *testing.T) {
+func TestE2E_Check_Violations_ExitsOne(t *testing.T) {
 	dir := t.TempDir()
 	// Trailing spaces on lines should trigger TM006.
 	path := writeFixture(t, dir, "dirty.md", "# Title\n\nHello   \n")
 
-	_, stderr, exitCode := runBinary(t, "", "--no-color", path)
+	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", path)
 	if exitCode != 1 {
 		t.Errorf("expected exit code 1, got %d", exitCode)
 	}
@@ -108,11 +195,11 @@ func TestE2E_Violations_ExitsOne(t *testing.T) {
 	}
 }
 
-func TestE2E_JSONFormat(t *testing.T) {
+func TestE2E_Check_JSONFormat(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFixture(t, dir, "dirty.md", "# Title\n\nHello   \n")
 
-	_, stderr, exitCode := runBinary(t, "", "--no-color", "--format", "json", path)
+	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", "--format", "json", path)
 	if exitCode != 1 {
 		t.Errorf("expected exit code 1, got %d", exitCode)
 	}
@@ -143,84 +230,15 @@ func TestE2E_JSONFormat(t *testing.T) {
 	}
 }
 
-func TestE2E_FixMode(t *testing.T) {
-	dir := t.TempDir()
-	path := writeFixture(t, dir, "fixme.md", "# Title\n\nHello   \n")
-
-	// Run with --fix.
-	_, _, exitCode := runBinary(t, "", "--no-color", "--fix", path)
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0 after fix, got %d", exitCode)
-	}
-
-	// Read the file back and check that trailing spaces are removed.
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading fixed file: %v", err)
-	}
-	if strings.Contains(string(content), "Hello   ") {
-		t.Error("file still contains trailing spaces after --fix")
-	}
-	if !strings.Contains(string(content), "Hello") {
-		t.Error("file does not contain expected content after --fix")
-	}
-
-	// Re-run without --fix; should exit 0 now.
-	_, _, exitCode = runBinary(t, "", "--no-color", path)
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0 on re-lint after fix, got %d", exitCode)
-	}
-}
-
-func TestE2E_CustomConfig(t *testing.T) {
-	dir := t.TempDir()
-
-	// Create a file that violates no-trailing-spaces (TM006).
-	path := writeFixture(t, dir, "test.md", "# Title\n\nHello   \n")
-
-	// Create a config that disables no-trailing-spaces.
-	configContent := "rules:\n  no-trailing-spaces: false\n"
-	configPath := writeFixture(t, dir, ".tidymark.yml", configContent)
-
-	// Run with the custom config; the violation should be suppressed.
-	_, stderr, exitCode := runBinary(t, "", "--no-color", "--config", configPath, path)
-	if strings.Contains(stderr, "TM006") {
-		t.Errorf("expected TM006 to be suppressed by config, but found in stderr: %s", stderr)
-	}
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0 with rule disabled, got %d", exitCode)
-	}
-}
-
-func TestE2E_Version(t *testing.T) {
-	stdout, _, exitCode := runBinary(t, "", "--version")
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0, got %d", exitCode)
-	}
-	if !strings.HasPrefix(stdout, "tidymark ") {
-		t.Errorf("expected version output to start with 'tidymark ', got: %s", stdout)
-	}
-}
-
-func TestE2E_VersionShorthand(t *testing.T) {
-	stdout, _, exitCode := runBinary(t, "", "-v")
-	if exitCode != 0 {
-		t.Errorf("expected exit code 0, got %d", exitCode)
-	}
-	if !strings.HasPrefix(stdout, "tidymark ") {
-		t.Errorf("expected version output to start with 'tidymark ', got: %s", stdout)
-	}
-}
-
-func TestE2E_Stdin_Clean(t *testing.T) {
-	_, _, exitCode := runBinary(t, "# Hello\n\nWorld.\n")
+func TestE2E_Check_Stdin_Clean(t *testing.T) {
+	_, _, exitCode := runBinary(t, "# Hello\n\nWorld.\n", "check")
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0 for clean stdin, got %d", exitCode)
 	}
 }
 
-func TestE2E_Stdin_Violations(t *testing.T) {
-	_, stderr, exitCode := runBinary(t, "# Hello\n\nWorld   \n", "--no-color")
+func TestE2E_Check_Stdin_Violations(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "# Hello\n\nWorld   \n", "check", "--no-color")
 	if exitCode != 1 {
 		t.Errorf("expected exit code 1 for stdin with violations, got %d", exitCode)
 	}
@@ -232,8 +250,8 @@ func TestE2E_Stdin_Violations(t *testing.T) {
 	}
 }
 
-func TestE2E_Stdin_JSONFormat(t *testing.T) {
-	_, stderr, exitCode := runBinary(t, "# Hello\n\nWorld   \n", "--no-color", "--format", "json")
+func TestE2E_Check_Stdin_JSONFormat(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "# Hello\n\nWorld   \n", "check", "--no-color", "--format", "json")
 	if exitCode != 1 {
 		t.Errorf("expected exit code 1, got %d", exitCode)
 	}
@@ -253,12 +271,176 @@ func TestE2E_Stdin_JSONFormat(t *testing.T) {
 	}
 }
 
-func TestE2E_Stdin_Fix_ExitsTwo(t *testing.T) {
-	_, stderr, exitCode := runBinary(t, "# Hello\n\nWorld   \n", "--fix")
+func TestE2E_Check_CustomConfig(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a file that violates no-trailing-spaces (TM006).
+	path := writeFixture(t, dir, "test.md", "# Title\n\nHello   \n")
+
+	// Create a config that disables no-trailing-spaces.
+	configContent := "rules:\n  no-trailing-spaces: false\n"
+	configPath := writeFixture(t, dir, ".tidymark.yml", configContent)
+
+	// Run with the custom config; the violation should be suppressed.
+	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", "--config", configPath, path)
+	if strings.Contains(stderr, "TM006") {
+		t.Errorf("expected TM006 to be suppressed by config, but found in stderr: %s", stderr)
+	}
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0 with rule disabled, got %d", exitCode)
+	}
+}
+
+func TestE2E_Check_Gitignore_SkipsIgnoredDirectory(t *testing.T) {
+	dir := t.TempDir()
+	ignoredDir := filepath.Join(dir, "ignored")
+	if err := os.MkdirAll(ignoredDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Place a clean file at root and a file with violations in ignored/.
+	writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
+	writeFixture(t, ignoredDir, "dirty.md", "# Title\n\nHello   \n")
+
+	// Create .gitignore that excludes the ignored directory.
+	writeFixture(t, dir, ".gitignore", "ignored/\n")
+
+	// Run tidymark on the directory -- the ignored file should be skipped.
+	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", dir)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0 (ignored file skipped), got %d; stderr: %s", exitCode, stderr)
+	}
+}
+
+func TestE2E_Check_NoGitignore_IncludesIgnoredDirectory(t *testing.T) {
+	dir := t.TempDir()
+	ignoredDir := filepath.Join(dir, "ignored")
+	if err := os.MkdirAll(ignoredDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Place a clean file at root and a file with violations in ignored/.
+	writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
+	writeFixture(t, ignoredDir, "dirty.md", "# Title\n\nHello   \n")
+
+	// Create .gitignore that excludes the ignored directory.
+	writeFixture(t, dir, ".gitignore", "ignored/\n")
+
+	// Run with --no-gitignore -- the violated file should be found.
+	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", "--no-gitignore", dir)
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1 (violations found with --no-gitignore), got %d; stderr: %s", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "TM006") {
+		t.Errorf("expected TM006 in stderr, got: %s", stderr)
+	}
+}
+
+// --- Fix subcommand tests ---
+
+func TestE2E_Fix_FixableFile(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "fixme.md", "# Title\n\nHello   \n")
+
+	// Run fix subcommand.
+	_, _, exitCode := runBinary(t, "", "fix", "--no-color", path)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0 after fix, got %d", exitCode)
+	}
+
+	// Read the file back and check that trailing spaces are removed.
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading fixed file: %v", err)
+	}
+	if strings.Contains(string(content), "Hello   ") {
+		t.Error("file still contains trailing spaces after fix")
+	}
+	if !strings.Contains(string(content), "Hello") {
+		t.Error("file does not contain expected content after fix")
+	}
+
+	// Re-run check; should exit 0 now.
+	_, _, exitCode = runBinary(t, "", "check", "--no-color", path)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0 on re-lint after fix, got %d", exitCode)
+	}
+}
+
+func TestE2E_Fix_Stdin_Rejected(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "# Hello\n\nWorld   \n", "fix")
 	if exitCode != 2 {
-		t.Errorf("expected exit code 2 for --fix with stdin, got %d", exitCode)
+		t.Errorf("expected exit code 2 for fix with stdin, got %d", exitCode)
 	}
 	if !strings.Contains(stderr, "cannot fix stdin in place") {
 		t.Errorf("expected error message about stdin fix, got: %s", stderr)
+	}
+}
+
+// --- Init subcommand tests ---
+
+func TestE2E_Init_CreatesConfig(t *testing.T) {
+	dir := t.TempDir()
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "init")
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d; stderr: %s", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "created .tidymark.yml") {
+		t.Errorf("expected confirmation message, got: %s", stderr)
+	}
+
+	// Check that the file was created.
+	configPath := filepath.Join(dir, ".tidymark.yml")
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("reading config file: %v", err)
+	}
+
+	// Verify it contains some expected content.
+	s := string(content)
+	if !strings.Contains(s, "rules:") {
+		t.Errorf("config file should contain 'rules:', got: %s", s)
+	}
+	if !strings.Contains(s, "front-matter:") {
+		t.Errorf("config file should contain 'front-matter:', got: %s", s)
+	}
+	if !strings.Contains(s, "line-length") {
+		t.Errorf("config file should contain 'line-length', got: %s", s)
+	}
+}
+
+func TestE2E_Init_RefusesIfExists(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create an existing config file.
+	writeFixture(t, dir, ".tidymark.yml", "rules: {}\n")
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "init")
+	if exitCode != 2 {
+		t.Errorf("expected exit code 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "already exists") {
+		t.Errorf("expected 'already exists' error, got: %s", stderr)
+	}
+}
+
+// --- Backwards compatibility tests ---
+
+func TestE2E_BackwardsCompat_FilePath_ImplicitCheck(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "test.md", "# Title\n\nHello   \n")
+
+	// Passing a file path without "check" subcommand should still work
+	// with a deprecation warning.
+	_, stderr, exitCode := runBinary(t, "", "--no-color", path)
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1 (violations found), got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "deprecated") {
+		t.Errorf("expected deprecation warning in stderr, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "TM006") {
+		t.Errorf("expected TM006 in stderr, got: %s", stderr)
 	}
 }

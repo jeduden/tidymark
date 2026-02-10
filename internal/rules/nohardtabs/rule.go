@@ -23,13 +23,18 @@ func (r *Rule) Name() string { return "no-hard-tabs" }
 
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
+	codeLines := lint.CollectCodeBlockLines(f)
 	var diags []lint.Diagnostic
 	for i, line := range f.Lines {
+		lineNum := i + 1
+		if codeLines[lineNum] {
+			continue
+		}
 		idx := bytes.IndexByte(line, '\t')
 		if idx >= 0 {
 			diags = append(diags, lint.Diagnostic{
 				File:     f.Path,
-				Line:     i + 1,
+				Line:     lineNum,
 				Column:   idx + 1,
 				RuleID:   r.ID(),
 				RuleName: r.Name(),
@@ -43,8 +48,14 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 // Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
+	codeLines := lint.CollectCodeBlockLines(f)
 	var result []string
-	for _, line := range f.Lines {
+	for i, line := range f.Lines {
+		lineNum := i + 1
+		if codeLines[lineNum] {
+			result = append(result, string(line))
+			continue
+		}
 		replaced := strings.ReplaceAll(string(line), "\t", "    ")
 		result = append(result, replaced)
 	}

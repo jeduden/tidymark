@@ -4,6 +4,30 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/jeduden/tidymark/internal/rule"
+	"gopkg.in/yaml.v3"
+
+	// Import all rule packages so their init() functions register rules.
+	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundfencedcode"
+	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundheadings"
+	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundlists"
+	_ "github.com/jeduden/tidymark/internal/rules/fencedcodelanguage"
+	_ "github.com/jeduden/tidymark/internal/rules/fencedcodestyle"
+	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
+	_ "github.com/jeduden/tidymark/internal/rules/generatedsection"
+	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
+	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
+	_ "github.com/jeduden/tidymark/internal/rules/linelength"
+	_ "github.com/jeduden/tidymark/internal/rules/listindent"
+	_ "github.com/jeduden/tidymark/internal/rules/nobareurls"
+	_ "github.com/jeduden/tidymark/internal/rules/noduplicateheadings"
+	_ "github.com/jeduden/tidymark/internal/rules/noemphasisasheading"
+	_ "github.com/jeduden/tidymark/internal/rules/nohardtabs"
+	_ "github.com/jeduden/tidymark/internal/rules/nomultipleblanks"
+	_ "github.com/jeduden/tidymark/internal/rules/notrailingpunctuation"
+	_ "github.com/jeduden/tidymark/internal/rules/notrailingspaces"
+	_ "github.com/jeduden/tidymark/internal/rules/singletrailingnewline"
 )
 
 // --- YAML parsing tests ---
@@ -618,5 +642,205 @@ func TestEffectiveGlobPatternMatch(t *testing.T) {
 	eff2 := Effective(cfg, "src/main.md")
 	if !eff2["line-length"].Enabled {
 		t.Error("line-length should remain enabled for src/main.md")
+	}
+}
+
+// --- MarshalYAML tests ---
+
+func TestMarshalYAML_DisabledRule(t *testing.T) {
+	rc := RuleCfg{Enabled: false}
+	data, err := yaml.Marshal(rc)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+	if string(data) != "false\n" {
+		t.Errorf("expected 'false\\n', got %q", string(data))
+	}
+}
+
+func TestMarshalYAML_EnabledNoSettings(t *testing.T) {
+	rc := RuleCfg{Enabled: true}
+	data, err := yaml.Marshal(rc)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+	if string(data) != "true\n" {
+		t.Errorf("expected 'true\\n', got %q", string(data))
+	}
+}
+
+func TestMarshalYAML_EnabledWithSettings(t *testing.T) {
+	rc := RuleCfg{Enabled: true, Settings: map[string]any{"max": 80}}
+	data, err := yaml.Marshal(rc)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+	// Should serialize as the map, not as "true".
+	var m map[string]any
+	if err := yaml.Unmarshal(data, &m); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+	if m["max"] != 80 {
+		t.Errorf("expected max=80, got %v", m["max"])
+	}
+}
+
+func TestMarshalYAML_RoundTrip(t *testing.T) {
+	original := &Config{
+		Rules: map[string]RuleCfg{
+			"line-length":   {Enabled: true, Settings: map[string]any{"max": 120}},
+			"heading-style": {Enabled: false},
+			"no-hard-tabs":  {Enabled: true},
+		},
+	}
+
+	data, err := yaml.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+
+	var parsed Config
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+
+	// line-length should be enabled with max=120.
+	rc := parsed.Rules["line-length"]
+	if !rc.Enabled {
+		t.Error("line-length should be enabled after round-trip")
+	}
+	if rc.Settings["max"] != 120 {
+		t.Errorf("expected max=120, got %v", rc.Settings["max"])
+	}
+
+	// heading-style should be disabled.
+	if parsed.Rules["heading-style"].Enabled {
+		t.Error("heading-style should be disabled after round-trip")
+	}
+
+	// no-hard-tabs should be enabled with no settings.
+	rc2 := parsed.Rules["no-hard-tabs"]
+	if !rc2.Enabled {
+		t.Error("no-hard-tabs should be enabled after round-trip")
+	}
+	if rc2.Settings != nil {
+		t.Errorf("no-hard-tabs should have nil settings, got %v", rc2.Settings)
+	}
+}
+
+// --- DumpDefaults tests ---
+
+func TestDumpDefaults_AllRulesPresent(t *testing.T) {
+	cfg := DumpDefaults()
+
+	all := rule.All()
+	if len(cfg.Rules) != len(all) {
+		t.Fatalf("expected %d rules, got %d", len(all), len(cfg.Rules))
+	}
+
+	for _, r := range all {
+		rc, ok := cfg.Rules[r.Name()]
+		if !ok {
+			t.Errorf("rule %q not found in DumpDefaults", r.Name())
+			continue
+		}
+		if !rc.Enabled {
+			t.Errorf("rule %q should be enabled", r.Name())
+		}
+	}
+}
+
+func TestDumpDefaults_ConfigurableRulesHaveSettings(t *testing.T) {
+	cfg := DumpDefaults()
+
+	// These rules should have settings.
+	configurableRules := []string{
+		"line-length",
+		"heading-style",
+		"first-line-heading",
+		"no-multiple-blanks",
+		"fenced-code-style",
+		"list-indent",
+	}
+
+	for _, name := range configurableRules {
+		rc, ok := cfg.Rules[name]
+		if !ok {
+			t.Errorf("rule %q not found", name)
+			continue
+		}
+		if rc.Settings == nil {
+			t.Errorf("rule %q should have non-nil settings", name)
+		}
+	}
+}
+
+func TestDumpDefaults_NonConfigurableRulesHaveNoSettings(t *testing.T) {
+	cfg := DumpDefaults()
+
+	// These rules should NOT have settings.
+	nonConfigurableRules := []string{
+		"heading-increment",
+		"no-duplicate-headings",
+		"no-trailing-spaces",
+		"no-hard-tabs",
+		"single-trailing-newline",
+		"fenced-code-language",
+		"no-bare-urls",
+		"blank-line-around-headings",
+		"blank-line-around-lists",
+		"blank-line-around-fenced-code",
+		"no-trailing-punctuation-in-heading",
+		"no-emphasis-as-heading",
+		"generated-section",
+	}
+
+	for _, name := range nonConfigurableRules {
+		rc, ok := cfg.Rules[name]
+		if !ok {
+			t.Errorf("rule %q not found", name)
+			continue
+		}
+		if rc.Settings != nil {
+			t.Errorf("rule %q should have nil settings, got %v", name, rc.Settings)
+		}
+	}
+}
+
+func TestDumpDefaults_LineLengthSettings(t *testing.T) {
+	cfg := DumpDefaults()
+	rc := cfg.Rules["line-length"]
+	if rc.Settings["max"] != 80 {
+		t.Errorf("expected line-length max=80, got %v", rc.Settings["max"])
+	}
+	exclude, ok := rc.Settings["exclude"].([]string)
+	if !ok {
+		t.Fatalf("expected exclude to be []string, got %T", rc.Settings["exclude"])
+	}
+	if len(exclude) != 3 {
+		t.Errorf("expected 3 exclude items, got %d", len(exclude))
+	}
+}
+
+func TestDumpDefaults_MarshalRoundTrip(t *testing.T) {
+	cfg := DumpDefaults()
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal error: %v", err)
+	}
+
+	var parsed Config
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("unmarshal error: %v", err)
+	}
+
+	// Check that line-length round-trips with settings.
+	rc := parsed.Rules["line-length"]
+	if !rc.Enabled {
+		t.Error("line-length should be enabled after round-trip")
+	}
+	if rc.Settings["max"] != 80 {
+		t.Errorf("expected max=80 after round-trip, got %v", rc.Settings["max"])
 	}
 }

@@ -2,6 +2,7 @@ package headingstyle
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"github.com/jeduden/tidymark/internal/lint"
@@ -289,4 +290,32 @@ func extractText(n ast.Node, source []byte, buf *bytes.Buffer) {
 	}
 }
 
+// ApplySettings implements rule.Configurable.
+func (r *Rule) ApplySettings(settings map[string]any) error {
+	for k, v := range settings {
+		switch k {
+		case "style":
+			s, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("heading-style: style must be a string, got %T", v)
+			}
+			if s != "atx" && s != "setext" {
+				return fmt.Errorf("heading-style: invalid style %q (valid: atx, setext)", s)
+			}
+			r.Style = s
+		default:
+			return fmt.Errorf("heading-style: unknown setting %q", k)
+		}
+	}
+	return nil
+}
+
+// DefaultSettings implements rule.Configurable.
+func (r *Rule) DefaultSettings() map[string]any {
+	return map[string]any{
+		"style": "atx",
+	}
+}
+
 var _ rule.FixableRule = (*Rule)(nil)
+var _ rule.Configurable = (*Rule)(nil)

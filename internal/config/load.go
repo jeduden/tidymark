@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jeduden/tidymark/internal/rule"
 	"gopkg.in/yaml.v3"
 )
 
@@ -86,6 +87,25 @@ func Defaults() *Config {
 	rules := make(map[string]RuleCfg, len(allRuleNames))
 	for _, name := range allRuleNames {
 		rules[name] = RuleCfg{Enabled: true}
+	}
+	return &Config{
+		Rules: rules,
+	}
+}
+
+// DumpDefaults returns a Config with all registered rules enabled and
+// their default settings populated. Rules that implement Configurable
+// have their DefaultSettings() included in RuleCfg.Settings.
+// This is consumed by `tidymark init` to generate a default config file.
+func DumpDefaults() *Config {
+	all := rule.All()
+	rules := make(map[string]RuleCfg, len(all))
+	for _, r := range all {
+		rc := RuleCfg{Enabled: true}
+		if c, ok := r.(rule.Configurable); ok {
+			rc.Settings = c.DefaultSettings()
+		}
+		rules[r.Name()] = rc
 	}
 	return &Config{
 		Rules: rules,

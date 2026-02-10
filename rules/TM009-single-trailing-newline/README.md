@@ -3,7 +3,6 @@ id: TM009
 name: single-trailing-newline
 description: File must end with exactly one newline character.
 ---
-
 # TM009: single-trailing-newline
 
 File must end with exactly one newline character.

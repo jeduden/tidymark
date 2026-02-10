@@ -126,3 +126,67 @@ func TestFix_NoChange(t *testing.T) {
 		t.Errorf("expected no change, got %q", string(result))
 	}
 }
+
+// --- Configurable tests ---
+
+func TestApplySettings_ValidSpaces(t *testing.T) {
+	r := &Rule{Spaces: 2}
+	if err := r.ApplySettings(map[string]any{"spaces": 4}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.Spaces != 4 {
+		t.Errorf("expected Spaces=4, got %d", r.Spaces)
+	}
+}
+
+func TestApplySettings_InvalidSpacesType(t *testing.T) {
+	r := &Rule{Spaces: 2}
+	err := r.ApplySettings(map[string]any{"spaces": "not-a-number"})
+	if err == nil {
+		t.Fatal("expected error for non-int spaces")
+	}
+}
+
+func TestApplySettings_UnknownKey(t *testing.T) {
+	r := &Rule{Spaces: 2}
+	err := r.ApplySettings(map[string]any{"unknown": true})
+	if err == nil {
+		t.Fatal("expected error for unknown key")
+	}
+}
+
+func TestDefaultSettings_ListIndent(t *testing.T) {
+	r := &Rule{}
+	ds := r.DefaultSettings()
+	if ds["spaces"] != 2 {
+		t.Errorf("expected spaces=2, got %v", ds["spaces"])
+	}
+}
+
+func TestCheck_Spaces4_AllowsFourSpaceIndent(t *testing.T) {
+	// With Spaces=4, four-space indent should be allowed.
+	src := []byte("- item 1\n    - nested\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{Spaces: 4}
+	diags := r.Check(f)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics with Spaces=4 for 4-space indent, got %d", len(diags))
+	}
+}
+
+func TestCheck_Spaces4_FlagsTwoSpaceIndent(t *testing.T) {
+	// With Spaces=4, two-space indent should be flagged.
+	src := []byte("- item 1\n  - nested\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{Spaces: 4}
+	diags := r.Check(f)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic with Spaces=4 for 2-space indent, got %d", len(diags))
+	}
+}

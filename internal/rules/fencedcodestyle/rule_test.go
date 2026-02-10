@@ -240,3 +240,47 @@ func TestCheck_Name(t *testing.T) {
 		t.Errorf("expected name fenced-code-style, got %s", r.Name())
 	}
 }
+
+// --- Configurable tests ---
+
+func TestApplySettings_ValidStyle(t *testing.T) {
+	r := &Rule{Style: "backtick"}
+	if err := r.ApplySettings(map[string]any{"style": "tilde"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.Style != "tilde" {
+		t.Errorf("expected Style=tilde, got %s", r.Style)
+	}
+}
+
+func TestApplySettings_InvalidStyle(t *testing.T) {
+	r := &Rule{Style: "backtick"}
+	err := r.ApplySettings(map[string]any{"style": "invalid"})
+	if err == nil {
+		t.Fatal("expected error for invalid style")
+	}
+}
+
+func TestApplySettings_InvalidStyleType(t *testing.T) {
+	r := &Rule{Style: "backtick"}
+	err := r.ApplySettings(map[string]any{"style": 42})
+	if err == nil {
+		t.Fatal("expected error for non-string style")
+	}
+}
+
+func TestApplySettings_UnknownKey(t *testing.T) {
+	r := &Rule{Style: "backtick"}
+	err := r.ApplySettings(map[string]any{"unknown": true})
+	if err == nil {
+		t.Fatal("expected error for unknown key")
+	}
+}
+
+func TestDefaultSettings_FencedCodeStyle(t *testing.T) {
+	r := &Rule{}
+	ds := r.DefaultSettings()
+	if ds["style"] != "backtick" {
+		t.Errorf("expected style=backtick, got %v", ds["style"])
+	}
+}

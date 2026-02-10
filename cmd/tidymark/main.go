@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sort"
+	"strings"
 
 	flag "github.com/spf13/pflag"
+	"gopkg.in/yaml.v3"
 
 	"github.com/jeduden/tidymark/internal/config"
 	"github.com/jeduden/tidymark/internal/engine"
@@ -42,54 +45,305 @@ func main() {
 	os.Exit(run())
 }
 
+const usageText = `Usage: tidymark <command> [flags] [files...]
+
+Commands:
+  check   Lint Markdown files (default when given file arguments)
+  fix     Auto-fix lint issues in place
+  init    Generate a default .tidymark.yml config file
+
+Global flags:
+  -v, --version   Print version and exit
+  -h, --help      Show this help
+
+Run 'tidymark <command> --help' for more information on a command.
+`
+
 func run() int {
+	// Handle no arguments: print usage, exit 0.
+	if len(os.Args) < 2 {
+		fmt.Fprint(os.Stderr, usageText)
+		return 0
+	}
+
+	// Handle global flags before subcommand dispatch.
+	first := os.Args[1]
+
+	switch first {
+	case "--version", "-v":
+		printVersion()
+		return 0
+	case "--help", "-h":
+		fmt.Fprint(os.Stderr, usageText)
+		return 0
+	}
+
+	// Dispatch to subcommand.
+	switch first {
+	case "check":
+		return runCheck(os.Args[2:])
+	case "fix":
+		return runFix(os.Args[2:])
+	case "init":
+		return runInit(os.Args[2:])
+	default:
+		// Backwards compatibility: if the first arg looks like a file path
+		// or a legacy flag (not a known subcommand), treat it as
+		// "tidymark check <args>" with a deprecation warning.
+		if looksLikeLegacyInvocation(os.Args[1:]) {
+			fmt.Fprintf(os.Stderr, "tidymark: implicit 'check' subcommand is deprecated; use 'tidymark check %s' instead\n",
+				strings.Join(os.Args[1:], " "))
+			return runLegacy(os.Args[1:])
+		}
+		fmt.Fprintf(os.Stderr, "tidymark: unknown command %q\n\n%s", first, usageText)
+		return 2
+	}
+}
+
+// legacyFlags are the flags supported by the old flat CLI that indicate
+// a legacy (pre-subcommand) invocation.
+var legacyFlags = map[string]bool{
+	"--config":       true,
+	"-c":             true,
+	"--fix":          true,
+	"--format":       true,
+	"-f":             true,
+	"--no-color":     true,
+	"--quiet":        true,
+	"-q":             true,
+	"--no-gitignore": true,
+}
+
+// looksLikeLegacyInvocation returns true if the arguments look like a
+// legacy (pre-subcommand) invocation. This is the case when any argument
+// is a legacy flag or looks like a file path.
+func looksLikeLegacyInvocation(args []string) bool {
+	for _, arg := range args {
+		if legacyFlags[arg] {
+			return true
+		}
+		if looksLikeFilePath(arg) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeFilePath returns true if the argument looks like a file path
+// rather than a subcommand. It checks for path separators, file extensions,
+// and whether it starts with a flag prefix.
+func looksLikeFilePath(arg string) bool {
+	if strings.HasPrefix(arg, "-") {
+		return false
+	}
+	// Contains path separator or has a markdown extension.
+	if strings.Contains(arg, string(filepath.Separator)) {
+		return true
+	}
+	if strings.HasSuffix(arg, ".md") || strings.HasSuffix(arg, ".markdown") {
+		return true
+	}
+	// Check if it exists on disk (could be a directory).
+	if _, err := os.Stat(arg); err == nil {
+		return true
+	}
+	return false
+}
+
+// runLegacy handles the old flat CLI format by parsing the legacy flags
+// and dispatching to check or fix accordingly.
+func runLegacy(args []string) int {
+	fs := flag.NewFlagSet("legacy", flag.ContinueOnError)
 	var (
-		showVersion bool
 		configPath  string
 		fix         bool
 		format      string
 		noColor     bool
 		quiet       bool
+		noGitignore bool
 	)
 
-	flag.BoolVarP(&showVersion, "version", "v", false, "Print version and exit")
-	flag.StringVarP(&configPath, "config", "c", "", "Override config file path")
-	flag.BoolVar(&fix, "fix", false, "Auto-fix issues in place")
-	flag.StringVarP(&format, "format", "f", "text", "Output format: text, json")
-	flag.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
-	flag.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
+	fs.StringVarP(&configPath, "config", "c", "", "Override config file path")
+	fs.BoolVar(&fix, "fix", false, "Auto-fix issues in place")
+	fs.StringVarP(&format, "format", "f", "text", "Output format: text, json")
+	fs.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
+	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
+	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: tidymark [flags] [files...]\n\n"+
-			"Files can be paths, directories (walked recursively for *.md), or glob patterns.\n"+
-			"With no arguments, reads from stdin if piped, otherwise exits 0.\n\n"+
-			"Flags:\n")
-		flag.PrintDefaults()
+	if err := fs.Parse(args); err != nil {
+		return 2
 	}
 
-	flag.Parse()
+	files := fs.Args()
 
-	if showVersion {
-		version := "(devel)"
-		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
-			version = info.Main.Version
+	if fix {
+		if len(files) == 0 {
+			if isStdinPipe() {
+				fmt.Fprintf(os.Stderr, "tidymark: cannot fix stdin in place\n")
+				return 2
+			}
+			return 0
 		}
-		fmt.Printf("tidymark %s\n", version)
-		return 0
+		return fixFiles(files, configPath, format, noColor, quiet, noGitignore)
 	}
 
-	args := flag.Args()
-
-	// No args: check if stdin is a pipe.
-	if len(args) == 0 {
+	if len(files) == 0 {
 		if !isStdinPipe() {
 			return 0
 		}
-		return runStdin(fix, format, noColor, quiet, configPath)
+		return checkStdin(format, noColor, quiet, configPath)
 	}
 
-	// Resolve files from positional arguments.
-	files, err := lint.ResolveFiles(args)
+	return checkFiles(files, configPath, format, noColor, quiet, noGitignore)
+}
+
+func printVersion() {
+	version := "(devel)"
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+		version = info.Main.Version
+	}
+	fmt.Printf("tidymark %s\n", version)
+}
+
+// runCheck implements the "check" subcommand: lint files.
+func runCheck(args []string) int {
+	fs := flag.NewFlagSet("check", flag.ContinueOnError)
+	var (
+		configPath  string
+		format      string
+		noColor     bool
+		quiet       bool
+		noGitignore bool
+	)
+
+	fs.StringVarP(&configPath, "config", "c", "", "Override config file path")
+	fs.StringVarP(&format, "format", "f", "text", "Output format: text, json")
+	fs.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
+	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
+	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: tidymark check [flags] [files...]\n\n"+
+			"Lint Markdown files for style issues.\n\n"+
+			"Files can be paths, directories (walked recursively for *.md), or glob patterns.\n"+
+			"With no file arguments, reads from stdin if piped.\n\n"+
+			"Flags:\n")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	files := fs.Args()
+
+	// No file args: check if stdin is a pipe.
+	if len(files) == 0 {
+		if !isStdinPipe() {
+			return 0
+		}
+		return checkStdin(format, noColor, quiet, configPath)
+	}
+
+	return checkFiles(files, configPath, format, noColor, quiet, noGitignore)
+}
+
+// runFix implements the "fix" subcommand: auto-fix lint issues in place.
+func runFix(args []string) int {
+	fs := flag.NewFlagSet("fix", flag.ContinueOnError)
+	var (
+		configPath  string
+		format      string
+		noColor     bool
+		quiet       bool
+		noGitignore bool
+	)
+
+	fs.StringVarP(&configPath, "config", "c", "", "Override config file path")
+	fs.StringVarP(&format, "format", "f", "text", "Output format: text, json")
+	fs.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
+	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
+	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: tidymark fix [flags] [files...]\n\n"+
+			"Auto-fix lint issues in Markdown files.\n\n"+
+			"Files can be paths, directories (walked recursively for *.md), or glob patterns.\n"+
+			"Stdin is not supported (files must be writable).\n\n"+
+			"Flags:\n")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	files := fs.Args()
+
+	// Fix rejects stdin.
+	if len(files) == 0 {
+		if isStdinPipe() {
+			fmt.Fprintf(os.Stderr, "tidymark: cannot fix stdin in place\n")
+			return 2
+		}
+		return 0
+	}
+
+	return fixFiles(files, configPath, format, noColor, quiet, noGitignore)
+}
+
+// runInit implements the "init" subcommand: generate .tidymark.yml.
+func runInit(args []string) int {
+	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: tidymark init\n\n"+
+			"Generate a default .tidymark.yml config file in the current directory.\n")
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if fs.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "tidymark: init takes no arguments\n")
+		return 2
+	}
+
+	const configFile = ".tidymark.yml"
+
+	// Check if config file already exists.
+	if _, err := os.Stat(configFile); err == nil {
+		fmt.Fprintf(os.Stderr, "tidymark: %s already exists\n", configFile)
+		return 2
+	}
+
+	cfg := config.DumpDefaults()
+
+	// Set front-matter: true as default.
+	fm := true
+	cfg.FrontMatter = &fm
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: marshalling config: %v\n", err)
+		return 2
+	}
+
+	if err := os.WriteFile(configFile, data, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: writing %s: %v\n", configFile, err)
+		return 2
+	}
+
+	fmt.Fprintf(os.Stderr, "tidymark: created %s\n", configFile)
+	return 0
+}
+
+// checkFiles lints the given file paths and returns the appropriate exit code.
+func checkFiles(fileArgs []string, configPath, format string, noColor, quiet, noGitignore bool) int {
+	useGitignore := !noGitignore
+	opts := lint.ResolveOpts{UseGitignore: &useGitignore}
+	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
 		return 2
@@ -99,7 +353,6 @@ func run() int {
 		return 0
 	}
 
-	// Load configuration.
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
@@ -108,46 +361,6 @@ func run() int {
 
 	stripFM := frontMatterEnabled(cfg)
 
-	if fix {
-		fixer := &fixpkg.Fixer{
-			Config:           cfg,
-			Rules:            rule.All(),
-			StripFrontMatter: stripFM,
-		}
-
-		fixResult := fixer.Fix(files)
-
-		// Report errors.
-		for _, e := range fixResult.Errors {
-			fmt.Fprintf(os.Stderr, "tidymark: %v\n", e)
-		}
-
-		// Format remaining diagnostics.
-		if !quiet && len(fixResult.Diagnostics) > 0 {
-			var formatter output.Formatter
-			switch format {
-			case "json":
-				formatter = &output.JSONFormatter{}
-			default:
-				formatter = &output.TextFormatter{Color: !noColor}
-			}
-
-			if err := formatter.Format(os.Stderr, fixResult.Diagnostics); err != nil {
-				fmt.Fprintf(os.Stderr, "tidymark: error writing output: %v\n", err)
-				return 2
-			}
-		}
-
-		if len(fixResult.Errors) > 0 && len(fixResult.Diagnostics) == 0 {
-			return 2
-		}
-		if len(fixResult.Diagnostics) > 0 {
-			return 1
-		}
-		return 0
-	}
-
-	// Create runner with config and all registered rules.
 	runner := &engine.Runner{
 		Config:           cfg,
 		Rules:            rule.All(),
@@ -156,7 +369,6 @@ func run() int {
 
 	result := runner.Run(files)
 
-	// Report any runtime errors.
 	for _, e := range result.Errors {
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", e)
 	}
@@ -165,7 +377,6 @@ func run() int {
 		return 2
 	}
 
-	// Format and output diagnostics.
 	if !quiet && len(result.Diagnostics) > 0 {
 		var formatter output.Formatter
 		switch format {
@@ -188,23 +399,67 @@ func run() int {
 	return 0
 }
 
-// isStdinPipe returns true if stdin is a pipe (not a terminal).
-func isStdinPipe() bool {
-	stat, err := os.Stdin.Stat()
+// fixFiles fixes lint issues in the given file paths.
+func fixFiles(fileArgs []string, configPath, format string, noColor, quiet, noGitignore bool) int {
+	useGitignore := !noGitignore
+	opts := lint.ResolveOpts{UseGitignore: &useGitignore}
+	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
 	if err != nil {
-		return false
-	}
-	return (stat.Mode() & os.ModeCharDevice) == 0
-}
-
-// runStdin reads from stdin, lints the content, and returns the appropriate
-// exit code. It uses "<stdin>" as the file name in diagnostics.
-func runStdin(fix bool, format string, noColor, quiet bool, configPath string) int {
-	if fix {
-		fmt.Fprintf(os.Stderr, "tidymark: cannot fix stdin in place\n")
+		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
 		return 2
 	}
 
+	if len(files) == 0 {
+		return 0
+	}
+
+	cfg, err := loadConfig(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
+		return 2
+	}
+
+	stripFM := frontMatterEnabled(cfg)
+
+	fixer := &fixpkg.Fixer{
+		Config:           cfg,
+		Rules:            rule.All(),
+		StripFrontMatter: stripFM,
+	}
+
+	fixResult := fixer.Fix(files)
+
+	for _, e := range fixResult.Errors {
+		fmt.Fprintf(os.Stderr, "tidymark: %v\n", e)
+	}
+
+	if !quiet && len(fixResult.Diagnostics) > 0 {
+		var formatter output.Formatter
+		switch format {
+		case "json":
+			formatter = &output.JSONFormatter{}
+		default:
+			formatter = &output.TextFormatter{Color: !noColor}
+		}
+
+		if err := formatter.Format(os.Stderr, fixResult.Diagnostics); err != nil {
+			fmt.Fprintf(os.Stderr, "tidymark: error writing output: %v\n", err)
+			return 2
+		}
+	}
+
+	if len(fixResult.Errors) > 0 && len(fixResult.Diagnostics) == 0 {
+		return 2
+	}
+	if len(fixResult.Diagnostics) > 0 {
+		return 1
+	}
+	return 0
+}
+
+// checkStdin reads from stdin, lints the content, and returns the appropriate
+// exit code.
+func checkStdin(format string, noColor, quiet bool, configPath string) int {
 	source, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: reading stdin: %v\n", err)
@@ -266,6 +521,15 @@ func runStdin(fix bool, format string, noColor, quiet bool, configPath string) i
 	}
 
 	return 0
+}
+
+// isStdinPipe returns true if stdin is a pipe (not a terminal).
+func isStdinPipe() bool {
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (stat.Mode() & os.ModeCharDevice) == 0
 }
 
 // frontMatterEnabled returns whether front matter stripping is enabled.

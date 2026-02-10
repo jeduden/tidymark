@@ -19,11 +19,42 @@ func hasGlobChars(s string) bool {
 	return strings.ContainsAny(s, "*?[")
 }
 
+// ResolveOpts controls how file resolution behaves.
+type ResolveOpts struct {
+	// UseGitignore enables filtering of walked directories by .gitignore
+	// rules. When true (the default), files matched by .gitignore patterns
+	// are skipped during directory walking. Explicitly named file paths are
+	// never filtered by gitignore. Defaults to true when the zero value is
+	// used (see DefaultResolveOpts).
+	UseGitignore *bool
+}
+
+// DefaultResolveOpts returns options with defaults applied.
+func DefaultResolveOpts() ResolveOpts {
+	t := true
+	return ResolveOpts{UseGitignore: &t}
+}
+
+// useGitignore returns whether gitignore filtering is enabled.
+func (o ResolveOpts) useGitignore() bool {
+	if o.UseGitignore == nil {
+		return true // default
+	}
+	return *o.UseGitignore
+}
+
 // ResolveFiles takes positional arguments and returns deduplicated, sorted
 // markdown file paths. It supports individual files, directories (recursive
 // *.md and *.markdown), and glob patterns. Returns an error for nonexistent
 // paths (that are not glob patterns).
+// By default, directory walking respects .gitignore files.
 func ResolveFiles(args []string) ([]string, error) {
+	return ResolveFilesWithOpts(args, DefaultResolveOpts())
+}
+
+// ResolveFilesWithOpts is like ResolveFiles but accepts options to control
+// behavior such as gitignore filtering.
+func ResolveFilesWithOpts(args []string, opts ResolveOpts) ([]string, error) {
 	seen := make(map[string]bool)
 	var result []string
 
@@ -51,7 +82,7 @@ func ResolveFiles(args []string) ([]string, error) {
 					continue
 				}
 				if info.IsDir() {
-					dirFiles, err := walkDir(m)
+					dirFiles, err := walkDir(m, opts.useGitignore())
 					if err != nil {
 						return nil, err
 					}
@@ -71,7 +102,7 @@ func ResolveFiles(args []string) ([]string, error) {
 		}
 
 		if info.IsDir() {
-			dirFiles, err := walkDir(arg)
+			dirFiles, err := walkDir(arg, opts.useGitignore())
 			if err != nil {
 				return nil, err
 			}
@@ -79,6 +110,7 @@ func ResolveFiles(args []string) ([]string, error) {
 				addFile(f)
 			}
 		} else {
+			// Explicitly named files are never filtered by gitignore.
 			addFile(arg)
 		}
 	}
@@ -88,12 +120,32 @@ func ResolveFiles(args []string) ([]string, error) {
 }
 
 // walkDir recursively walks a directory and returns all markdown files.
-func walkDir(dir string) ([]string, error) {
+// When useGitignore is true, files matched by .gitignore patterns are skipped.
+func walkDir(dir string, useGitignore bool) ([]string, error) {
+	var matcher *gitignoreMatcher
+	if useGitignore {
+		matcher = newGitignoreMatcher(dir)
+	}
+
 	var files []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
+		// Check gitignore rules.
+		if matcher != nil {
+			absPath, absErr := filepath.Abs(path)
+			if absErr == nil {
+				if matcher.isIgnored(absPath, info.IsDir()) {
+					if info.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+			}
+		}
+
 		if !info.IsDir() && isMarkdown(path) {
 			files = append(files, path)
 		}

@@ -100,6 +100,48 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return nil
 }
 
+// ApplySettings implements rule.Configurable.
+func (r *Rule) ApplySettings(settings map[string]any) error {
+	for k, v := range settings {
+		switch k {
+		case "level":
+			n, ok := toInt(v)
+			if !ok {
+				return fmt.Errorf("first-line-heading: level must be an integer, got %T", v)
+			}
+			if n < 1 || n > 6 {
+				return fmt.Errorf("first-line-heading: level must be 1-6, got %d", n)
+			}
+			r.Level = n
+		default:
+			return fmt.Errorf("first-line-heading: unknown setting %q", k)
+		}
+	}
+	return nil
+}
+
+// DefaultSettings implements rule.Configurable.
+func (r *Rule) DefaultSettings() map[string]any {
+	return map[string]any{
+		"level": 1,
+	}
+}
+
+// toInt converts a value to int.
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case float64:
+		return int(n), true
+	case int64:
+		return int(n), true
+	}
+	return 0, false
+}
+
+var _ rule.Configurable = (*Rule)(nil)
+
 func headingLine(heading *ast.Heading, f *lint.File) int {
 	lines := heading.Lines()
 	if lines.Len() > 0 {

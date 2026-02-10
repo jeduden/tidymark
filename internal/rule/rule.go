@@ -14,3 +14,9 @@ type FixableRule interface {
 	Rule
 	Fix(f *lint.File) []byte
 }
+
+// Configurable is implemented by rules that have user-tunable settings.
+type Configurable interface {
+	ApplySettings(settings map[string]any) error
+	DefaultSettings() map[string]any
+}

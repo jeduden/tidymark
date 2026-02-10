@@ -1,6 +1,5 @@
 # Title
 
-
 ## Section
 
 Content here.

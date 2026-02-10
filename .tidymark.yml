@@ -1,9 +1,15 @@
+front-matter: true
+
 ignore:
-  - "rules/**"
   - "internal/**"
   - "plan/**"
+  - "rules/*/bad.md"
 
 overrides:
   - files: ["README.md"]
     rules:
       line-length: false
+  - files: ["rules/*/README.md"]
+    rules:
+      line-length:
+        max: 400

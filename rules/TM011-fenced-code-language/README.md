@@ -3,7 +3,6 @@ id: TM011
 name: fenced-code-language
 description: Fenced code blocks must specify a language.
 ---
-
 # TM011: fenced-code-language
 
 Fenced code blocks must specify a language.

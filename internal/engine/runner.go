@@ -62,7 +62,21 @@ func (r *Runner) Run(paths []string) *Result {
 				continue
 			}
 
-			diags := rl.Check(f)
+			checkRule := rl
+			if cfg.Settings != nil {
+				if _, ok := rl.(rule.Configurable); ok {
+					clone := rule.CloneRule(rl)
+					if c, ok := clone.(rule.Configurable); ok {
+						if err := c.ApplySettings(cfg.Settings); err != nil {
+							res.Errors = append(res.Errors, fmt.Errorf("applying settings for %s: %w", rl.Name(), err))
+							continue
+						}
+					}
+					checkRule = clone
+				}
+			}
+
+			diags := checkRule.Check(f)
 			res.Diagnostics = append(res.Diagnostics, diags...)
 		}
 	}

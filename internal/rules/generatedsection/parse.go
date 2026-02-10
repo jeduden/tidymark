@@ -21,8 +21,9 @@ type markerPair struct {
 
 // directive holds the parsed directive from a marker pair.
 type directive struct {
-	name   string
-	params map[string]string
+	name    string
+	params  map[string]string
+	columns map[string]columnConfig
 }
 
 const startPrefix = "<!-- tidymark:gen:start"
@@ -177,7 +178,16 @@ func parseDirective(f *lint.File, mp markerPair) (*directive, []lint.Diagnostic)
 		rawMap = map[string]any{}
 	}
 
-	// Validate all values are strings.
+	// Extract columns config before string validation.
+	var columnsRaw map[string]any
+	if v, ok := rawMap["columns"]; ok {
+		if m, ok := v.(map[string]any); ok {
+			columnsRaw = m
+		}
+		delete(rawMap, "columns")
+	}
+
+	// Validate all remaining values are strings.
 	params := make(map[string]string)
 	for k, v := range rawMap {
 		s, ok := v.(string)
@@ -201,8 +211,9 @@ func parseDirective(f *lint.File, mp markerPair) (*directive, []lint.Diagnostic)
 	}
 
 	return &directive{
-		name:   name,
-		params: params,
+		name:    name,
+		params:  params,
+		columns: parseColumnConfig(columnsRaw),
 	}, nil
 }
 

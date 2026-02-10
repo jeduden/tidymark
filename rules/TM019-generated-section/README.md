@@ -3,7 +3,6 @@ id: TM019
 name: generated-section
 description: Generated sections must match the content their directive would produce.
 ---
-
 # TM019: generated-section
 
 Generated sections must match the content their directive would produce.
@@ -18,7 +17,7 @@ Generated sections must match the content their directive would produce.
 
 Markers are HTML comments that delimit a generated section:
 
-```
+```text
 <!-- tidymark:gen:start DIRECTIVE
 key: value
 -->
@@ -62,7 +61,7 @@ Duplicate YAML keys produce an invalid YAML diagnostic (the Go `yaml.v3`
 parser rejects them). YAML anchors, aliases, and merge keys are supported
 (standard YAML features).
 
-**Parameters** (directive-specific):
+#### Parameters (directive-specific)
 
 | Key | Type | Description |
 |-----|------|-------------|
@@ -169,6 +168,45 @@ Lists files matching a glob pattern with configurable output.
 |-----------|----------|---------|-------------|
 | `glob` | yes | -- | File glob pattern, resolved relative to the directory of the file containing the marker. Supports `*`, `?`, `[...]`, and `**` (recursive). Absolute paths are rejected. Parent traversal (`..`) is not supported. Brace expansion (`{a,b}`) is not supported. Dotfiles are matched by `*` and `**`; to exclude them, add dotfiles to the project's ignore list. |
 | `sort` | no | `path` | Sort key with optional `-` prefix for descending order. See Sort behavior. |
+| `columns` | no | -- | Per-column width and wrapping configuration for table rows. See Column constraints. |
+
+### Column constraints
+
+The `columns` parameter configures per-column width limits and wrapping
+behavior for table rows. Each key is a template field name (matching a
+`{{.fieldname}}` in the `row` template), and each value is a map with the
+following options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `max-width` | int | -- | Maximum character width for the column content. When the rendered value exceeds this width, it is truncated or wrapped according to the `wrap` option. |
+| `wrap` | string | `truncate` | Wrapping mode: `truncate` (shorten with `...` ellipsis) or `br` (split at word boundaries with `<br>` tags). |
+
+The column name in the `columns` map corresponds to the primary template
+field used in that column of the `row` template. For example, if the row
+template is `"| [{{.id}}]({{.filename}}) | {{.description}} |"`, then
+`description` refers to the second column.
+
+Truncation and wrapping respect markdown formatting: links `[text](url)` and
+inline code `` `code` `` are not split in the middle. When a markdown span
+exceeds the column width, the text is broken before the span if possible.
+
+Example:
+
+```yaml
+columns:
+  description:
+    max-width: 50
+```
+
+Example with `<br>` wrapping:
+
+```yaml
+columns:
+  description:
+    max-width: 50
+    wrap: br
+```
 
 ### Sort behavior
 
@@ -186,7 +224,7 @@ If the sort value is empty (`sort: ""`), the "empty sort value" diagnostic
 is emitted. If the key name is empty after stripping the `-` prefix (i.e.,
 `sort: "-"`), the "invalid sort value" diagnostic is emitted.
 
-**Built-in keys:**
+#### Built-in keys
 
 | Key | Description |
 |-----|-------------|
@@ -213,7 +251,7 @@ Examples:
 When the YAML body contains no `row` key (and no `header` or `footer`), the
 directive produces a plain bullet list with one entry per matched file:
 
-```
+```text
 - [<basename>](<relative-path>)
 ```
 
@@ -376,6 +414,49 @@ row: "- [{{.title}}]({{.filename}})"
 -->
 - [Getting Started](docs/getting-started.md)
 - [API Reference](docs/api-reference.md)
+<!-- tidymark:gen:end -->
+```
+
+### Good -- table with column truncation
+
+Long description values are truncated with `...` when they exceed `max-width`:
+
+```markdown
+<!-- tidymark:gen:start catalog
+glob: docs/*.md
+columns:
+  description:
+    max-width: 30
+header: |
+  | Title | Description |
+  |-------|-------------|
+row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
+-->
+| Title | Description |
+|-------|-------------|
+| [API Reference](docs/api-reference.md) | Complete API documentation... |
+<!-- tidymark:gen:end -->
+```
+
+### Good -- table with br wrapping
+
+Long values are wrapped with `<br>` tags when `wrap: br` is configured:
+
+```markdown
+<!-- tidymark:gen:start catalog
+glob: docs/*.md
+columns:
+  description:
+    max-width: 30
+    wrap: br
+header: |
+  | Title | Description |
+  |-------|-------------|
+row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
+-->
+| Title | Description |
+|-------|-------------|
+| [API Reference](docs/api-reference.md) | Complete API<br>documentation for developers |
 <!-- tidymark:gen:end -->
 ```
 

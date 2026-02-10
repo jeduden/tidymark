@@ -3,7 +3,6 @@ id: TM015
 name: blank-line-around-fenced-code
 description: Fenced code blocks must have a blank line before and after.
 ---
-
 # TM015: blank-line-around-fenced-code
 
 Fenced code blocks must have a blank line before and after.

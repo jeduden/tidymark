@@ -56,6 +56,7 @@ No file args and no stdin exits 0
 | `--fix` | | false | Auto-fix issues in place |
 | `--format <fmt>` | `-f` | `text` | Output format: `text`, `json` |
 | `--no-color` | | false | Disable ANSI colors |
+| `--no-gitignore` | | false | Disable `.gitignore` filtering when walking directories |
 | `--quiet` | `-q` | false | Suppress non-error output |
 | `--version` | `-v` | | Print version and exit |
 | `--help` | `-h` | | Show help |

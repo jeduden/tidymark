@@ -200,3 +200,224 @@ func TestResolveFiles_GlobMatchingDirectory(t *testing.T) {
 		t.Fatalf("expected 1 file, got %d: %v", len(files), files)
 	}
 }
+
+// --- Gitignore-aware walking tests ---
+
+func TestResolveFilesWithOpts_GitignoreSkipsMatchedFiles(t *testing.T) {
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "ignored")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create markdown files.
+	for _, name := range []string{
+		filepath.Join(dir, "keep.md"),
+		filepath.Join(subDir, "skip.md"),
+	} {
+		if err := os.WriteFile(name, []byte("# Test"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Create .gitignore that excludes the "ignored" directory.
+	gitignore := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte("ignored/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := ResolveFilesWithOpts([]string{dir}, DefaultResolveOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d: %v", len(files), files)
+	}
+	if filepath.Base(files[0]) != "keep.md" {
+		t.Errorf("expected keep.md, got %s", files[0])
+	}
+}
+
+func TestResolveFilesWithOpts_NestedGitignore(t *testing.T) {
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "sub")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create markdown files.
+	for _, name := range []string{
+		filepath.Join(dir, "root.md"),
+		filepath.Join(subDir, "included.md"),
+		filepath.Join(subDir, "draft.md"),
+	} {
+		if err := os.WriteFile(name, []byte("# Test"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Nested .gitignore in sub/ excludes draft.md.
+	gitignore := filepath.Join(subDir, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte("draft.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := ResolveFilesWithOpts([]string{dir}, DefaultResolveOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d: %v", len(files), files)
+	}
+	for _, f := range files {
+		if filepath.Base(f) == "draft.md" {
+			t.Errorf("draft.md should have been excluded by nested .gitignore")
+		}
+	}
+}
+
+func TestResolveFilesWithOpts_UseGitignoreFalse(t *testing.T) {
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "ignored")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range []string{
+		filepath.Join(dir, "keep.md"),
+		filepath.Join(subDir, "skip.md"),
+	} {
+		if err := os.WriteFile(name, []byte("# Test"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Create .gitignore that would exclude "ignored/".
+	gitignore := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte("ignored/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// With UseGitignore=false, all files should be included.
+	f := false
+	opts := ResolveOpts{UseGitignore: &f}
+	files, err := ResolveFilesWithOpts([]string{dir}, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files (gitignore disabled), got %d: %v", len(files), files)
+	}
+}
+
+func TestResolveFilesWithOpts_NoGitignorePresent(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{
+		filepath.Join(dir, "a.md"),
+		filepath.Join(dir, "b.md"),
+	} {
+		if err := os.WriteFile(name, []byte("# Test"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// No .gitignore file present — all markdown files should be included.
+	files, err := ResolveFilesWithOpts([]string{dir}, DefaultResolveOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d: %v", len(files), files)
+	}
+}
+
+func TestResolveFilesWithOpts_ExplicitFileNotFilteredByGitignore(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "ignored.md")
+	if err := os.WriteFile(mdFile, []byte("# Test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create .gitignore that excludes *.md.
+	gitignore := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte("*.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Explicitly named files are NOT filtered by gitignore.
+	files, err := ResolveFilesWithOpts([]string{mdFile}, DefaultResolveOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file (explicit path not filtered), got %d: %v", len(files), files)
+	}
+	if files[0] != mdFile {
+		t.Errorf("expected %q, got %q", mdFile, files[0])
+	}
+}
+
+func TestResolveFilesWithOpts_GitignoreWildcardPattern(t *testing.T) {
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "build")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range []string{
+		filepath.Join(dir, "readme.md"),
+		filepath.Join(subDir, "output.md"),
+	} {
+		if err := os.WriteFile(name, []byte("# Test"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// .gitignore uses wildcard to exclude build directory.
+	gitignore := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte("build/\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := ResolveFilesWithOpts([]string{dir}, DefaultResolveOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d: %v", len(files), files)
+	}
+	if filepath.Base(files[0]) != "readme.md" {
+		t.Errorf("expected readme.md, got %s", files[0])
+	}
+}
+
+func TestResolveFilesWithOpts_GitignoreNegation(t *testing.T) {
+	dir := t.TempDir()
+
+	for _, name := range []string{
+		filepath.Join(dir, "a.md"),
+		filepath.Join(dir, "b.md"),
+		filepath.Join(dir, "keep.md"),
+	} {
+		if err := os.WriteFile(name, []byte("# Test"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Ignore all .md files, but negate keep.md.
+	gitignore := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte("*.md\n!keep.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := ResolveFilesWithOpts([]string{dir}, DefaultResolveOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d: %v", len(files), files)
+	}
+	if filepath.Base(files[0]) != "keep.md" {
+		t.Errorf("expected keep.md, got %s", files[0])
+	}
+}

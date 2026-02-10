@@ -2,6 +2,7 @@ package fencedcodestyle
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/jeduden/tidymark/internal/lint"
 	"github.com/jeduden/tidymark/internal/rule"
@@ -272,3 +273,32 @@ func FenceLines(src []byte, fcb *ast.FencedCodeBlock) (openStart, openEnd, close
 	closeStart, closeEnd = fenceCloseLineRange(src, fcb, openEnd)
 	return
 }
+
+// ApplySettings implements rule.Configurable.
+func (r *Rule) ApplySettings(settings map[string]any) error {
+	for k, v := range settings {
+		switch k {
+		case "style":
+			s, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("fenced-code-style: style must be a string, got %T", v)
+			}
+			if s != "backtick" && s != "tilde" {
+				return fmt.Errorf("fenced-code-style: invalid style %q (valid: backtick, tilde)", s)
+			}
+			r.Style = s
+		default:
+			return fmt.Errorf("fenced-code-style: unknown setting %q", k)
+		}
+	}
+	return nil
+}
+
+// DefaultSettings implements rule.Configurable.
+func (r *Rule) DefaultSettings() map[string]any {
+	return map[string]any{
+		"style": "backtick",
+	}
+}
+
+var _ rule.Configurable = (*Rule)(nil)

@@ -122,3 +122,47 @@ func TestName(t *testing.T) {
 		t.Errorf("expected heading-style, got %s", r.Name())
 	}
 }
+
+// --- Configurable tests ---
+
+func TestApplySettings_ValidStyle(t *testing.T) {
+	r := &Rule{Style: "atx"}
+	if err := r.ApplySettings(map[string]any{"style": "setext"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.Style != "setext" {
+		t.Errorf("expected Style=setext, got %s", r.Style)
+	}
+}
+
+func TestApplySettings_InvalidStyle(t *testing.T) {
+	r := &Rule{Style: "atx"}
+	err := r.ApplySettings(map[string]any{"style": "invalid"})
+	if err == nil {
+		t.Fatal("expected error for invalid style")
+	}
+}
+
+func TestApplySettings_InvalidStyleType(t *testing.T) {
+	r := &Rule{Style: "atx"}
+	err := r.ApplySettings(map[string]any{"style": 42})
+	if err == nil {
+		t.Fatal("expected error for non-string style")
+	}
+}
+
+func TestApplySettings_UnknownKey(t *testing.T) {
+	r := &Rule{Style: "atx"}
+	err := r.ApplySettings(map[string]any{"unknown": true})
+	if err == nil {
+		t.Fatal("expected error for unknown key")
+	}
+}
+
+func TestDefaultSettings_HeadingStyle(t *testing.T) {
+	r := &Rule{}
+	ds := r.DefaultSettings()
+	if ds["style"] != "atx" {
+		t.Errorf("expected style=atx, got %v", ds["style"])
+	}
+}

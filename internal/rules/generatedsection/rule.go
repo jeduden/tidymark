@@ -351,7 +351,7 @@ func (r *Rule) resolveCatalogWithDiags(f *lint.File, mp markerPair, dir *directi
 		return renderMinimal(entries), nil
 	}
 
-	content, err := renderTemplate(dir.params, entries)
+	content, err := renderTemplate(dir.params, entries, dir.columns)
 	if err != nil {
 		return "", []lint.Diagnostic{{
 			File:     f.Path,
@@ -424,7 +424,7 @@ func (r *Rule) resolveCatalog(f *lint.File, dir *directive) (string, bool) {
 		return renderMinimal(entries), true
 	}
 
-	content, err := renderTemplate(dir.params, entries)
+	content, err := renderTemplate(dir.params, entries, dir.columns)
 	if err != nil {
 		return "", false
 	}

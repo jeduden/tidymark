@@ -120,3 +120,63 @@ func TestFix_PreservesCleanLines(t *testing.T) {
 		t.Errorf("expected %q, got %q", string(src), string(result))
 	}
 }
+
+func TestCheck_SkipsFencedCodeBlockLines(t *testing.T) {
+	// Trailing spaces inside a fenced code block should NOT fire TM006.
+	src := []byte("# Title\n\n```\ncode   \nmore code  \n```\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	diags := r.Check(f)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics for trailing spaces inside code block, got %d", len(diags))
+	}
+}
+
+func TestCheck_TrailingSpacesOutsideCodeBlockStillFlagged(t *testing.T) {
+	// Trailing spaces outside code block should still fire.
+	src := []byte("hello   \n\n```\ncode   \n```\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	diags := r.Check(f)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	}
+	if diags[0].Line != 1 {
+		t.Errorf("expected diagnostic on line 1, got %d", diags[0].Line)
+	}
+}
+
+func TestCheck_SkipsIndentedCodeBlockLines(t *testing.T) {
+	// Trailing spaces inside an indented code block should NOT fire TM006.
+	src := []byte("Some paragraph.\n\n    code   \n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	diags := r.Check(f)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics for trailing spaces inside indented code block, got %d", len(diags))
+	}
+}
+
+func TestFix_PreservesCodeBlockLines(t *testing.T) {
+	// Fix should not strip trailing spaces inside code blocks.
+	src := []byte("hello   \n\n```\ncode   \n```\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	result := r.Fix(f)
+	expected := "hello\n\n```\ncode   \n```\n"
+	if string(result) != expected {
+		t.Errorf("expected %q, got %q", expected, string(result))
+	}
+}

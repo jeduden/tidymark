@@ -12,6 +12,11 @@ func nChars(n int, ch byte) string {
 	return strings.Repeat(string(ch), n)
 }
 
+// defaultExclude returns the default exclude list for convenience.
+func defaultExclude() []string {
+	return []string{"code-blocks", "tables", "urls"}
+}
+
 func TestCheck_LineExceeding80Reports(t *testing.T) {
 	// 81-character line should trigger a diagnostic.
 	src := []byte(nChars(81, 'a') + "\n")
@@ -19,7 +24,7 @@ func TestCheck_LineExceeding80Reports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
@@ -43,7 +48,7 @@ func TestCheck_LineExactly80NoReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics, got %d", len(diags))
@@ -56,7 +61,7 @@ func TestCheck_81CharsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
@@ -74,7 +79,7 @@ func TestCheck_CustomMax120(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 120, Strict: false}
+	r := &Rule{Max: 120, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics for 100-char line with max=120, got %d", len(diags))
@@ -88,7 +93,7 @@ func TestCheck_CustomMax120_Exceeds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 120, Strict: false}
+	r := &Rule{Max: 120, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
@@ -99,21 +104,21 @@ func TestCheck_CustomMax120_Exceeds(t *testing.T) {
 	}
 }
 
-func TestCheck_StrictFalse_FencedCodeBlockSkipped(t *testing.T) {
+func TestCheck_ExcludeCodeBlocks_FencedCodeBlockSkipped(t *testing.T) {
 	long := nChars(100, 'x')
 	src := []byte("# Heading\n\n```\n" + long + "\n```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
-		t.Fatalf("expected 0 diagnostics for long line inside fenced code block (strict=false), got %d", len(diags))
+		t.Fatalf("expected 0 diagnostics for long line inside fenced code block, got %d", len(diags))
 	}
 }
 
-func TestCheck_StrictFalse_IndentedCodeBlockSkipped(t *testing.T) {
+func TestCheck_ExcludeCodeBlocks_IndentedCodeBlockSkipped(t *testing.T) {
 	// Indented code block: 4 spaces of indentation.
 	long := "    " + nChars(100, 'x')
 	src := []byte("Some paragraph.\n\n" + long + "\n")
@@ -121,42 +126,42 @@ func TestCheck_StrictFalse_IndentedCodeBlockSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
-		t.Fatalf("expected 0 diagnostics for long line inside indented code block (strict=false), got %d", len(diags))
+		t.Fatalf("expected 0 diagnostics for long line inside indented code block, got %d", len(diags))
 	}
 }
 
-func TestCheck_StrictFalse_URLOnlyLineSkipped(t *testing.T) {
+func TestCheck_ExcludeURLs_URLOnlyLineSkipped(t *testing.T) {
 	longURL := "https://very-long-url.example.com/" + nChars(80, 'a')
 	src := []byte(longURL + "\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
-		t.Fatalf("expected 0 diagnostics for URL-only long line (strict=false), got %d", len(diags))
+		t.Fatalf("expected 0 diagnostics for URL-only long line, got %d", len(diags))
 	}
 }
 
-func TestCheck_StrictFalse_URLOnlyWithLeadingWhitespace(t *testing.T) {
+func TestCheck_ExcludeURLs_URLOnlyWithLeadingWhitespace(t *testing.T) {
 	longURL := "  https://very-long-url.example.com/" + nChars(80, 'b')
 	src := []byte(longURL + "\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
-		t.Fatalf("expected 0 diagnostics for URL-only line with whitespace (strict=false), got %d", len(diags))
+		t.Fatalf("expected 0 diagnostics for URL-only line with whitespace, got %d", len(diags))
 	}
 }
 
-func TestCheck_StrictFalse_URLWithTextNotSkipped(t *testing.T) {
+func TestCheck_ExcludeURLs_URLWithTextNotSkipped(t *testing.T) {
 	// A line that has a URL plus other text should NOT be skipped.
 	longLine := "See https://example.com/" + nChars(80, 'c') + " for details"
 	src := []byte(longLine + "\n")
@@ -164,52 +169,52 @@ func TestCheck_StrictFalse_URLWithTextNotSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic for line with URL plus text, got %d", len(diags))
 	}
 }
 
-func TestCheck_StrictTrue_FencedCodeBlockFlagged(t *testing.T) {
+func TestCheck_EmptyExclude_FencedCodeBlockFlagged(t *testing.T) {
 	long := nChars(100, 'x')
 	src := []byte("# Heading\n\n```\n" + long + "\n```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: true}
+	r := &Rule{Max: 80, Exclude: []string{}}
 	diags := r.Check(f)
 	if len(diags) != 1 {
-		t.Fatalf("expected 1 diagnostic for long line inside fenced code block (strict=true), got %d", len(diags))
+		t.Fatalf("expected 1 diagnostic for long line inside fenced code block (exclude=[]), got %d", len(diags))
 	}
 }
 
-func TestCheck_StrictTrue_IndentedCodeBlockFlagged(t *testing.T) {
+func TestCheck_EmptyExclude_IndentedCodeBlockFlagged(t *testing.T) {
 	long := "    " + nChars(100, 'x')
 	src := []byte("Some paragraph.\n\n" + long + "\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: true}
+	r := &Rule{Max: 80, Exclude: []string{}}
 	diags := r.Check(f)
 	if len(diags) != 1 {
-		t.Fatalf("expected 1 diagnostic for long line inside indented code block (strict=true), got %d", len(diags))
+		t.Fatalf("expected 1 diagnostic for long line inside indented code block (exclude=[]), got %d", len(diags))
 	}
 }
 
-func TestCheck_StrictTrue_URLOnlyLineFlagged(t *testing.T) {
+func TestCheck_EmptyExclude_URLOnlyLineFlagged(t *testing.T) {
 	longURL := "https://very-long-url.example.com/" + nChars(80, 'a')
 	src := []byte(longURL + "\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: true}
+	r := &Rule{Max: 80, Exclude: []string{}}
 	diags := r.Check(f)
 	if len(diags) != 1 {
-		t.Fatalf("expected 1 diagnostic for URL-only line (strict=true), got %d", len(diags))
+		t.Fatalf("expected 1 diagnostic for URL-only line (exclude=[]), got %d", len(diags))
 	}
 }
 
@@ -220,7 +225,7 @@ func TestCheck_DiagnosticColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
@@ -236,7 +241,7 @@ func TestCheck_DiagnosticColumnWithCustomMax(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 120, Strict: false}
+	r := &Rule{Max: 120, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
@@ -255,7 +260,7 @@ func TestCheck_MultipleLongLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 2 {
 		t.Fatalf("expected 2 diagnostics, got %d", len(diags))
@@ -274,21 +279,18 @@ func TestCheck_EmptyFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics for empty file, got %d", len(diags))
 	}
 }
 
-func TestCheck_DefaultsEnabledWithMax80StrictFalse(t *testing.T) {
+func TestCheck_DefaultsEnabledWithMax80(t *testing.T) {
 	// Verify the init-registered rule has correct defaults.
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	if r.Max != 80 {
 		t.Errorf("expected default max 80, got %d", r.Max)
-	}
-	if r.Strict != false {
-		t.Errorf("expected default strict false, got %v", r.Strict)
 	}
 	if r.ID() != "TM001" {
 		t.Errorf("expected ID TM001, got %s", r.ID())
@@ -305,26 +307,26 @@ func TestCheck_FencedCodeBlockWithInfoString(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
-		t.Fatalf("expected 0 diagnostics for long line inside fenced code block with info string (strict=false), got %d", len(diags))
+		t.Fatalf("expected 0 diagnostics for long line inside fenced code block with info string, got %d", len(diags))
 	}
 }
 
 func TestCheck_FencedCodeBlockFenceLinesAlsoSkipped(t *testing.T) {
 	// Even if the opening/closing fence lines themselves were very long
-	// (unlikely but possible), they should be skipped when not strict.
+	// (unlikely but possible), they should be skipped when code-blocks excluded.
 	longInfo := "```" + nChars(100, 'x')
 	src := []byte("# Title\n\n" + longInfo + "\ncode\n```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
-		t.Fatalf("expected 0 diagnostics for long fence opening line (strict=false), got %d", len(diags))
+		t.Fatalf("expected 0 diagnostics for long fence opening line, got %d", len(diags))
 	}
 }
 
@@ -335,7 +337,7 @@ func TestCheck_HttpURLSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics for http URL-only long line, got %d", len(diags))
@@ -351,7 +353,7 @@ func TestCheck_MixedContentWithCodeBlockAndLongLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic (only the line outside code block), got %d", len(diags))
@@ -368,7 +370,7 @@ func TestCheck_TildeFencedCodeBlockSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics for long line inside tilde fenced code block, got %d", len(diags))
@@ -382,7 +384,7 @@ func TestCheck_MultipleFencedCodeBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics for long lines inside multiple fenced code blocks, got %d", len(diags))
@@ -395,7 +397,7 @@ func TestCheck_DiagnosticFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
@@ -411,7 +413,7 @@ func TestCheck_EmptyFencedCodeBlock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics for empty fenced code block, got %d", len(diags))
@@ -424,12 +426,164 @@ func TestCheck_LongLineOnLastLineNoTrailingNewline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &Rule{Max: 80, Strict: false}
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
 	diags := r.Check(f)
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
 	if diags[0].Line != 1 {
 		t.Errorf("expected line 1, got %d", diags[0].Line)
+	}
+}
+
+// --- Configurable tests ---
+
+func TestApplySettings_ValidMax(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"max": 120})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.Max != 120 {
+		t.Errorf("expected Max=120, got %d", r.Max)
+	}
+}
+
+func TestApplySettings_InvalidMaxType(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"max": "not-a-number"})
+	if err == nil {
+		t.Fatal("expected error for non-int max")
+	}
+}
+
+func TestApplySettings_ValidExclude(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"exclude": []any{"code-blocks", "urls"}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(r.Exclude) != 2 || r.Exclude[0] != "code-blocks" || r.Exclude[1] != "urls" {
+		t.Errorf("unexpected Exclude: %v", r.Exclude)
+	}
+}
+
+func TestApplySettings_EmptyExclude(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"exclude": []any{}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(r.Exclude) != 0 {
+		t.Errorf("expected empty Exclude, got %v", r.Exclude)
+	}
+}
+
+func TestApplySettings_InvalidExcludeValue(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"exclude": []any{"invalid"}})
+	if err == nil {
+		t.Fatal("expected error for invalid exclude value")
+	}
+}
+
+func TestApplySettings_InvalidExcludeType(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"exclude": 42})
+	if err == nil {
+		t.Fatal("expected error for non-list exclude")
+	}
+}
+
+func TestApplySettings_UnknownKey(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"unknown": true})
+	if err == nil {
+		t.Fatal("expected error for unknown key")
+	}
+}
+
+func TestApplySettings_StrictTrueDeprecationShim(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: defaultExclude()}
+	err := r.ApplySettings(map[string]any{"strict": true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(r.Exclude) != 0 {
+		t.Errorf("expected empty Exclude for strict:true, got %v", r.Exclude)
+	}
+}
+
+func TestApplySettings_StrictFalseDeprecationShim(t *testing.T) {
+	r := &Rule{Max: 80, Exclude: []string{}}
+	err := r.ApplySettings(map[string]any{"strict": false})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(r.Exclude) != 3 {
+		t.Errorf("expected 3 exclude items for strict:false, got %v", r.Exclude)
+	}
+}
+
+func TestDefaultSettings(t *testing.T) {
+	r := &Rule{}
+	ds := r.DefaultSettings()
+	if ds["max"] != 80 {
+		t.Errorf("expected max=80, got %v", ds["max"])
+	}
+	exclude, ok := ds["exclude"].([]string)
+	if !ok {
+		t.Fatalf("expected exclude to be []string, got %T", ds["exclude"])
+	}
+	if len(exclude) != 3 {
+		t.Errorf("expected 3 exclude items, got %d", len(exclude))
+	}
+}
+
+// --- Table exclusion tests ---
+
+func TestCheck_ExcludeTables_LongTableRowSkipped(t *testing.T) {
+	longRow := "| " + nChars(100, 'x') + " | " + nChars(100, 'y') + " |"
+	src := []byte("# Title\n\n" + longRow + "\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{Max: 80, Exclude: []string{"tables"}}
+	diags := r.Check(f)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics for long table row with tables excluded, got %d", len(diags))
+	}
+}
+
+func TestCheck_NoExcludeTables_LongTableRowFlagged(t *testing.T) {
+	longRow := "| " + nChars(100, 'x') + " | " + nChars(100, 'y') + " |"
+	src := []byte("# Title\n\n" + longRow + "\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{Max: 80, Exclude: []string{"code-blocks", "urls"}}
+	diags := r.Check(f)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic for long table row without tables excluded, got %d", len(diags))
+	}
+}
+
+func TestCheck_ExcludeOnlyCodeBlocks(t *testing.T) {
+	// Only code-blocks excluded: tables and URLs should be flagged.
+	longURL := "https://example.com/" + nChars(80, 'a')
+	longRow := "| " + nChars(100, 'x') + " |"
+	long := nChars(100, 'z')
+	src := []byte("```\n" + long + "\n```\n\n" + longURL + "\n\n" + longRow + "\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{Max: 80, Exclude: []string{"code-blocks"}}
+	diags := r.Check(f)
+	// URL line and table row should both be flagged.
+	if len(diags) != 2 {
+		t.Fatalf("expected 2 diagnostics (URL + table), got %d", len(diags))
 	}
 }

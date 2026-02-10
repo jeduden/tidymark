@@ -3,7 +3,6 @@ id: TM001
 name: line-length
 description: Line exceeds maximum length.
 ---
-
 # TM001: line-length
 
 Line exceeds maximum length.
@@ -19,7 +18,18 @@ Line exceeds maximum length.
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `max` | int | 80 | Maximum allowed line length |
-| `strict` | bool | false | When false, skips lines containing only a URL or inside code blocks |
+| `exclude` | list | `["code-blocks", "tables", "urls"]` | Categories to exclude from checking |
+
+Valid `exclude` values:
+
+- `code-blocks` -- skip lines inside fenced or indented code blocks
+- `tables` -- skip lines that are table rows (starting with `|`)
+- `urls` -- skip lines whose only content is a URL
+
+Set `exclude: []` to check everything (equivalent to the old `strict: true`).
+
+The `strict` setting is deprecated. If present, `strict: true` is translated
+to `exclude: []` and `strict: false` to the default exclude list.
 
 ## Config
 
@@ -27,7 +37,30 @@ Line exceeds maximum length.
 rules:
   line-length:
     max: 80
-    strict: false
+    exclude:
+      - code-blocks
+      - tables
+      - urls
+```
+
+Check everything (no exclusions):
+
+```yaml
+rules:
+  line-length:
+    max: 80
+    exclude: []
+```
+
+Skip only code blocks and URLs (check tables):
+
+```yaml
+rules:
+  line-length:
+    max: 120
+    exclude:
+      - code-blocks
+      - urls
 ```
 
 Disable:

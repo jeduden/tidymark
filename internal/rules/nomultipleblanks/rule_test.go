@@ -157,3 +157,134 @@ func TestFix_PreservesSingleBlanks(t *testing.T) {
 		t.Errorf("expected %q, got %q", string(src), string(result))
 	}
 }
+
+func TestCheck_SkipsFencedCodeBlockLines(t *testing.T) {
+	// Multiple consecutive blank lines inside a fenced code block
+	// should NOT fire TM008.
+	src := []byte("# Title\n\n```\ncode\n\n\nmore code\n```\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	diags := r.Check(f)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics for blanks inside code block, got %d", len(diags))
+	}
+}
+
+func TestCheck_MultipleBlanksOutsideCodeBlockStillFlagged(t *testing.T) {
+	// Multiple blanks outside code block should still fire.
+	src := []byte("hello\n\n\nworld\n\n```\ncode\n\n\nmore\n```\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	diags := r.Check(f)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	}
+	if diags[0].Line != 3 {
+		t.Errorf("expected diagnostic on line 3, got %d", diags[0].Line)
+	}
+}
+
+func TestCheck_SkipsIndentedCodeBlockBlanks(t *testing.T) {
+	// Indented code block with blank lines should not fire.
+	// Note: goldmark may not consider blank lines between indented
+	// code block lines as part of the code block, so this tests
+	// the actual behavior.
+	src := []byte("Paragraph.\n\n    code\n    more code\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	diags := r.Check(f)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics, got %d", len(diags))
+	}
+}
+
+func TestFix_PreservesCodeBlockBlanks(t *testing.T) {
+	// Fix should not collapse blank lines inside code blocks.
+	src := []byte("hello\n\n\nworld\n\n```\ncode\n\n\nmore\n```\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{}
+	result := r.Fix(f)
+	expected := "hello\n\nworld\n\n```\ncode\n\n\nmore\n```\n"
+	if string(result) != expected {
+		t.Errorf("expected %q, got %q", expected, string(result))
+	}
+}
+
+// --- Configurable tests ---
+
+func TestApplySettings_ValidMax(t *testing.T) {
+	r := &Rule{Max: 1}
+	if err := r.ApplySettings(map[string]any{"max": 3}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.Max != 3 {
+		t.Errorf("expected Max=3, got %d", r.Max)
+	}
+}
+
+func TestApplySettings_InvalidMaxType(t *testing.T) {
+	r := &Rule{Max: 1}
+	err := r.ApplySettings(map[string]any{"max": "not-a-number"})
+	if err == nil {
+		t.Fatal("expected error for non-int max")
+	}
+}
+
+func TestApplySettings_UnknownKey(t *testing.T) {
+	r := &Rule{Max: 1}
+	err := r.ApplySettings(map[string]any{"unknown": true})
+	if err == nil {
+		t.Fatal("expected error for unknown key")
+	}
+}
+
+func TestDefaultSettings_NoMultipleBlanks(t *testing.T) {
+	r := &Rule{}
+	ds := r.DefaultSettings()
+	if ds["max"] != 1 {
+		t.Errorf("expected max=1, got %v", ds["max"])
+	}
+}
+
+func TestCheck_MaxTwo_AllowsTwoConsecutiveBlanks(t *testing.T) {
+	// With Max=2, two consecutive blank lines should be allowed.
+	src := []byte("hello\n\n\nworld\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{Max: 2}
+	diags := r.Check(f)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics with Max=2 for 2 blanks, got %d", len(diags))
+	}
+}
+
+func TestCheck_MaxTwo_FlagsThreeConsecutiveBlanks(t *testing.T) {
+	// With Max=2, three consecutive blank lines should flag the third.
+	src := []byte("hello\n\n\n\nworld\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &Rule{Max: 2}
+	diags := r.Check(f)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic with Max=2 for 3 blanks, got %d", len(diags))
+	}
+	if diags[0].Line != 4 {
+		t.Errorf("expected diagnostic on line 4, got %d", diags[0].Line)
+	}
+}

@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jeduden/tidymark/internal/config"
@@ -515,5 +517,146 @@ func TestRunner_IgnoredFileByBasename(t *testing.T) {
 	result := runner.Run([]string{mdFile})
 	if len(result.Diagnostics) != 0 {
 		t.Fatalf("expected 0 diagnostics for ignored file, got %d", len(result.Diagnostics))
+	}
+}
+
+// configurableLengthRule checks lines > Max chars. It implements Configurable.
+type configurableLengthRule struct {
+	Max int
+}
+
+func (r *configurableLengthRule) ID() string   { return "TM001" }
+func (r *configurableLengthRule) Name() string { return "line-length" }
+func (r *configurableLengthRule) Check(f *lint.File) []lint.Diagnostic {
+	max := r.Max
+	if max <= 0 {
+		max = 80
+	}
+	var diags []lint.Diagnostic
+	for i, line := range f.Lines {
+		if len(line) > max {
+			diags = append(diags, lint.Diagnostic{
+				File:     f.Path,
+				Line:     i + 1,
+				Column:   max + 1,
+				RuleID:   r.ID(),
+				RuleName: r.Name(),
+				Severity: lint.Warning,
+				Message:  fmt.Sprintf("line too long (%d > %d)", len(line), max),
+			})
+		}
+	}
+	return diags
+}
+func (r *configurableLengthRule) ApplySettings(settings map[string]any) error {
+	if v, ok := settings["max"]; ok {
+		switch n := v.(type) {
+		case int:
+			r.Max = n
+		case float64:
+			r.Max = int(n)
+		default:
+			return fmt.Errorf("max must be int, got %T", v)
+		}
+	}
+	return nil
+}
+func (r *configurableLengthRule) DefaultSettings() map[string]any {
+	return map[string]any{"max": 80}
+}
+
+var _ rule.Configurable = (*configurableLengthRule)(nil)
+
+func TestRunner_AppliesSettingsFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "test.md")
+	// Create a line that is 100 chars wide.
+	line := strings.Repeat("a", 100) + "\n"
+	if err := os.WriteFile(mdFile, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Configure line-length with max=120 — 100-char line should NOT trigger.
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {
+				Enabled:  true,
+				Settings: map[string]any{"max": 120},
+			},
+		},
+	}
+
+	runner := &Runner{
+		Config: cfg,
+		Rules:  []rule.Rule{&configurableLengthRule{Max: 80}},
+	}
+
+	result := runner.Run([]string{mdFile})
+	if len(result.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("expected 0 diagnostics with max=120 for 100-char line, got %d: %v",
+			len(result.Diagnostics), result.Diagnostics)
+	}
+}
+
+func TestRunner_DefaultMaxWithoutSettings(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "test.md")
+	// Create a line that is 100 chars wide.
+	line := strings.Repeat("a", 100) + "\n"
+	if err := os.WriteFile(mdFile, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// No settings — default max=80 should flag the 100-char line.
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {Enabled: true},
+		},
+	}
+
+	runner := &Runner{
+		Config: cfg,
+		Rules:  []rule.Rule{&configurableLengthRule{Max: 80}},
+	}
+
+	result := runner.Run([]string{mdFile})
+	if len(result.Diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic with default max=80, got %d", len(result.Diagnostics))
+	}
+}
+
+func TestRunner_SettingsDoNotLeakBetweenFiles(t *testing.T) {
+	dir := t.TempDir()
+	fileA := filepath.Join(dir, "a.md")
+	fileB := filepath.Join(dir, "b.md")
+	line := strings.Repeat("a", 100) + "\n"
+	if err := os.WriteFile(fileA, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fileB, []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// No per-file override; both files use same settings.
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {
+				Enabled:  true,
+				Settings: map[string]any{"max": 120},
+			},
+		},
+	}
+
+	runner := &Runner{
+		Config: cfg,
+		Rules:  []rule.Rule{&configurableLengthRule{Max: 80}},
+	}
+
+	result := runner.Run([]string{fileA, fileB})
+	if len(result.Diagnostics) != 0 {
+		t.Fatalf("expected 0 diagnostics, got %d", len(result.Diagnostics))
 	}
 }

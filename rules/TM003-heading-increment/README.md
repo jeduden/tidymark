@@ -3,7 +3,6 @@ id: TM003
 name: heading-increment
 description: Heading levels should increment by one. No jumping from `#` to `###`.
 ---
-
 # TM003: heading-increment
 
 Heading levels should increment by one. No jumping from `#` to `###`.
