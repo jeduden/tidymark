@@ -2,92 +2,164 @@
 
 ## Goal
 
-Fix a bug where the TM014 (blank-line-around-lists) fixer
-inserts blank lines inside fenced code blocks, corrupting file
-content. The check and fix logic must skip content inside
-fenced code blocks.
+Fix a bug where TM014 (blank-line-around-lists) inserts blank
+lines inside fenced code blocks, corrupting file content. Add
+defensive code block awareness to TM013 as well.
 
-## Bug Description
+## Context
 
-When a fenced code block contains YAML list markers (`- item`)
-or thematic break markers (`---`), TM014 incorrectly treats
-them as markdown list items and inserts blank lines around
-them during fix. This corrupts code blocks by adding spurious
-blank lines between the content and the closing fence.
+Running `tidymark fix` on markdown files with fenced code
+blocks inside numbered list items corrupts the files. TM014
+(blank-line-around-lists) inserts blank lines inside fenced
+code blocks because it checks/fixes raw `f.Lines` adjacent to
+AST List nodes without verifying those lines aren't inside
+code blocks.
 
-Reproduction: run `tidymark fix` on a markdown file containing
-a fenced code block with YAML list content indented inside a
-numbered list item. The fixer inserts blank lines inside the
-code block.
+An audit of all 19 rules found **TM014 is the only vulnerable
+rule**. The other "blank-line-around-*" rules (TM013, TM015)
+and all line-based rules (TM001, TM006, TM007, TM008) are
+safe -- the line-based rules already use
+`lint.CollectCodeBlockLines()`, and pure AST-based rules are
+naturally isolated since goldmark doesn't create child nodes
+for code block content.
+
+TM013 (blank-line-around-headings) uses the same pattern
+(AST walk + raw line check) but is safe in practice because
+goldmark never creates Heading nodes inside fenced code blocks.
+However, it should get the same defensive fix for robustness.
+
+## Root Cause
+
+TM014 walks the AST for `*ast.List` nodes, then reads raw
+`f.Lines[idx]` to check if adjacent lines are blank. There are
+two possible scenarios that trigger the bug:
+
+1. **Goldmark misparses indented fences** -- When a fenced
+   code block is indented inside a list item, goldmark may
+   fail to recognize it as a code fence. YAML list markers
+   (`- item`) inside the "code block" then get parsed as
+   regular List nodes, and TM014 operates on them.
+
+2. **Multi-pass fixer interaction** -- TM016 (list-indent)
+   may change indentation in an earlier pass, causing goldmark
+   to misparse the code fence on re-parse in a later pass.
+
+Either way, the fix is the same: TM014 must skip lists whose
+lines overlap with code block regions.
+
+## Approach
+
+Use `lint.CollectCodeBlockLines()` (already exists, used by
+TM001/TM006/TM007/TM008) to build a set of code block line
+numbers, then skip any List node whose start or end line falls
+within that set. Apply the same pattern to TM013 defensively.
+
+If the reproduction test reveals that `CollectCodeBlockLines()`
+itself misses the code block (because goldmark misparses the
+fence), fall back to a raw line-based fence tracker that scans
+for `` ``` `` / `~~~` patterns independently of the AST.
+
+## Files to Modify
+
+- `internal/rules/blanklinearoundlists/rule.go` -- add code
+  block awareness to Check and Fix
+- `internal/rules/blanklinearoundlists/rule_test.go` -- add
+  reproduction test and regression tests
+- `internal/rules/blanklinearoundheadings/rule.go` -- same
+  defensive fix for Check and Fix
+- `internal/rules/blanklinearoundheadings/rule_test.go` -- add
+  matching tests
+- `.tidymark.yml` -- re-enable `blank-line-around-lists: true`
+
+## Existing Code to Reuse
+
+- `internal/lint/codeblocks.go`:
+  `CollectCodeBlockLines(f *File) map[int]bool` -- walks AST
+  for FencedCodeBlock and CodeBlock nodes, returns set of
+  1-based line numbers inside code blocks (including fences)
 
 ## Tasks
 
-### A. Investigate
+### A. Research goldmark upstream
 
-1. Verify the bug in TM014's `Check` method: confirm that
-   it reports diagnostics for list-like content inside
-   fenced code blocks.
+0. Research whether goldmark has a known issue or ticket for
+   misparsing fenced code blocks inside list items (indented
+   fences). Check the goldmark GitHub repository for relevant
+   issues and PRs. If the root cause is a goldmark parser bug,
+   document findings and consider whether an upstream fix or
+   workaround is more appropriate.
 
-2. Verify the bug in TM014's `Fix` method: confirm that
-   it inserts blank lines inside fenced code blocks.
+### B. Reproduce and fix
 
-3. Check whether TM013 (blank-line-around-headings) and
-   TM015 (blank-line-around-fenced-code) have the same
-   class of bug (operating inside code blocks).
+1. Write a reproduction test in
+   `blanklinearoundlists/rule_test.go`: a markdown file with a
+   fenced code block containing YAML list markers (`- item`)
+   inside a numbered list item. Verify Check produces no
+   diagnostics and Fix does not modify the content.
 
-### B. Fix
+2. Run the test to confirm it fails (red).
 
-4. Update the TM014 check and fix logic to track whether
-   the current line is inside a fenced code block. Skip
-   all list detection and blank-line insertion for lines
-   inside fenced code blocks.
+3. In TM014's `Check` method: call
+   `lint.CollectCodeBlockLines(f)` at the top, then inside the
+   AST walk, skip any List node where `listStartLine` or
+   `listEndLine` is in the code block set.
 
-5. If TM013 or TM015 have the same bug, apply the same
-   fix pattern.
+4. In TM014's `Fix` method: apply the same
+   `CollectCodeBlockLines` filter.
 
-6. Fenced code block detection: track open/close fence
-   markers (`` ``` `` or `~~~`) with matching indent
-   levels. Handle indented fences (0-3 spaces) and
-   fences inside list item continuations.
+5. Run the reproduction test to confirm it passes (green).
 
-### C. Re-enable TM014
+6. If step 2 shows the test passes unexpectedly (goldmark
+   parses correctly and no List nodes exist inside the code
+   block), investigate further: try the exact indentation
+   pattern from the plan files, test multi-pass fix scenarios.
 
-7. Change `blank-line-around-lists: false` back to `true`
-   in `.tidymark.yml`.
+### C. Defensive fix for TM013
 
-8. Run `tidymark check` on the full project to verify
-   no false positives remain.
+7. Apply the same defensive pattern to TM013: call
+   `CollectCodeBlockLines(f)` in both Check and Fix, skip
+   any Heading node whose line is in the code block set.
 
-### D. Tests
+8. Add tests for TM013: code block containing `# heading`
+   text should produce no TM013 diagnostics.
 
-9. Add unit test: code block containing YAML list markers
-   (`- item`) produces no TM014 diagnostics.
+### D. Edge case tests
 
-10. Add unit test: code block containing `---` produces
-    no TM014 diagnostics.
+9. Add edge case tests for TM014:
+  - List immediately before a fenced code block (valid
+    diagnostic, should still fire)
+  - List immediately after a fenced code block (valid
+    diagnostic, should still fire)
+  - List inside an indented code block (no diagnostic)
+  - Empty fenced code block adjacent to a list
 
-11. Add unit test: fixer does not modify content inside
-    fenced code blocks.
+### E. Re-enable and verify
 
-12. Add unit test: list immediately before or after a
-    fenced code block still gets correct blank-line
-    diagnostics (ensure the fix does not suppress valid
-    diagnostics outside code blocks).
+10. Re-enable `blank-line-around-lists: true` in
+    `.tidymark.yml`.
 
-13. Add regression test with the exact input that
-    triggered the bug (YAML code block inside a numbered
-    list item, indented 3 spaces).
+11. Run `tidymark check plan/` to verify plan files pass
+    (this was the original trigger).
+
+12. Run full test suite: `go test ./...`
+
+13. Run linter: `go tool golangci-lint run`
 
 ## Acceptance Criteria
 
-- [ ] TM014 does not report diagnostics for content
-      inside fenced code blocks
-- [ ] TM014 fixer does not insert blank lines inside
+- [ ] Goldmark upstream research documented (issue link or
+      confirmation that no existing ticket covers this)
+- [ ] `go test ./internal/rules/blanklinearoundlists/...`
+      passes with reproduction and edge case tests
+- [ ] `go test ./internal/rules/blanklinearoundheadings/...`
+      passes with defensive tests
+- [ ] TM014 does not report diagnostics for content inside
       fenced code blocks
-- [ ] TM013 and TM015 also skip code block interiors
-      (if affected)
+- [ ] TM014 fixer does not insert blank lines inside fenced
+      code blocks
+- [ ] TM013 defensively skips code block interiors
 - [ ] `blank-line-around-lists: true` re-enabled in
       `.tidymark.yml`
-- [ ] `tidymark check` passes on the full project
+- [ ] `tidymark check plan/` passes with TM014 re-enabled
 - [ ] All tests pass: `go test ./...`
 - [ ] `golangci-lint run` reports no issues
