@@ -1,3 +1,9 @@
+---
+id: TM004
+name: first-line-heading
+description: First line of the file should be a heading.
+---
+
 # TM004: first-line-heading
 
 First line of the file should be a heading.

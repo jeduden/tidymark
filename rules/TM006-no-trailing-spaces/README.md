@@ -1,3 +1,9 @@
+---
+id: TM006
+name: no-trailing-spaces
+description: No trailing whitespace at the end of lines.
+---
+
 # TM006: no-trailing-spaces
 
 No trailing whitespace at the end of lines.

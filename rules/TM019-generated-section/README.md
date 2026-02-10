@@ -1,3 +1,9 @@
+---
+id: TM019
+name: generated-section
+description: Generated sections must match the content their directive would produce.
+---
+
 # TM019: generated-section
 
 Generated sections must match the content their directive would produce.

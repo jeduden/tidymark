@@ -1,3 +1,9 @@
 ignore:
   - "rules/**"
   - "internal/**"
+  - "plan/**"
+
+overrides:
+  - files: ["README.md"]
+    rules:
+      line-length: false

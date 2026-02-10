@@ -1,3 +1,9 @@
+---
+id: TM013
+name: blank-line-around-headings
+description: Headings must have a blank line before and after.
+---
+
 # TM013: blank-line-around-headings
 
 Headings must have a blank line before and after.

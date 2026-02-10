@@ -1,3 +1,9 @@
+---
+id: TM007
+name: no-hard-tabs
+description: No tab characters. Use spaces instead.
+---
+
 # TM007: no-hard-tabs
 
 No tab characters. Use spaces instead.

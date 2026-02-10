@@ -1,3 +1,9 @@
+---
+id: TM002
+name: heading-style
+description: Heading style must be consistent.
+---
+
 # TM002: heading-style
 
 Heading style must be consistent.

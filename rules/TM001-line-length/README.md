@@ -1,3 +1,9 @@
+---
+id: TM001
+name: line-length
+description: Line exceeds maximum length.
+---
+
 # TM001: line-length
 
 Line exceeds maximum length.

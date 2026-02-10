@@ -1,3 +1,9 @@
+---
+id: TM010
+name: fenced-code-style
+description: Fenced code blocks must use a consistent delimiter.
+---
+
 # TM010: fenced-code-style
 
 Fenced code blocks must use a consistent delimiter.

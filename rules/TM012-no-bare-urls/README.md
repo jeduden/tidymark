@@ -1,3 +1,9 @@
+---
+id: TM012
+name: no-bare-urls
+description: URLs must be wrapped in angle brackets or as a link, not left bare.
+---
+
 # TM012: no-bare-urls
 
 URLs must be wrapped in angle brackets or as a link, not left bare.

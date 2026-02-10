@@ -1,3 +1,9 @@
+---
+id: TM014
+name: blank-line-around-lists
+description: Lists must have a blank line before and after.
+---
+
 # TM014: blank-line-around-lists
 
 Lists must have a blank line before and after.

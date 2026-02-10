@@ -1,3 +1,9 @@
+---
+id: TM017
+name: no-trailing-punctuation-in-heading
+description: Headings should not end with punctuation.
+---
+
 # TM017: no-trailing-punctuation-in-heading
 
 Headings should not end with punctuation.

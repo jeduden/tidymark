@@ -1,3 +1,9 @@
+---
+id: TM018
+name: no-emphasis-as-heading
+description: Don't use bold or emphasis on a standalone line as a heading substitute.
+---
+
 # TM018: no-emphasis-as-heading
 
 Don't use bold or emphasis on a standalone line as a heading substitute.
