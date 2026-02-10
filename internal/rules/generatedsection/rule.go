@@ -66,11 +66,19 @@ func (r *Rule) Fix(f *lint.File) []byte {
 
 // checkPair checks a single marker pair and returns diagnostics.
 func (r *Rule) checkPair(f *lint.File, mp markerPair) []lint.Diagnostic {
-	expected, ok := r.generateContent(f, mp)
-	if !ok {
-		// generateContent returned diagnostics via the diag parameter;
-		// we need to re-generate to get them.
-		return r.validateAndGenerate(f, mp)
+	dir, diags := parseDirective(f, mp)
+	if dir == nil || len(diags) > 0 {
+		return diags
+	}
+
+	valDiags := r.validateDirective(f, mp, dir)
+	if len(valDiags) > 0 {
+		return valDiags
+	}
+
+	expected, genDiags := r.resolveCatalogWithDiags(f, mp, dir)
+	if len(genDiags) > 0 {
+		return genDiags
 	}
 
 	actual := extractContent(f, mp)
@@ -89,21 +97,9 @@ func (r *Rule) checkPair(f *lint.File, mp markerPair) []lint.Diagnostic {
 	return nil
 }
 
-// validateAndGenerate validates the directive and returns diagnostics.
-// Returns nil diagnostics if everything is valid.
-func (r *Rule) validateAndGenerate(f *lint.File, mp markerPair) []lint.Diagnostic {
-	dir, diags := parseDirective(f, mp)
-	if dir == nil {
-		return diags
-	}
-
-	diags = append(diags, r.validateDirective(f, mp, dir)...)
-	return diags
-}
-
 // generateContent generates the expected content for a marker pair.
 // Returns the content and true if generation succeeded, or empty and
-// false if there were validation errors.
+// false if there were validation errors or generation errors.
 func (r *Rule) generateContent(f *lint.File, mp markerPair) (string, bool) {
 	dir, diags := parseDirective(f, mp)
 	if dir == nil || len(diags) > 0 {
@@ -297,6 +293,78 @@ func validateSort(f *lint.File, mp markerPair, sortVal string) []lint.Diagnostic
 	}
 
 	return nil
+}
+
+// resolveCatalogWithDiags generates content and returns diagnostics on failure.
+func (r *Rule) resolveCatalogWithDiags(f *lint.File, mp markerPair, dir *directive) (string, []lint.Diagnostic) {
+	glob := dir.params["glob"]
+
+	matches, err := doublestar.Glob(f.FS, glob)
+	if err != nil {
+		return "", nil
+	}
+
+	// Filter out directories and unreadable files.
+	var files []string
+	for _, m := range matches {
+		info, err := fs.Stat(f.FS, m)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		files = append(files, m)
+	}
+
+	// Determine sort key.
+	sortKey, descending := parseSort(dir.params)
+
+	// Determine if we need front matter.
+	_, hasRow := dir.params["row"]
+	needFM := hasRow || (sortKey != "path" && sortKey != "filename")
+
+	// Build file entries.
+	entries := make([]fileEntry, 0, len(files))
+	for _, path := range files {
+		fields := map[string]string{
+			"filename": path,
+		}
+
+		if needFM {
+			fm := readFrontMatter(f.FS, path)
+			for k, v := range fm {
+				fields[k] = v
+			}
+		}
+
+		entries = append(entries, fileEntry{fields: fields})
+	}
+
+	// Sort entries.
+	sortEntries(entries, sortKey, descending)
+
+	// Render.
+	if len(entries) == 0 {
+		empty := renderEmpty(dir.params)
+		return empty, nil
+	}
+
+	if !hasRow {
+		return renderMinimal(entries), nil
+	}
+
+	content, err := renderTemplate(dir.params, entries)
+	if err != nil {
+		return "", []lint.Diagnostic{{
+			File:     f.Path,
+			Line:     mp.startLine,
+			Column:   1,
+			RuleID:   "TM019",
+			RuleName: "generated-section",
+			Severity: lint.Error,
+			Message:  fmt.Sprintf("generated section template execution failed: %v", err),
+		}}
+	}
+
+	return content, nil
 }
 
 // resolveCatalog generates content for the catalog directive.

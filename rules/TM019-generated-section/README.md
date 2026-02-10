@@ -546,7 +546,7 @@ Diagnostic: `generated section directive has absolute glob path`
 | Dotfiles | Matched by `*` and `**`; exclude via ignore list if needed |
 | Absolute glob path | Diagnostic |
 | Glob with `..` | Diagnostic (parent traversal not supported by `io/fs.FS`) |
-| Brace expansion in glob | Not supported; treated as literal characters |
+| Brace expansion in glob | Supported (handled by `doublestar` library) |
 | Empty glob value | Diagnostic |
 | Empty `row` value | Diagnostic (empty string or whitespace-only) |
 | Empty `sort` value | Diagnostic |

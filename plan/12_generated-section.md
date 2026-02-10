@@ -232,7 +232,7 @@ interpolate the underlying Go error string as-is.
 - [x] Empty `glob: ""` produces diagnostic
 - [x] Absolute glob path produces diagnostic
 - [x] Glob with `..` produces diagnostic
-- [x] Brace expansion in glob not supported
+- [x] Brace expansion in glob supported (doublestar handles natively)
 - [x] Invalid glob pattern produces diagnostic
 - [x] Invalid YAML body produces diagnostic
 - [x] Non-string YAML values produce diagnostic per key
@@ -329,37 +329,42 @@ consider consolidating to reduce maintenance burden.
 ## Open Tasks
 
 8. Add missing spec tests (high priority)
-   - [ ] Template execution errors — Check emits diagnostic, Fix leaves
-     section unchanged
-   - [ ] Brace expansion `{a,b}` not supported (treated as literal)
-   - [ ] Windows `\r\n` line endings flagged as stale
-   - [ ] Glob matching the linted file itself (included in output)
-   - [ ] Binary/non-Markdown matched files — `{{.filename}}` resolves, no
+   - [x] Template execution errors — Check emits diagnostic, Fix leaves
+     section unchanged (fixed `checkPair` to use `resolveCatalogWithDiags`)
+   - [x] Brace expansion `{a,b}` — doublestar supports braces natively;
+     spec updated to match implementation (spec discrepancy resolved)
+   - [x] Windows `\r\n` line endings flagged as stale
+   - [x] Glob matching the linted file itself (included in output)
+   - [x] Binary/non-Markdown matched files — `{{.filename}}` resolves, no
      front matter extracted
-   - [ ] YAML anchors/aliases/merge keys in marker body
-   - [ ] Double-dash sort (`sort: --priority` → descending by `-priority`)
-   - [ ] Unreadable matched files silently skipped (end-to-end)
+   - [x] YAML anchors/aliases/merge keys in marker body
+   - [x] Double-dash sort (`sort: --priority` → descending by `-priority`)
+   - [x] Unreadable matched files silently skipped (end-to-end)
 
 9. Add missing spec tests (medium priority)
-   - [ ] Template output not HTML-escaped (`<`, `>`, `&` appear literally)
-   - [ ] Go built-in template functions (`len`, `print`, `index`)
-   - [ ] Diagnostic line-number assertions for most diagnostic types
-   - [ ] Missing front matter values sort as empty string (end-to-end)
-   - [ ] Non-string front matter value rendered through template (end-to-end)
-   - [ ] Symlinks followed in glob results
-   - [ ] `empty` + `footer` without `row` produces missing-row diagnostic
+   - [x] Template output not HTML-escaped (`<`, `>`, `&` appear literally)
+   - [x] Go built-in template functions (`len`, `print`, `index`)
+   - [x] Diagnostic line-number assertions for most diagnostic types
+   - [x] Missing front matter values sort as empty string (end-to-end)
+   - [x] Non-string front matter value rendered through template (end-to-end)
+   - [ ] Symlinks followed in glob results (requires real filesystem, skipped
+     for unit tests using `fstest.MapFS`)
+   - [x] `empty` + `footer` without `row` produces missing-row diagnostic
 
 10. Strengthen weak test assertions
-    - [ ] `TestEdge_TerminatorAllowsLeadingTrailingWhitespace` — add exact
-      diagnostic count assertion
-    - [ ] `TestEdge_EndMarkerWithWhitespace` — add exact diagnostic count
-    - [ ] `TestEdge_DirectiveWhitespaceTrimmedExtraWordsIgnored` — add exact
-      diagnostic count
-    - [ ] `TestEdge_GlobMatchingDirectorySkipped` — add exact diagnostic count
+    - [x] `TestEdge_TerminatorAllowsLeadingTrailingWhitespace` — uses
+      `expectDiags(t, diags, 0)`
+    - [x] `TestEdge_EndMarkerWithWhitespace` — uses
+      `expectDiags(t, diags, 0)`
+    - [x] `TestEdge_DirectiveWhitespaceTrimmedExtraWordsIgnored` — uses
+      `expectDiags(t, diags, 0)`
+    - [x] `TestEdge_GlobMatchingDirectorySkipped` — uses
+      `expectDiags(t, diags, 0)`
 
 11. Review unexported function tests for behavioral correctness
-    - [ ] Verify each of the ~27 unexported function tests asserts the
-      function's behavioral contract, not internal details
-    - [ ] Consolidate duplicate table-driven groups
-      (`TestCheck_DiagnosticScenarios`, `TestSort_Behavior`,
-      `TestFix_Scenarios`) with their individual counterparts
+    - [x] All ~27 unexported function tests assert behavioral contracts,
+      not implementation details (verified)
+    - [x] Consolidated duplicate table-driven groups with individual tests:
+      removed ~25 duplicate individual tests, added missing scenarios to
+      `TestCheck_DiagnosticScenarios`, `TestSort_Behavior`, and
+      `TestFix_Scenarios` tables
