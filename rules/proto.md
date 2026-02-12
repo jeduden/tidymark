@@ -2,8 +2,10 @@
 id: TMXXX
 name: rule-name
 description: One-sentence description ending with period.
+template:
+  allow-extra-sections: true
 ---
-# TMXXX: rule-name
+# {{.id}}: {{.name}}
 
 <!-- Rule README template. Copy this file, replace placeholders,
      delete sections and comments that don't apply.
@@ -12,10 +14,10 @@ description: One-sentence description ending with period.
      Repeat the description verbatim. Use prescriptive voice,
      present tense: "Headings must ..." not "Checks that ...". -->
 
-One-sentence description ending with period.
+{{.description}}
 
-- **ID**: TMXXX
-- **Name**: `rule-name`
+- **ID**: {{.id}}
+- **Name**: `{{.name}}`
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:

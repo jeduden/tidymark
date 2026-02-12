@@ -26,6 +26,7 @@ import (
 	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
 	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
 	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
+	_ "github.com/jeduden/tidymark/internal/rules/include"
 	_ "github.com/jeduden/tidymark/internal/rules/linelength"
 	_ "github.com/jeduden/tidymark/internal/rules/listindent"
 	_ "github.com/jeduden/tidymark/internal/rules/maxfilelength"
@@ -38,6 +39,7 @@ import (
 	_ "github.com/jeduden/tidymark/internal/rules/notrailingspaces"
 	_ "github.com/jeduden/tidymark/internal/rules/paragraphreadability"
 	_ "github.com/jeduden/tidymark/internal/rules/paragraphstructure"
+	_ "github.com/jeduden/tidymark/internal/rules/requiredstructure"
 	_ "github.com/jeduden/tidymark/internal/rules/singletrailingnewline"
 )
 
