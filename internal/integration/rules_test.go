@@ -18,10 +18,10 @@ import (
 	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundfencedcode"
 	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundheadings"
 	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundlists"
+	_ "github.com/jeduden/tidymark/internal/rules/catalog"
 	_ "github.com/jeduden/tidymark/internal/rules/fencedcodelanguage"
 	_ "github.com/jeduden/tidymark/internal/rules/fencedcodestyle"
 	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
-	_ "github.com/jeduden/tidymark/internal/rules/generatedsection"
 	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
 	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
 	_ "github.com/jeduden/tidymark/internal/rules/linelength"
@@ -225,7 +225,7 @@ func runGoodFolderFile(
 	if err != nil {
 		t.Fatalf("parsing %s: %v", filepath.Base(filePath), err)
 	}
-	f.FS = os.DirFS(ruleDir)
+	f.FS = os.DirFS(filepath.Dir(filePath))
 	diags := checkAllRules(f)
 	reportUnexpectedDiags(t, filepath.Base(filePath), diags)
 }
@@ -244,7 +244,7 @@ func runBadFolderFile(
 	if err != nil {
 		t.Fatalf("parsing %s: %v", filepath.Base(filePath), err)
 	}
-	f.FS = os.DirFS(ruleDir)
+	f.FS = os.DirFS(filepath.Dir(filePath))
 	diags := filterByRule(r.Check(f), ruleID)
 	assertExpectedDiags(t, expected, diags, filepath.Base(filePath))
 }
@@ -276,7 +276,7 @@ func runFixFolderFile(
 	if err != nil {
 		t.Fatalf("parsing %s: %v", filepath.Base(fixedPath), err)
 	}
-	f.FS = os.DirFS(ruleDir)
+	f.FS = os.DirFS(filepath.Dir(fixedPath))
 
 	got := fr.Fix(f)
 
@@ -299,7 +299,7 @@ func runFixFolderFile(
 	if err != nil {
 		t.Fatalf("parsing fixed output: %v", err)
 	}
-	fixedFile.FS = os.DirFS(ruleDir)
+	fixedFile.FS = os.DirFS(filepath.Dir(fixedPath))
 	diags := checkAllRules(fixedFile)
 	reportUnexpectedDiags(t, filepath.Base(fixedPath), diags)
 }

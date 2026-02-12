@@ -12,10 +12,10 @@ import (
 	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundfencedcode"
 	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundheadings"
 	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundlists"
+	_ "github.com/jeduden/tidymark/internal/rules/catalog"
 	_ "github.com/jeduden/tidymark/internal/rules/fencedcodelanguage"
 	_ "github.com/jeduden/tidymark/internal/rules/fencedcodestyle"
 	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
-	_ "github.com/jeduden/tidymark/internal/rules/generatedsection"
 	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
 	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
 	_ "github.com/jeduden/tidymark/internal/rules/linelength"
@@ -357,7 +357,7 @@ func TestDefaultsAllRulesEnabled(t *testing.T) {
 		"list-indent",
 		"no-trailing-punctuation-in-heading",
 		"no-emphasis-as-heading",
-		"generated-section",
+		"catalog",
 	}
 
 	if len(cfg.Rules) != 19 {
@@ -801,7 +801,7 @@ func TestDumpDefaults_NonConfigurableRulesHaveNoSettings(t *testing.T) {
 		"blank-line-around-fenced-code",
 		"no-trailing-punctuation-in-heading",
 		"no-emphasis-as-heading",
-		"generated-section",
+		"catalog",
 	}
 
 	for _, name := range nonConfigurableRules {

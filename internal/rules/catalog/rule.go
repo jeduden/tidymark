@@ -1,4 +1,4 @@
-package generatedsection
+package catalog
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/jeduden/tidymark/internal/archetype/gensection"
 	"github.com/jeduden/tidymark/internal/lint"
 	"github.com/jeduden/tidymark/internal/rule"
 	"gopkg.in/yaml.v3"
@@ -19,29 +20,39 @@ func init() {
 }
 
 // Rule checks that generated sections match their directive output.
-type Rule struct{}
+type Rule struct {
+	engine *gensection.Engine
+}
 
 // ID implements rule.Rule.
 func (r *Rule) ID() string { return "TM019" }
 
 // Name implements rule.Rule.
-func (r *Rule) Name() string { return "generated-section" }
+func (r *Rule) Name() string { return "catalog" }
 
 // Category implements rule.Rule.
 func (r *Rule) Category() string { return "meta" }
+
+// RuleID implements gensection.Directive.
+func (r *Rule) RuleID() string { return "TM019" }
+
+// RuleName implements gensection.Directive.
+func (r *Rule) RuleName() string { return "catalog" }
+
+// getEngine lazily initializes and returns the gensection engine.
+func (r *Rule) getEngine() *gensection.Engine {
+	if r.engine == nil {
+		r.engine = gensection.NewEngine(r)
+	}
+	return r.engine
+}
 
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if f.FS == nil {
 		return nil
 	}
-
-	pairs, diags := findMarkerPairs(f)
-	for _, mp := range pairs {
-		pairDiags := r.checkPair(f, mp)
-		diags = append(diags, pairDiags...)
-	}
-	return diags
+	return r.getEngine().Check(f)
 }
 
 // Fix implements rule.FixableRule.
@@ -49,108 +60,61 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	if f.FS == nil {
 		return f.Source
 	}
-
-	pairs, _ := findMarkerPairs(f)
-
-	// Work backwards to preserve line numbers.
-	for i := len(pairs) - 1; i >= 0; i-- {
-		mp := pairs[i]
-		expected, ok := r.generateContent(f, mp)
-		if !ok {
-			continue
-		}
-
-		f.Source = replaceContent(f, mp, expected)
-		f.Lines = splitLines(f.Source)
-	}
-
-	return f.Source
+	return r.getEngine().Fix(f)
 }
 
-// checkPair checks a single marker pair and returns diagnostics.
-func (r *Rule) checkPair(f *lint.File, mp markerPair) []lint.Diagnostic {
-	dir, diags := parseDirective(f, mp)
-	if dir == nil || len(diags) > 0 {
-		return diags
-	}
-
-	valDiags := r.validateDirective(f, mp, dir)
-	if len(valDiags) > 0 {
-		return valDiags
-	}
-
-	expected, genDiags := r.resolveCatalogWithDiags(f, mp, dir)
-	if len(genDiags) > 0 {
-		return genDiags
-	}
-
-	actual := extractContent(f, mp)
-	if actual != expected {
-		return []lint.Diagnostic{{
-			File:     f.Path,
-			Line:     mp.startLine,
-			Column:   1,
-			RuleID:   "TM019",
-			RuleName: "generated-section",
-			Severity: lint.Error,
-			Message:  "generated section is out of date",
-		}}
-	}
-
-	return nil
+// Validate implements gensection.Directive.
+func (r *Rule) Validate(filePath string, line int,
+	params map[string]string, columns map[string]gensection.ColumnConfig,
+) []lint.Diagnostic {
+	return validateCatalogDirective(filePath, line, params, columns)
 }
 
-// generateContent generates the expected content for a marker pair.
-// Returns the content and true if generation succeeded, or empty and
-// false if there were validation errors or generation errors.
-func (r *Rule) generateContent(f *lint.File, mp markerPair) (string, bool) {
-	dir, diags := parseDirective(f, mp)
-	if dir == nil || len(diags) > 0 {
-		return "", false
-	}
+// Generate implements gensection.Directive.
+func (r *Rule) Generate(f *lint.File, filePath string, line int,
+	params map[string]string, columns map[string]gensection.ColumnConfig,
+) (string, []lint.Diagnostic) {
+	cols := fromGensectionColumns(columns)
+	entries := buildCatalogEntries(f, params)
 
-	moreDiags := r.validateDirective(f, mp, dir)
-	if len(moreDiags) > 0 {
-		return "", false
+	_, hasRow := params["row"]
+	content, err := renderCatalogContent(params, entries, cols, hasRow)
+	if err != nil {
+		return "", []lint.Diagnostic{makeDiag(filePath, line,
+			fmt.Sprintf("generated section template execution failed: %v", err))}
 	}
-
-	return r.resolveCatalog(f, dir)
-}
-
-// validateDirective validates a parsed directive's parameters.
-func (r *Rule) validateDirective(f *lint.File, mp markerPair, dir *directive) []lint.Diagnostic {
-	if dir.name != "catalog" {
-		return []lint.Diagnostic{makeDiag(f.Path, mp.startLine,
-			fmt.Sprintf("unknown generated section directive %q", dir.name))}
-	}
-	return validateCatalogDirective(f.Path, mp.startLine, dir)
+	return content, nil
 }
 
 // validateCatalogDirective validates parameters specific to the catalog directive.
-func validateCatalogDirective(filePath string, line int, dir *directive) []lint.Diagnostic {
-	_, hasRow := dir.params["row"]
-	_, hasHeader := dir.params["header"]
-	_, hasFooter := dir.params["footer"]
+func validateCatalogDirective(
+	filePath string, line int,
+	params map[string]string,
+	columns map[string]gensection.ColumnConfig,
+) []lint.Diagnostic {
+	_, hasRow := params["row"]
+	_, hasHeader := params["header"]
+	_, hasFooter := params["footer"]
 
 	if (hasHeader || hasFooter) && !hasRow {
 		return []lint.Diagnostic{makeDiag(filePath, line,
 			`generated section template missing required "row" key`)}
 	}
-	if hasRow && strings.TrimSpace(dir.params["row"]) == "" {
+	if hasRow && strings.TrimSpace(params["row"]) == "" {
 		return []lint.Diagnostic{makeDiag(filePath, line,
 			`generated section directive has empty "row" value`)}
 	}
 
-	if diags := validateGlob(filePath, line, dir.params); len(diags) > 0 {
+	if diags := validateGlob(filePath, line, params); len(diags) > 0 {
 		return diags
 	}
 
 	var diags []lint.Diagnostic
-	if sortVal, hasSort := dir.params["sort"]; hasSort {
+	if sortVal, hasSort := params["sort"]; hasSort {
 		diags = append(diags, validateSort(filePath, line, sortVal)...)
 	}
 	if hasRow {
-		if _, err := parseRowTemplate(dir.params["row"]); err != nil {
+		if _, err := parseRowTemplate(params["row"]); err != nil {
 			diags = append(diags, makeDiag(filePath, line,
 				fmt.Sprintf("generated section has invalid template: %v", err)))
 		}
@@ -198,36 +162,10 @@ func validateSort(filePath string, line int, sortVal string) []lint.Diagnostic {
 	return nil
 }
 
-// resolveCatalogWithDiags generates content and returns diagnostics on failure.
-func (r *Rule) resolveCatalogWithDiags(f *lint.File, mp markerPair, dir *directive) (string, []lint.Diagnostic) {
-	entries := buildCatalogEntries(f, dir)
-
-	_, hasRow := dir.params["row"]
-	content, err := renderCatalogContent(dir, entries, hasRow)
-	if err != nil {
-		return "", []lint.Diagnostic{makeDiag(f.Path, mp.startLine,
-			fmt.Sprintf("generated section template execution failed: %v", err))}
-	}
-	return content, nil
-}
-
-// resolveCatalog generates content for the catalog directive.
-// Returns the content and true, or empty and false on error.
-func (r *Rule) resolveCatalog(f *lint.File, dir *directive) (string, bool) {
-	entries := buildCatalogEntries(f, dir)
-
-	_, hasRow := dir.params["row"]
-	content, err := renderCatalogContent(dir, entries, hasRow)
-	if err != nil {
-		return "", false
-	}
-	return content, true
-}
-
 // buildCatalogEntries resolves glob matches, reads front matter, and
 // returns sorted file entries for the catalog directive.
-func buildCatalogEntries(f *lint.File, dir *directive) []fileEntry {
-	matches, err := doublestar.Glob(f.FS, dir.params["glob"])
+func buildCatalogEntries(f *lint.File, params map[string]string) []fileEntry {
+	matches, err := doublestar.Glob(f.FS, params["glob"])
 	if err != nil {
 		return nil
 	}
@@ -241,8 +179,8 @@ func buildCatalogEntries(f *lint.File, dir *directive) []fileEntry {
 		files = append(files, m)
 	}
 
-	sortKey, descending := parseSort(dir.params)
-	_, hasRow := dir.params["row"]
+	sortKey, descending := parseSort(params)
+	_, hasRow := params["row"]
 	needFM := hasRow || (sortKey != "path" && sortKey != "filename")
 
 	entries := make([]fileEntry, 0, len(files))
@@ -261,14 +199,17 @@ func buildCatalogEntries(f *lint.File, dir *directive) []fileEntry {
 }
 
 // renderCatalogContent renders catalog entries into the final content string.
-func renderCatalogContent(dir *directive, entries []fileEntry, hasRow bool) (string, error) {
+func renderCatalogContent(
+	params map[string]string, entries []fileEntry,
+	cols map[string]columnConfig, hasRow bool,
+) (string, error) {
 	if len(entries) == 0 {
-		return renderEmpty(dir.params), nil
+		return renderEmpty(params), nil
 	}
 	if !hasRow {
 		return renderMinimal(entries), nil
 	}
-	return renderTemplate(dir.params, entries, dir.columns)
+	return renderTemplate(params, entries, cols)
 }
 
 // parseSort parses the sort value from params, returning the key and direction.
@@ -354,60 +295,6 @@ func readFrontMatter(fsys fs.FS, path string) map[string]string {
 		}
 	}
 	return result
-}
-
-// extractContent returns the content between markers as a string.
-func extractContent(f *lint.File, mp markerPair) string {
-	if mp.contentFrom > mp.contentTo {
-		return ""
-	}
-	// contentFrom and contentTo are 1-based line numbers.
-	var lines []string
-	for i := mp.contentFrom - 1; i <= mp.contentTo-1 && i < len(f.Lines); i++ {
-		lines = append(lines, string(f.Lines[i]))
-	}
-	if len(lines) == 0 {
-		return ""
-	}
-	return strings.Join(lines, "\n") + "\n"
-}
-
-// replaceContent replaces the content between markers with new content.
-func replaceContent(f *lint.File, mp markerPair, content string) []byte {
-	var result []byte
-
-	// Lines before content.
-	for i := 0; i < mp.contentFrom-1 && i < len(f.Lines); i++ {
-		result = append(result, f.Lines[i]...)
-		result = append(result, '\n')
-	}
-
-	// New content.
-	result = append(result, []byte(content)...)
-
-	// Lines from end marker onward.
-	for i := mp.endLine - 1; i < len(f.Lines); i++ {
-		result = append(result, f.Lines[i]...)
-		if i < len(f.Lines)-1 {
-			result = append(result, '\n')
-		}
-	}
-
-	return result
-}
-
-// splitLines splits source into lines (like bytes.Split but returns [][]byte).
-func splitLines(source []byte) [][]byte {
-	var lines [][]byte
-	start := 0
-	for i, b := range source {
-		if b == '\n' {
-			lines = append(lines, source[start:i])
-			start = i + 1
-		}
-	}
-	lines = append(lines, source[start:])
-	return lines
 }
 
 // containsDotDot checks if a glob pattern contains ".." path traversal.

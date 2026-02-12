@@ -1,4 +1,4 @@
-package generatedsection
+package catalog
 
 import (
 	"strings"
@@ -8,45 +8,6 @@ import (
 type columnConfig struct {
 	maxWidth int    // maximum width for the column content
 	wrap     string // "truncate" (default) or "br"
-}
-
-// parseColumnConfig parses the raw YAML columns map into columnConfig entries.
-// The raw map has column names as keys and maps with "max-width" and "wrap" as values.
-func parseColumnConfig(raw map[string]any) map[string]columnConfig {
-	if raw == nil {
-		return nil
-	}
-
-	result := make(map[string]columnConfig, len(raw))
-	for name, v := range raw {
-		colMap, ok := v.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		cc := columnConfig{
-			wrap: "truncate",
-		}
-
-		if mw, ok := colMap["max-width"]; ok {
-			switch val := mw.(type) {
-			case int:
-				cc.maxWidth = val
-			case float64:
-				cc.maxWidth = int(val)
-			}
-		}
-
-		if w, ok := colMap["wrap"]; ok {
-			if ws, ok := w.(string); ok {
-				cc.wrap = ws
-			}
-		}
-
-		result[name] = cc
-	}
-
-	return result
 }
 
 // truncateCell truncates text to maxWidth characters, appending "..." if

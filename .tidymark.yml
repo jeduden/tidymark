@@ -29,7 +29,7 @@ rules:
     spaces: 2
   no-trailing-punctuation-in-heading: true
   no-emphasis-as-heading: true
-  generated-section: true
+  catalog: true
 
 ignore:
   - "internal/**"

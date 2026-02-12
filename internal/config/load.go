@@ -31,7 +31,7 @@ var allRuleNames = []string{
 	"list-indent",
 	"no-trailing-punctuation-in-heading",
 	"no-emphasis-as-heading",
-	"generated-section",
+	"catalog",
 }
 
 // Load reads and parses a config file at the given path.

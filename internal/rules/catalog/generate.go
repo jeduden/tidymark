@@ -1,10 +1,12 @@
-package generatedsection
+package catalog
 
 import (
 	"bytes"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/jeduden/tidymark/internal/archetype/gensection"
 )
 
 // fileEntry holds the template fields for a single matched file.
@@ -83,10 +85,7 @@ func renderEmpty(params map[string]string) string {
 	return ensureTrailingNewline(empty)
 }
 
-// ensureTrailingNewline appends \n if s does not already end with \n.
+// ensureTrailingNewline delegates to gensection.EnsureTrailingNewline.
 func ensureTrailingNewline(s string) string {
-	if strings.HasSuffix(s, "\n") {
-		return s
-	}
-	return s + "\n"
+	return gensection.EnsureTrailingNewline(s)
 }

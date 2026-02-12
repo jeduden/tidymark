@@ -129,7 +129,7 @@ the same pinned rule settings and upgrades are an explicit, reviewable change.
 
 ## Rules
 
-<!-- tidymark:gen:start catalog
+<!-- catalog
 glob: "rules/TM*/README.md"
 sort: id
 header: |
@@ -157,8 +157,8 @@ row: "| [{{.id}}]({{.filename}}) | `{{.name}}` | {{.description}} |"
 | [TM016](rules/TM016-list-indent/README.md) | `list-indent` | List items must use consistent indentation. |
 | [TM017](rules/TM017-no-trailing-punctuation-in-heading/README.md) | `no-trailing-punctuation-in-heading` | Headings should not end with punctuation. |
 | [TM018](rules/TM018-no-emphasis-as-heading/README.md) | `no-emphasis-as-heading` | Don't use bold or emphasis on a standalone line as a heading substitute. |
-| [TM019](rules/TM019-generated-section/README.md) | `generated-section` | Generated sections must match the content their directive would produce. |
-<!-- tidymark:gen:end -->
+| [TM019](rules/TM019-catalog/README.md) | `catalog` | Catalog content must reflect selected front matter fields from files matching its glob. |
+<!-- /catalog -->
 
 ## Development
 

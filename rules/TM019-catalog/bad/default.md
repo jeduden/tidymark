@@ -6,8 +6,8 @@ diagnostics:
 ---
 # Document Index
 
-<!-- tidymark:gen:start catalog
+<!-- catalog
 glob: "data/*.md"
 -->
 - [alpha.md](data/alpha.md)
-<!-- tidymark:gen:end -->
+<!-- /catalog -->

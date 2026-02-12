@@ -140,3 +140,11 @@ Plan files must pass `tidymark check plan/` with zero diagnostics.
 
 See [README.md](README.md#configuration) for config file format and examples.
 Each rule is documented in [`rules/<id>-<name>/README.md`](rules/).
+Use [`rules/proto.md`](rules/proto.md) as template and content
+guide when writing rule READMEs (instructions are in HTML comments).
+
+When writing descriptions, state the concrete constraint: what
+specific data must satisfy what condition. Name the inputs
+(front matter fields, glob pattern, heading level) not just the
+mechanism. Avoid vague verbs (match, sync, reflect) without
+saying what is checked against what.
