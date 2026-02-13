@@ -8,6 +8,7 @@ import (
 
 	"github.com/jeduden/tidymark/internal/config"
 	"github.com/jeduden/tidymark/internal/lint"
+	vlog "github.com/jeduden/tidymark/internal/log"
 	"github.com/jeduden/tidymark/internal/rule"
 )
 
@@ -18,6 +19,7 @@ type Runner struct {
 	Config           *config.Config
 	Rules            []rule.Rule
 	StripFrontMatter bool
+	Logger           *vlog.Logger
 }
 
 // Result holds the output of a lint run.
@@ -36,6 +38,8 @@ func (r *Runner) Run(paths []string) *Result {
 			continue
 		}
 
+		r.log().Printf("file: %s", path)
+
 		source, err := os.ReadFile(path)
 		if err != nil {
 			res.Errors = append(res.Errors, fmt.Errorf("reading %q: %w", path, err))
@@ -50,6 +54,8 @@ func (r *Runner) Run(paths []string) *Result {
 		f.FS = os.DirFS(filepath.Dir(path))
 
 		effective := r.effectiveWithCategories(path)
+
+		r.logRules(effective)
 
 		diags, errs := CheckRules(f, r.Rules, effective)
 		res.Diagnostics = append(res.Diagnostics, diags...)
@@ -70,6 +76,8 @@ func (r *Runner) Run(paths []string) *Result {
 func (r *Runner) RunSource(path string, source []byte) *Result {
 	res := &Result{}
 
+	r.log().Printf("file: %s", path)
+
 	f, err := lint.NewFileFromSource(path, source, r.StripFrontMatter)
 	if err != nil {
 		res.Errors = append(res.Errors, fmt.Errorf("parsing %q: %w", path, err))
@@ -77,6 +85,8 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 	}
 
 	effective := r.effectiveWithCategories(path)
+
+	r.logRules(effective)
 
 	diags, errs := CheckRules(f, r.Rules, effective)
 	res.Diagnostics = append(res.Diagnostics, diags...)
@@ -97,6 +107,30 @@ func (r *Runner) effectiveWithCategories(path string) map[string]config.RuleCfg 
 	catLookup := ruleCategoryLookup(r.Rules)
 
 	return config.ApplyCategories(effective, categories, catLookup, explicit)
+}
+
+// log returns the runner's logger. If no logger is set, it returns a
+// disabled logger so callers don't need nil checks.
+func (r *Runner) log() *vlog.Logger {
+	if r.Logger != nil {
+		return r.Logger
+	}
+	return &vlog.Logger{}
+}
+
+// logRules logs each enabled rule in the effective config.
+func (r *Runner) logRules(effective map[string]config.RuleCfg) {
+	l := r.log()
+	if !l.Enabled {
+		return
+	}
+	for _, rl := range r.Rules {
+		cfg, ok := effective[rl.Name()]
+		if !ok || !cfg.Enabled {
+			continue
+		}
+		l.Printf("rule: %s %s", rl.ID(), rl.Name())
+	}
 }
 
 // ruleCategoryLookup returns a function that maps a rule name to its category.

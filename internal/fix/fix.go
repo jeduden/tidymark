@@ -11,6 +11,7 @@ import (
 	"github.com/jeduden/tidymark/internal/config"
 	"github.com/jeduden/tidymark/internal/engine"
 	"github.com/jeduden/tidymark/internal/lint"
+	vlog "github.com/jeduden/tidymark/internal/log"
 	"github.com/jeduden/tidymark/internal/rule"
 )
 
@@ -19,6 +20,7 @@ type Fixer struct {
 	Config           *config.Config
 	Rules            []rule.Rule
 	StripFrontMatter bool
+	Logger           *vlog.Logger
 }
 
 // Result holds the outcome of a fix run.
@@ -41,6 +43,7 @@ func (f *Fixer) Fix(paths []string) *Result {
 		if config.IsIgnored(f.Config.Ignore, path) {
 			continue
 		}
+		f.log().Printf("file: %s", path)
 		diags, modified, errs := f.fixFile(path)
 		res.Diagnostics = append(res.Diagnostics, diags...)
 		if modified != "" {
@@ -86,6 +89,8 @@ func (f *Fixer) fixFile(path string) ([]lint.Diagnostic, string, []error) {
 	dirFS := os.DirFS(filepath.Dir(path))
 	effective := f.effectiveWithCategories(path)
 
+	f.logRules(effective)
+
 	fixable, settingsErrs := f.fixableRules(effective)
 	errs = append(errs, settingsErrs...)
 
@@ -122,6 +127,7 @@ func (f *Fixer) applyFixPasses(
 	const maxPasses = 10
 	current := source
 	for pass := 0; pass < maxPasses; pass++ {
+		f.log().Printf("fix: pass %d on %s", pass+1, path)
 		before := current
 		for _, fr := range fixable {
 			parsedFile, err := lint.NewFile(path, current)
@@ -139,10 +145,35 @@ func (f *Fixer) applyFixPasses(
 			current = fr.Fix(parsedFile)
 		}
 		if bytes.Equal(before, current) {
+			f.log().Printf("fix: %s stable after %d passes", path, pass+1)
 			break
 		}
 	}
 	return current
+}
+
+// log returns the fixer's logger. If no logger is set, it returns a
+// disabled logger so callers don't need nil checks.
+func (f *Fixer) log() *vlog.Logger {
+	if f.Logger != nil {
+		return f.Logger
+	}
+	return &vlog.Logger{}
+}
+
+// logRules logs each enabled fixable rule in the effective config.
+func (f *Fixer) logRules(effective map[string]config.RuleCfg) {
+	l := f.log()
+	if !l.Enabled {
+		return
+	}
+	for _, rl := range f.Rules {
+		cfg, ok := effective[rl.Name()]
+		if !ok || !cfg.Enabled {
+			continue
+		}
+		l.Printf("rule: %s %s", rl.ID(), rl.Name())
+	}
 }
 
 // effectiveWithCategories computes the effective rule config for a file

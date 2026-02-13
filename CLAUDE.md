@@ -67,6 +67,7 @@ No file args and no stdin exits 0
 | `--no-color`     | Plain output   |
 | `--no-gitignore` | Skip gitignore |
 | `-q`, `--quiet`    | Quiet mode     |
+| `-v`, `--verbose`  | Verbose output |
 
 ### Global Flags
 

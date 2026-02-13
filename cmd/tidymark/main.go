@@ -14,6 +14,7 @@ import (
 	"github.com/jeduden/tidymark/internal/engine"
 	fixpkg "github.com/jeduden/tidymark/internal/fix"
 	"github.com/jeduden/tidymark/internal/lint"
+	vlog "github.com/jeduden/tidymark/internal/log"
 	"github.com/jeduden/tidymark/internal/output"
 	"github.com/jeduden/tidymark/internal/rule"
 
@@ -115,6 +116,7 @@ func runCheck(args []string) int {
 		format      string
 		noColor     bool
 		quiet       bool
+		verbose     bool
 		noGitignore bool
 	)
 
@@ -122,6 +124,7 @@ func runCheck(args []string) int {
 	fs.StringVarP(&format, "format", "f", "text", "Output format: text, json")
 	fs.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
 	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
+	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
 
 	fs.Usage = func() {
@@ -137,6 +140,11 @@ func runCheck(args []string) int {
 		return 2
 	}
 
+	// --quiet suppresses verbose
+	if quiet {
+		verbose = false
+	}
+
 	files := fs.Args()
 
 	// No file args: check if stdin is a pipe.
@@ -144,10 +152,10 @@ func runCheck(args []string) int {
 		if !isStdinPipe() {
 			return 0
 		}
-		return checkStdin(format, noColor, quiet, configPath)
+		return checkStdin(format, noColor, quiet, verbose, configPath)
 	}
 
-	return checkFiles(files, configPath, format, noColor, quiet, noGitignore)
+	return checkFiles(files, configPath, format, noColor, quiet, verbose, noGitignore)
 }
 
 // runFix implements the "fix" subcommand: auto-fix lint issues in place.
@@ -158,6 +166,7 @@ func runFix(args []string) int {
 		format      string
 		noColor     bool
 		quiet       bool
+		verbose     bool
 		noGitignore bool
 	)
 
@@ -165,6 +174,7 @@ func runFix(args []string) int {
 	fs.StringVarP(&format, "format", "f", "text", "Output format: text, json")
 	fs.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
 	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
+	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
 
 	fs.Usage = func() {
@@ -180,6 +190,11 @@ func runFix(args []string) int {
 		return 2
 	}
 
+	// --quiet suppresses verbose
+	if quiet {
+		verbose = false
+	}
+
 	files := fs.Args()
 
 	// Fix rejects stdin.
@@ -191,7 +206,7 @@ func runFix(args []string) int {
 		return 0
 	}
 
-	return fixFiles(files, configPath, format, noColor, quiet, noGitignore)
+	return fixFiles(files, configPath, format, noColor, quiet, verbose, noGitignore)
 }
 
 // runInit implements the "init" subcommand: generate .tidymark.yml.
@@ -241,8 +256,34 @@ func runInit(args []string) int {
 	return 0
 }
 
+// formatDiagnostics writes diagnostics to stderr using the specified format.
+// Returns a non-zero exit code on write error, or 0 on success.
+func formatDiagnostics(diags []lint.Diagnostic, format string, noColor bool) int {
+	var formatter output.Formatter
+	switch format {
+	case "json":
+		formatter = &output.JSONFormatter{}
+	default:
+		formatter = &output.TextFormatter{Color: !noColor}
+	}
+	if err := formatter.Format(os.Stderr, diags); err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: error writing output: %v\n", err)
+		return 2
+	}
+	return 0
+}
+
+// printErrors writes runtime errors to stderr.
+func printErrors(errs []error) {
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "tidymark: %v\n", e)
+	}
+}
+
 // checkFiles lints the given file paths and returns the appropriate exit code.
-func checkFiles(fileArgs []string, configPath, format string, noColor, quiet, noGitignore bool) int {
+func checkFiles(fileArgs []string, configPath, format string, noColor, quiet, verbose, noGitignore bool) int {
+	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
+
 	useGitignore := !noGitignore
 	opts := lint.ResolveOpts{UseGitignore: &useGitignore}
 	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
@@ -250,59 +291,48 @@ func checkFiles(fileArgs []string, configPath, format string, noColor, quiet, no
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
 		return 2
 	}
-
 	if len(files) == 0 {
 		return 0
 	}
 
-	cfg, err := loadConfig(configPath)
+	cfg, cfgPath, err := loadConfig(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
 		return 2
 	}
-
-	stripFM := frontMatterEnabled(cfg)
+	if cfgPath != "" {
+		logger.Printf("config: %s", cfgPath)
+	}
 
 	runner := &engine.Runner{
 		Config:           cfg,
 		Rules:            rule.All(),
-		StripFrontMatter: stripFM,
+		StripFrontMatter: frontMatterEnabled(cfg),
+		Logger:           logger,
 	}
-
 	result := runner.Run(files)
-
-	for _, e := range result.Errors {
-		fmt.Fprintf(os.Stderr, "tidymark: %v\n", e)
-	}
+	printErrors(result.Errors)
 
 	if len(result.Errors) > 0 && len(result.Diagnostics) == 0 {
 		return 2
 	}
-
 	if !quiet && len(result.Diagnostics) > 0 {
-		var formatter output.Formatter
-		switch format {
-		case "json":
-			formatter = &output.JSONFormatter{}
-		default:
-			formatter = &output.TextFormatter{Color: !noColor}
-		}
-
-		if err := formatter.Format(os.Stderr, result.Diagnostics); err != nil {
-			fmt.Fprintf(os.Stderr, "tidymark: error writing output: %v\n", err)
-			return 2
+		if code := formatDiagnostics(result.Diagnostics, format, noColor); code != 0 {
+			return code
 		}
 	}
+	logger.Printf("checked %d files, %d issues found", len(files), len(result.Diagnostics))
 
 	if len(result.Diagnostics) > 0 {
 		return 1
 	}
-
 	return 0
 }
 
 // fixFiles fixes lint issues in the given file paths.
-func fixFiles(fileArgs []string, configPath, format string, noColor, quiet, noGitignore bool) int {
+func fixFiles(fileArgs []string, configPath, format string, noColor, quiet, verbose, noGitignore bool) int {
+	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
+
 	useGitignore := !noGitignore
 	opts := lint.ResolveOpts{UseGitignore: &useGitignore}
 	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
@@ -310,45 +340,34 @@ func fixFiles(fileArgs []string, configPath, format string, noColor, quiet, noGi
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
 		return 2
 	}
-
 	if len(files) == 0 {
 		return 0
 	}
 
-	cfg, err := loadConfig(configPath)
+	cfg, cfgPath, err := loadConfig(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
 		return 2
 	}
-
-	stripFM := frontMatterEnabled(cfg)
+	if cfgPath != "" {
+		logger.Printf("config: %s", cfgPath)
+	}
 
 	fixer := &fixpkg.Fixer{
 		Config:           cfg,
 		Rules:            rule.All(),
-		StripFrontMatter: stripFM,
+		StripFrontMatter: frontMatterEnabled(cfg),
+		Logger:           logger,
 	}
-
 	fixResult := fixer.Fix(files)
-
-	for _, e := range fixResult.Errors {
-		fmt.Fprintf(os.Stderr, "tidymark: %v\n", e)
-	}
+	printErrors(fixResult.Errors)
 
 	if !quiet && len(fixResult.Diagnostics) > 0 {
-		var formatter output.Formatter
-		switch format {
-		case "json":
-			formatter = &output.JSONFormatter{}
-		default:
-			formatter = &output.TextFormatter{Color: !noColor}
-		}
-
-		if err := formatter.Format(os.Stderr, fixResult.Diagnostics); err != nil {
-			fmt.Fprintf(os.Stderr, "tidymark: error writing output: %v\n", err)
-			return 2
+		if code := formatDiagnostics(fixResult.Diagnostics, format, noColor); code != 0 {
+			return code
 		}
 	}
+	logger.Printf("checked %d files, %d issues found", len(files), len(fixResult.Diagnostics))
 
 	if len(fixResult.Errors) > 0 && len(fixResult.Diagnostics) == 0 {
 		return 2
@@ -361,56 +380,46 @@ func fixFiles(fileArgs []string, configPath, format string, noColor, quiet, noGi
 
 // checkStdin reads from stdin, lints the content, and returns the appropriate
 // exit code. Uses runner.RunSource to ensure Configurable settings are applied.
-func checkStdin(format string, noColor, quiet bool, configPath string) int {
+func checkStdin(format string, noColor, quiet, verbose bool, configPath string) int {
+	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
+
 	source, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: reading stdin: %v\n", err)
 		return 2
 	}
 
-	cfg, err := loadConfig(configPath)
+	cfg, cfgPath, err := loadConfig(configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
 		return 2
 	}
-
-	stripFM := frontMatterEnabled(cfg)
+	if cfgPath != "" {
+		logger.Printf("config: %s", cfgPath)
+	}
 
 	runner := &engine.Runner{
 		Config:           cfg,
 		Rules:            rule.All(),
-		StripFrontMatter: stripFM,
+		StripFrontMatter: frontMatterEnabled(cfg),
+		Logger:           logger,
 	}
-
 	result := runner.RunSource("<stdin>", source)
-
-	for _, e := range result.Errors {
-		fmt.Fprintf(os.Stderr, "tidymark: %v\n", e)
-	}
+	printErrors(result.Errors)
 
 	if len(result.Errors) > 0 && len(result.Diagnostics) == 0 {
 		return 2
 	}
-
 	if !quiet && len(result.Diagnostics) > 0 {
-		var formatter output.Formatter
-		switch format {
-		case "json":
-			formatter = &output.JSONFormatter{}
-		default:
-			formatter = &output.TextFormatter{Color: !noColor}
-		}
-
-		if err := formatter.Format(os.Stderr, result.Diagnostics); err != nil {
-			fmt.Fprintf(os.Stderr, "tidymark: error writing output: %v\n", err)
-			return 2
+		if code := formatDiagnostics(result.Diagnostics, format, noColor); code != 0 {
+			return code
 		}
 	}
+	logger.Printf("checked 1 files, %d issues found", len(result.Diagnostics))
 
 	if len(result.Diagnostics) > 0 {
 		return 1
 	}
-
 	return 0
 }
 
@@ -433,39 +442,41 @@ func frontMatterEnabled(cfg *config.Config) bool {
 }
 
 // loadConfig loads configuration by either using the specified path or
-// discovering a config file from the current directory.
-func loadConfig(configPath string) (*config.Config, error) {
+// discovering a config file from the current directory. It returns the
+// merged config, the path that was loaded (empty if defaults only), and
+// any error.
+func loadConfig(configPath string) (*config.Config, string, error) {
 	defaults := config.Defaults()
 
 	if configPath != "" {
 		loaded, err := config.Load(configPath)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		return config.Merge(defaults, loaded), nil
+		return config.Merge(defaults, loaded), configPath, nil
 	}
 
 	// Try to discover a config file.
 	cwd, err := os.Getwd()
 	if err != nil {
-		return config.Merge(defaults, nil), nil
+		return config.Merge(defaults, nil), "", nil
 	}
 
 	discovered, err := config.Discover(cwd)
 	if err != nil {
-		return config.Merge(defaults, nil), nil
+		return config.Merge(defaults, nil), "", nil
 	}
 
 	if discovered == "" {
-		return config.Merge(defaults, nil), nil
+		return config.Merge(defaults, nil), "", nil
 	}
 
 	loaded, err := config.Load(discovered)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return config.Merge(defaults, loaded), nil
+	return config.Merge(defaults, loaded), discovered, nil
 }
 
 const helpUsageText = `Usage: tidymark help <topic>
