@@ -103,7 +103,7 @@ func trimTrailingWhitespace(s string) string {
 	return s[:i]
 }
 
-// newGitignoreMatcher creates a matcher by collecting .gitignore files
+// NewGitignoreMatcher creates a matcher by collecting .gitignore files
 // from the given root directory and all its subdirectories.
 // It also looks for .gitignore files in ancestor directories up to the
 // filesystem root.
@@ -164,7 +164,7 @@ func collectAncestorGitignores(root string) []string {
 	return ancestors
 }
 
-// isIgnored returns true if the given path (absolute) should be ignored.
+// IsIgnored returns true if the given absolute path should be ignored.
 // isDir indicates whether the path is a directory.
 func (m *GitignoreMatcher) IsIgnored(absPath string, isDir bool) bool {
 	ignored := false

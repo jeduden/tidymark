@@ -44,100 +44,136 @@ func Discover(opts Options) ([]string, error) {
 		return nil, err
 	}
 
-	// Validate patterns.
-	validPatterns := make([]string, 0, len(opts.Patterns))
-	for _, p := range opts.Patterns {
-		if doublestar.ValidatePattern(p) {
-			validPatterns = append(validPatterns, p)
-		}
-	}
+	validPatterns := validatePatterns(opts.Patterns)
 	if len(validPatterns) == 0 {
 		return nil, nil
 	}
 
-	// Set up gitignore matcher if enabled.
 	var gitMatcher *lint.GitignoreMatcher
 	if opts.UseGitignore {
 		gitMatcher = lint.NewGitignoreMatcher(baseDir)
 	}
 
-	seen := make(map[string]bool)
-	var result []string
+	w := &walker{
+		absBase:  absBase,
+		patterns: validPatterns,
+		git:      gitMatcher,
+		noFollow: opts.NoFollowSymlinks,
+		seen:     make(map[string]bool),
+	}
 
-	err = filepath.Walk(absBase, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-
-		// Compute path relative to base for pattern matching.
-		rel, relErr := filepath.Rel(absBase, path)
-		if relErr != nil {
-			return nil
-		}
-		// Normalize to forward slashes for glob matching.
-		rel = filepath.ToSlash(rel)
-
-		// Skip the root directory itself.
-		if rel == "." {
-			return nil
-		}
-
-		// Optionally skip symlinks that match no-follow patterns.
-		if len(opts.NoFollowSymlinks) > 0 && info.Mode()&os.ModeSymlink != 0 {
-			if matchesAny(opts.NoFollowSymlinks, path) {
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-		}
-
-		// Apply gitignore filtering.
-		if gitMatcher != nil {
-			absPath, absErr := filepath.Abs(path)
-			if absErr == nil && gitMatcher.IsIgnored(absPath, info.IsDir()) {
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-		}
-
-		// Only match regular files.
-		if info.IsDir() {
-			return nil
-		}
-
-		// Check if the file matches any pattern.
-		for _, p := range validPatterns {
-			matched, matchErr := doublestar.Match(p, rel)
-			if matchErr != nil {
-				continue
-			}
-			if matched {
-				absPath, absErr := filepath.Abs(path)
-				if absErr != nil {
-					absPath = path
-				}
-				if !seen[absPath] {
-					seen[absPath] = true
-					result = append(result, path)
-				}
-				break
-			}
-		}
-
-		return nil
-	})
-	if err != nil {
+	if err := filepath.Walk(absBase, w.visit); err != nil {
 		return nil, err
 	}
 
-	sort.Strings(result)
-	return result, nil
+	sort.Strings(w.result)
+	return w.result, nil
 }
 
-func matchesAny(patterns []string, path string) bool {
+// validatePatterns returns patterns that are syntactically valid.
+func validatePatterns(patterns []string) []string {
+	valid := make([]string, 0, len(patterns))
+	for _, p := range patterns {
+		if doublestar.ValidatePattern(p) {
+			valid = append(valid, p)
+		}
+	}
+	return valid
+}
+
+// walker holds state for the directory walk.
+type walker struct {
+	absBase  string
+	patterns []string
+	git      *lint.GitignoreMatcher
+	noFollow []string
+	seen     map[string]bool
+	result   []string
+}
+
+// visit is the filepath.WalkFunc callback.
+func (w *walker) visit(path string, info os.FileInfo, walkErr error) error {
+	if walkErr != nil {
+		return walkErr
+	}
+
+	rel, err := filepath.Rel(w.absBase, path)
+	if err != nil || rel == "." {
+		return nil
+	}
+	rel = filepath.ToSlash(rel)
+
+	if w.isNoFollow(path, info) {
+		if info.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
+	}
+
+	if w.isGitignored(path, info) {
+		if info.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
+	}
+
+	if info.IsDir() {
+		return nil
+	}
+
+	if w.matchesAny(rel) {
+		w.addFile(path)
+	}
+	return nil
+}
+
+// isNoFollow returns true if the path is a symlink matching no-follow patterns.
+func (w *walker) isNoFollow(path string, info os.FileInfo) bool {
+	if len(w.noFollow) == 0 {
+		return false
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return false
+	}
+	return matchesPath(w.noFollow, path)
+}
+
+// isGitignored returns true if the path should be skipped by .gitignore rules.
+func (w *walker) isGitignored(path string, info os.FileInfo) bool {
+	if w.git == nil {
+		return false
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	return w.git.IsIgnored(absPath, info.IsDir())
+}
+
+// matchesAny returns true if rel matches any of the configured patterns.
+func (w *walker) matchesAny(rel string) bool {
+	for _, p := range w.patterns {
+		matched, err := doublestar.Match(p, rel)
+		if err == nil && matched {
+			return true
+		}
+	}
+	return false
+}
+
+// addFile adds a file to the result set if not already seen.
+func (w *walker) addFile(path string) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
+	if !w.seen[absPath] {
+		w.seen[absPath] = true
+		w.result = append(w.result, path)
+	}
+}
+
+func matchesPath(patterns []string, path string) bool {
 	cleanPath := filepath.Clean(path)
 	for _, pattern := range patterns {
 		g, err := glob.Compile(pattern)
