@@ -11,6 +11,7 @@ import (
 
 	tidymark "github.com/jeduden/tidymark"
 	"github.com/jeduden/tidymark/internal/config"
+	"github.com/jeduden/tidymark/internal/discovery"
 	"github.com/jeduden/tidymark/internal/engine"
 	fixpkg "github.com/jeduden/tidymark/internal/fix"
 	"github.com/jeduden/tidymark/internal/lint"
@@ -131,7 +132,8 @@ func runCheck(args []string) int {
 		fmt.Fprintf(os.Stderr, "Usage: tidymark check [flags] [files...]\n\n"+
 			"Lint Markdown files for style issues.\n\n"+
 			"Files can be paths, directories (walked recursively for *.md), or glob patterns.\n"+
-			"With no file arguments, reads from stdin if piped.\n\n"+
+			"Pass - to read from stdin. With no file arguments, discovers files using the\n"+
+			"files patterns from config (default: **/*.md, **/*.markdown).\n\n"+
 			"Flags:\n")
 		fs.PrintDefaults()
 	}
@@ -145,17 +147,21 @@ func runCheck(args []string) int {
 		verbose = false
 	}
 
-	files := fs.Args()
+	allArgs := fs.Args()
 
-	// No file args: check if stdin is a pipe.
-	if len(files) == 0 {
-		if !isStdinPipe() {
-			return 0
-		}
+	// Check for explicit stdin argument "-".
+	hasStdin, fileArgs := splitStdinArg(allArgs)
+
+	if hasStdin {
 		return checkStdin(format, noColor, quiet, verbose, configPath)
 	}
 
-	return checkFiles(files, configPath, format, noColor, quiet, verbose, noGitignore)
+	if len(fileArgs) > 0 {
+		return checkFiles(fileArgs, configPath, format, noColor, quiet, verbose, noGitignore)
+	}
+
+	// No file args and no stdin: discover files from config.
+	return checkDiscovered(configPath, format, noColor, quiet, verbose, noGitignore)
 }
 
 // runFix implements the "fix" subcommand: auto-fix lint issues in place.
@@ -181,7 +187,8 @@ func runFix(args []string) int {
 		fmt.Fprintf(os.Stderr, "Usage: tidymark fix [flags] [files...]\n\n"+
 			"Auto-fix lint issues in Markdown files.\n\n"+
 			"Files can be paths, directories (walked recursively for *.md), or glob patterns.\n"+
-			"Stdin is not supported (files must be writable).\n\n"+
+			"Pass - to read from stdin (rejected: files must be writable).\n"+
+			"With no file arguments, discovers files using config patterns.\n\n"+
 			"Flags:\n")
 		fs.PrintDefaults()
 	}
@@ -195,18 +202,22 @@ func runFix(args []string) int {
 		verbose = false
 	}
 
-	files := fs.Args()
+	allArgs := fs.Args()
 
-	// Fix rejects stdin.
-	if len(files) == 0 {
-		if isStdinPipe() {
-			fmt.Fprintf(os.Stderr, "tidymark: cannot fix stdin in place\n")
-			return 2
-		}
-		return 0
+	// Check for explicit stdin argument "-".
+	hasStdin, fileArgs := splitStdinArg(allArgs)
+
+	if hasStdin {
+		fmt.Fprintf(os.Stderr, "tidymark: cannot fix stdin in place\n")
+		return 2
 	}
 
-	return fixFiles(files, configPath, format, noColor, quiet, verbose, noGitignore)
+	if len(fileArgs) > 0 {
+		return fixFiles(fileArgs, configPath, format, noColor, quiet, verbose, noGitignore)
+	}
+
+	// No file args: discover files from config.
+	return fixDiscovered(configPath, format, noColor, quiet, verbose, noGitignore)
 }
 
 // runInit implements the "init" subcommand: generate .tidymark.yml.
@@ -423,13 +434,129 @@ func checkStdin(format string, noColor, quiet, verbose bool, configPath string) 
 	return 0
 }
 
-// isStdinPipe returns true if stdin is a pipe (not a terminal).
-func isStdinPipe() bool {
-	stat, err := os.Stdin.Stat()
-	if err != nil {
-		return false
+// splitStdinArg separates a "-" argument (stdin) from file arguments.
+// Returns true if "-" was found and the remaining file arguments.
+func splitStdinArg(args []string) (hasStdin bool, fileArgs []string) {
+	for _, a := range args {
+		if a == "-" {
+			hasStdin = true
+		} else {
+			fileArgs = append(fileArgs, a)
+		}
 	}
-	return (stat.Mode() & os.ModeCharDevice) == 0
+	return hasStdin, fileArgs
+}
+
+// checkDiscovered loads config, discovers files from config patterns,
+// and lints them. Returns the appropriate exit code.
+func checkDiscovered(configPath, format string, noColor, quiet, verbose, noGitignore bool) int {
+	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
+
+	cfg, cfgPath, err := loadConfig(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
+		return 2
+	}
+	if cfgPath != "" {
+		logger.Printf("config: %s", cfgPath)
+	}
+
+	// Discover files using config patterns.
+	if len(cfg.Files) == 0 {
+		return 0
+	}
+
+	files, err := discovery.Discover(discovery.Options{
+		Patterns:     cfg.Files,
+		UseGitignore: !noGitignore,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: discovering files: %v\n", err)
+		return 2
+	}
+	if len(files) == 0 {
+		return 0
+	}
+
+	runner := &engine.Runner{
+		Config:           cfg,
+		Rules:            rule.All(),
+		StripFrontMatter: frontMatterEnabled(cfg),
+		Logger:           logger,
+	}
+	result := runner.Run(files)
+	printErrors(result.Errors)
+
+	if len(result.Errors) > 0 && len(result.Diagnostics) == 0 {
+		return 2
+	}
+	if !quiet && len(result.Diagnostics) > 0 {
+		if code := formatDiagnostics(result.Diagnostics, format, noColor); code != 0 {
+			return code
+		}
+	}
+	logger.Printf("checked %d files, %d issues found", len(files), len(result.Diagnostics))
+
+	if len(result.Diagnostics) > 0 {
+		return 1
+	}
+	return 0
+}
+
+// fixDiscovered loads config, discovers files from config patterns,
+// and fixes them. Returns the appropriate exit code.
+func fixDiscovered(configPath, format string, noColor, quiet, verbose, noGitignore bool) int {
+	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
+
+	cfg, cfgPath, err := loadConfig(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: %v\n", err)
+		return 2
+	}
+	if cfgPath != "" {
+		logger.Printf("config: %s", cfgPath)
+	}
+
+	// Discover files using config patterns.
+	if len(cfg.Files) == 0 {
+		return 0
+	}
+
+	files, err := discovery.Discover(discovery.Options{
+		Patterns:     cfg.Files,
+		UseGitignore: !noGitignore,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tidymark: discovering files: %v\n", err)
+		return 2
+	}
+	if len(files) == 0 {
+		return 0
+	}
+
+	fixer := &fixpkg.Fixer{
+		Config:           cfg,
+		Rules:            rule.All(),
+		StripFrontMatter: frontMatterEnabled(cfg),
+		Logger:           logger,
+	}
+	fixResult := fixer.Fix(files)
+	printErrors(fixResult.Errors)
+
+	if !quiet && len(fixResult.Diagnostics) > 0 {
+		if code := formatDiagnostics(fixResult.Diagnostics, format, noColor); code != 0 {
+			return code
+		}
+	}
+	logger.Printf("checked %d files, %d issues found", len(files), len(fixResult.Diagnostics))
+
+	if len(fixResult.Errors) > 0 && len(fixResult.Diagnostics) == 0 {
+		return 2
+	}
+	if len(fixResult.Diagnostics) > 0 {
+		return 1
+	}
+	return 0
 }
 
 // frontMatterEnabled returns whether front matter stripping is enabled.
