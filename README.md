@@ -203,7 +203,7 @@ row: "| [{{.id}}]({{.filename}}) | `{{.name}}` | {{.description}} |"
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.24+
 - [golangci-lint](https://golangci-lint.run/)
 
 ### Lint
