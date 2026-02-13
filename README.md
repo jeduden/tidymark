@@ -203,7 +203,7 @@ row: "| [{{.id}}]({{.filename}}) | `{{.name}}` | {{.description}} |"
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.24+
 - [golangci-lint](https://golangci-lint.run/)
 
 ### Lint
@@ -217,6 +217,14 @@ golangci-lint run
 ```bash
 go test ./...
 ```
+
+### Pre-commit check
+
+```bash
+mdsmith check .
+```
+
+Run before committing to ensure all markdown files pass linting.
 
 ## 📄 License
 

@@ -6,6 +6,8 @@ mdsmith — a Markdown linter written in Go.
 
 ## Build & Test Commands
 
+Requires Go 1.24+.
+
 - `go build ./...` — build all packages
 - `go test ./...` — run all tests
 - `go test -run TestName ./pkg/...` — run a specific test
@@ -26,6 +28,8 @@ Follow the [standard Go project layout](https://go.dev/doc/modules/layout):
 - New features are test-driven: write a failing test (red),
   make it pass (green), commit
 - Keep commits small and focused on one change
+- Run `mdsmith check .` before committing to ensure all
+  markdown files pass linting
 
 ## Code Style
 
