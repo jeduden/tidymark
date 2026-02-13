@@ -358,10 +358,12 @@ func TestDefaultsAllRulesEnabled(t *testing.T) {
 		"no-trailing-punctuation-in-heading",
 		"no-emphasis-as-heading",
 		"catalog",
+		"required-structure",
+		"include",
 	}
 
-	if len(cfg.Rules) != 19 {
-		t.Fatalf("expected 19 rules, got %d", len(cfg.Rules))
+	if len(cfg.Rules) != 21 {
+		t.Fatalf("expected 21 rules, got %d", len(cfg.Rules))
 	}
 
 	for _, name := range expectedRules {
@@ -385,8 +387,8 @@ func TestMergeNilLoaded(t *testing.T) {
 	defaults := Defaults()
 	merged := Merge(defaults, nil)
 
-	if len(merged.Rules) != 19 {
-		t.Fatalf("expected 19 rules, got %d", len(merged.Rules))
+	if len(merged.Rules) != 21 {
+		t.Fatalf("expected 21 rules, got %d", len(merged.Rules))
 	}
 	for name, rc := range merged.Rules {
 		if !rc.Enabled {
@@ -470,8 +472,8 @@ func TestEffectiveWithoutOverrides(t *testing.T) {
 	cfg := Defaults()
 	eff := Effective(cfg, "README.md")
 
-	if len(eff) != 19 {
-		t.Fatalf("expected 19 rules, got %d", len(eff))
+	if len(eff) != 21 {
+		t.Fatalf("expected 21 rules, got %d", len(eff))
 	}
 	for name, rc := range eff {
 		if !rc.Enabled {

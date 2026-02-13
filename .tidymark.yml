@@ -38,6 +38,8 @@ rules:
     max-sentences: 6
     max-words: 40
   catalog: true
+  required-structure: true
+  include: true
 
 overrides:
   - files: ["plan/PLAN.md"]
@@ -60,10 +62,18 @@ overrides:
     rules:
       list-indent:
         spaces: 4
+  - files: ["rules/*/README.md"]
+    rules:
+      required-structure:
+        template: rules/proto.md
+  - files: ["plan/*.md"]
+    rules:
+      required-structure:
+        template: plan/proto.md
 
 ignore:
   - "internal/**"
   - "rules/*/bad/**"
   - "rules/*/bad.md"
   - "rules/*/good/**"
-
+  - "rules/*/fixed/**"

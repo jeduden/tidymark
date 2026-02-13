@@ -2,8 +2,10 @@
 id: TMXXX
 name: rule-name
 description: One-sentence description ending with period.
+template:
+  allow-extra-sections: true
 ---
-# TMXXX: rule-name
+# {{.id}}: {{.name}}
 
 <!-- Rule README template. Copy this file, replace placeholders,
      delete sections and comments that don't apply.
@@ -12,10 +14,10 @@ description: One-sentence description ending with period.
      Repeat the description verbatim. Use prescriptive voice,
      present tense: "Headings must ..." not "Checks that ...". -->
 
-One-sentence description ending with period.
+{{.description}}
 
-- **ID**: TMXXX
-- **Name**: `rule-name`
+- **ID**: {{.id}}
+- **Name**: `{{.name}}`
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:
@@ -30,15 +32,10 @@ One-sentence description ending with period.
      Categories: code, heading, line, link, list, meta,
      whitespace. Delete Archetype bullet if not used. -->
 
-## Settings
-
-<!-- Include only when rule implements Configurable.
+<!-- Optional: ## Settings
+     Include only when rule implements Configurable.
      Type: int, string, list. Description: fragment,
-     no period. Delete entire section otherwise. -->
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `key` | type | default | what it does |
+     no period. Delete if not applicable. -->
 
 ## Config
 
@@ -61,37 +58,13 @@ rules:
 
 <!-- Use ```markdown fenced blocks. Minimal context.
      Invisible chars: trailing spaces as ···, tabs as →.
+     Add ### Good and ### Bad subsections.
      Complex rules: multiple subsections labeled
-     "### Good -- description". -->
+     "### Good -- description" or "### Bad -- description". -->
 
-### Good
+<!-- Optional: ## Diagnostics
+     Include when the rule emits more than one distinct
+     message. Delete for single-message rules. -->
 
-```markdown
-Passing example.
-```
-
-### Bad
-
-```markdown
-Failing example.
-```
-
-## Diagnostics
-
-<!-- Include when the rule emits more than one distinct
-     message. Delete for single-message rules.
-     Messages: all lowercase, no trailing punctuation,
-     5-15 words, describe the problem not the fix,
-     quote param names: "glob", values in parens: (120 > 80). -->
-
-| Condition | Message |
-|-----------|---------|
-| when X | lowercase message no trailing punctuation |
-
-## Edge Cases
-
-<!-- Include for complex rules. Delete otherwise. -->
-
-| Scenario | Behavior |
-|----------|----------|
-| edge case | what happens |
+<!-- Optional: ## Edge Cases
+     Include for complex rules. Delete otherwise. -->

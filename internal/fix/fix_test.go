@@ -378,6 +378,9 @@ func TestFix_ReadOnlyFileError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("read-only file test not reliable on Windows")
 	}
+	if os.Getuid() == 0 {
+		t.Skip("read-only file test not reliable as root")
+	}
 
 	dir := t.TempDir()
 	mdFile := filepath.Join(dir, "readonly.md")

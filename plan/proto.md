@@ -2,8 +2,10 @@
 id: NN
 title: Task Title
 status: 🔲
+template:
+  allow-extra-sections: true
 ---
-# Task Title
+# ?
 
 ## Goal
 

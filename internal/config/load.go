@@ -11,7 +11,7 @@ import (
 
 const configFileName = ".tidymark.yml"
 
-// allRuleNames lists the 19 built-in rule identifiers in order.
+// allRuleNames lists the 21 built-in rule identifiers in order.
 var allRuleNames = []string{
 	"line-length",
 	"heading-style",
@@ -32,6 +32,8 @@ var allRuleNames = []string{
 	"no-trailing-punctuation-in-heading",
 	"no-emphasis-as-heading",
 	"catalog",
+	"required-structure",
+	"include",
 }
 
 // Load reads and parses a config file at the given path.
