@@ -12,6 +12,7 @@ import (
 	"github.com/jeduden/tidymark/internal/archetype/gensection"
 	"github.com/jeduden/tidymark/internal/lint"
 	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/tidymark/internal/rules/tableformat"
 	"gopkg.in/yaml.v3"
 )
 
@@ -83,7 +84,25 @@ func (r *Rule) Generate(f *lint.File, filePath string, line int,
 		return "", []lint.Diagnostic{makeDiag(filePath, line,
 			fmt.Sprintf("generated section template execution failed: %v", err))}
 	}
+
+	// Format tables to comply with TM025 (table-format) settings.
+	content = tableformat.FormatString(content, tableFormatPad())
+
 	return content, nil
+}
+
+// tableFormatPad returns the pad setting from the TM025 (table-format)
+// rule, defaulting to 1 if not found.
+func tableFormatPad() int {
+	r := rule.ByID("TM025")
+	if r == nil {
+		return 1
+	}
+	type padder interface{ GetPad() int }
+	if p, ok := r.(padder); ok {
+		return p.GetPad()
+	}
+	return 1
 }
 
 // validateCatalogDirective validates parameters specific to the catalog directive.

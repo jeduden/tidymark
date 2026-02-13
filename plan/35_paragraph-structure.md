@@ -37,10 +37,10 @@ It reuses `internal/mdtext/` from Plan 34.
    implementing `rule.Rule` and `rule.Configurable`.
    Settings:
 
-   | Setting | Type | Default | Description |
-   |---------|------|---------|-------------|
-   | `max-sentences` | int | 6 | Max sentences per paragraph |
-   | `max-words` | int | 40 | Max words per sentence |
+   | Setting       | Type | Default | Description                 |
+   |---------------|------|---------|-----------------------------|
+   | `max-sentences` | int  | 6       | Max sentences per paragraph |
+   | `max-words`     | int  | 40      | Max words per sentence      |
 
 4. Check logic: walk AST for `*ast.Paragraph` nodes.
    For each paragraph:

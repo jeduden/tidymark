@@ -15,7 +15,7 @@ using prettier-style output as the target format.
 
 ### A. Design
 
-1. Define TM021 `table-format` behaviour. A well-formatted
+1. Define TM025 `table-format` behaviour. A well-formatted
    table follows these rules (matching prettier output):
 
   - Leading and trailing pipes required on every row
@@ -28,9 +28,9 @@ using prettier-style output as the target format.
 
 2. Define settings:
 
-   | Setting | Type | Default | Description |
-   |---------|------|---------|-------------|
-   | `pad` | int | 1 | Spaces on each side of cell content |
+   | Setting | Type | Default | Description                         |
+   |---------|------|---------|-------------------------------------|
+   | `pad`     | int  | 1       | Spaces on each side of cell content |
 
    Initial implementation: single padding value applied
    uniformly.
@@ -85,7 +85,7 @@ using prettier-style output as the target format.
 
 ### D. Documentation
 
-11. Write `rules/TM021-table-format/README.md`.
+11. Write `rules/TM025-table-format/README.md`.
 
 12. Create test fixtures. Bad example:
 
@@ -127,7 +127,7 @@ using prettier-style output as the target format.
 
 ## Acceptance Criteria
 
-- [ ] TM021 detects tables not matching prettier format
+- [ ] TM025 detects tables not matching prettier format
 - [ ] Fix produces prettier-style aligned tables
 - [ ] Alignment indicators (`:---:`, `---:`) preserved
 - [ ] Escaped pipes in cell content handled correctly

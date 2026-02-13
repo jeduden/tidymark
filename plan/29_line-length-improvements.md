@@ -17,10 +17,10 @@ MD013 offers, while keeping our own config syntax.
 
 1. Add new settings to TM001:
 
-   | Setting | Type | Default | Description |
-   |---------|------|---------|-------------|
-   | `heading-max` | int | -- | Max length for heading lines |
-   | `code-block-max` | int | -- | Max for code block lines |
+   | Setting        | Type | Default | Description                  |
+   |----------------|------|---------|------------------------------|
+   | `heading-max`    | int  | --      | Max length for heading lines |
+   | `code-block-max` | int  | --      | Max for code block lines     |
 
    When unset (nil/absent), the per-category max inherits
    from `max`. When set to an explicit value, that value

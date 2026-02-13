@@ -90,9 +90,9 @@ proceed independently.
    implementing `rule.Rule` and `rule.Configurable`.
    Settings:
 
-   | Setting | Type | Default | Description |
-   |---------|------|---------|-------------|
-   | `template` | string | `""` | Path to template file |
+   | Setting  | Type   | Default | Description           |
+   |----------|--------|---------|-----------------------|
+   | `template` | string | `""`      | Path to template file |
 
    When `template` is empty or unset the rule is a no-op
    (no diagnostics emitted). This lets users enable it

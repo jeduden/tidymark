@@ -65,10 +65,10 @@ formulas (such as Flesch-Kincaid) later.
    implementing `rule.Rule` and `rule.Configurable`.
    Settings:
 
-   | Setting | Type | Default | Description |
-   |---------|------|---------|-------------|
-   | `max-grade` | float | 14.0 | Max readability grade level |
-   | `min-words` | int | 20 | Minimum words to trigger check |
+   | Setting   | Type  | Default | Description                    |
+   |-----------|-------|---------|--------------------------------|
+   | `max-grade` | float | 14.0    | Max readability grade level    |
+   | `min-words` | int   | 20      | Minimum words to trigger check |
 
    Paragraphs with fewer than `min-words` words are
    skipped (short paragraphs produce unreliable scores).
