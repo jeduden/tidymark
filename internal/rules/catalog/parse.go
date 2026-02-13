@@ -1,13 +1,13 @@
 package catalog
 
 import (
-	"github.com/jeduden/tidymark/internal/archetype/gensection"
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/archetype/gensection"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
-// makeDiag creates a TM019 error diagnostic at the given line.
+// makeDiag creates a MDS019 error diagnostic at the given line.
 func makeDiag(filePath string, line int, message string) lint.Diagnostic {
-	return gensection.MakeDiag("TM019", "catalog", filePath, line, message)
+	return gensection.MakeDiag("MDS019", "catalog", filePath, line, message)
 }
 
 // parseColumnConfig converts the raw YAML columns map into the

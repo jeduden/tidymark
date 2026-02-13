@@ -3,7 +3,7 @@ package singletrailingnewline
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_MissingNewline(t *testing.T) {
@@ -18,8 +18,8 @@ func TestCheck_MissingNewline(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
 	d := diags[0]
-	if d.RuleID != "TM009" {
-		t.Errorf("expected rule ID TM009, got %s", d.RuleID)
+	if d.RuleID != "MDS009" {
+		t.Errorf("expected rule ID MDS009, got %s", d.RuleID)
 	}
 	if d.Line != 1 {
 		t.Errorf("expected line 1, got %d", d.Line)

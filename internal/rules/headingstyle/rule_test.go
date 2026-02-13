@@ -3,7 +3,7 @@ package headingstyle
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_ATXStyle_NoViolation(t *testing.T) {
@@ -30,8 +30,8 @@ func TestCheck_ATXStyle_SetextViolation(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d: %+v", len(diags), diags)
 	}
-	if diags[0].RuleID != "TM002" {
-		t.Errorf("expected rule ID TM002, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS002" {
+		t.Errorf("expected rule ID MDS002, got %s", diags[0].RuleID)
 	}
 	if diags[0].Line != 1 {
 		t.Errorf("expected line 1, got %d", diags[0].Line)
@@ -111,8 +111,8 @@ func TestFix_ATXToSetext(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM002" {
-		t.Errorf("expected TM002, got %s", r.ID())
+	if r.ID() != "MDS002" {
+		t.Errorf("expected MDS002, got %s", r.ID())
 	}
 }
 

@@ -7,7 +7,7 @@ status: ✅
 
 ## Goal
 
-Add per-type line length limits and stern mode to TM001
+Add per-type line length limits and stern mode to MDS001
 (line-length). This brings it in line with what markdownlint
 MD013 offers, while keeping our own config syntax.
 
@@ -15,7 +15,7 @@ MD013 offers, while keeping our own config syntax.
 
 ### A. Per-category maximum lengths
 
-1. Add new settings to TM001:
+1. Add new settings to MDS001:
 
    | Setting        | Type | Default | Description                  |
    |----------------|------|---------|------------------------------|
@@ -71,7 +71,7 @@ MD013 offers, while keeping our own config syntax.
 
 ### C. Documentation
 
-9. Update `rules/TM001-line-length/README.md`:
+9. Update `rules/MDS001-line-length/README.md`:
 
   - Add `heading-max`, `code-block-max`, and `stern`
      to the Settings table

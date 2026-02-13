@@ -7,7 +7,7 @@ status: ✅
 
 ## Goal
 
-Add TM022 `max-file-length` that warns when a markdown
+Add MDS022 `max-file-length` that warns when a markdown
 file has too many lines. The limit is set in the config.
 This nudges authors to split long files.
 
@@ -30,7 +30,7 @@ This nudges authors to split long files.
 
 4. Add `Category() string` returning `"meta"`.
 
-5. Write `rules/TM022-max-file-length/README.md` with
+5. Write `rules/MDS022-max-file-length/README.md` with
    settings table, config example, and bad/good examples.
 
 6. Create test fixtures: `bad.md` (a file exceeding 300
@@ -43,13 +43,13 @@ This nudges authors to split long files.
   - Custom `max` setting respected
   - Empty file: no diagnostic
 
-8. Add default config entry in `.tidymark.yml`.
+8. Add default config entry in `.mdsmith.yml`.
 
 9. Run `go test ./...` and `go tool golangci-lint run`.
 
 ## Acceptance Criteria
 
-- [x] TM022 reports when file exceeds max lines
+- [x] MDS022 reports when file exceeds max lines
 - [x] Single diagnostic on line 1 with count details
 - [x] `max` setting configurable, default 300
 - [x] Rule README with examples

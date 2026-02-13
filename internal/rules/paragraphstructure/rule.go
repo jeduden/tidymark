@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/mdtext"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -21,7 +21,7 @@ type Rule struct {
 }
 
 // ID implements rule.Rule.
-func (r *Rule) ID() string { return "TM024" }
+func (r *Rule) ID() string { return "MDS024" }
 
 // Name implements rule.Rule.
 func (r *Rule) Name() string { return "paragraph-structure" }

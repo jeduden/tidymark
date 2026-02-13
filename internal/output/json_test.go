@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestJSONFormatter_ValidJSON(t *testing.T) {
@@ -17,7 +17,7 @@ func TestJSONFormatter_ValidJSON(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -45,7 +45,7 @@ func TestJSONFormatter_CorrectFieldNamesAndValues(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -88,8 +88,8 @@ func TestJSONFormatter_CorrectFieldNamesAndValues(t *testing.T) {
 	if item["column"] != float64(5) {
 		t.Errorf("column: got %v, want %v", item["column"], 5)
 	}
-	if item["rule"] != "TM001" {
-		t.Errorf("rule: got %v, want %q", item["rule"], "TM001")
+	if item["rule"] != "MDS001" {
+		t.Errorf("rule: got %v, want %q", item["rule"], "MDS001")
 	}
 	if item["name"] != "line-length" {
 		t.Errorf("name: got %v, want %q", item["name"], "line-length")
@@ -143,7 +143,7 @@ func TestJSONFormatter_MultipleDiagnostics(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -152,7 +152,7 @@ func TestJSONFormatter_MultipleDiagnostics(t *testing.T) {
 			File:     "docs/guide.md",
 			Line:     3,
 			Column:   1,
-			RuleID:   "TM002",
+			RuleID:   "MDS002",
 			RuleName: "first-heading",
 			Severity: lint.Warning,
 			Message:  "first line should be a heading",
@@ -165,8 +165,8 @@ func TestJSONFormatter_MultipleDiagnostics(t *testing.T) {
 		t.Fatalf("expected 2 elements, got %d", len(result))
 	}
 
-	assertJSONDiag(t, result[0], "README.md", "TM001", "error", "", 10)
-	assertJSONDiag(t, result[1], "docs/guide.md", "TM002", "warning", "first-heading", 3)
+	assertJSONDiag(t, result[0], "README.md", "MDS001", "error", "", 10)
+	assertJSONDiag(t, result[1], "docs/guide.md", "MDS002", "warning", "first-heading", 3)
 }
 
 func formatAndUnmarshal(t *testing.T, f *JSONFormatter, buf *bytes.Buffer, diags []lint.Diagnostic) []jsonDiagnostic {
@@ -209,7 +209,7 @@ func TestJSONFormatter_ExactOutput(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -226,7 +226,7 @@ func TestJSONFormatter_ExactOutput(t *testing.T) {
     "file": "README.md",
     "line": 10,
     "column": 5,
-    "rule": "TM001",
+    "rule": "MDS001",
     "name": "line-length",
     "severity": "error",
     "message": "line too long (120 \u003e 80)"

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jeduden/tidymark/internal/config"
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 // --- mock rules for testing ---
@@ -218,7 +218,7 @@ func TestFix_BasicTrailingSpaces(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 	}
 
 	result := fixer.Fix([]string{mdFile})
@@ -248,8 +248,8 @@ func TestFix_MultipleFixableRulesAppliedInOrder(t *testing.T) {
 	dir := t.TempDir()
 	mdFile := filepath.Join(dir, "test.md")
 	// Content has a mid-line tab and trailing spaces (no trailing tab).
-	// This way TM100 (trailing spaces) strips the trailing spaces,
-	// then TM200 (tabs) converts the mid-line tab to spaces.
+	// This way MDS100 (trailing spaces) strips the trailing spaces,
+	// then MDS200 (tabs) converts the mid-line tab to spaces.
 	if err := os.WriteFile(mdFile, []byte("# He\tllo  \nwor\tld  \n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -261,13 +261,13 @@ func TestFix_MultipleFixableRulesAppliedInOrder(t *testing.T) {
 		},
 	}
 
-	// TM100 (trailing) runs before TM200 (tabs) by ID sort order.
+	// MDS100 (trailing) runs before MDS200 (tabs) by ID sort order.
 	// But we register them in reverse order to test sorting.
 	fixer := &Fixer{
 		Config: cfg,
 		Rules: []rule.Rule{
-			&mockFixableRuleB{id: "TM200", name: "mock-tabs"},
-			&mockFixableRule{id: "TM100", name: "mock-trailing"},
+			&mockFixableRuleB{id: "MDS200", name: "mock-tabs"},
+			&mockFixableRule{id: "MDS100", name: "mock-trailing"},
 		},
 	}
 
@@ -283,8 +283,8 @@ func TestFix_MultipleFixableRulesAppliedInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// TM100 (trailing spaces) runs first: "# He\tllo  " -> "# He\tllo"
-	// TM200 (tabs) runs second: "# He\tllo" -> "# He    llo"
+	// MDS100 (trailing spaces) runs first: "# He\tllo  " -> "# He\tllo"
+	// MDS200 (tabs) runs second: "# He\tllo" -> "# He    llo"
 	expected := "# He    llo\nwor    ld\n"
 	if string(content) != expected {
 		t.Errorf("expected %q, got %q", expected, string(content))
@@ -308,8 +308,8 @@ func TestFix_NonFixableViolationsReportedAfterFix(t *testing.T) {
 	fixer := &Fixer{
 		Config: cfg,
 		Rules: []rule.Rule{
-			&mockFixableRule{id: "TM100", name: "mock-trailing"},
-			&mockNonFixableRule{id: "TM999", name: "mock-nonfixable"},
+			&mockFixableRule{id: "MDS100", name: "mock-trailing"},
+			&mockNonFixableRule{id: "MDS999", name: "mock-nonfixable"},
 		},
 	}
 
@@ -323,8 +323,8 @@ func TestFix_NonFixableViolationsReportedAfterFix(t *testing.T) {
 	if len(result.Diagnostics) != 1 {
 		t.Fatalf("expected 1 remaining diagnostic, got %d", len(result.Diagnostics))
 	}
-	if result.Diagnostics[0].RuleID != "TM999" {
-		t.Errorf("expected remaining diagnostic from TM999, got %s", result.Diagnostics[0].RuleID)
+	if result.Diagnostics[0].RuleID != "MDS999" {
+		t.Errorf("expected remaining diagnostic from MDS999, got %s", result.Diagnostics[0].RuleID)
 	}
 }
 
@@ -354,7 +354,7 @@ func TestFix_FileWithNoViolationsNotModified(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&silentRule{id: "TM998", name: "silent-rule"}},
+		Rules:  []rule.Rule{&silentRule{id: "MDS998", name: "silent-rule"}},
 	}
 
 	result := fixer.Fix([]string{mdFile})
@@ -396,7 +396,7 @@ func TestFix_ReadOnlyFileError(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 	}
 
 	result := fixer.Fix([]string{mdFile})
@@ -424,7 +424,7 @@ func TestFix_MultipleFilesFixedIndependently(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 	}
 
 	result := fixer.Fix([]string{file1, file2})
@@ -455,7 +455,7 @@ func TestFix_EmptyPathsReturnsEmptyResult(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 	}
 
 	result := fixer.Fix([]string{})
@@ -475,8 +475,8 @@ func TestFix_ReParseBetweenPasses(t *testing.T) {
 	// fixable rule sees the updated source (re-parsed lint.File).
 	dir := t.TempDir()
 	mdFile := filepath.Join(dir, "test.md")
-	// Content has trailing tab+spaces: after TM100 strips trailing whitespace,
-	// TM200 should not see any tabs (they were part of trailing whitespace).
+	// Content has trailing tab+spaces: after MDS100 strips trailing whitespace,
+	// MDS200 should not see any tabs (they were part of trailing whitespace).
 	if err := os.WriteFile(mdFile, []byte("# Hello\t \n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -491,9 +491,9 @@ func TestFix_ReParseBetweenPasses(t *testing.T) {
 	fixer := &Fixer{
 		Config: cfg,
 		Rules: []rule.Rule{
-			// TM100 sorts before TM200, so trailing whitespace removal happens first.
-			&mockFixableRule{id: "TM100", name: "mock-trailing"},
-			&mockFixableRuleB{id: "TM200", name: "mock-tabs"},
+			// MDS100 sorts before MDS200, so trailing whitespace removal happens first.
+			&mockFixableRule{id: "MDS100", name: "mock-trailing"},
+			&mockFixableRuleB{id: "MDS200", name: "mock-tabs"},
 		},
 	}
 
@@ -506,8 +506,8 @@ func TestFix_ReParseBetweenPasses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// TM100 strips trailing "\t " -> "# Hello\n"
-	// TM200 sees "# Hello\n" which has no tabs -> no change.
+	// MDS100 strips trailing "\t " -> "# Hello\n"
+	// MDS200 sees "# Hello\n" which has no tabs -> no change.
 	expected := "# Hello\n"
 	if string(content) != expected {
 		t.Errorf("expected %q, got %q", expected, string(content))
@@ -557,7 +557,7 @@ var _ rule.FixableRule = (*mockRuleA)(nil)
 
 // mockRuleB flags consecutive blank lines and collapses them to one.
 // Its fix can introduce "REMOVE_ME" is a stand-in: here it simply adds
-// trailing whitespace that mockFixableRule (TM100) would need to clean.
+// trailing whitespace that mockFixableRule (MDS100) would need to clean.
 // But for the cross-rule regression test we use a different approach:
 // mockRuleB replaces "AAA\nBBB" with "AAA\nREMOVE_ME\nBBB",
 // simulating a fix that introduces a violation for mockRuleA.
@@ -602,11 +602,11 @@ func (r *mockCrossRule) Fix(f *lint.File) []byte {
 var _ rule.FixableRule = (*mockCrossRule)(nil)
 
 func TestFix_MultiPassConvergence(t *testing.T) {
-	// mockRuleA (TM100) removes "REMOVE_ME" lines.
-	// mockCrossRule (TM200) inserts "REMOVE_ME" between "AAA" and "BBB".
-	// On a single pass: TM100 runs first (no REMOVE_ME yet, no-op),
-	// then TM200 inserts REMOVE_ME. Without multi-pass, REMOVE_ME remains.
-	// With multi-pass, the second pass lets TM100 remove it, and TM200
+	// mockRuleA (MDS100) removes "REMOVE_ME" lines.
+	// mockCrossRule (MDS200) inserts "REMOVE_ME" between "AAA" and "BBB".
+	// On a single pass: MDS100 runs first (no REMOVE_ME yet, no-op),
+	// then MDS200 inserts REMOVE_ME. Without multi-pass, REMOVE_ME remains.
+	// With multi-pass, the second pass lets MDS100 remove it, and MDS200
 	// no longer sees adjacent AAA/BBB, so it converges.
 	dir := t.TempDir()
 	mdFile := filepath.Join(dir, "test.md")
@@ -624,8 +624,8 @@ func TestFix_MultiPassConvergence(t *testing.T) {
 	fixer := &Fixer{
 		Config: cfg,
 		Rules: []rule.Rule{
-			&mockRuleA{id: "TM100", name: "mock-remove"},
-			&mockCrossRule{id: "TM200", name: "mock-separator"},
+			&mockRuleA{id: "MDS100", name: "mock-remove"},
+			&mockCrossRule{id: "MDS200", name: "mock-separator"},
 		},
 	}
 
@@ -639,35 +639,35 @@ func TestFix_MultiPassConvergence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The fixes oscillate within each pass: TM100 removes REMOVE_ME,
-	// TM200 re-inserts it. The pass output equals the previous pass
+	// The fixes oscillate within each pass: MDS100 removes REMOVE_ME,
+	// MDS200 re-inserts it. The pass output equals the previous pass
 	// output so the loop detects stability and stops.
-	// Final content has REMOVE_ME because TM200 runs after TM100.
+	// Final content has REMOVE_ME because MDS200 runs after MDS100.
 	expected := "AAA\nREMOVE_ME\nBBB\n"
 	if string(content) != expected {
 		t.Errorf("expected %q, got %q", expected, string(content))
 	}
 
-	// TM100 reports a remaining diagnostic for the REMOVE_ME line.
+	// MDS100 reports a remaining diagnostic for the REMOVE_ME line.
 	found := false
 	for _, d := range result.Diagnostics {
-		if d.RuleID == "TM100" {
+		if d.RuleID == "MDS100" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected remaining TM100 diagnostic")
+		t.Error("expected remaining MDS100 diagnostic")
 	}
 }
 
 func TestFix_LaterRuleFixCaughtByEarlierRule(t *testing.T) {
 	// Regression test for the actual bug: a later rule's fix introduces
 	// trailing whitespace that an earlier rule should clean up.
-	// mockFixableRule (TM100) strips trailing spaces.
-	// mockTrailingAdder (TM200) fixes something but adds trailing spaces.
+	// mockFixableRule (MDS100) strips trailing spaces.
+	// mockTrailingAdder (MDS200) fixes something but adds trailing spaces.
 	dir := t.TempDir()
 	mdFile := filepath.Join(dir, "test.md")
-	// "hello\tworld\n" — has a tab that TM200 will convert to spaces,
+	// "hello\tworld\n" — has a tab that MDS200 will convert to spaces,
 	// but it incorrectly adds a trailing space.
 	if err := os.WriteFile(mdFile, []byte("hello\tworld\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -683,8 +683,8 @@ func TestFix_LaterRuleFixCaughtByEarlierRule(t *testing.T) {
 	fixer := &Fixer{
 		Config: cfg,
 		Rules: []rule.Rule{
-			&mockFixableRule{id: "TM100", name: "mock-trailing"},
-			&mockSloppyTabFixer{id: "TM200", name: "mock-tabs-sloppy"},
+			&mockFixableRule{id: "MDS100", name: "mock-trailing"},
+			&mockSloppyTabFixer{id: "MDS200", name: "mock-tabs-sloppy"},
 		},
 	}
 
@@ -698,11 +698,11 @@ func TestFix_LaterRuleFixCaughtByEarlierRule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TM100 first pass: no trailing spaces, no-op.
-	// TM200 first pass: replaces tab with "    " but adds trailing space
+	// MDS100 first pass: no trailing spaces, no-op.
+	// MDS200 first pass: replaces tab with "    " but adds trailing space
 	//   -> "hello    world \n"
-	// Second pass: TM100 strips trailing space -> "hello    world\n"
-	// TM200: no tabs, no-op. Stable.
+	// Second pass: MDS100 strips trailing space -> "hello    world\n"
+	// MDS200: no tabs, no-op. Stable.
 	expected := "hello    world\n"
 	if string(content) != expected {
 		t.Errorf("expected %q, got %q", expected, string(content))
@@ -710,7 +710,7 @@ func TestFix_LaterRuleFixCaughtByEarlierRule(t *testing.T) {
 
 	// No remaining diagnostics — both issues fully fixed.
 	for _, d := range result.Diagnostics {
-		if d.RuleID == "TM100" || d.RuleID == "TM200" {
+		if d.RuleID == "MDS100" || d.RuleID == "MDS200" {
 			t.Errorf("unexpected remaining diagnostic: %s: %s", d.RuleID, d.Message)
 		}
 	}
@@ -733,7 +733,7 @@ func TestFixer_StripFrontMatter_PreservesFrontMatter(t *testing.T) {
 
 	fixer := &Fixer{
 		Config:           cfg,
-		Rules:            []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:            []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 		StripFrontMatter: true,
 	}
 
@@ -790,7 +790,7 @@ func TestFix_IgnoredFileSkipped(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 	}
 
 	result := fixer.Fix([]string{mdFile})
@@ -811,7 +811,7 @@ func TestFix_NonexistentFileError(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 	}
 
 	result := fixer.Fix([]string{"/nonexistent/file.md"})
@@ -839,7 +839,7 @@ func TestFix_PreservesFilePermissions(t *testing.T) {
 
 	fixer := &Fixer{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockFixableRule{id: "TM100", name: "mock-trailing"}},
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
 	}
 
 	result := fixer.Fix([]string{mdFile})

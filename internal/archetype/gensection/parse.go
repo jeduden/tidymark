@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/yuin/goldmark/ast"
 	"gopkg.in/yaml.v3"
 )
@@ -312,7 +312,7 @@ func addBlockLineRange(f *lint.File, n ast.Node, set map[int]bool) {
 }
 
 // addHTMLBlockLines marks all lines spanned by an HTML block.
-// HTML blocks that are tidymark markers are not ignored, since
+// HTML blocks that are mdsmith markers are not ignored, since
 // the markers are HTML comments that goldmark parses as HTML blocks.
 func addHTMLBlockLines(f *lint.File, n *ast.HTMLBlock, set map[int]bool, startPrefix, endMarker string) {
 	if n.Lines().Len() == 0 {

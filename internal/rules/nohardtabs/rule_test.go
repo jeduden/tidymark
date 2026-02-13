@@ -3,7 +3,7 @@ package nohardtabs
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_TabPresent(t *testing.T) {
@@ -25,8 +25,8 @@ func TestCheck_TabPresent(t *testing.T) {
 	if d.Column != 4 {
 		t.Errorf("expected column 4, got %d", d.Column)
 	}
-	if d.RuleID != "TM007" {
-		t.Errorf("expected rule ID TM007, got %s", d.RuleID)
+	if d.RuleID != "MDS007" {
+		t.Errorf("expected rule ID MDS007, got %s", d.RuleID)
 	}
 }
 
@@ -136,7 +136,7 @@ func TestFix_PreservesNoTabLines(t *testing.T) {
 }
 
 func TestCheck_SkipsFencedCodeBlockLines(t *testing.T) {
-	// Tabs inside a fenced code block should NOT fire TM007.
+	// Tabs inside a fenced code block should NOT fire MDS007.
 	src := []byte("# Title\n\n```\n\tcode\n\tmore\n```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
@@ -167,7 +167,7 @@ func TestCheck_TabsOutsideCodeBlockStillFlagged(t *testing.T) {
 }
 
 func TestCheck_SkipsIndentedCodeBlockLines(t *testing.T) {
-	// Tabs inside an indented code block should NOT fire TM007.
+	// Tabs inside an indented code block should NOT fire MDS007.
 	// Note: indented code block lines start with 4 spaces; the tab is after that.
 	src := []byte("Some paragraph.\n\n    \tcode\n")
 	f, err := lint.NewFile("test.md", src)

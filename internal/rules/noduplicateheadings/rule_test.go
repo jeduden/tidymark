@@ -3,7 +3,7 @@ package noduplicateheadings
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_NoDuplicates_NoViolation(t *testing.T) {
@@ -30,8 +30,8 @@ func TestCheck_DuplicateHeadings(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d: %+v", len(diags), diags)
 	}
-	if diags[0].RuleID != "TM005" {
-		t.Errorf("expected rule ID TM005, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS005" {
+		t.Errorf("expected rule ID MDS005, got %s", diags[0].RuleID)
 	}
 }
 
@@ -76,8 +76,8 @@ func TestCheck_NoHeadings(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM005" {
-		t.Errorf("expected TM005, got %s", r.ID())
+	if r.ID() != "MDS005" {
+		t.Errorf("expected MDS005, got %s", r.ID())
 	}
 }
 

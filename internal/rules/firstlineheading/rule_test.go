@@ -3,7 +3,7 @@ package firstlineheading
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_FirstLineH1_NoViolation(t *testing.T) {
@@ -30,8 +30,8 @@ func TestCheck_EmptyFile(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
-	if diags[0].RuleID != "TM004" {
-		t.Errorf("expected rule ID TM004, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS004" {
+		t.Errorf("expected rule ID MDS004, got %s", diags[0].RuleID)
 	}
 }
 
@@ -89,8 +89,8 @@ func TestCheck_Level2Config(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM004" {
-		t.Errorf("expected TM004, got %s", r.ID())
+	if r.ID() != "MDS004" {
+		t.Errorf("expected MDS004, got %s", r.ID())
 	}
 }
 

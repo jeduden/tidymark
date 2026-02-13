@@ -39,13 +39,13 @@ unique name before it ships to the public.
   - Go module path in `go.mod`
   - All import paths in `internal/`, `cmd/`
   - Binary name in `cmd/<name>/`
-  - Config file name (`.tidymark.yml` to `.<name>.yml`)
+  - Config file name (`.mdsmith.yml` to `.<name>.yml`)
   - All references in `README.md`, `CLAUDE.md`, docs
   - Rule prefix: decide whether to keep `TM###` or change
   - GitHub repo name (manual step)
 
 4. Add a `Makefile` or script to verify no stale references
-   remain (`grep -r tidymark` returns only changelog/history
+   remain (`grep -r mdsmith` returns only changelog/history
    entries).
 
 5. Update CI/CD, release scripts, and lefthook config if

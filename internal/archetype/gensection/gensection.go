@@ -5,7 +5,7 @@
 // fix (replacement) logic.
 package gensection
 
-import "github.com/jeduden/tidymark/internal/lint"
+import "github.com/jeduden/mdsmith/internal/lint"
 
 // ColumnConfig holds per-column width and wrapping configuration.
 type ColumnConfig struct {
@@ -22,7 +22,7 @@ type Directive interface {
 	//   end:   "<!-- /" + Name() + " -->"
 	Name() string
 
-	// RuleID returns the lint rule ID (e.g., "TM019").
+	// RuleID returns the lint rule ID (e.g., "MDS019").
 	RuleID() string
 
 	// RuleName returns the lint rule name (e.g., "catalog").

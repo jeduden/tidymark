@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jeduden/tidymark/internal/archetype/gensection"
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/archetype/gensection"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 func init() {
@@ -21,7 +21,7 @@ type Rule struct {
 }
 
 // ID implements rule.Rule.
-func (r *Rule) ID() string { return "TM021" }
+func (r *Rule) ID() string { return "MDS021" }
 
 // Name implements rule.Rule.
 func (r *Rule) Name() string { return "include" }
@@ -30,7 +30,7 @@ func (r *Rule) Name() string { return "include" }
 func (r *Rule) Category() string { return "meta" }
 
 // RuleID implements gensection.Directive.
-func (r *Rule) RuleID() string { return "TM021" }
+func (r *Rule) RuleID() string { return "MDS021" }
 
 // RuleName implements gensection.Directive.
 func (r *Rule) RuleName() string { return "include" }
@@ -170,7 +170,7 @@ func makeDiag(file string, line int, msg string) lint.Diagnostic {
 		File:     file,
 		Line:     line,
 		Column:   1,
-		RuleID:   "TM021",
+		RuleID:   "MDS021",
 		RuleName: "include",
 		Severity: lint.Error,
 		Message:  msg,

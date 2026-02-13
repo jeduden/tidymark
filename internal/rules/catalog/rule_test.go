@@ -5,7 +5,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // helper creates a *lint.File with the given source and attaches the given FS.
@@ -61,8 +61,8 @@ func expectDiagLine(t *testing.T, diags []lint.Diagnostic, line int) {
 
 func TestRule_ID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM019" {
-		t.Errorf("expected ID TM019, got %s", r.ID())
+	if r.ID() != "MDS019" {
+		t.Errorf("expected ID MDS019, got %s", r.ID())
 	}
 }
 

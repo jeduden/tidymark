@@ -3,7 +3,7 @@ package notrailingpunctuation
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_NoPunctuation_NoViolation(t *testing.T) {
@@ -30,8 +30,8 @@ func TestCheck_TrailingPeriod(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d: %+v", len(diags), diags)
 	}
-	if diags[0].RuleID != "TM017" {
-		t.Errorf("expected rule ID TM017, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS017" {
+		t.Errorf("expected rule ID MDS017, got %s", diags[0].RuleID)
 	}
 }
 
@@ -115,8 +115,8 @@ func TestCheck_NoHeadings(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM017" {
-		t.Errorf("expected TM017, got %s", r.ID())
+	if r.ID() != "MDS017" {
+		t.Errorf("expected MDS017, got %s", r.ID())
 	}
 }
 

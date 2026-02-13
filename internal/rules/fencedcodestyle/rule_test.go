@@ -3,7 +3,7 @@ package fencedcodestyle
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_BacktickDefault_NoViolation(t *testing.T) {
@@ -31,8 +31,8 @@ func TestCheck_TildeWhenBacktickExpected(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
 	d := diags[0]
-	if d.RuleID != "TM010" {
-		t.Errorf("expected rule ID TM010, got %s", d.RuleID)
+	if d.RuleID != "MDS010" {
+		t.Errorf("expected rule ID MDS010, got %s", d.RuleID)
 	}
 	if d.Line != 3 {
 		t.Errorf("expected line 3, got %d", d.Line)
@@ -229,8 +229,8 @@ func TestFix_EmptyCodeBlock(t *testing.T) {
 
 func TestCheck_ID(t *testing.T) {
 	r := &Rule{Style: "backtick"}
-	if r.ID() != "TM010" {
-		t.Errorf("expected ID TM010, got %s", r.ID())
+	if r.ID() != "MDS010" {
+		t.Errorf("expected ID MDS010, got %s", r.ID())
 	}
 }
 

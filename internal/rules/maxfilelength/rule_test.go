@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // nLines builds a string of n lines, each with some content,
@@ -42,8 +42,8 @@ func TestCheck_MaxPlusOne_Diagnostic(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
 	d := diags[0]
-	if d.RuleID != "TM022" {
-		t.Errorf("expected rule ID TM022, got %s", d.RuleID)
+	if d.RuleID != "MDS022" {
+		t.Errorf("expected rule ID MDS022, got %s", d.RuleID)
 	}
 	if d.RuleName != "max-file-length" {
 		t.Errorf(
@@ -226,8 +226,8 @@ func TestDefaultSettings(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM022" {
-		t.Errorf("expected ID TM022, got %s", r.ID())
+	if r.ID() != "MDS022" {
+		t.Errorf("expected ID MDS022, got %s", r.ID())
 	}
 }
 

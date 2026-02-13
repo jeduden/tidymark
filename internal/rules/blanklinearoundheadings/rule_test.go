@@ -3,7 +3,7 @@ package blanklinearoundheadings
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_ProperBlankLines_NoViolation(t *testing.T) {
@@ -113,8 +113,8 @@ func TestFix_AdjacentHeadings_NoDoubleBlanks(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM013" {
-		t.Errorf("expected TM013, got %s", r.ID())
+	if r.ID() != "MDS013" {
+		t.Errorf("expected MDS013, got %s", r.ID())
 	}
 }
 
@@ -129,7 +129,7 @@ func TestName(t *testing.T) {
 
 func TestCheck_HeadingInsideCodeBlock_NoDiagnostics(t *testing.T) {
 	// A fenced code block containing heading-like text should not
-	// produce TM013 diagnostics.
+	// produce MDS013 diagnostics.
 	src := []byte("# Real Heading\n\nSome text\n\n```markdown\n# Not a heading\nSome content\n```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {

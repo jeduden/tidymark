@@ -6,7 +6,7 @@ between the markers matches what the directive would produce,
 and a fix command regenerates it in place.
 
 This archetype documents the shared mechanics. Individual rules
-(e.g., [TM019 catalog](../../rules/TM019-catalog/)) define
+(e.g., [MDS019 catalog](../../rules/MDS019-catalog/)) define
 their own parameters, template fields, and behaviors.
 
 ## Marker Syntax

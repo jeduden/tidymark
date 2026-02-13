@@ -2,7 +2,7 @@
 
 ## Project
 
-tidymark — a Markdown linter written in Go.
+mdsmith — a Markdown linter written in Go.
 
 ## Build & Test Commands
 
@@ -16,7 +16,7 @@ tidymark — a Markdown linter written in Go.
 
 Follow the [standard Go project layout](https://go.dev/doc/modules/layout):
 
-- `cmd/tidymark/` — main application entry point
+- `cmd/mdsmith/` — main application entry point
 - `internal/` — private packages not importable by other modules
 - `rules/` — rule documentation (`rules/<id>-<name>/README.md`)
 - `testdata/` — test fixtures (markdown files for testing rules)
@@ -40,7 +40,7 @@ Follow the [standard Go project layout](https://go.dev/doc/modules/layout):
 ### Usage
 
 ```text
-tidymark <command> [flags] [files...]
+mdsmith <command> [flags] [files...]
 ```
 
 ### Commands
@@ -50,7 +50,7 @@ tidymark <command> [flags] [files...]
 | `check`   | Lint files (default command) |
 | `fix`     | Auto-fix issues in place     |
 | `help`    | Show help for rules/topics   |
-| `init`    | Generate `.tidymark.yml`       |
+| `init`    | Generate `.mdsmith.yml`       |
 | `version` | Print version, exit          |
 
 Files are positional arguments. Accepts multiple file paths,
@@ -92,8 +92,8 @@ Lint output goes to **stderr**. Format:
 **text** (default):
 
 ```text
-README.md:10:5 TM001 line too long (120 > 80)
-docs/guide.md:3:1 TM002 first line should be a heading
+README.md:10:5 MDS001 line too long (120 > 80)
+docs/guide.md:3:1 MDS002 first line should be a heading
 ```
 
 Pattern: `file:line:col rule message`
@@ -106,7 +106,7 @@ Pattern: `file:line:col rule message`
     "file": "README.md",
     "line": 10,
     "column": 5,
-    "rule": "TM001",
+    "rule": "MDS001",
     "name": "line-length",
     "severity": "error",
     "message": "line too long (120 > 80)"
@@ -120,11 +120,11 @@ Pattern: `file:line:col rule message`
 # lefthook.yml
 pre-commit:
   commands:
-    tidymark:
+    mdsmith:
       glob: "*.{md,markdown}"
-      run: tidymark check {staged_files}
+      run: mdsmith check {staged_files}
       # To auto-fix and re-stage:
-      # run: tidymark fix {staged_files}
+      # run: mdsmith fix {staged_files}
       # stage_fixed: true
 ```
 
@@ -137,7 +137,7 @@ as a template when creating new plans.
 Each plan has acceptance criteria with behavioral tests. Work test-driven: write
 a failing test (red), make it pass (green), commit.
 
-Plan files must pass `tidymark check plan/` with zero diagnostics.
+Plan files must pass `mdsmith check plan/` with zero diagnostics.
 
 ## Test Fixtures
 
@@ -147,10 +147,10 @@ has `good/` and `bad/` examples (or `good.md` / `bad.md`).
 Good fixtures must pass **all** rules, not just their own.
 When a good fixture uses non-default settings (e.g. setext
 headings, tilde fences), add a matching override in
-`.tidymark.yml` so that `tidymark check .` also passes.
+`.mdsmith.yml` so that `mdsmith check .` also passes.
 
 Bad fixtures are excluded via the `ignore:` section in
-`.tidymark.yml`.
+`.mdsmith.yml`.
 
 ## Config & Rules
 

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestTextFormatter_SingleDiagnostic(t *testing.T) {
@@ -17,7 +17,7 @@ func TestTextFormatter_SingleDiagnostic(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -29,7 +29,7 @@ func TestTextFormatter_SingleDiagnostic(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := "README.md:10:5 TM001 line too long (120 > 80)\n"
+	expected := "README.md:10:5 MDS001 line too long (120 > 80)\n"
 	if buf.String() != expected {
 		t.Errorf("got %q, want %q", buf.String(), expected)
 	}
@@ -44,7 +44,7 @@ func TestTextFormatter_MultipleDiagnostics(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -53,7 +53,7 @@ func TestTextFormatter_MultipleDiagnostics(t *testing.T) {
 			File:     "docs/guide.md",
 			Line:     3,
 			Column:   1,
-			RuleID:   "TM002",
+			RuleID:   "MDS002",
 			RuleName: "first-heading",
 			Severity: lint.Warning,
 			Message:  "first line should be a heading",
@@ -70,8 +70,8 @@ func TestTextFormatter_MultipleDiagnostics(t *testing.T) {
 		t.Fatalf("expected 2 lines, got %d: %q", len(lines), buf.String())
 	}
 
-	expected1 := "README.md:10:5 TM001 line too long (120 > 80)"
-	expected2 := "docs/guide.md:3:1 TM002 first line should be a heading"
+	expected1 := "README.md:10:5 MDS001 line too long (120 > 80)"
+	expected2 := "docs/guide.md:3:1 MDS002 first line should be a heading"
 
 	if lines[0] != expected1 {
 		t.Errorf("line 1: got %q, want %q", lines[0], expected1)
@@ -90,7 +90,7 @@ func TestTextFormatter_WithColor(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -116,7 +116,7 @@ func TestTextFormatter_WithColor(t *testing.T) {
 	}
 
 	// Verify exact colored output
-	expected := "\033[36mREADME.md:10:5\033[0m \033[33mTM001\033[0m line too long (120 > 80)\n"
+	expected := "\033[36mREADME.md:10:5\033[0m \033[33mMDS001\033[0m line too long (120 > 80)\n"
 	if output != expected {
 		t.Errorf("got %q, want %q", output, expected)
 	}
@@ -131,7 +131,7 @@ func TestTextFormatter_WithoutColor(t *testing.T) {
 			File:     "README.md",
 			Line:     10,
 			Column:   5,
-			RuleID:   "TM001",
+			RuleID:   "MDS001",
 			RuleName: "line-length",
 			Severity: lint.Error,
 			Message:  "line too long (120 > 80)",
@@ -150,7 +150,7 @@ func TestTextFormatter_WithoutColor(t *testing.T) {
 		t.Error("expected no ANSI escape sequences in output, but found some")
 	}
 
-	expected := "README.md:10:5 TM001 line too long (120 > 80)\n"
+	expected := "README.md:10:5 MDS001 line too long (120 > 80)\n"
 	if output != expected {
 		t.Errorf("got %q, want %q", output, expected)
 	}

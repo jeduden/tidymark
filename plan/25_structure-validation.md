@@ -68,7 +68,7 @@ proceed independently.
    ```
 
    The `allow-extra-sections: true` flag permits rules to
-   add additional sections (e.g. TM019's Marker Syntax,
+   add additional sections (e.g. MDS019's Marker Syntax,
    Directives, Diagnostics sections).
 
 3. Update `plan/proto.md` with template frontmatter:
@@ -84,7 +84,7 @@ proceed independently.
    `## Acceptance Criteria`. Plans must follow this
    structure exactly with no extra top-level sections.
 
-### B. Implement TM020 `required-structure`
+### B. Implement MDS020 `required-structure`
 
 4. Create `internal/rules/requiredstructure/rule.go`
    implementing `rule.Rule` and `rule.Configurable`.
@@ -118,7 +118,7 @@ proceed independently.
    the actual body text. Diagnostics:
 
   - `heading does not match frontmatter: expected`
-     `"TM001" (from id), got "TM002"`
+     `"MDS001" (from id), got "MDS002"`
   - `body does not match frontmatter field`
      `"description"`
 
@@ -126,7 +126,7 @@ proceed independently.
    to the known-rules list in `config/load.go`, add
    blank import in `main.go`.
 
-### C. Implement `include` directive for TM019
+### C. Implement `include` directive for MDS019
 
 9. Add `include` as a recognized directive in the
    `generated-section` rule alongside `catalog`.
@@ -155,7 +155,7 @@ proceed independently.
 
 ### D. Wire up configuration
 
-12. Update `.tidymark.yml` with overrides applying the
+12. Update `.mdsmith.yml` with overrides applying the
     template to the right file groups:
 
     ```yaml
@@ -181,16 +181,16 @@ proceed independently.
     referencing the fixture files:
 
     ```text
-    <!-- tidymark:gen:start include
+    <!-- mdsmith:gen:start include
     file: bad/default.md
     wrap: markdown
     -->
     ...
-    <!-- tidymark:gen:end -->
+    <!-- mdsmith:gen:end -->
     ```
 
-15. Run `tidymark fix rules/` to populate the include
-    sections and verify `tidymark check rules/` passes.
+15. Run `mdsmith fix rules/` to populate the include
+    sections and verify `mdsmith check rules/` passes.
 
 ### F. Tests
 
@@ -214,7 +214,7 @@ proceed independently.
     against `rules/proto.md` and plan files against
     `plan/proto.md`.
 
-21. Write `rules/TM020-required-structure/README.md`
+21. Write `rules/MDS020-required-structure/README.md`
     with examples for both template validation and
     frontmatter sync use cases.
 
@@ -222,9 +222,9 @@ proceed independently.
 
 - [ ] Template file format supports required headings,
       `{{.field}}` sync, and `?` wildcards
-- [ ] TM020 reports missing or out-of-order headings
-- [ ] TM020 reports frontmatter-body value mismatches
-- [ ] TM019 `include` directive embeds file content
+- [ ] MDS020 reports missing or out-of-order headings
+- [ ] MDS020 reports frontmatter-body value mismatches
+- [ ] MDS019 `include` directive embeds file content
 - [ ] Include supports `strip-frontmatter` and `wrap`
 - [ ] Rule READMEs use includes for Bad/Good examples
 - [ ] `plan/*.md` validated against `plan/proto.md`

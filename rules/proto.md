@@ -1,5 +1,5 @@
 ---
-id: TMXXX
+id: MDSXXX
 name: rule-name
 description: One-sentence description ending with period.
 template:

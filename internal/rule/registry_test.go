@@ -3,7 +3,7 @@ package rule
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // stubRule is a minimal Rule implementation for testing.
@@ -24,8 +24,8 @@ func resetRegistry() {
 func TestRegisterAndAll(t *testing.T) {
 	resetRegistry()
 
-	r1 := &stubRule{id: "TM001", name: "line-length"}
-	r2 := &stubRule{id: "TM002", name: "first-heading"}
+	r1 := &stubRule{id: "MDS001", name: "line-length"}
+	r2 := &stubRule{id: "MDS002", name: "first-heading"}
 
 	Register(r1)
 	Register(r2)
@@ -34,18 +34,18 @@ func TestRegisterAndAll(t *testing.T) {
 	if len(all) != 2 {
 		t.Fatalf("expected 2 rules, got %d", len(all))
 	}
-	if all[0].ID() != "TM001" {
-		t.Errorf("expected first rule ID %q, got %q", "TM001", all[0].ID())
+	if all[0].ID() != "MDS001" {
+		t.Errorf("expected first rule ID %q, got %q", "MDS001", all[0].ID())
 	}
-	if all[1].ID() != "TM002" {
-		t.Errorf("expected second rule ID %q, got %q", "TM002", all[1].ID())
+	if all[1].ID() != "MDS002" {
+		t.Errorf("expected second rule ID %q, got %q", "MDS002", all[1].ID())
 	}
 }
 
 func TestAllReturnsCopy(t *testing.T) {
 	resetRegistry()
 
-	Register(&stubRule{id: "TM001", name: "line-length"})
+	Register(&stubRule{id: "MDS001", name: "line-length"})
 
 	all := All()
 	all[0] = nil // Mutate the returned slice.
@@ -60,15 +60,15 @@ func TestAllReturnsCopy(t *testing.T) {
 func TestByID_Found(t *testing.T) {
 	resetRegistry()
 
-	r := &stubRule{id: "TM003", name: "heading-style"}
+	r := &stubRule{id: "MDS003", name: "heading-style"}
 	Register(r)
 
-	found := ByID("TM003")
+	found := ByID("MDS003")
 	if found == nil {
-		t.Fatal("expected to find rule TM003")
+		t.Fatal("expected to find rule MDS003")
 	}
-	if found.ID() != "TM003" {
-		t.Errorf("expected ID %q, got %q", "TM003", found.ID())
+	if found.ID() != "MDS003" {
+		t.Errorf("expected ID %q, got %q", "MDS003", found.ID())
 	}
 	if found.Name() != "heading-style" {
 		t.Errorf("expected Name %q, got %q", "heading-style", found.Name())
@@ -78,9 +78,9 @@ func TestByID_Found(t *testing.T) {
 func TestByID_NotFound(t *testing.T) {
 	resetRegistry()
 
-	Register(&stubRule{id: "TM001", name: "line-length"})
+	Register(&stubRule{id: "MDS001", name: "line-length"})
 
-	found := ByID("TM999")
+	found := ByID("MDS999")
 	if found != nil {
 		t.Errorf("expected nil for unknown rule ID, got %v", found)
 	}

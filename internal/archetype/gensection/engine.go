@@ -3,7 +3,7 @@ package gensection
 import (
 	"strings"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // Engine orchestrates Check/Fix using a registered Directive.

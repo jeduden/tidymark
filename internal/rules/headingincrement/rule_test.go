@@ -3,7 +3,7 @@ package headingincrement
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_ProperIncrement_NoViolation(t *testing.T) {
@@ -30,8 +30,8 @@ func TestCheck_SkipsLevel(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d: %+v", len(diags), diags)
 	}
-	if diags[0].RuleID != "TM003" {
-		t.Errorf("expected rule ID TM003, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS003" {
+		t.Errorf("expected rule ID MDS003, got %s", diags[0].RuleID)
 	}
 }
 
@@ -80,8 +80,8 @@ func TestCheck_NoHeadings(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM003" {
-		t.Errorf("expected TM003, got %s", r.ID())
+	if r.ID() != "MDS003" {
+		t.Errorf("expected MDS003, got %s", r.ID())
 	}
 }
 

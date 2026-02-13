@@ -8,7 +8,7 @@ status: "\U0001F532"
 ## Goal
 
 Design a way to check markdown table readability.
-TM023/TM024 skip tables today. A new rule should flag
+MDS023/MDS024 skip tables today. A new rule should flag
 tables that are hard to read.
 
 ## Tasks
@@ -20,18 +20,18 @@ tables that are hard to read.
    for table-specific checks
 3. Propose candidate metrics with concrete thresholds
    (e.g. max columns, max words per cell, max rows)
-4. Decide whether to extend TM023/TM024 or create a
-   dedicated table rule (e.g. TM025 `table-complexity`)
+4. Decide whether to extend MDS023/MDS024 or create a
+   dedicated table rule (e.g. MDS025 `table-complexity`)
 5. Write the rule spec README following `rules/proto.md`
 6. Implement the rule with tests
 7. Add good/bad fixtures under the rule directory
-8. Verify `tidymark check .` passes
+8. Verify `mdsmith check .` passes
 
 ## Acceptance Criteria
 
 - [ ] Decision documented: new rule vs. extension
 - [ ] Rule spec README exists with settings and examples
 - [ ] Implementation with unit tests
-- [ ] Good and bad fixtures pass `tidymark check .`
+- [ ] Good and bad fixtures pass `mdsmith check .`
 - [ ] All tests pass: `go test ./...`
 - [ ] `golangci-lint run` reports no issues

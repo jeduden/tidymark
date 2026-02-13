@@ -8,7 +8,7 @@ status: ✅
 ## Goal
 
 Embed rule README files into the binary and add a
-`tidymark docs` command, so users can read rule docs
+`mdsmith docs` command, so users can read rule docs
 offline without visiting the repository.
 
 ## Tasks
@@ -24,19 +24,19 @@ offline without visiting the repository.
    structs for fast lookup.
 
 3. Add lookup functions. Support finding a rule by its ID
-   (for example `TM001`) or by its name (for example
+   (for example `MDS001`) or by its name (for example
    `line-length`). Return the full README content as a
    string. Return an error if the rule is not found.
 
 4. Add the `docs` subcommand to the CLI in
-   `cmd/tidymark/main.go`. Register it alongside the
+   `cmd/mdsmith/main.go`. Register it alongside the
    existing commands.
 
-5. When called with an argument (`tidymark docs TM001` or
-   `tidymark docs line-length`), print the matching README
+5. When called with an argument (`mdsmith docs MDS001` or
+   `mdsmith docs line-length`), print the matching README
    to stdout. Exit 2 if the rule is not found.
 
-6. When called with no argument (`tidymark docs`), print a
+6. When called with no argument (`mdsmith docs`), print a
    table of all rules to stdout. Each row shows the rule
    ID, name, and short description. Sort rows by rule ID.
 
@@ -49,10 +49,10 @@ offline without visiting the repository.
 
 8. Add integration tests for the CLI:
 
-  - `tidymark docs TM001` prints the TM001 README
-  - `tidymark docs line-length` prints the same README
-  - `tidymark docs TMXXX` exits 2 with an error message
-  - `tidymark docs` lists all rules
+  - `mdsmith docs MDS001` prints the MDS001 README
+  - `mdsmith docs line-length` prints the same README
+  - `mdsmith docs MDSXXX` exits 2 with an error message
+  - `mdsmith docs` lists all rules
 
 9. Update CLI help text and the commands table in
    `CLAUDE.md` to document the new `docs` subcommand.
@@ -60,9 +60,9 @@ offline without visiting the repository.
 ## Acceptance Criteria
 
 - [ ] Rule READMEs are embedded in the binary at build time
-- [ ] `tidymark docs TM001` prints the TM001 README
-- [ ] `tidymark docs line-length` prints the TM001 README
-- [ ] `tidymark docs` lists all rules with ID and name
+- [ ] `mdsmith docs MDS001` prints the MDS001 README
+- [ ] `mdsmith docs line-length` prints the MDS001 README
+- [ ] `mdsmith docs` lists all rules with ID and name
 - [ ] Unknown rule ID or name exits 2 with an error
 - [ ] Output goes to stdout for piping
 - [ ] All tests pass: `go test ./...`

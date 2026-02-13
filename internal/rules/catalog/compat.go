@@ -1,8 +1,8 @@
 package catalog
 
 import (
-	"github.com/jeduden/tidymark/internal/archetype/gensection"
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/archetype/gensection"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // markerPair is an alias for gensection.MarkerPair, kept for

@@ -3,9 +3,9 @@ package engine
 import (
 	"fmt"
 
-	"github.com/jeduden/tidymark/internal/config"
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 // ConfigureRule clones a rule and applies settings from cfg if the rule

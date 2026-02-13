@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/jeduden/tidymark/internal/config"
-	"github.com/jeduden/tidymark/internal/engine"
-	"github.com/jeduden/tidymark/internal/lint"
-	vlog "github.com/jeduden/tidymark/internal/log"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/engine"
+	"github.com/jeduden/mdsmith/internal/lint"
+	vlog "github.com/jeduden/mdsmith/internal/log"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 // Fixer applies auto-fixes for fixable rules and reports remaining diagnostics.

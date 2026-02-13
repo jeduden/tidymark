@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // TextFormatter outputs diagnostics in human-readable text format.

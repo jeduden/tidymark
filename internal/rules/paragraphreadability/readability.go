@@ -1,6 +1,6 @@
 package paragraphreadability
 
-import "github.com/jeduden/tidymark/internal/mdtext"
+import "github.com/jeduden/mdsmith/internal/mdtext"
 
 // GradeFunc computes a readability grade level from plain text.
 // Higher values mean harder to read.

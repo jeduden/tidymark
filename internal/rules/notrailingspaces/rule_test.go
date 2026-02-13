@@ -3,7 +3,7 @@ package notrailingspaces
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_TrailingSpaces(t *testing.T) {
@@ -24,8 +24,8 @@ func TestCheck_TrailingSpaces(t *testing.T) {
 	if d.Column != 6 {
 		t.Errorf("expected column 6, got %d", d.Column)
 	}
-	if d.RuleID != "TM006" {
-		t.Errorf("expected rule ID TM006, got %s", d.RuleID)
+	if d.RuleID != "MDS006" {
+		t.Errorf("expected rule ID MDS006, got %s", d.RuleID)
 	}
 }
 
@@ -122,7 +122,7 @@ func TestFix_PreservesCleanLines(t *testing.T) {
 }
 
 func TestCheck_SkipsFencedCodeBlockLines(t *testing.T) {
-	// Trailing spaces inside a fenced code block should NOT fire TM006.
+	// Trailing spaces inside a fenced code block should NOT fire MDS006.
 	src := []byte("# Title\n\n```\ncode   \nmore code  \n```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
@@ -153,7 +153,7 @@ func TestCheck_TrailingSpacesOutsideCodeBlockStillFlagged(t *testing.T) {
 }
 
 func TestCheck_SkipsIndentedCodeBlockLines(t *testing.T) {
-	// Trailing spaces inside an indented code block should NOT fire TM006.
+	// Trailing spaces inside an indented code block should NOT fire MDS006.
 	src := []byte("Some paragraph.\n\n    code   \n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {

@@ -3,8 +3,8 @@ package blanklinearoundlists
 import (
 	"bytes"
 
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -16,7 +16,7 @@ func init() {
 type Rule struct{}
 
 // ID implements rule.Rule.
-func (r *Rule) ID() string { return "TM014" }
+func (r *Rule) ID() string { return "MDS014" }
 
 // Name implements rule.Rule.
 func (r *Rule) Name() string { return "blank-line-around-lists" }

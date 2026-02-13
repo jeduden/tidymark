@@ -3,7 +3,7 @@ package mdtext_test
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/mdtext"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"

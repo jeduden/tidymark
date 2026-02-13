@@ -7,7 +7,7 @@ status: ✅
 
 ## Goal
 
-Add TM023 `paragraph-readability` that scores each
+Add MDS023 `paragraph-readability` that scores each
 paragraph and warns when the grade is too high. This
 pushes authors toward clearer prose. It uses the ARI
 formula by default. The design lets us add other
@@ -26,7 +26,7 @@ formulas (such as Flesch-Kincaid) later.
   - Emphasis/strong: keep inner text
   - Images: keep alt text
 
-   This helper is shared with TM024
+   This helper is shared with MDS024
    (`paragraph-structure`).
 
 2. Add `CountWords(text string) int` and
@@ -91,7 +91,7 @@ formulas (such as Flesch-Kincaid) later.
 
 ### D. Documentation
 
-9. Write `rules/TM023-paragraph-readability/README.md`.
+9. Write `rules/MDS023-paragraph-readability/README.md`.
 
 10. Create test fixtures with high-grade and low-grade
     paragraphs.

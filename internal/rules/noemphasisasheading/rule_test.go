@@ -3,7 +3,7 @@ package noemphasisasheading
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_BoldParagraph_Violation(t *testing.T) {
@@ -17,8 +17,8 @@ func TestCheck_BoldParagraph_Violation(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d: %+v", len(diags), diags)
 	}
-	if diags[0].RuleID != "TM018" {
-		t.Errorf("expected rule ID TM018, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS018" {
+		t.Errorf("expected rule ID MDS018, got %s", diags[0].RuleID)
 	}
 	if diags[0].Message != "emphasis used instead of a heading" {
 		t.Errorf("unexpected message: %s", diags[0].Message)
@@ -92,8 +92,8 @@ func TestCheck_EmptyFile(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM018" {
-		t.Errorf("expected TM018, got %s", r.ID())
+	if r.ID() != "MDS018" {
+		t.Errorf("expected MDS018, got %s", r.ID())
 	}
 }
 

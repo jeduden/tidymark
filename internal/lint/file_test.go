@@ -141,8 +141,8 @@ func TestNewFileFromSource_StripDisabled(t *testing.T) {
 func TestAdjustDiagnostics_ShiftsLineNumbers(t *testing.T) {
 	f := &File{LineOffset: 5}
 	diags := []Diagnostic{
-		{Line: 1, Column: 3, RuleID: "TM001"},
-		{Line: 10, Column: 1, RuleID: "TM002"},
+		{Line: 1, Column: 3, RuleID: "MDS001"},
+		{Line: 10, Column: 1, RuleID: "MDS002"},
 	}
 	f.AdjustDiagnostics(diags)
 
@@ -157,7 +157,7 @@ func TestAdjustDiagnostics_ShiftsLineNumbers(t *testing.T) {
 func TestAdjustDiagnostics_ZeroOffsetNoOp(t *testing.T) {
 	f := &File{LineOffset: 0}
 	diags := []Diagnostic{
-		{Line: 1, Column: 1, RuleID: "TM001"},
+		{Line: 1, Column: 1, RuleID: "MDS001"},
 	}
 	f.AdjustDiagnostics(diags)
 

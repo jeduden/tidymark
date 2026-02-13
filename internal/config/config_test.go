@@ -5,35 +5,35 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"gopkg.in/yaml.v3"
 
 	// Import all rule packages so their init() functions register rules.
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundfencedcode"
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundheadings"
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundlists"
-	_ "github.com/jeduden/tidymark/internal/rules/catalog"
-	_ "github.com/jeduden/tidymark/internal/rules/fencedcodelanguage"
-	_ "github.com/jeduden/tidymark/internal/rules/fencedcodestyle"
-	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
-	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
-	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
-	_ "github.com/jeduden/tidymark/internal/rules/include"
-	_ "github.com/jeduden/tidymark/internal/rules/linelength"
-	_ "github.com/jeduden/tidymark/internal/rules/listindent"
-	_ "github.com/jeduden/tidymark/internal/rules/maxfilelength"
-	_ "github.com/jeduden/tidymark/internal/rules/nobareurls"
-	_ "github.com/jeduden/tidymark/internal/rules/noduplicateheadings"
-	_ "github.com/jeduden/tidymark/internal/rules/noemphasisasheading"
-	_ "github.com/jeduden/tidymark/internal/rules/nohardtabs"
-	_ "github.com/jeduden/tidymark/internal/rules/nomultipleblanks"
-	_ "github.com/jeduden/tidymark/internal/rules/notrailingpunctuation"
-	_ "github.com/jeduden/tidymark/internal/rules/notrailingspaces"
-	_ "github.com/jeduden/tidymark/internal/rules/paragraphreadability"
-	_ "github.com/jeduden/tidymark/internal/rules/paragraphstructure"
-	_ "github.com/jeduden/tidymark/internal/rules/requiredstructure"
-	_ "github.com/jeduden/tidymark/internal/rules/singletrailingnewline"
-	_ "github.com/jeduden/tidymark/internal/rules/tableformat"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundfencedcode"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundheadings"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundlists"
+	_ "github.com/jeduden/mdsmith/internal/rules/catalog"
+	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodelanguage"
+	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodestyle"
+	_ "github.com/jeduden/mdsmith/internal/rules/firstlineheading"
+	_ "github.com/jeduden/mdsmith/internal/rules/headingincrement"
+	_ "github.com/jeduden/mdsmith/internal/rules/headingstyle"
+	_ "github.com/jeduden/mdsmith/internal/rules/include"
+	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
+	_ "github.com/jeduden/mdsmith/internal/rules/listindent"
+	_ "github.com/jeduden/mdsmith/internal/rules/maxfilelength"
+	_ "github.com/jeduden/mdsmith/internal/rules/nobareurls"
+	_ "github.com/jeduden/mdsmith/internal/rules/noduplicateheadings"
+	_ "github.com/jeduden/mdsmith/internal/rules/noemphasisasheading"
+	_ "github.com/jeduden/mdsmith/internal/rules/nohardtabs"
+	_ "github.com/jeduden/mdsmith/internal/rules/nomultipleblanks"
+	_ "github.com/jeduden/mdsmith/internal/rules/notrailingpunctuation"
+	_ "github.com/jeduden/mdsmith/internal/rules/notrailingspaces"
+	_ "github.com/jeduden/mdsmith/internal/rules/paragraphreadability"
+	_ "github.com/jeduden/mdsmith/internal/rules/paragraphstructure"
+	_ "github.com/jeduden/mdsmith/internal/rules/requiredstructure"
+	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"
+	_ "github.com/jeduden/mdsmith/internal/rules/tableformat"
 )
 
 // --- YAML parsing tests ---
@@ -111,7 +111,7 @@ overrides:
         max: 120
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ rules:
   line-length: false
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ rules:
   line-length: true
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ rules:
     strict: true
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ rules:
   line-length: [[[invalid
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ rules:
 }
 
 func TestLoadNonexistentFile(t *testing.T) {
-	_, err := Load("/nonexistent/path/.tidymark.yml")
+	_, err := Load("/nonexistent/path/.mdsmith.yml")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
 	}
@@ -535,7 +535,7 @@ rules:
   line-length: true
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -559,7 +559,7 @@ rules:
   line-length: true
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -582,7 +582,7 @@ rules:
   line-length: true
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -853,7 +853,7 @@ rules:
   line-length: true
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -883,7 +883,7 @@ rules:
   line-length: true
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1174,7 +1174,7 @@ overrides:
         max: 120
 `
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".tidymark.yml")
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	if err := os.WriteFile(cfgPath, []byte(yml), 0o644); err != nil {
 		t.Fatal(err)
 	}

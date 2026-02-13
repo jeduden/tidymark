@@ -8,41 +8,41 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"go.abhg.dev/goldmark/frontmatter"
 
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundfencedcode"
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundheadings"
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundlists"
-	_ "github.com/jeduden/tidymark/internal/rules/catalog"
-	_ "github.com/jeduden/tidymark/internal/rules/fencedcodelanguage"
-	_ "github.com/jeduden/tidymark/internal/rules/fencedcodestyle"
-	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
-	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
-	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
-	_ "github.com/jeduden/tidymark/internal/rules/include"
-	_ "github.com/jeduden/tidymark/internal/rules/linelength"
-	_ "github.com/jeduden/tidymark/internal/rules/listindent"
-	_ "github.com/jeduden/tidymark/internal/rules/maxfilelength"
-	_ "github.com/jeduden/tidymark/internal/rules/nobareurls"
-	_ "github.com/jeduden/tidymark/internal/rules/noduplicateheadings"
-	_ "github.com/jeduden/tidymark/internal/rules/noemphasisasheading"
-	_ "github.com/jeduden/tidymark/internal/rules/nohardtabs"
-	_ "github.com/jeduden/tidymark/internal/rules/nomultipleblanks"
-	_ "github.com/jeduden/tidymark/internal/rules/notrailingpunctuation"
-	_ "github.com/jeduden/tidymark/internal/rules/notrailingspaces"
-	_ "github.com/jeduden/tidymark/internal/rules/paragraphreadability"
-	_ "github.com/jeduden/tidymark/internal/rules/paragraphstructure"
-	_ "github.com/jeduden/tidymark/internal/rules/requiredstructure"
-	_ "github.com/jeduden/tidymark/internal/rules/singletrailingnewline"
-	_ "github.com/jeduden/tidymark/internal/rules/tableformat"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundfencedcode"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundheadings"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundlists"
+	_ "github.com/jeduden/mdsmith/internal/rules/catalog"
+	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodelanguage"
+	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodestyle"
+	_ "github.com/jeduden/mdsmith/internal/rules/firstlineheading"
+	_ "github.com/jeduden/mdsmith/internal/rules/headingincrement"
+	_ "github.com/jeduden/mdsmith/internal/rules/headingstyle"
+	_ "github.com/jeduden/mdsmith/internal/rules/include"
+	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
+	_ "github.com/jeduden/mdsmith/internal/rules/listindent"
+	_ "github.com/jeduden/mdsmith/internal/rules/maxfilelength"
+	_ "github.com/jeduden/mdsmith/internal/rules/nobareurls"
+	_ "github.com/jeduden/mdsmith/internal/rules/noduplicateheadings"
+	_ "github.com/jeduden/mdsmith/internal/rules/noemphasisasheading"
+	_ "github.com/jeduden/mdsmith/internal/rules/nohardtabs"
+	_ "github.com/jeduden/mdsmith/internal/rules/nomultipleblanks"
+	_ "github.com/jeduden/mdsmith/internal/rules/notrailingpunctuation"
+	_ "github.com/jeduden/mdsmith/internal/rules/notrailingspaces"
+	_ "github.com/jeduden/mdsmith/internal/rules/paragraphreadability"
+	_ "github.com/jeduden/mdsmith/internal/rules/paragraphstructure"
+	_ "github.com/jeduden/mdsmith/internal/rules/requiredstructure"
+	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"
+	_ "github.com/jeduden/mdsmith/internal/rules/tableformat"
 )
 
-var ruleIDPattern = regexp.MustCompile(`^(TM\d+)-`)
+var ruleIDPattern = regexp.MustCompile(`^(MDS\d+)-`)
 
 type expectedDiag struct {
 	Line    int    `yaml:"line"`
@@ -383,7 +383,7 @@ func runFixSingleFile(
 
 func discoverFixtureDirs(t *testing.T) []string {
 	t.Helper()
-	dirs, err := filepath.Glob("../../rules/TM*-*")
+	dirs, err := filepath.Glob("../../rules/MDS*-*")
 	if err != nil {
 		t.Fatal(err)
 	}

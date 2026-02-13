@@ -3,7 +3,7 @@ package rule
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // configurableStub implements both Rule and Configurable.
@@ -39,7 +39,7 @@ func (r *configurableStub) DefaultSettings() map[string]any {
 var _ Configurable = (*configurableStub)(nil)
 
 func TestCloneRule_Configurable_IndependentCopy(t *testing.T) {
-	original := &configurableStub{id: "TM001", name: "test", Max: 80, Style: "default"}
+	original := &configurableStub{id: "MDS001", name: "test", Max: 80, Style: "default"}
 
 	clone := CloneRule(original)
 
@@ -68,7 +68,7 @@ func TestCloneRule_Configurable_IndependentCopy(t *testing.T) {
 }
 
 func TestCloneRule_NonConfigurable_IndependentCopy(t *testing.T) {
-	original := &stubRule{id: "TM999", name: "stub"}
+	original := &stubRule{id: "MDS999", name: "stub"}
 
 	clone := CloneRule(original)
 
@@ -78,8 +78,8 @@ func TestCloneRule_NonConfigurable_IndependentCopy(t *testing.T) {
 	}
 
 	// Should have same ID and Name.
-	if clone.ID() != "TM999" {
-		t.Errorf("expected ID TM999, got %s", clone.ID())
+	if clone.ID() != "MDS999" {
+		t.Errorf("expected ID MDS999, got %s", clone.ID())
 	}
 	if clone.Name() != "stub" {
 		t.Errorf("expected Name stub, got %s", clone.Name())
@@ -87,7 +87,7 @@ func TestCloneRule_NonConfigurable_IndependentCopy(t *testing.T) {
 }
 
 func TestCloneRule_ApplySettingsOnClone(t *testing.T) {
-	original := &configurableStub{id: "TM001", name: "test", Max: 80, Style: "default"}
+	original := &configurableStub{id: "MDS001", name: "test", Max: 80, Style: "default"}
 
 	clone := CloneRule(original)
 	cc := clone.(Configurable)

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // mockDirective is a test directive that returns static content.
@@ -17,7 +17,7 @@ type mockDirective struct {
 }
 
 func (m *mockDirective) Name() string     { return "mock" }
-func (m *mockDirective) RuleID() string   { return "TM999" }
+func (m *mockDirective) RuleID() string   { return "MDS999" }
 func (m *mockDirective) RuleName() string { return "mock" }
 
 func (m *mockDirective) Validate(filePath string, line int,
@@ -67,8 +67,8 @@ func TestEngine_Check_OutOfDate(t *testing.T) {
 	if !strings.Contains(diags[0].Message, "out of date") {
 		t.Errorf("expected 'out of date' message, got %q", diags[0].Message)
 	}
-	if diags[0].RuleID != "TM999" {
-		t.Errorf("expected rule ID TM999, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS999" {
+		t.Errorf("expected rule ID MDS999, got %s", diags[0].RuleID)
 	}
 	if diags[0].RuleName != "mock" {
 		t.Errorf("expected rule name mock, got %s", diags[0].RuleName)
@@ -164,7 +164,7 @@ func TestEngine_Check_ValidationDiags(t *testing.T) {
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{
 		valDiags: []lint.Diagnostic{
-			{Message: "custom validation error", RuleID: "TM999", RuleName: "mock"},
+			{Message: "custom validation error", RuleID: "MDS999", RuleName: "mock"},
 		},
 	}
 	e := NewEngine(d)
@@ -182,7 +182,7 @@ func TestEngine_Check_GenerationDiags(t *testing.T) {
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{
 		genDiags: []lint.Diagnostic{
-			{Message: "generation failed", RuleID: "TM999", RuleName: "mock"},
+			{Message: "generation failed", RuleID: "MDS999", RuleName: "mock"},
 		},
 	}
 	e := NewEngine(d)

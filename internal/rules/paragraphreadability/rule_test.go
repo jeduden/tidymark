@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // hardText returns a paragraph with long, complex words that yields
@@ -35,8 +35,8 @@ func TestCheck_OverThreshold(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
 	d := diags[0]
-	if d.RuleID != "TM023" {
-		t.Errorf("expected rule ID TM023, got %s", d.RuleID)
+	if d.RuleID != "MDS023" {
+		t.Errorf("expected rule ID MDS023, got %s", d.RuleID)
 	}
 	if d.RuleName != "paragraph-readability" {
 		t.Errorf(
@@ -228,8 +228,8 @@ func TestDefaultSettings(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM023" {
-		t.Errorf("expected TM023, got %s", r.ID())
+	if r.ID() != "MDS023" {
+		t.Errorf("expected MDS023, got %s", r.ID())
 	}
 }
 

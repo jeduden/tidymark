@@ -7,7 +7,7 @@ func TestDiagnosticFields(t *testing.T) {
 		File:     "README.md",
 		Line:     10,
 		Column:   5,
-		RuleID:   "TM001",
+		RuleID:   "MDS001",
 		RuleName: "line-length",
 		Severity: Error,
 		Message:  "line too long (120 > 80)",
@@ -22,8 +22,8 @@ func TestDiagnosticFields(t *testing.T) {
 	if d.Column != 5 {
 		t.Errorf("expected Column 5, got %d", d.Column)
 	}
-	if d.RuleID != "TM001" {
-		t.Errorf("expected RuleID %q, got %q", "TM001", d.RuleID)
+	if d.RuleID != "MDS001" {
+		t.Errorf("expected RuleID %q, got %q", "MDS001", d.RuleID)
 	}
 	if d.RuleName != "line-length" {
 		t.Errorf("expected RuleName %q, got %q", "line-length", d.RuleName)

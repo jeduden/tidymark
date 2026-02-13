@@ -3,7 +3,7 @@ package listindent
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_CorrectIndent2Spaces(t *testing.T) {
@@ -30,8 +30,8 @@ func TestCheck_WrongIndent4SpacesWhenExpecting2(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d: %+v", len(diags), diags)
 	}
-	if diags[0].RuleID != "TM016" {
-		t.Errorf("expected rule ID TM016, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS016" {
+		t.Errorf("expected rule ID MDS016, got %s", diags[0].RuleID)
 	}
 }
 

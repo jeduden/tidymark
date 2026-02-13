@@ -7,7 +7,7 @@ status: 🔲
 
 ## Goal
 
-Ensure all 18 rule READMEs (TM001--TM018) follow the
+Ensure all 18 rule READMEs (MDS001--MDS018) follow the
 structure and content conventions defined in
 `rules/proto.md`.
 
@@ -16,17 +16,17 @@ structure and content conventions defined in
 All rules already have front matter, metadata bullets,
 Config, and Examples sections. Deviations are minor:
 
-- TM017 has a "Details" section (non-standard name)
+- MDS017 has a "Details" section (non-standard name)
 - Some rules may be missing Diagnostics or Edge Cases
   tables where they would be useful
 
 ## Tasks
 
-1. For each rule README (TM001--TM018), verify it matches
+1. For each rule README (MDS001--MDS018), verify it matches
    `rules/proto.md` structure:
 
   - Front matter: `id`, `name`, `description`
-  - Title: `# TMXXX: rule-name`
+  - Title: `# MDSXXX: rule-name`
   - Description paragraph (verbatim repeat)
   - Metadata bullets in order: ID, Name, Default, Fixable,
      Implementation, Category
@@ -38,17 +38,17 @@ Config, and Examples sections. Deviations are minor:
 
 2. Fix any deviations found:
 
-  - TM017: rename "Details" to appropriate section name
+  - MDS017: rename "Details" to appropriate section name
      or fold content into description
   - Add missing Diagnostics tables where rules emit
      multiple messages
   - Ensure Config sections show both enable and disable
 
-3. Run `tidymark check rules/` to verify all pass.
+3. Run `mdsmith check rules/` to verify all pass.
 
 ## Acceptance Criteria
 
 - [ ] All 18 rule READMEs follow `rules/proto.md` structure
 - [ ] No non-standard section names
 - [ ] Config sections show enable and disable examples
-- [ ] All docs pass `tidymark check rules/`
+- [ ] All docs pass `mdsmith check rules/`

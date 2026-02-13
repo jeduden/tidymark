@@ -3,7 +3,7 @@ package nomultipleblanks
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_TwoConsecutiveBlanks(t *testing.T) {
@@ -24,8 +24,8 @@ func TestCheck_TwoConsecutiveBlanks(t *testing.T) {
 	if d.Column != 1 {
 		t.Errorf("expected column 1, got %d", d.Column)
 	}
-	if d.RuleID != "TM008" {
-		t.Errorf("expected rule ID TM008, got %s", d.RuleID)
+	if d.RuleID != "MDS008" {
+		t.Errorf("expected rule ID MDS008, got %s", d.RuleID)
 	}
 }
 
@@ -160,7 +160,7 @@ func TestFix_PreservesSingleBlanks(t *testing.T) {
 
 func TestCheck_SkipsFencedCodeBlockLines(t *testing.T) {
 	// Multiple consecutive blank lines inside a fenced code block
-	// should NOT fire TM008.
+	// should NOT fire MDS008.
 	src := []byte("# Title\n\n```\ncode\n\n\nmore code\n```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {

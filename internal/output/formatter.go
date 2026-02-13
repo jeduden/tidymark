@@ -3,7 +3,7 @@ package output
 import (
 	"io"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // Formatter defines the interface for outputting diagnostics.

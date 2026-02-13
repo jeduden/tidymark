@@ -1,4 +1,4 @@
-package tidymark
+package mdsmith
 
 import (
 	"bufio"
@@ -25,7 +25,7 @@ func ListRules() ([]RuleInfo, error) {
 	return listRulesFromFS(rulesFS)
 }
 
-// LookupRule finds a rule by ID (e.g. "TM001") or name (e.g. "line-length")
+// LookupRule finds a rule by ID (e.g. "MDS001") or name (e.g. "line-length")
 // and returns its full README content.
 func LookupRule(query string) (string, error) {
 	return lookupRuleFromFS(rulesFS, query)

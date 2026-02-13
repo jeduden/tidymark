@@ -3,7 +3,7 @@ package fencedcodelanguage
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_MissingLanguage(t *testing.T) {
@@ -18,8 +18,8 @@ func TestCheck_MissingLanguage(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
 	d := diags[0]
-	if d.RuleID != "TM011" {
-		t.Errorf("expected rule ID TM011, got %s", d.RuleID)
+	if d.RuleID != "MDS011" {
+		t.Errorf("expected rule ID MDS011, got %s", d.RuleID)
 	}
 	if d.Line != 1 {
 		t.Errorf("expected line 1, got %d", d.Line)
@@ -115,8 +115,8 @@ func TestCheck_DiagnosticPointsToOpeningFence(t *testing.T) {
 
 func TestCheck_ID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM011" {
-		t.Errorf("expected ID TM011, got %s", r.ID())
+	if r.ID() != "MDS011" {
+		t.Errorf("expected ID MDS011, got %s", r.ID())
 	}
 }
 

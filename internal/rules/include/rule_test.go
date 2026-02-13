@@ -5,7 +5,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func newTestFile(
@@ -67,8 +67,8 @@ func expectDiagMsg(
 
 func TestRule_ID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM021" {
-		t.Errorf("expected ID TM021, got %s", r.ID())
+	if r.ID() != "MDS021" {
+		t.Errorf("expected ID MDS021, got %s", r.ID())
 	}
 }
 
@@ -113,7 +113,7 @@ func TestCheck_StripFrontmatterDefault(t *testing.T) {
 	fsys := fstest.MapFS{
 		"data.md": {
 			Data: []byte(
-				"---\nid: TM001\n---\nHello world\n",
+				"---\nid: MDS001\n---\nHello world\n",
 			),
 		},
 	}
@@ -128,13 +128,13 @@ func TestCheck_StripFrontmatterOff(t *testing.T) {
 	fsys := fstest.MapFS{
 		"data.md": {
 			Data: []byte(
-				"---\nid: TM001\n---\nHello world\n",
+				"---\nid: MDS001\n---\nHello world\n",
 			),
 		},
 	}
 	src := "# Doc\n\n<!-- include\nfile: data.md\n" +
 		"strip-frontmatter: \"false\"\n-->\n" +
-		"---\nid: TM001\n---\nHello world\n<!-- /include -->\n"
+		"---\nid: MDS001\n---\nHello world\n<!-- /include -->\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)

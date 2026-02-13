@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 func init() {
@@ -16,7 +16,7 @@ func init() {
 type Rule struct{}
 
 // ID implements rule.Rule.
-func (r *Rule) ID() string { return "TM006" }
+func (r *Rule) ID() string { return "MDS006" }
 
 // Name implements rule.Rule.
 func (r *Rule) Name() string { return "no-trailing-spaces" }

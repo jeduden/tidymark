@@ -5,30 +5,30 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/config"
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 
 	// Import all rule packages so their init() functions register rules.
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundfencedcode"
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundheadings"
-	_ "github.com/jeduden/tidymark/internal/rules/blanklinearoundlists"
-	_ "github.com/jeduden/tidymark/internal/rules/catalog"
-	_ "github.com/jeduden/tidymark/internal/rules/fencedcodelanguage"
-	_ "github.com/jeduden/tidymark/internal/rules/fencedcodestyle"
-	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
-	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
-	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
-	_ "github.com/jeduden/tidymark/internal/rules/linelength"
-	_ "github.com/jeduden/tidymark/internal/rules/listindent"
-	_ "github.com/jeduden/tidymark/internal/rules/nobareurls"
-	_ "github.com/jeduden/tidymark/internal/rules/noduplicateheadings"
-	_ "github.com/jeduden/tidymark/internal/rules/noemphasisasheading"
-	_ "github.com/jeduden/tidymark/internal/rules/nohardtabs"
-	_ "github.com/jeduden/tidymark/internal/rules/nomultipleblanks"
-	_ "github.com/jeduden/tidymark/internal/rules/notrailingpunctuation"
-	_ "github.com/jeduden/tidymark/internal/rules/notrailingspaces"
-	_ "github.com/jeduden/tidymark/internal/rules/singletrailingnewline"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundfencedcode"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundheadings"
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundlists"
+	_ "github.com/jeduden/mdsmith/internal/rules/catalog"
+	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodelanguage"
+	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodestyle"
+	_ "github.com/jeduden/mdsmith/internal/rules/firstlineheading"
+	_ "github.com/jeduden/mdsmith/internal/rules/headingincrement"
+	_ "github.com/jeduden/mdsmith/internal/rules/headingstyle"
+	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
+	_ "github.com/jeduden/mdsmith/internal/rules/listindent"
+	_ "github.com/jeduden/mdsmith/internal/rules/nobareurls"
+	_ "github.com/jeduden/mdsmith/internal/rules/noduplicateheadings"
+	_ "github.com/jeduden/mdsmith/internal/rules/noemphasisasheading"
+	_ "github.com/jeduden/mdsmith/internal/rules/nohardtabs"
+	_ "github.com/jeduden/mdsmith/internal/rules/nomultipleblanks"
+	_ "github.com/jeduden/mdsmith/internal/rules/notrailingpunctuation"
+	_ "github.com/jeduden/mdsmith/internal/rules/notrailingspaces"
+	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"
 )
 
 // categorizedMockRule is a mock rule with a configurable category.
@@ -60,8 +60,8 @@ func TestCategories_DisablingCategoryDisablesAllItsRules(t *testing.T) {
 	mdFile := filepath.Join(dir, "test.md")
 
 	// Content that would trigger heading rules:
-	// - heading-increment (TM003): skips from h1 to h3
-	// - first-line-heading (TM004): first line is not a heading
+	// - heading-increment (MDS003): skips from h1 to h3
+	// - first-line-heading (MDS004): first line is not a heading
 	// But we also need the file to be valid for non-heading rules so
 	// we only get heading diagnostics.
 	content := "Some text first.\n\n# Heading 1\n\n### Heading 3\n"
@@ -268,9 +268,9 @@ func TestCategories_DisablingCategoryWithMockRules(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	headingRule := &categorizedMockRule{id: "TM900", name: "mock-heading", category: "heading"}
-	whitespaceRule := &categorizedMockRule{id: "TM901", name: "mock-whitespace", category: "whitespace"}
-	codeRule := &categorizedMockRule{id: "TM902", name: "mock-code", category: "code"}
+	headingRule := &categorizedMockRule{id: "MDS900", name: "mock-heading", category: "heading"}
+	whitespaceRule := &categorizedMockRule{id: "MDS901", name: "mock-whitespace", category: "whitespace"}
+	codeRule := &categorizedMockRule{id: "MDS902", name: "mock-code", category: "code"}
 
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{
@@ -297,14 +297,14 @@ func TestCategories_DisablingCategoryWithMockRules(t *testing.T) {
 		ruleIDs[d.RuleID] = true
 	}
 
-	if ruleIDs["TM900"] {
-		t.Error("heading category disabled but got diagnostic from mock-heading (TM900)")
+	if ruleIDs["MDS900"] {
+		t.Error("heading category disabled but got diagnostic from mock-heading (MDS900)")
 	}
-	if !ruleIDs["TM901"] {
-		t.Error("expected diagnostic from mock-whitespace (TM901)")
+	if !ruleIDs["MDS901"] {
+		t.Error("expected diagnostic from mock-whitespace (MDS901)")
 	}
-	if !ruleIDs["TM902"] {
-		t.Error("expected diagnostic from mock-code (TM902)")
+	if !ruleIDs["MDS902"] {
+		t.Error("expected diagnostic from mock-code (MDS902)")
 	}
 }
 
@@ -315,8 +315,8 @@ func TestCategories_ExplicitRuleOverrideWithMockRules(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	headingRule1 := &categorizedMockRule{id: "TM900", name: "mock-heading-a", category: "heading"}
-	headingRule2 := &categorizedMockRule{id: "TM901", name: "mock-heading-b", category: "heading"}
+	headingRule1 := &categorizedMockRule{id: "MDS900", name: "mock-heading-a", category: "heading"}
+	headingRule2 := &categorizedMockRule{id: "MDS901", name: "mock-heading-b", category: "heading"}
 
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{
@@ -344,18 +344,18 @@ func TestCategories_ExplicitRuleOverrideWithMockRules(t *testing.T) {
 	}
 
 	// mock-heading-a should fire (explicit override).
-	if !ruleIDs["TM900"] {
-		t.Error("expected diagnostic from mock-heading-a (TM900) due to explicit override")
+	if !ruleIDs["MDS900"] {
+		t.Error("expected diagnostic from mock-heading-a (MDS900) due to explicit override")
 	}
 	// mock-heading-b should NOT fire (category disabled, not explicit).
-	if ruleIDs["TM901"] {
-		t.Error("did not expect diagnostic from mock-heading-b (TM901), heading category is disabled")
+	if ruleIDs["MDS901"] {
+		t.Error("did not expect diagnostic from mock-heading-b (MDS901), heading category is disabled")
 	}
 }
 
 func TestCategories_RunSourceRespectsCategories(t *testing.T) {
-	headingRule := &categorizedMockRule{id: "TM900", name: "mock-heading", category: "heading"}
-	whitespaceRule := &categorizedMockRule{id: "TM901", name: "mock-whitespace", category: "whitespace"}
+	headingRule := &categorizedMockRule{id: "MDS900", name: "mock-heading", category: "heading"}
+	whitespaceRule := &categorizedMockRule{id: "MDS901", name: "mock-whitespace", category: "whitespace"}
 
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{
@@ -380,10 +380,10 @@ func TestCategories_RunSourceRespectsCategories(t *testing.T) {
 		ruleIDs[d.RuleID] = true
 	}
 
-	if ruleIDs["TM900"] {
+	if ruleIDs["MDS900"] {
 		t.Error("heading category disabled but got diagnostic from mock-heading via RunSource")
 	}
-	if !ruleIDs["TM901"] {
+	if !ruleIDs["MDS901"] {
 		t.Error("expected diagnostic from mock-whitespace via RunSource")
 	}
 }
@@ -399,7 +399,7 @@ func TestCategories_OverrideCategoryWithMockRules(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	codeRule := &categorizedMockRule{id: "TM900", name: "mock-code", category: "code"}
+	codeRule := &categorizedMockRule{id: "MDS900", name: "mock-code", category: "code"}
 
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{

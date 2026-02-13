@@ -1,4 +1,4 @@
-module github.com/jeduden/tidymark
+module github.com/jeduden/mdsmith
 
 go 1.25.1
 

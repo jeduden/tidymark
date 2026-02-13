@@ -14,7 +14,7 @@ which config is loaded, and which rules run on each file.
 ## Tasks
 
 1. Add `--verbose` / `-v` boolean flag (default `false`) to
-   the shared subcommand flags in `cmd/tidymark/main.go`.
+   the shared subcommand flags in `cmd/mdsmith/main.go`.
 
 2. Create `internal/log/logger.go` with a minimal verbose
    logger:
@@ -29,9 +29,9 @@ which config is loaded, and which rules run on each file.
 3. Pass the logger into `engine.Runner` and `fix.Fixer`.
    Log at these points:
 
-  - Config discovered: `config: .tidymark.yml`
+  - Config discovered: `config: .mdsmith.yml`
   - File resolved: `file: README.md`
-  - Rule applied: `rule: TM001 line-length (max: 80)`
+  - Rule applied: `rule: MDS001 line-length (max: 80)`
   - Fix pass: `fix: pass 1 on README.md`
   - Fix stable: `fix: README.md stable after 2 passes`
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/jeduden/tidymark/internal/archetype/gensection"
+	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 )
 
 // fileEntry holds the template fields for a single matched file.

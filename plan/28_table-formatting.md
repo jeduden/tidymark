@@ -15,7 +15,7 @@ using prettier-style output as the target format.
 
 ### A. Design
 
-1. Define TM025 `table-format` behaviour. A well-formatted
+1. Define MDS025 `table-format` behaviour. A well-formatted
    table follows these rules (matching prettier output):
 
   - Leading and trailing pipes required on every row
@@ -85,7 +85,7 @@ using prettier-style output as the target format.
 
 ### D. Documentation
 
-11. Write `rules/TM025-table-format/README.md`.
+11. Write `rules/MDS025-table-format/README.md`.
 
 12. Create test fixtures. Bad example:
 
@@ -127,7 +127,7 @@ using prettier-style output as the target format.
 
 ## Acceptance Criteria
 
-- [ ] TM025 detects tables not matching prettier format
+- [ ] MDS025 detects tables not matching prettier format
 - [ ] Fix produces prettier-style aligned tables
 - [ ] Alignment indicators (`:---:`, `---:`) preserved
 - [ ] Escaped pipes in cell content handled correctly

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/config"
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 // mockRule is a test rule that always reports a diagnostic on line 1.
@@ -61,7 +61,7 @@ func TestRunner_MockRuleReportsDiagnostics(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{mdFile})
@@ -72,8 +72,8 @@ func TestRunner_MockRuleReportsDiagnostics(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d", len(result.Diagnostics))
 	}
 	d := result.Diagnostics[0]
-	if d.RuleID != "TM999" {
-		t.Errorf("expected RuleID TM999, got %s", d.RuleID)
+	if d.RuleID != "MDS999" {
+		t.Errorf("expected RuleID MDS999, got %s", d.RuleID)
 	}
 	if d.Message != "mock violation" {
 		t.Errorf("expected message %q, got %q", "mock violation", d.Message)
@@ -95,7 +95,7 @@ func TestRunner_SilentRuleNoDiagnostics(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&silentRule{id: "TM998", name: "silent-rule"}},
+		Rules:  []rule.Rule{&silentRule{id: "MDS998", name: "silent-rule"}},
 	}
 
 	result := runner.Run([]string{mdFile})
@@ -122,7 +122,7 @@ func TestRunner_DisabledRuleSkipped(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{mdFile})
@@ -144,7 +144,7 @@ func TestRunner_RuleNotInConfigSkipped(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{mdFile})
@@ -162,7 +162,7 @@ func TestRunner_NonexistentFileError(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{"/nonexistent/file.md"})
@@ -191,7 +191,7 @@ func TestRunner_IgnoredFileSkipped(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{filepath.Join("vendor", "lib.md")})
@@ -227,7 +227,7 @@ func TestRunner_OverrideDisablesRuleForFile(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{changelog, readme})
@@ -285,21 +285,21 @@ func setupSortingTest(t *testing.T) (string, string, *Runner) {
 	}
 
 	mr := &multiDiagRuleImpl{
-		id:   "TM997",
+		id:   "MDS997",
 		name: "multi-diag",
 		diags: map[string][]lint.Diagnostic{
 			fileB: {
-				{File: fileB, Line: 3, Column: 1, RuleID: "TM997",
+				{File: fileB, Line: 3, Column: 1, RuleID: "MDS997",
 					RuleName: "multi-diag", Severity: lint.Warning, Message: "b3"},
-				{File: fileB, Line: 1, Column: 5, RuleID: "TM997",
+				{File: fileB, Line: 1, Column: 5, RuleID: "MDS997",
 					RuleName: "multi-diag", Severity: lint.Warning, Message: "b1c5"},
-				{File: fileB, Line: 1, Column: 1, RuleID: "TM997",
+				{File: fileB, Line: 1, Column: 1, RuleID: "MDS997",
 					RuleName: "multi-diag", Severity: lint.Warning, Message: "b1c1"},
 			},
 			fileA: {
-				{File: fileA, Line: 2, Column: 1, RuleID: "TM997",
+				{File: fileA, Line: 2, Column: 1, RuleID: "MDS997",
 					RuleName: "multi-diag", Severity: lint.Warning, Message: "a2"},
-				{File: fileA, Line: 1, Column: 1, RuleID: "TM997",
+				{File: fileA, Line: 1, Column: 1, RuleID: "MDS997",
 					RuleName: "multi-diag", Severity: lint.Warning, Message: "a1"},
 			},
 		},
@@ -351,7 +351,7 @@ func TestRunner_MultipleFilesLinted(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run(files)
@@ -372,7 +372,7 @@ func TestRunner_EmptyPaths(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{})
@@ -430,7 +430,7 @@ func TestRunner_StripFrontMatter(t *testing.T) {
 	// With stripping — "BAD" in front matter is removed.
 	runner := &Runner{
 		Config:           cfg,
-		Rules:            []rule.Rule{&contentMockRule{id: "TM999", name: "content-mock"}},
+		Rules:            []rule.Rule{&contentMockRule{id: "MDS999", name: "content-mock"}},
 		StripFrontMatter: true,
 	}
 	result := runner.Run([]string{mdFile})
@@ -465,7 +465,7 @@ func TestRunner_StripFrontMatter_ContentStillLinted(t *testing.T) {
 
 	runner := &Runner{
 		Config:           cfg,
-		Rules:            []rule.Rule{&contentMockRule{id: "TM999", name: "content-mock"}},
+		Rules:            []rule.Rule{&contentMockRule{id: "MDS999", name: "content-mock"}},
 		StripFrontMatter: true,
 	}
 	result := runner.Run([]string{mdFile})
@@ -497,7 +497,7 @@ func TestRunner_InvalidIgnorePatternSkipped(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{mdFile})
@@ -523,7 +523,7 @@ func TestRunner_IgnoredFileByBasename(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.Run([]string{mdFile})
@@ -537,7 +537,7 @@ type configurableLengthRule struct {
 	Max int
 }
 
-func (r *configurableLengthRule) ID() string       { return "TM001" }
+func (r *configurableLengthRule) ID() string       { return "MDS001" }
 func (r *configurableLengthRule) Name() string     { return "line-length" }
 func (r *configurableLengthRule) Category() string { return "test" }
 func (r *configurableLengthRule) Check(f *lint.File) []lint.Diagnostic {
@@ -685,7 +685,7 @@ func TestRunSource_BasicDiagnostics(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:  []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 	}
 
 	result := runner.RunSource("<stdin>", []byte("# Hello\n"))
@@ -709,7 +709,7 @@ func TestRunSource_FrontMatterLineOffset(t *testing.T) {
 
 	runner := &Runner{
 		Config:           cfg,
-		Rules:            []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}},
+		Rules:            []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
 		StripFrontMatter: true,
 	}
 
@@ -764,7 +764,7 @@ func TestRunSource_EmptyInput(t *testing.T) {
 
 	runner := &Runner{
 		Config: cfg,
-		Rules:  []rule.Rule{&silentRule{id: "TM998", name: "mock-rule"}},
+		Rules:  []rule.Rule{&silentRule{id: "MDS998", name: "mock-rule"}},
 	}
 
 	result := runner.RunSource("<stdin>", []byte(""))

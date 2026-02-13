@@ -1,4 +1,4 @@
-package tidymark
+package mdsmith
 
 import (
 	"strings"
@@ -23,7 +23,7 @@ func TestListRules_SortedByID(t *testing.T) {
 	}
 }
 
-func TestListRules_ContainsTM001(t *testing.T) {
+func TestListRules_ContainsMDS001(t *testing.T) {
 	rules, err := ListRules()
 	if err != nil {
 		t.Fatalf("ListRules: %v", err)
@@ -31,30 +31,30 @@ func TestListRules_ContainsTM001(t *testing.T) {
 
 	found := false
 	for _, r := range rules {
-		if r.ID == "TM001" {
+		if r.ID == "MDS001" {
 			found = true
 			if r.Name != "line-length" {
-				t.Errorf("TM001 name = %q, want %q", r.Name, "line-length")
+				t.Errorf("MDS001 name = %q, want %q", r.Name, "line-length")
 			}
 			if r.Description == "" {
-				t.Error("TM001 description is empty")
+				t.Error("MDS001 description is empty")
 			}
 			break
 		}
 	}
 	if !found {
-		t.Error("TM001 not found in rule list")
+		t.Error("MDS001 not found in rule list")
 	}
 }
 
 func TestLookupRule_ByID(t *testing.T) {
-	content, err := LookupRule("TM001")
+	content, err := LookupRule("MDS001")
 	if err != nil {
-		t.Fatalf("LookupRule(TM001): %v", err)
+		t.Fatalf("LookupRule(MDS001): %v", err)
 	}
 
 	if !strings.Contains(content, "line-length") {
-		t.Error("expected TM001 content to contain 'line-length'")
+		t.Error("expected MDS001 content to contain 'line-length'")
 	}
 }
 
@@ -64,24 +64,24 @@ func TestLookupRule_ByName(t *testing.T) {
 		t.Fatalf("LookupRule(line-length): %v", err)
 	}
 
-	if !strings.Contains(content, "TM001") {
-		t.Error("expected line-length content to contain 'TM001'")
+	if !strings.Contains(content, "MDS001") {
+		t.Error("expected line-length content to contain 'MDS001'")
 	}
 }
 
 func TestLookupRule_CaseInsensitiveID(t *testing.T) {
-	content, err := LookupRule("tm001")
+	content, err := LookupRule("mds001")
 	if err != nil {
-		t.Fatalf("LookupRule(tm001): %v", err)
+		t.Fatalf("LookupRule(mds001): %v", err)
 	}
 
-	if !strings.Contains(content, "TM001") {
-		t.Error("expected lowercase lookup to find TM001")
+	if !strings.Contains(content, "MDS001") {
+		t.Error("expected lowercase lookup to find MDS001")
 	}
 }
 
 func TestLookupRule_Unknown(t *testing.T) {
-	_, err := LookupRule("TMXXX")
+	_, err := LookupRule("MDSXXX")
 	if err == nil {
 		t.Fatal("expected error for unknown rule")
 	}
@@ -92,10 +92,10 @@ func TestLookupRule_Unknown(t *testing.T) {
 
 func TestListRulesFromFS_SkipsBadFrontMatter(t *testing.T) {
 	fsys := fstest.MapFS{
-		"rules/TM999-good/README.md": &fstest.MapFile{
-			Data: []byte("---\nid: TM999\nname: good-rule\ndescription: A good rule.\n---\n# TM999\n"),
+		"rules/MDS999-good/README.md": &fstest.MapFile{
+			Data: []byte("---\nid: MDS999\nname: good-rule\ndescription: A good rule.\n---\n# MDS999\n"),
 		},
-		"rules/TM998-bad/README.md": &fstest.MapFile{
+		"rules/MDS998-bad/README.md": &fstest.MapFile{
 			Data: []byte("no front matter here\n"),
 		},
 	}
@@ -109,21 +109,21 @@ func TestListRulesFromFS_SkipsBadFrontMatter(t *testing.T) {
 		t.Fatalf("expected 1 rule, got %d", len(rules))
 	}
 
-	if rules[0].ID != "TM999" {
-		t.Errorf("rule ID = %q, want TM999", rules[0].ID)
+	if rules[0].ID != "MDS999" {
+		t.Errorf("rule ID = %q, want MDS999", rules[0].ID)
 	}
 }
 
 func TestLookupRuleFromFS_ByIDAndName(t *testing.T) {
 	fsys := fstest.MapFS{
-		"rules/TM999-test/README.md": &fstest.MapFile{
-			Data: []byte("---\nid: TM999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
+		"rules/MDS999-test/README.md": &fstest.MapFile{
+			Data: []byte("---\nid: MDS999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
 		},
 	}
 
-	content, err := lookupRuleFromFS(fsys, "TM999")
+	content, err := lookupRuleFromFS(fsys, "MDS999")
 	if err != nil {
-		t.Fatalf("lookupRuleFromFS(TM999): %v", err)
+		t.Fatalf("lookupRuleFromFS(MDS999): %v", err)
 	}
 	if !strings.Contains(content, "# Content") {
 		t.Error("expected content to contain '# Content'")
@@ -140,12 +140,12 @@ func TestLookupRuleFromFS_ByIDAndName(t *testing.T) {
 
 func TestLookupRuleFromFS_NotFound(t *testing.T) {
 	fsys := fstest.MapFS{
-		"rules/TM999-test/README.md": &fstest.MapFile{
-			Data: []byte("---\nid: TM999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
+		"rules/MDS999-test/README.md": &fstest.MapFile{
+			Data: []byte("---\nid: MDS999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
 		},
 	}
 
-	_, err := lookupRuleFromFS(fsys, "TMXXX")
+	_, err := lookupRuleFromFS(fsys, "MDSXXX")
 	if err == nil {
 		t.Fatal("expected error for unknown rule")
 	}

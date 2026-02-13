@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"gopkg.in/yaml.v3"
 )
 
-const configFileName = ".tidymark.yml"
+const configFileName = ".mdsmith.yml"
 
 // Load reads and parses a config file at the given path.
 func Load(path string) (*Config, error) {
@@ -27,7 +27,7 @@ func Load(path string) (*Config, error) {
 }
 
 // Discover walks up the directory tree from startDir looking for a
-// .tidymark.yml config file. It stops searching when it encounters a .git
+// .mdsmith.yml config file. It stops searching when it encounters a .git
 // directory (the repository root) or reaches the filesystem root.
 // Returns the path to the config file, or "" if none was found.
 func Discover(startDir string) (string, error) {
@@ -75,7 +75,7 @@ func Defaults() *Config {
 // their default settings populated. Rules that implement Configurable
 // have their DefaultSettings() included in RuleCfg.Settings.
 // Categories are included with all set to true (enabled).
-// This is consumed by `tidymark init` to generate a default config file.
+// This is consumed by `mdsmith init` to generate a default config file.
 func DumpDefaults() *Config {
 	all := rule.All()
 	rules := make(map[string]RuleCfg, len(all))

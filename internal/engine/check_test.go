@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/config"
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 func TestCheckRules_BasicDiagnostics(t *testing.T) {
@@ -19,7 +19,7 @@ func TestCheckRules_BasicDiagnostics(t *testing.T) {
 	effective := map[string]config.RuleCfg{
 		"mock-rule": {Enabled: true},
 	}
-	rules := []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}}
+	rules := []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}}
 
 	diags, errs := CheckRules(f, rules, effective)
 	if len(errs) != 0 {
@@ -28,8 +28,8 @@ func TestCheckRules_BasicDiagnostics(t *testing.T) {
 	if len(diags) != 1 {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
-	if diags[0].RuleID != "TM999" {
-		t.Errorf("expected RuleID TM999, got %s", diags[0].RuleID)
+	if diags[0].RuleID != "MDS999" {
+		t.Errorf("expected RuleID MDS999, got %s", diags[0].RuleID)
 	}
 }
 
@@ -42,7 +42,7 @@ func TestCheckRules_DisabledRuleSkipped(t *testing.T) {
 	effective := map[string]config.RuleCfg{
 		"mock-rule": {Enabled: false},
 	}
-	rules := []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}}
+	rules := []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}}
 
 	diags, errs := CheckRules(f, rules, effective)
 	if len(errs) != 0 {
@@ -60,7 +60,7 @@ func TestCheckRules_UnconfiguredRuleSkipped(t *testing.T) {
 	}
 
 	effective := map[string]config.RuleCfg{}
-	rules := []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}}
+	rules := []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}}
 
 	diags, errs := CheckRules(f, rules, effective)
 	if len(errs) != 0 {
@@ -139,7 +139,7 @@ func TestCheckRules_ApplySettingsError(t *testing.T) {
 			Settings: map[string]any{"key": "val"},
 		},
 	}
-	rules := []rule.Rule{&mockConfigurableErrorRule{id: "TM900", name: "bad-rule"}}
+	rules := []rule.Rule{&mockConfigurableErrorRule{id: "MDS900", name: "bad-rule"}}
 
 	diags, errs := CheckRules(f, rules, effective)
 
@@ -166,7 +166,7 @@ func TestCheckRules_AdjustsLineOffset(t *testing.T) {
 	effective := map[string]config.RuleCfg{
 		"mock-rule": {Enabled: true},
 	}
-	rules := []rule.Rule{&mockRule{id: "TM999", name: "mock-rule"}}
+	rules := []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}}
 
 	diags, errs := CheckRules(f, rules, effective)
 	if len(errs) != 0 {
@@ -184,7 +184,7 @@ func TestCheckRules_AdjustsLineOffset(t *testing.T) {
 // --- ConfigureRule tests ---
 
 func TestConfigureRule_NoSettings(t *testing.T) {
-	rl := &mockRule{id: "TM999", name: "mock-rule"}
+	rl := &mockRule{id: "MDS999", name: "mock-rule"}
 	cfg := config.RuleCfg{Enabled: true, Settings: nil}
 
 	got, err := ConfigureRule(rl, cfg)
@@ -197,7 +197,7 @@ func TestConfigureRule_NoSettings(t *testing.T) {
 }
 
 func TestConfigureRule_NonConfigurable(t *testing.T) {
-	rl := &mockRule{id: "TM999", name: "mock-rule"}
+	rl := &mockRule{id: "MDS999", name: "mock-rule"}
 	cfg := config.RuleCfg{Enabled: true, Settings: map[string]any{"key": "val"}}
 
 	got, err := ConfigureRule(rl, cfg)
@@ -242,7 +242,7 @@ func TestConfigureRule_AppliesSettings(t *testing.T) {
 }
 
 func TestConfigureRule_ApplySettingsError(t *testing.T) {
-	rl := &mockConfigurableErrorRule{id: "TM900", name: "bad-rule"}
+	rl := &mockConfigurableErrorRule{id: "MDS900", name: "bad-rule"}
 	cfg := config.RuleCfg{
 		Enabled:  true,
 		Settings: map[string]any{"key": "val"},

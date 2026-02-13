@@ -7,7 +7,7 @@ status: 🔲
 
 ## Goal
 
-Let `tidymark check` and `tidymark fix` find files from the
+Let `mdsmith check` and `mdsmith fix` find files from the
 config when no file arguments are given, so users can run
 the tool without listing files every time.
 
@@ -48,9 +48,9 @@ the tool without listing files every time.
 
 8. Add integration tests for the CLI:
 
-  - `tidymark check` with no args uses config globs
-  - `tidymark check -` reads from stdin
-  - `tidymark fix` with no args uses config globs
+  - `mdsmith check` with no args uses config globs
+  - `mdsmith check -` reads from stdin
+  - `mdsmith fix` with no args uses config globs
   - Missing `files` key exits 0
 
 9. Update `CLAUDE.md` and CLI help text. Document the new

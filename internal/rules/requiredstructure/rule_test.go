@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func newTestFile(
@@ -78,8 +78,8 @@ func expectDiagMsg(
 
 func TestRule_ID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM020" {
-		t.Errorf("expected ID TM020, got %s", r.ID())
+	if r.ID() != "MDS020" {
+		t.Errorf("expected ID MDS020, got %s", r.ID())
 	}
 }
 
@@ -319,7 +319,7 @@ func TestCheck_AllPresent(t *testing.T) {
 		"# ?\n\n## Settings\n\n## Examples\n\n### Good\n\n### Bad\n")
 	r := &Rule{Template: tmplPath}
 	f := newTestFile(t, "doc.md",
-		"# TM001: line-length\n\n## Settings\n\n## Examples\n\n### Good\n\n### Bad\n")
+		"# MDS001: line-length\n\n## Settings\n\n## Examples\n\n### Good\n\n### Bad\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
@@ -332,7 +332,7 @@ func TestCheck_HeadingSyncMismatch(t *testing.T) {
 	tmplPath := writeTmpl(t, "# {{.id}}: {{.name}}\n")
 	r := &Rule{Template: tmplPath}
 	f := newTestFile(t, "doc.md",
-		"---\nid: TM001\nname: line-length\n---\n# TM002: line-length\n")
+		"---\nid: MDS001\nname: line-length\n---\n# MDS002: line-length\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags, "heading does not match frontmatter")
 }
@@ -341,7 +341,7 @@ func TestCheck_HeadingSyncMatch(t *testing.T) {
 	tmplPath := writeTmpl(t, "# {{.id}}: {{.name}}\n")
 	r := &Rule{Template: tmplPath}
 	f := newTestFile(t, "doc.md",
-		"---\nid: TM001\nname: line-length\n---\n# TM001: line-length\n")
+		"---\nid: MDS001\nname: line-length\n---\n# MDS001: line-length\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }

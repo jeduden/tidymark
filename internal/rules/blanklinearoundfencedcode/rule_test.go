@@ -3,7 +3,7 @@ package blanklinearoundfencedcode
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_NoBlankBefore(t *testing.T) {
@@ -156,8 +156,8 @@ func TestFix_NoChangeNeeded(t *testing.T) {
 
 func TestCheck_ID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM015" {
-		t.Errorf("expected ID TM015, got %s", r.ID())
+	if r.ID() != "MDS015" {
+		t.Errorf("expected ID MDS015, got %s", r.ID())
 	}
 }
 

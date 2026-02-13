@@ -7,7 +7,7 @@ status: ✅
 
 ## Goal
 
-Add TM024 `paragraph-structure` that limits how many
+Add MDS024 `paragraph-structure` that limits how many
 sentences a paragraph may have and how many words a
 sentence may use. This keeps writing short and clear.
 It reuses `internal/mdtext/` from Plan 34.
@@ -59,7 +59,7 @@ It reuses `internal/mdtext/` from Plan 34.
 
 ### C. Documentation
 
-6. Write `rules/TM024-paragraph-structure/README.md`.
+6. Write `rules/MDS024-paragraph-structure/README.md`.
 
 7. Create test fixtures:
 

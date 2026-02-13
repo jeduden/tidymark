@@ -3,7 +3,7 @@ package blanklinearoundlists
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_NoBlanksBeforeList(t *testing.T) {
@@ -19,8 +19,8 @@ func TestCheck_NoBlanksBeforeList(t *testing.T) {
 	for _, d := range diags {
 		if d.Message == "list should be preceded by a blank line" {
 			found = true
-			if d.RuleID != "TM014" {
-				t.Errorf("expected rule ID TM014, got %s", d.RuleID)
+			if d.RuleID != "MDS014" {
+				t.Errorf("expected rule ID MDS014, got %s", d.RuleID)
 			}
 		}
 	}
@@ -180,7 +180,7 @@ func TestFix_NoChange(t *testing.T) {
 
 func TestCheck_FencedCodeBlockWithYAMLList_NoDiagnostics(t *testing.T) {
 	// Fenced code block containing YAML list markers inside a numbered list item.
-	// TM014 must not report diagnostics for list-like content inside code blocks.
+	// MDS014 must not report diagnostics for list-like content inside code blocks.
 	src := []byte("1. Configure the template:\n\n   ```yaml\n   template:\n     - item-one\n     - item-two\n   ```\n")
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
@@ -189,8 +189,8 @@ func TestCheck_FencedCodeBlockWithYAMLList_NoDiagnostics(t *testing.T) {
 	r := &Rule{}
 	diags := r.Check(f)
 	for _, d := range diags {
-		if d.RuleID == "TM014" {
-			t.Errorf("unexpected TM014 diagnostic inside code block: %+v", d)
+		if d.RuleID == "MDS014" {
+			t.Errorf("unexpected MDS014 diagnostic inside code block: %+v", d)
 		}
 	}
 }
@@ -259,8 +259,8 @@ func TestCheck_ListInsideIndentedCodeBlock_NoDiagnostics(t *testing.T) {
 	r := &Rule{}
 	diags := r.Check(f)
 	for _, d := range diags {
-		if d.RuleID == "TM014" {
-			t.Errorf("unexpected TM014 diagnostic inside indented code block: %+v", d)
+		if d.RuleID == "MDS014" {
+			t.Errorf("unexpected MDS014 diagnostic inside indented code block: %+v", d)
 		}
 	}
 }

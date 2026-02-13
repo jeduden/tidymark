@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_TooManySentences(t *testing.T) {
@@ -20,8 +20,8 @@ func TestCheck_TooManySentences(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d: %v", len(diags), diags)
 	}
 	d := diags[0]
-	if d.RuleID != "TM024" {
-		t.Errorf("expected rule ID TM024, got %s", d.RuleID)
+	if d.RuleID != "MDS024" {
+		t.Errorf("expected rule ID MDS024, got %s", d.RuleID)
 	}
 	if !strings.Contains(d.Message, "too many sentences") {
 		t.Errorf("unexpected message: %s", d.Message)
@@ -220,8 +220,8 @@ func TestDefaultSettings(t *testing.T) {
 
 func TestID(t *testing.T) {
 	r := &Rule{}
-	if r.ID() != "TM024" {
-		t.Errorf("expected TM024, got %s", r.ID())
+	if r.ID() != "MDS024" {
+		t.Errorf("expected MDS024, got %s", r.ID())
 	}
 }
 

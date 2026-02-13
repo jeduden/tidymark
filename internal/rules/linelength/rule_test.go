@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // helper to build a string of n characters.
@@ -30,8 +30,8 @@ func TestCheck_LineExceeding80Reports(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
 	}
 	d := diags[0]
-	if d.RuleID != "TM001" {
-		t.Errorf("expected rule ID TM001, got %s", d.RuleID)
+	if d.RuleID != "MDS001" {
+		t.Errorf("expected rule ID MDS001, got %s", d.RuleID)
 	}
 	if d.RuleName != "line-length" {
 		t.Errorf("expected rule name line-length, got %s", d.RuleName)
@@ -292,8 +292,8 @@ func TestCheck_DefaultsEnabledWithMax80(t *testing.T) {
 	if r.Max != 80 {
 		t.Errorf("expected default max 80, got %d", r.Max)
 	}
-	if r.ID() != "TM001" {
-		t.Errorf("expected ID TM001, got %s", r.ID())
+	if r.ID() != "MDS001" {
+		t.Errorf("expected ID MDS001, got %s", r.ID())
 	}
 	if r.Name() != "line-length" {
 		t.Errorf("expected name line-length, got %s", r.Name())

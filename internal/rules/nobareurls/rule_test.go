@@ -3,7 +3,7 @@ package nobareurls
 import (
 	"testing"
 
-	"github.com/jeduden/tidymark/internal/lint"
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 func TestCheck_BareURL(t *testing.T) {
@@ -24,8 +24,8 @@ func TestCheck_BareURL(t *testing.T) {
 	if d.Column != 7 {
 		t.Errorf("expected column 7, got %d", d.Column)
 	}
-	if d.RuleID != "TM012" {
-		t.Errorf("expected rule ID TM012, got %s", d.RuleID)
+	if d.RuleID != "MDS012" {
+		t.Errorf("expected rule ID MDS012, got %s", d.RuleID)
 	}
 }
 

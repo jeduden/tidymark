@@ -1,0 +1,75 @@
+front-matter: true
+
+rules:
+  line-length:
+    max: 80
+    exclude:
+      - code-blocks
+      - tables
+      - urls
+  heading-style:
+    style: atx
+  heading-increment: true
+  first-line-heading:
+    level: 1
+  no-duplicate-headings: true
+  no-trailing-spaces: true
+  no-hard-tabs: true
+  no-multiple-blanks:
+    max: 1
+  single-trailing-newline: true
+  fenced-code-style:
+    style: backtick
+  fenced-code-language: true
+  no-bare-urls: true
+  blank-line-around-headings: true
+  blank-line-around-lists: true
+  blank-line-around-fenced-code: true
+  list-indent:
+    spaces: 2
+  max-file-length:
+    max: 300
+  no-trailing-punctuation-in-heading: true
+  no-emphasis-as-heading: true
+  paragraph-readability:
+    max-grade: 14.0
+    min-words: 20
+  paragraph-structure:
+    max-sentences: 6
+    max-words: 40
+  catalog: true
+  required-structure: true
+  include: true
+
+overrides:
+  - files: ["README.md"]
+    rules:
+      paragraph-structure:
+        max-sentences: 30
+  - files: ["rules/MDS002-heading-style/good/setext.md"]
+    rules:
+      heading-style:
+        style: setext
+  - files: ["rules/MDS010-fenced-code-style/good/tilde.md"]
+    rules:
+      fenced-code-style:
+        style: tilde
+  - files: ["rules/MDS016-list-indent/good/spaces-4.md"]
+    rules:
+      list-indent:
+        spaces: 4
+  - files: ["rules/*/README.md"]
+    rules:
+      required-structure:
+        template: rules/proto.md
+  - files: ["plan/*.md"]
+    rules:
+      required-structure:
+        template: plan/proto.md
+
+ignore:
+  - "internal/**"
+  - "rules/*/bad/**"
+  - "rules/*/bad.md"
+  - "rules/*/good/**"
+  - "rules/*/fixed/**"

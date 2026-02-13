@@ -1,6 +1,6 @@
 package rule
 
-import "github.com/jeduden/tidymark/internal/lint"
+import "github.com/jeduden/mdsmith/internal/lint"
 
 // Rule is a single lint rule that checks a Markdown file.
 type Rule interface {

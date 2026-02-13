@@ -245,7 +245,7 @@ func TestParseColumnConfig_MultipleColumns(t *testing.T) {
 // =====================================================================
 
 func TestApplyColumnConstraints_TruncatesColumn(t *testing.T) {
-	row := "| [TM001](rules/TM001/README.md) | `line-length` | Line exceeds maximum length and is very long indeed. |"
+	row := "| [MDS001](rules/MDS001/README.md) | `line-length` | Line exceeds maximum length and is very long indeed. |"
 	cols := map[string]columnConfig{
 		"description": {maxWidth: 30, wrap: "truncate"},
 	}
@@ -263,7 +263,7 @@ func TestApplyColumnConstraints_TruncatesColumn(t *testing.T) {
 }
 
 func TestApplyColumnConstraints_BrWrapColumn(t *testing.T) {
-	row := "| TM001 | Line exceeds maximum length and is very long. |"
+	row := "| MDS001 | Line exceeds maximum length and is very long. |"
 	cols := map[string]columnConfig{
 		"description": {maxWidth: 20, wrap: "br"},
 	}

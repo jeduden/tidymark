@@ -3,8 +3,8 @@ package maxfilelength
 import (
 	"fmt"
 
-	"github.com/jeduden/tidymark/internal/lint"
-	"github.com/jeduden/tidymark/internal/rule"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 func init() {
@@ -17,7 +17,7 @@ type Rule struct {
 }
 
 // ID implements rule.Rule.
-func (r *Rule) ID() string { return "TM022" }
+func (r *Rule) ID() string { return "MDS022" }
 
 // Name implements rule.Rule.
 func (r *Rule) Name() string { return "max-file-length" }
