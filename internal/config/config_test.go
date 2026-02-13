@@ -18,8 +18,10 @@ import (
 	_ "github.com/jeduden/tidymark/internal/rules/firstlineheading"
 	_ "github.com/jeduden/tidymark/internal/rules/headingincrement"
 	_ "github.com/jeduden/tidymark/internal/rules/headingstyle"
+	_ "github.com/jeduden/tidymark/internal/rules/include"
 	_ "github.com/jeduden/tidymark/internal/rules/linelength"
 	_ "github.com/jeduden/tidymark/internal/rules/listindent"
+	_ "github.com/jeduden/tidymark/internal/rules/maxfilelength"
 	_ "github.com/jeduden/tidymark/internal/rules/nobareurls"
 	_ "github.com/jeduden/tidymark/internal/rules/noduplicateheadings"
 	_ "github.com/jeduden/tidymark/internal/rules/noemphasisasheading"
@@ -27,6 +29,9 @@ import (
 	_ "github.com/jeduden/tidymark/internal/rules/nomultipleblanks"
 	_ "github.com/jeduden/tidymark/internal/rules/notrailingpunctuation"
 	_ "github.com/jeduden/tidymark/internal/rules/notrailingspaces"
+	_ "github.com/jeduden/tidymark/internal/rules/paragraphreadability"
+	_ "github.com/jeduden/tidymark/internal/rules/paragraphstructure"
+	_ "github.com/jeduden/tidymark/internal/rules/requiredstructure"
 	_ "github.com/jeduden/tidymark/internal/rules/singletrailingnewline"
 	_ "github.com/jeduden/tidymark/internal/rules/tableformat"
 )
@@ -339,36 +344,14 @@ func TestDiscoverReturnsEmptyWhenNotFound(t *testing.T) {
 
 func TestDefaultsAllRulesEnabled(t *testing.T) {
 	cfg := Defaults()
-	expectedRules := []string{
-		"line-length",
-		"heading-style",
-		"heading-increment",
-		"first-line-heading",
-		"no-duplicate-headings",
-		"no-trailing-spaces",
-		"no-hard-tabs",
-		"no-multiple-blanks",
-		"single-trailing-newline",
-		"fenced-code-style",
-		"fenced-code-language",
-		"no-bare-urls",
-		"blank-line-around-headings",
-		"blank-line-around-lists",
-		"blank-line-around-fenced-code",
-		"list-indent",
-		"no-trailing-punctuation-in-heading",
-		"no-emphasis-as-heading",
-		"catalog",
-		"required-structure",
-		"include",
-		"table-format",
+	all := rule.All()
+
+	if len(cfg.Rules) != len(all) {
+		t.Fatalf("expected %d rules, got %d", len(all), len(cfg.Rules))
 	}
 
-	if len(cfg.Rules) != 22 {
-		t.Fatalf("expected 22 rules, got %d", len(cfg.Rules))
-	}
-
-	for _, name := range expectedRules {
+	for _, r := range all {
+		name := r.Name()
 		rc, ok := cfg.Rules[name]
 		if !ok {
 			t.Errorf("rule %q not found in defaults", name)
@@ -389,8 +372,8 @@ func TestMergeNilLoaded(t *testing.T) {
 	defaults := Defaults()
 	merged := Merge(defaults, nil)
 
-	if len(merged.Rules) != 22 {
-		t.Fatalf("expected 22 rules, got %d", len(merged.Rules))
+	if len(merged.Rules) != len(rule.All()) {
+		t.Fatalf("expected %d rules, got %d", len(rule.All()), len(merged.Rules))
 	}
 	for name, rc := range merged.Rules {
 		if !rc.Enabled {
@@ -474,8 +457,8 @@ func TestEffectiveWithoutOverrides(t *testing.T) {
 	cfg := Defaults()
 	eff := Effective(cfg, "README.md")
 
-	if len(eff) != 22 {
-		t.Fatalf("expected 22 rules, got %d", len(eff))
+	if len(eff) != len(rule.All()) {
+		t.Fatalf("expected %d rules, got %d", len(rule.All()), len(eff))
 	}
 	for name, rc := range eff {
 		if !rc.Enabled {
