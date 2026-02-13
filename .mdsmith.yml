@@ -41,6 +41,9 @@ rules:
   required-structure: true
   include: true
 
+no-follow-symlinks:
+  - "rules/*/README.md"
+
 overrides:
   - files: ["README.md"]
     rules:
@@ -58,7 +61,7 @@ overrides:
     rules:
       list-indent:
         spaces: 4
-  - files: ["rules/*/README.md"]
+  - files: ["internal/rules/*/README.md"]
     rules:
       required-structure:
         template: rules/proto.md
@@ -68,7 +71,6 @@ overrides:
         template: plan/proto.md
 
 ignore:
-  - "internal/**"
   - "rules/*/bad/**"
   - "rules/*/bad.md"
   - "rules/*/good/**"

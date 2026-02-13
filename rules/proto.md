@@ -21,10 +21,10 @@ template:
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:
-  [source](../../internal/rules/rulename/)
+  [source](./)
 - **Category**: CATEGORY
 - **Archetype**:
-  [NAME](../../archetypes/NAME/)
+  [NAME](../../../archetypes/NAME/)
 
 <!-- Bullets in this order: ID, Name, Default, Fixable,
      Implementation, Category, Archetype (if applicable).

@@ -1,4 +1,4 @@
-package mdsmith
+package rules
 
 import (
 	"strings"
@@ -92,10 +92,10 @@ func TestLookupRule_Unknown(t *testing.T) {
 
 func TestListRulesFromFS_SkipsBadFrontMatter(t *testing.T) {
 	fsys := fstest.MapFS{
-		"rules/MDS999-good/README.md": &fstest.MapFile{
+		"good/README.md": &fstest.MapFile{
 			Data: []byte("---\nid: MDS999\nname: good-rule\ndescription: A good rule.\n---\n# MDS999\n"),
 		},
-		"rules/MDS998-bad/README.md": &fstest.MapFile{
+		"bad/README.md": &fstest.MapFile{
 			Data: []byte("no front matter here\n"),
 		},
 	}
@@ -116,7 +116,7 @@ func TestListRulesFromFS_SkipsBadFrontMatter(t *testing.T) {
 
 func TestLookupRuleFromFS_ByIDAndName(t *testing.T) {
 	fsys := fstest.MapFS{
-		"rules/MDS999-test/README.md": &fstest.MapFile{
+		"testrule/README.md": &fstest.MapFile{
 			Data: []byte("---\nid: MDS999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
 		},
 	}
@@ -140,7 +140,7 @@ func TestLookupRuleFromFS_ByIDAndName(t *testing.T) {
 
 func TestLookupRuleFromFS_NotFound(t *testing.T) {
 	fsys := fstest.MapFS{
-		"rules/MDS999-test/README.md": &fstest.MapFile{
+		"testrule/README.md": &fstest.MapFile{
 			Data: []byte("---\nid: MDS999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
 		},
 	}

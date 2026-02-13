@@ -45,12 +45,13 @@ func Merge(defaults, loaded *Config) *Config {
 	}
 
 	return &Config{
-		Rules:         rules,
-		Ignore:        loaded.Ignore,
-		Overrides:     loaded.Overrides,
-		FrontMatter:   fm,
-		Categories:    cats,
-		ExplicitRules: explicit,
+		Rules:            rules,
+		Ignore:           loaded.Ignore,
+		Overrides:        loaded.Overrides,
+		FrontMatter:      fm,
+		Categories:       cats,
+		ExplicitRules:    explicit,
+		NoFollowSymlinks: loaded.NoFollowSymlinks,
 	}
 }
 

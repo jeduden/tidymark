@@ -1,4 +1,4 @@
-package mdsmith
+package rules
 
 import (
 	"bufio"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-//go:embed rules/*/README.md
+//go:embed */README.md
 var rulesFS embed.FS
 
 // RuleInfo holds metadata extracted from a rule README's front matter.
@@ -32,7 +32,7 @@ func LookupRule(query string) (string, error) {
 }
 
 func listRulesFromFS(fsys fs.FS) ([]RuleInfo, error) {
-	entries, err := fs.ReadDir(fsys, "rules")
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		return nil, fmt.Errorf("reading rules directory: %w", err)
 	}
@@ -42,7 +42,7 @@ func listRulesFromFS(fsys fs.FS) ([]RuleInfo, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		path := "rules/" + entry.Name() + "/README.md"
+		path := entry.Name() + "/README.md"
 		data, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			continue

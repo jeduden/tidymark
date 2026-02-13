@@ -9,7 +9,6 @@ import (
 	flag "github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
 
-	mdsmith "github.com/jeduden/mdsmith"
 	"github.com/jeduden/mdsmith/internal/config"
 	"github.com/jeduden/mdsmith/internal/engine"
 	fixpkg "github.com/jeduden/mdsmith/internal/fix"
@@ -17,6 +16,7 @@ import (
 	vlog "github.com/jeduden/mdsmith/internal/log"
 	"github.com/jeduden/mdsmith/internal/output"
 	"github.com/jeduden/mdsmith/internal/rule"
+	ruledocs "github.com/jeduden/mdsmith/internal/rules"
 
 	// Import all rule packages so their init() functions register rules.
 	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundfencedcode"
@@ -112,12 +112,13 @@ func printVersion() {
 func runCheck(args []string) int {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	var (
-		configPath  string
-		format      string
-		noColor     bool
-		quiet       bool
-		verbose     bool
-		noGitignore bool
+		configPath       string
+		format           string
+		noColor          bool
+		quiet            bool
+		verbose          bool
+		noGitignore      bool
+		noFollowSymlinks bool
 	)
 
 	fs.StringVarP(&configPath, "config", "c", "", "Override config file path")
@@ -126,6 +127,7 @@ func runCheck(args []string) int {
 	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
 	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
+	fs.BoolVar(&noFollowSymlinks, "no-follow-symlinks", false, "Skip symbolic links when walking directories")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mdsmith check [flags] [files...]\n\n"+
@@ -155,19 +157,20 @@ func runCheck(args []string) int {
 		return checkStdin(format, noColor, quiet, verbose, configPath)
 	}
 
-	return checkFiles(files, configPath, format, noColor, quiet, verbose, noGitignore)
+	return checkFiles(files, configPath, format, noColor, quiet, verbose, noGitignore, noFollowSymlinks)
 }
 
 // runFix implements the "fix" subcommand: auto-fix lint issues in place.
 func runFix(args []string) int {
 	fs := flag.NewFlagSet("fix", flag.ContinueOnError)
 	var (
-		configPath  string
-		format      string
-		noColor     bool
-		quiet       bool
-		verbose     bool
-		noGitignore bool
+		configPath       string
+		format           string
+		noColor          bool
+		quiet            bool
+		verbose          bool
+		noGitignore      bool
+		noFollowSymlinks bool
 	)
 
 	fs.StringVarP(&configPath, "config", "c", "", "Override config file path")
@@ -176,6 +179,7 @@ func runFix(args []string) int {
 	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
 	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
+	fs.BoolVar(&noFollowSymlinks, "no-follow-symlinks", false, "Skip symbolic links when walking directories")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mdsmith fix [flags] [files...]\n\n"+
@@ -206,7 +210,7 @@ func runFix(args []string) int {
 		return 0
 	}
 
-	return fixFiles(files, configPath, format, noColor, quiet, verbose, noGitignore)
+	return fixFiles(files, configPath, format, noColor, quiet, verbose, noGitignore, noFollowSymlinks)
 }
 
 // runInit implements the "init" subcommand: generate .mdsmith.yml.
@@ -281,19 +285,11 @@ func printErrors(errs []error) {
 }
 
 // checkFiles lints the given file paths and returns the appropriate exit code.
-func checkFiles(fileArgs []string, configPath, format string, noColor, quiet, verbose, noGitignore bool) int {
+func checkFiles(
+	fileArgs []string, configPath, format string,
+	noColor, quiet, verbose, noGitignore, noFollowSymlinks bool,
+) int {
 	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
-
-	useGitignore := !noGitignore
-	opts := lint.ResolveOpts{UseGitignore: &useGitignore}
-	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return 2
-	}
-	if len(files) == 0 {
-		return 0
-	}
 
 	cfg, cfgPath, err := loadConfig(configPath)
 	if err != nil {
@@ -302,6 +298,16 @@ func checkFiles(fileArgs []string, configPath, format string, noColor, quiet, ve
 	}
 	if cfgPath != "" {
 		logger.Printf("config: %s", cfgPath)
+	}
+
+	opts := resolveOpts(cfg, noGitignore, noFollowSymlinks)
+	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
+		return 2
+	}
+	if len(files) == 0 {
+		return 0
 	}
 
 	runner := &engine.Runner{
@@ -330,19 +336,11 @@ func checkFiles(fileArgs []string, configPath, format string, noColor, quiet, ve
 }
 
 // fixFiles fixes lint issues in the given file paths.
-func fixFiles(fileArgs []string, configPath, format string, noColor, quiet, verbose, noGitignore bool) int {
+func fixFiles(
+	fileArgs []string, configPath, format string,
+	noColor, quiet, verbose, noGitignore, noFollowSymlinks bool,
+) int {
 	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
-
-	useGitignore := !noGitignore
-	opts := lint.ResolveOpts{UseGitignore: &useGitignore}
-	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return 2
-	}
-	if len(files) == 0 {
-		return 0
-	}
 
 	cfg, cfgPath, err := loadConfig(configPath)
 	if err != nil {
@@ -351,6 +349,16 @@ func fixFiles(fileArgs []string, configPath, format string, noColor, quiet, verb
 	}
 	if cfgPath != "" {
 		logger.Printf("config: %s", cfgPath)
+	}
+
+	opts := resolveOpts(cfg, noGitignore, noFollowSymlinks)
+	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
+		return 2
+	}
+	if len(files) == 0 {
+		return 0
 	}
 
 	fixer := &fixpkg.Fixer{
@@ -434,6 +442,21 @@ func isStdinPipe() bool {
 
 // frontMatterEnabled returns whether front matter stripping is enabled.
 // Defaults to true if not set in config.
+// resolveOpts builds ResolveOpts from config and CLI flags.
+// CLI flags override config: --no-gitignore disables gitignore filtering,
+// --no-follow-symlinks skips all symlinks (adds "**" to the pattern list).
+func resolveOpts(cfg *config.Config, noGitignore, noFollowSymlinks bool) lint.ResolveOpts {
+	useGitignore := !noGitignore
+	opts := lint.ResolveOpts{
+		UseGitignore:     &useGitignore,
+		NoFollowSymlinks: cfg.NoFollowSymlinks,
+	}
+	if noFollowSymlinks {
+		opts.NoFollowSymlinks = []string{"**"}
+	}
+	return opts
+}
+
 func frontMatterEnabled(cfg *config.Config) bool {
 	if cfg.FrontMatter != nil {
 		return *cfg.FrontMatter
@@ -510,7 +533,7 @@ func runHelpRule(args []string) int {
 }
 
 func listAllRules() int {
-	rules, err := mdsmith.ListRules()
+	rules, err := ruledocs.ListRules()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
 		return 2
@@ -523,7 +546,7 @@ func listAllRules() int {
 }
 
 func showRule(query string) int {
-	content, err := mdsmith.LookupRule(query)
+	content, err := ruledocs.LookupRule(query)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
 		return 2

@@ -421,3 +421,103 @@ func TestResolveFilesWithOpts_GitignoreNegation(t *testing.T) {
 		t.Errorf("expected keep.md, got %s", files[0])
 	}
 }
+
+// --- NoFollowSymlinks tests ---
+
+func TestResolveFilesWithOpts_NoFollowSymlinks(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a real markdown file.
+	realFile := filepath.Join(dir, "real.md")
+	if err := os.WriteFile(realFile, []byte("# Real"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a target file in a subdirectory.
+	subDir := filepath.Join(dir, "target")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	targetFile := filepath.Join(subDir, "doc.md")
+	if err := os.WriteFile(targetFile, []byte("# Target"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink to the target file.
+	linkFile := filepath.Join(dir, "link.md")
+	if err := os.Symlink(targetFile, linkFile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without no-follow-symlinks: all files should be found.
+	files, err := ResolveFilesWithOpts([]string{dir}, DefaultResolveOpts())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(files) != 3 { // real.md, link.md, target/doc.md
+		t.Fatalf("expected 3 files, got %d: %v", len(files), files)
+	}
+
+	// With no-follow-symlinks matching all .md: symlink should be skipped.
+	noGitignore := false
+	opts := ResolveOpts{
+		UseGitignore:     &noGitignore,
+		NoFollowSymlinks: []string{"*.md"},
+	}
+	files, err = ResolveFilesWithOpts([]string{dir}, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// link.md is a symlink matching *.md, should be skipped.
+	// real.md and target/doc.md are regular files, should be included.
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files (symlink skipped), got %d: %v", len(files), files)
+	}
+	for _, f := range files {
+		if filepath.Base(f) == "link.md" {
+			t.Error("link.md should have been skipped (symlink)")
+		}
+	}
+}
+
+func TestResolveFilesWithOpts_NoFollowSymlinks_PatternSpecific(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create target files.
+	targetA := filepath.Join(dir, "a.md")
+	targetB := filepath.Join(dir, "b.md")
+	if err := os.WriteFile(targetA, []byte("# A"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(targetB, []byte("# B"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create subdirectory with symlinks.
+	linkDir := filepath.Join(dir, "links")
+	if err := os.MkdirAll(linkDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(targetA, filepath.Join(linkDir, "link-a.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(targetB, filepath.Join(linkDir, "link-b.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only skip symlinks under links/ directory.
+	noGitignore := false
+	opts := ResolveOpts{
+		UseGitignore:     &noGitignore,
+		NoFollowSymlinks: []string{"**/links/*"},
+	}
+	files, err := ResolveFilesWithOpts([]string{dir}, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// a.md and b.md are regular files, included.
+	// links/link-a.md and links/link-b.md are symlinks matching "**/links/*", skipped.
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d: %v", len(files), files)
+	}
+}

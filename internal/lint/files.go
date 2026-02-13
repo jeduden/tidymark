@@ -6,12 +6,29 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gobwas/glob"
 )
 
 // isMarkdown returns true if the file extension is .md or .markdown.
 func isMarkdown(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return ext == ".md" || ext == ".markdown"
+}
+
+// matchesGlob returns true if path matches any of the given glob patterns.
+func matchesGlob(patterns []string, path string) bool {
+	cleanPath := filepath.Clean(path)
+	for _, pattern := range patterns {
+		g, err := glob.Compile(pattern)
+		if err != nil {
+			continue
+		}
+		if g.Match(path) || g.Match(cleanPath) || g.Match(filepath.Base(path)) {
+			return true
+		}
+	}
+	return false
 }
 
 // hasGlobChars returns true if the string contains glob meta-characters.
@@ -27,6 +44,11 @@ type ResolveOpts struct {
 	// never filtered by gitignore. Defaults to true when the zero value is
 	// used (see DefaultResolveOpts).
 	UseGitignore *bool
+
+	// NoFollowSymlinks is a list of glob patterns. Symbolic links
+	// whose path matches any pattern are skipped during directory
+	// walking and glob expansion.
+	NoFollowSymlinks []string
 }
 
 // DefaultResolveOpts returns options with defaults applied.
@@ -107,6 +129,15 @@ func resolveGlob(pattern string, opts ResolveOpts, addFile func(string)) error {
 		return fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 	}
 	for _, m := range matches {
+		// Skip symlinks matching no-follow-symlinks patterns.
+		if len(opts.NoFollowSymlinks) > 0 {
+			linfo, lerr := os.Lstat(m)
+			if lerr == nil && linfo.Mode()&os.ModeSymlink != 0 {
+				if matchesGlob(opts.NoFollowSymlinks, m) {
+					continue
+				}
+			}
+		}
 		info, err := os.Stat(m)
 		if err != nil {
 			continue
@@ -124,7 +155,7 @@ func resolveGlob(pattern string, opts ResolveOpts, addFile func(string)) error {
 
 // addDirFiles walks a directory and adds all markdown files found.
 func addDirFiles(dir string, opts ResolveOpts, addFile func(string)) error {
-	dirFiles, err := walkDir(dir, opts.useGitignore())
+	dirFiles, err := walkDir(dir, opts.useGitignore(), opts.NoFollowSymlinks)
 	if err != nil {
 		return err
 	}
@@ -134,9 +165,22 @@ func addDirFiles(dir string, opts ResolveOpts, addFile func(string)) error {
 	return nil
 }
 
+// isSkippedSymlink reports whether path should be skipped because it is
+// a symlink matching one of the no-follow-symlinks patterns.
+func isSkippedSymlink(info os.FileInfo, path string, patterns []string) bool {
+	if len(patterns) == 0 {
+		return false
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return false
+	}
+	return matchesGlob(patterns, path)
+}
+
 // walkDir recursively walks a directory and returns all markdown files.
 // When useGitignore is true, files matched by .gitignore patterns are skipped.
-func walkDir(dir string, useGitignore bool) ([]string, error) {
+// Symlinks whose path matches a noFollowSymlinks pattern are skipped.
+func walkDir(dir string, useGitignore bool, noFollowSymlinks []string) ([]string, error) {
 	var matcher *gitignoreMatcher
 	if useGitignore {
 		matcher = newGitignoreMatcher(dir)
@@ -148,17 +192,18 @@ func walkDir(dir string, useGitignore bool) ([]string, error) {
 			return err
 		}
 
-		// Check gitignore rules.
-		if matcher != nil {
-			absPath, absErr := filepath.Abs(path)
-			if absErr == nil {
-				if matcher.isIgnored(absPath, info.IsDir()) {
-					if info.IsDir() {
-						return filepath.SkipDir
-					}
-					return nil
-				}
+		if isSkippedSymlink(info, path, noFollowSymlinks) {
+			if info.IsDir() {
+				return filepath.SkipDir
 			}
+			return nil
+		}
+
+		if matcher != nil && isGitignored(matcher, path, info.IsDir()) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 
 		if !info.IsDir() && isMarkdown(path) {
@@ -170,4 +215,13 @@ func walkDir(dir string, useGitignore bool) ([]string, error) {
 		return nil, fmt.Errorf("walking directory %q: %w", dir, err)
 	}
 	return files, nil
+}
+
+// isGitignored checks if a path is ignored by gitignore rules.
+func isGitignored(matcher *gitignoreMatcher, path string, isDir bool) bool {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	return matcher.isIgnored(absPath, isDir)
 }
