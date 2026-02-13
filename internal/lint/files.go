@@ -137,9 +137,9 @@ func addDirFiles(dir string, opts ResolveOpts, addFile func(string)) error {
 // walkDir recursively walks a directory and returns all markdown files.
 // When useGitignore is true, files matched by .gitignore patterns are skipped.
 func walkDir(dir string, useGitignore bool) ([]string, error) {
-	var matcher *gitignoreMatcher
+	var matcher *GitignoreMatcher
 	if useGitignore {
-		matcher = newGitignoreMatcher(dir)
+		matcher = NewGitignoreMatcher(dir)
 	}
 
 	var files []string
@@ -152,7 +152,7 @@ func walkDir(dir string, useGitignore bool) ([]string, error) {
 		if matcher != nil {
 			absPath, absErr := filepath.Abs(path)
 			if absErr == nil {
-				if matcher.isIgnored(absPath, info.IsDir()) {
+				if matcher.IsIgnored(absPath, info.IsDir()) {
 					if info.IsDir() {
 						return filepath.SkipDir
 					}
