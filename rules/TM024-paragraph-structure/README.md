@@ -17,10 +17,10 @@ Paragraphs must not exceed sentence and word limits.
 
 ## Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `max-sentences` | int | 6 | Maximum sentences per paragraph |
-| `max-words` | int | 40 | Maximum words per sentence |
+| Setting       | Type | Default | Description                     |
+|---------------|------|---------|---------------------------------|
+| `max-sentences` | int  | 6       | Maximum sentences per paragraph |
+| `max-words`     | int  | 40      | Maximum words per sentence      |
 
 Markdown tables and code blocks are skipped.
 
@@ -58,7 +58,7 @@ Snow came. Ice formed. Fog rolled in. Stars appeared.
 
 ## Diagnostics
 
-| Condition | Message |
-|-----------|---------|
+| Condition          | Message                                  |
+|--------------------|------------------------------------------|
 | too many sentences | `paragraph has too many sentences (8 > 6)` |
-| sentence too long | `sentence too long (45 > 40 words)` |
+| sentence too long  | `sentence too long (45 > 40 words)`        |

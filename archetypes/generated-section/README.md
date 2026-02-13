@@ -64,15 +64,15 @@ and merge keys are supported (standard YAML features).
 
 ### Template sections
 
-| Key | Required | Description |
-|-----|----------|-------------|
-| `header` | no | Static top text |
-| `row` | conditional | Per-entry template block |
+| Key    | Required    | Description              |
+|--------|-------------|--------------------------|
+| `header` | no          | Static top text          |
+| `row`    | conditional | Per-entry template block |
 
-| Key | Required | Description |
-|-----|----------|-------------|
-| `footer` | no | Static bottom text |
-| `empty` | no | Fallback for no entries |
+| Key    | Required | Description             |
+|--------|----------|-------------------------|
+| `footer` | no       | Static bottom text      |
+| `empty`  | no       | Fallback for no entries |
 
 The `row` key is required when `header` or `footer` is
 present. None of these keys use template expansion except
@@ -174,24 +174,24 @@ literally in the output.
 These diagnostics are shared across all generated-section
 rules:
 
-| Condition | Message |
-|-----------|---------|
-| Content mismatch | `...is out of date` |
+| Condition         | Message                  |
+|-------------------|--------------------------|
+| Content mismatch  | `...is out of date`        |
 | No closing marker | `...has no closing marker` |
-| Orphaned end | `unexpected...end marker` |
+| Orphaned end      | `unexpected...end marker`  |
 
-| Condition | Message |
-|-----------|---------|
-| Nested start | `nested...not allowed` |
-| Invalid YAML | `...has invalid YAML: ...` |
+| Condition        | Message                           |
+|------------------|-----------------------------------|
+| Nested start     | `nested...not allowed`              |
+| Invalid YAML     | `...has invalid YAML: ...`          |
 | Non-string value | `...non-string value for key "KEY"` |
 
-| Condition | Message |
-|-----------|---------|
-| Empty `row` | `...empty "row" value` |
-| Missing `row` | `...missing required "row"` |
-| Bad template | `...invalid template: ...` |
-| Template error | `...execution failed: ...` |
+| Condition      | Message                   |
+|----------------|---------------------------|
+| Empty `row`      | `...empty "row" value`      |
+| Missing `row`    | `...missing required "row"` |
+| Bad template   | `...invalid template: ...`  |
+| Template error | `...execution failed: ...`  |
 
 Messages start with `generated section` (or
 `generated section directive`).
@@ -202,28 +202,28 @@ line.
 
 ## Edge Cases
 
-| Scenario | Behavior |
-|----------|----------|
-| No entries | Empty or `empty` fallback |
-| Entries + `empty` | `empty` ignored |
-| No filesystem context | Rule skipped |
-| Markers in code blocks | Ignored |
+| Scenario               | Behavior                |
+|------------------------|-------------------------|
+| No entries             | Empty or `empty` fallback |
+| Entries + `empty`        | `empty` ignored           |
+| No filesystem context  | Rule skipped            |
+| Markers in code blocks | Ignored                 |
 
-| Scenario | Behavior |
-|----------|----------|
-| Markers in HTML blocks | Ignored |
-| Multiple marker pairs | Independent |
-| Non-string YAML | Diagnostic per key |
-| `empty` without `row` | Valid |
+| Scenario               | Behavior           |
+|------------------------|--------------------|
+| Markers in HTML blocks | Ignored            |
+| Multiple marker pairs  | Independent        |
+| Non-string YAML        | Diagnostic per key |
+| `empty` without `row`      | Valid              |
 
-| Scenario | Behavior |
-|----------|----------|
-| `empty` + `header`, no `row` | Missing `row` diagnostic |
-| Duplicate YAML keys | YAML diagnostic |
-| Single-line start marker | Empty body diagnostic |
+| Scenario                 | Behavior               |
+|--------------------------|------------------------|
+| `empty` + `header`, no `row`   | Missing `row` diagnostic |
+| Duplicate YAML keys      | YAML diagnostic        |
+| Single-line start marker | Empty body diagnostic  |
 
-| Scenario | Behavior |
-|----------|----------|
-| `\r\n` line endings | Flagged as stale |
-| Template error | Fix skips section |
-| Unknown YAML keys | Ignored |
+| Scenario          | Behavior          |
+|-------------------|-------------------|
+| `\r\n` line endings | Flagged as stale  |
+| Template error    | Fix skips section |
+| Unknown YAML keys | Ignored           |

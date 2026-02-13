@@ -26,14 +26,14 @@ otherwise.
 
 ### Parameters
 
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `glob` | yes | -- | Relative file glob |
-| `sort` | no | `path` | Sort key |
+| Parameter | Required | Default | Description        |
+|-----------|----------|---------|--------------------|
+| `glob`      | yes      | --      | Relative file glob |
+| `sort`      | no       | `path`    | Sort key           |
 
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `columns` | no | -- | Column width/wrapping |
+| Parameter | Required | Default | Description           |
+|-----------|----------|---------|-----------------------|
+| `columns`   | no       | --      | Column width/wrapping |
 
 The `glob` supports `*`, `?`, `[...]`, and `**`. It does
 not allow absolute paths or `..` traversal.
@@ -54,10 +54,10 @@ The `row` section uses Go `text/template` syntax.
 The `columns` parameter sets per-column width limits. Each
 key is a template field name. Options:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `max-width` | int | -- | Max character width. |
-| `wrap` | string | `truncate` | `truncate` or `br`. |
+| Option    | Type   | Default  | Description          |
+|-----------|--------|----------|----------------------|
+| `max-width` | int    | --       | Max character width. |
+| `wrap`      | string | `truncate` | `truncate` or `br`.      |
 
 Links and inline code are not split mid-span.
 
@@ -199,18 +199,18 @@ Diagnostic:
 
 ## Diagnostics
 
-| Condition | Message |
-|-----------|---------|
-| Missing `glob` | `...missing required "glob"` |
-| Empty `glob` | `...has empty "glob"` |
-| Absolute glob | `...has absolute glob path` |
+| Condition     | Message                    |
+|---------------|----------------------------|
+| Missing `glob`  | `...missing required "glob"` |
+| Empty `glob`    | `...has empty "glob"`        |
+| Absolute glob | `...has absolute glob path`  |
 
-| Condition | Message |
-|-----------|---------|
-| Glob with `..` | `...".." path traversal` |
+| Condition    | Message                 |
+|--------------|-------------------------|
+| Glob with `..` | `...".." path traversal`  |
 | Invalid glob | `...invalid glob pattern` |
-| Empty sort | `...empty "sort" value` |
-| Invalid sort | `...invalid sort value` |
+| Empty sort   | `...empty "sort" value`   |
+| Invalid sort | `...invalid sort value`   |
 
 All messages above are prefixed with
 `generated section directive`. Column is always 1.
@@ -222,33 +222,33 @@ nested markers, YAML errors, template errors).
 
 ## Edge Cases
 
-| Scenario | Behavior |
-|----------|----------|
-| No front matter | Others -> empty |
+| Scenario             | Behavior          |
+|----------------------|-------------------|
+| No front matter      | Others -> empty   |
 | Invalid front matter | Treated as absent |
-| Missing field | Empty string |
-| Unreadable file | Skipped |
+| Missing field        | Empty string      |
+| Unreadable file      | Skipped           |
 
-| Scenario | Behavior |
-|----------|----------|
-| Glob matches directory | Skipped |
-| Glob matches linted file | Included |
-| Binary file | Included; no front matter |
-| Symlinks | Followed |
+| Scenario                 | Behavior                  |
+|--------------------------|---------------------------|
+| Glob matches directory   | Skipped                   |
+| Glob matches linted file | Included                  |
+| Binary file              | Included; no front matter |
+| Symlinks                 | Followed                  |
 
-| Scenario | Behavior |
-|----------|----------|
-| Dotfiles | Matched by `*`/`**` |
-| Absolute/`..` glob | Diagnostic |
-| Brace expansion | Supported |
-| Empty glob/sort | Diagnostic |
+| Scenario         | Behavior      |
+|------------------|---------------|
+| Dotfiles         | Matched by `*`/`**` |
+| Absolute/`..` glob | Diagnostic    |
+| Brace expansion  | Supported     |
+| Empty glob/sort  | Diagnostic    |
 
-| Scenario | Behavior |
-|----------|----------|
-| `sort: "-"` | Diagnostic |
-| Sort with whitespace | Diagnostic |
-| No files matched | `empty` fallback |
-| Files + `empty` | `empty` ignored |
+| Scenario             | Behavior       |
+|----------------------|----------------|
+| `sort: "-"`            | Diagnostic     |
+| Sort with whitespace | Diagnostic     |
+| No files matched     | `empty` fallback |
+| Files + `empty`        | `empty` ignored  |
 
 See the
 [archetype documentation](../../archetypes/generated-section/)

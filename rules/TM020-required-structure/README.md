@@ -18,9 +18,9 @@ template.
 
 ## Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `template` | string | `""` | Path to template file |
+| Setting  | Type   | Default | Description           |
+|----------|--------|---------|-----------------------|
+| `template` | string | `""`      | Path to template file |
 
 When `template` is empty the rule is a no-op. Use
 overrides to apply templates to specific file groups.
@@ -74,10 +74,10 @@ Line exceeds maximum length.
 
 ## Diagnostics
 
-| Condition | Message |
-|-----------|---------|
-| section missing | missing required section "## Settings" |
-| wrong level | heading level mismatch: expected h2, got h3 |
-| extra section | unexpected section "## Extra" |
-| heading sync | heading does not match frontmatter: expected "TM001" (from id), got "TM002" |
-| body sync | body does not match frontmatter field "description" |
+| Condition       | Message                                                                     |
+|-----------------|-----------------------------------------------------------------------------|
+| section missing | missing required section "## Settings"                                      |
+| wrong level     | heading level mismatch: expected h2, got h3                                 |
+| extra section   | unexpected section "## Extra"                                               |
+| heading sync    | heading does not match frontmatter: expected "TM001" (from id), got "TM002" |
+| body sync       | body does not match frontmatter field "description"                         |

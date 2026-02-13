@@ -42,10 +42,6 @@ rules:
   include: true
 
 overrides:
-  - files: ["plan/PLAN.md"]
-    rules:
-      paragraph-readability: false
-      paragraph-structure: false
   - files: ["README.md"]
     rules:
       paragraph-structure:

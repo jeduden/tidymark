@@ -132,11 +132,11 @@ proceed independently.
    `generated-section` rule alongside `catalog`.
    Parameters:
 
-   | Parameter | Required | Default | Meaning |
-   |-----------|----------|---------|---------|
-   | `file` | yes | -- | File path |
-   | `strip-frontmatter` | no | `true` | Drop YAML |
-   | `wrap` | no | -- | Code fence |
+   | Parameter         | Required | Default | Meaning    |
+   |-------------------|----------|---------|------------|
+   | `file`              | yes      | --      | File path  |
+   | `strip-frontmatter` | no       | `true`    | Drop YAML  |
+   | `wrap`              | no       | --      | Code fence |
 
 10. Include rendering logic:
 

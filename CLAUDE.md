@@ -45,12 +45,12 @@ tidymark <command> [flags] [files...]
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `check` | Lint files (default command) |
-| `fix` | Auto-fix issues in place |
-| `init` | Generate `.tidymark.yml` |
-| `version` | Print version, exit |
+| Command | Description                  |
+|---------|------------------------------|
+| `check`   | Lint files (default command) |
+| `fix`     | Auto-fix issues in place     |
+| `init`    | Generate `.tidymark.yml`       |
+| `version` | Print version, exit          |
 
 Files are positional arguments. Accepts multiple file paths,
 directories, and glob patterns.
@@ -59,13 +59,13 @@ No file args and no stdin exits 0
 
 ### Subcommand Flags (check, fix)
 
-| Flag | Description |
-|------|-------------|
-| `-c`, `--config` | Config path |
-| `-f`, `--format` | `text` or `json` |
-| `--no-color` | Plain output |
+| Flag           | Description    |
+|----------------|----------------|
+| `-c`, `--config`   | Config path    |
+| `-f`, `--format`   | `text` or `json`   |
+| `--no-color`     | Plain output   |
 | `--no-gitignore` | Skip gitignore |
-| `-q`, `--quiet` | Quiet mode |
+| `-q`, `--quiet`    | Quiet mode     |
 
 ### Global Flags
 
@@ -128,7 +128,7 @@ pre-commit:
 
 ## Plans
 
-Task plans live in [`plan/`](plan/). See [`plan/PLAN.md`](plan/PLAN.md)
+Task plans live in [`plan/`](plan/). See [`PLAN.md`](PLAN.md)
 for the current status of all plans. Use [`plan/proto.md`](plan/proto.md)
 as a template when creating new plans.
 

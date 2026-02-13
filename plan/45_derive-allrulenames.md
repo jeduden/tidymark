@@ -7,9 +7,10 @@ status: 🔲
 
 ## Goal
 
-Replace the hardcoded `allRuleNames` slice in `internal/config/load.go`
-with a dynamic list derived from `rule.All()`, eliminating a duplicate
-source of truth and fixing three rules missing from defaults.
+Replace the hardcoded `allRuleNames` slice in
+`internal/config/load.go` with a dynamic list derived
+from `rule.All()`. This eliminates a duplicate source of
+truth and fixes three rules missing from defaults.
 
 ## Tasks
 

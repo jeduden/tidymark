@@ -17,9 +17,9 @@ File must not exceed maximum number of lines.
 
 ## Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `max` | int | 300 | Maximum lines allowed |
+| Setting | Type | Default | Description           |
+|---------|------|---------|-----------------------|
+| `max`     | int  | 300     | Maximum lines allowed |
 
 ## Config
 
