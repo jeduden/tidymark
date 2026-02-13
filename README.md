@@ -160,6 +160,25 @@ Commit the generated file to version control.
 This ensures every contributor uses the same rule settings.
 Upgrades become an explicit, reviewable change.
 
+## 📚 Guides
+
+<!-- catalog
+glob: "guides/*.md"
+sort: title
+header: |
+  | Guide | Description |
+  |-------|-------------|
+row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
+empty: |
+  | Guide | Description |
+  |-------|-------------|
+  | No guides yet | Add guide files under `guides/` to populate this index. |
+-->
+| Guide | Description |
+|-------|-------------|
+| No guides yet | Add guide files under `guides/` to populate this index. |
+<!-- /catalog -->
+
 ## 📏 Rules
 
 <!-- catalog
