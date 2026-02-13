@@ -11,32 +11,6 @@ import (
 
 const configFileName = ".tidymark.yml"
 
-// allRuleNames lists the 22 built-in rule identifiers in order.
-var allRuleNames = []string{
-	"line-length",
-	"heading-style",
-	"heading-increment",
-	"first-line-heading",
-	"no-duplicate-headings",
-	"no-trailing-spaces",
-	"no-hard-tabs",
-	"no-multiple-blanks",
-	"single-trailing-newline",
-	"fenced-code-style",
-	"fenced-code-language",
-	"no-bare-urls",
-	"blank-line-around-headings",
-	"blank-line-around-lists",
-	"blank-line-around-fenced-code",
-	"list-indent",
-	"no-trailing-punctuation-in-heading",
-	"no-emphasis-as-heading",
-	"catalog",
-	"required-structure",
-	"include",
-	"table-format",
-}
-
 // Load reads and parses a config file at the given path.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -84,12 +58,13 @@ func Discover(startDir string) (string, error) {
 	}
 }
 
-// Defaults returns a Config with all 19 built-in rules enabled
+// Defaults returns a Config with all built-in rules enabled
 // with default settings (no custom settings).
 func Defaults() *Config {
-	rules := make(map[string]RuleCfg, len(allRuleNames))
-	for _, name := range allRuleNames {
-		rules[name] = RuleCfg{Enabled: true}
+	all := rule.All()
+	rules := make(map[string]RuleCfg, len(all))
+	for _, r := range all {
+		rules[r.Name()] = RuleCfg{Enabled: true}
 	}
 	return &Config{
 		Rules: rules,
