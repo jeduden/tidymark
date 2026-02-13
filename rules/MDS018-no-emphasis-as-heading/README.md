@@ -1,1 +1,0 @@
-../../internal/rules/noemphasisasheading/README.md

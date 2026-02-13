@@ -1,1 +1,0 @@
-../../internal/rules/noduplicateheadings/README.md

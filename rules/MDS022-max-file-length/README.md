@@ -1,1 +1,0 @@
-../../internal/rules/maxfilelength/README.md

@@ -1,1 +1,0 @@
-../../internal/rules/listindent/README.md

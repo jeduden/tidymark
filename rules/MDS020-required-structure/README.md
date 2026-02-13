@@ -1,1 +1,0 @@
-../../internal/rules/requiredstructure/README.md

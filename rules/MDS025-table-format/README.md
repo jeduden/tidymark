@@ -1,1 +1,0 @@
-../../internal/rules/tableformat/README.md

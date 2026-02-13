@@ -1,1 +1,0 @@
-../../internal/rules/blanklinearoundlists/README.md

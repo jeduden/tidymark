@@ -1,1 +1,0 @@
-../../internal/rules/fencedcodelanguage/README.md

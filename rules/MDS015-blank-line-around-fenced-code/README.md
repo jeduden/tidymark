@@ -1,1 +1,0 @@
-../../internal/rules/blanklinearoundfencedcode/README.md

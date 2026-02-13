@@ -1,1 +1,0 @@
-../../internal/rules/blanklinearoundheadings/README.md

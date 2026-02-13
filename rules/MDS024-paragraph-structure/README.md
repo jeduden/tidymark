@@ -1,1 +1,0 @@
-../../internal/rules/paragraphstructure/README.md

@@ -1,1 +1,0 @@
-../../internal/rules/catalog/README.md

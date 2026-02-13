@@ -1,1 +1,0 @@
-../../internal/rules/fencedcodestyle/README.md

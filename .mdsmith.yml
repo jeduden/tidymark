@@ -41,9 +41,6 @@ rules:
   required-structure: true
   include: true
 
-no-follow-symlinks:
-  - "rules/*/README.md"
-
 overrides:
   - files: ["README.md"]
     rules:
@@ -61,7 +58,7 @@ overrides:
     rules:
       list-indent:
         spaces: 4
-  - files: ["internal/rules/*/README.md"]
+  - files: ["rules/MDS*/README.md"]
     rules:
       required-structure:
         template: rules/proto.md

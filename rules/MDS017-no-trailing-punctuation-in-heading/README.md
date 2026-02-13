@@ -1,1 +1,0 @@
-../../internal/rules/notrailingpunctuation/README.md

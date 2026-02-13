@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-//go:embed */README.md
+//go:embed MDS*/README.md
 var rulesFS embed.FS
 
 // RuleInfo holds metadata extracted from a rule README's front matter.

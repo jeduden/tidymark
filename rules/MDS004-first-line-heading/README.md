@@ -1,1 +1,0 @@
-../../internal/rules/firstlineheading/README.md
