@@ -17,7 +17,7 @@ footer: |
 | 25 | 🔲 | [Markdown Structure Validation](plan/25_structure-validation.md) |
 | 28 | 🔲 | [Table Formatting Rule](plan/28_table-formatting.md) |
 | 29 | 🔲 | [Line-Length Feature Parity](plan/29_line-length-improvements.md) |
-| 32 | 🔲 | [Max File Length Rule](plan/32_max-file-length.md) |
+| 32 | ✅ | [Max File Length Rule](plan/32_max-file-length.md) |
 | 34 | 🔲 | [Paragraph Readability Score](plan/34_paragraph-readability.md) |
 | 35 | 🔲 | [Paragraph Structure Limits](plan/35_paragraph-structure.md) |
 | 40 | 🔲 | [Normalize rule READMEs to proto template](plan/40_normalize-rule-readmes.md) |

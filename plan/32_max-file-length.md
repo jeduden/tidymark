@@ -1,7 +1,7 @@
 ---
 id: 32
 title: Max File Length Rule
-status: 🔲
+status: ✅
 ---
 # Max File Length Rule
 
@@ -49,9 +49,9 @@ This nudges authors to split long files.
 
 ## Acceptance Criteria
 
-- [ ] TM022 reports when file exceeds max lines
-- [ ] Single diagnostic on line 1 with count details
-- [ ] `max` setting configurable, default 300
-- [ ] Rule README with examples
-- [ ] All tests pass: `go test ./...`
-- [ ] `golangci-lint run` reports no issues
+- [x] TM022 reports when file exceeds max lines
+- [x] Single diagnostic on line 1 with count details
+- [x] `max` setting configurable, default 300
+- [x] Rule README with examples
+- [x] All tests pass: `go test ./...`
+- [x] `golangci-lint run` reports no issues
