@@ -30,6 +30,9 @@ func (r *Rule) Name() string { return "table-format" }
 // Category implements rule.Rule.
 func (r *Rule) Category() string { return "table" }
 
+// GetPad returns the current pad setting.
+func (r *Rule) GetPad() int { return r.Pad }
+
 // ApplySettings implements rule.Configurable.
 func (r *Rule) ApplySettings(settings map[string]any) error {
 	for k, v := range settings {
@@ -695,6 +698,49 @@ func toInt(v any) (int, bool) {
 		return int(n), true
 	}
 	return 0, false
+}
+
+// FormatString formats all markdown tables in s with the given padding
+// and returns the result. This is used by other rules (e.g. TM019) that
+// generate table content and need it to comply with TM021.
+func FormatString(s string, pad int) string {
+	source := []byte(s)
+	lines := bytes.Split(source, []byte("\n"))
+	tables := findTables(lines, nil)
+	if len(tables) == 0 {
+		return s
+	}
+
+	result := make([]byte, len(source))
+	copy(result, source)
+
+	for i := len(tables) - 1; i >= 0; i-- {
+		tbl := tables[i]
+		formatted := formatTable(tbl, pad)
+		if tableEqual(tbl, formatted) {
+			continue
+		}
+
+		var replacement bytes.Buffer
+		for j, line := range formatted.rawLines {
+			replacement.Write(line)
+			if j < len(formatted.rawLines)-1 {
+				replacement.WriteByte('\n')
+			}
+		}
+
+		var original bytes.Buffer
+		for j, line := range tbl.rawLines {
+			original.Write(line)
+			if j < len(tbl.rawLines)-1 {
+				original.WriteByte('\n')
+			}
+		}
+
+		result = bytes.Replace(result, original.Bytes(), replacement.Bytes(), 1)
+	}
+
+	return string(result)
 }
 
 var _ rule.FixableRule = (*Rule)(nil)

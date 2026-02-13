@@ -69,19 +69,19 @@ No file args and no stdin exits 0
 
 ### Global Flags
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--help` | `-h` | Show help |
+| Flag   | Short | Description |
+|--------|-------|-------------|
+| `--help` | `-h`    | Show help   |
 
 Use `--` to separate flags from filenames starting with `-`.
 
 ### Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | No lint issues found |
-| 1 | Lint issues found |
-| 2 | Runtime or configuration error |
+| Code | Meaning                        |
+|------|--------------------------------|
+| 0    | No lint issues found           |
+| 1    | Lint issues found              |
+| 2    | Runtime or configuration error |
 
 ### Output
 

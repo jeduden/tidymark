@@ -17,9 +17,9 @@ First line of the file should be a heading.
 
 ## Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `level` | int | 1 | Required heading level for the first line |
+| Setting | Type | Default | Description                               |
+|---------|------|---------|-------------------------------------------|
+| `level`   | int  | 1       | Required heading level for the first line |
 
 ## Config
 

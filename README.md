@@ -77,11 +77,11 @@ Pattern: `file:line:col rule message`
 
 ### Exit codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | No lint issues found |
-| 1 | Lint issues found |
-| 2 | Runtime or configuration error |
+| Code | Meaning                        |
+|------|--------------------------------|
+| 0    | No lint issues found           |
+| 1    | Lint issues found              |
+| 2    | Runtime or configuration error |
 
 ## Configuration
 

@@ -16,9 +16,9 @@ This nudges authors to split long files.
 1. Create `internal/rules/maxfilelength/rule.go` implementing
    `rule.Rule` and `rule.Configurable`. Settings:
 
-   | Setting | Type | Default | Description |
-   |---------|------|---------|-------------|
-   | `max` | int | 300 | Maximum lines allowed |
+   | Setting | Type | Default | Description           |
+   |---------|------|---------|-----------------------|
+   | `max`     | int  | 300     | Maximum lines allowed |
 
 2. Check logic: count `len(f.Lines)`. If it exceeds `max`,
    emit a single diagnostic on line 1:
