@@ -1,7 +1,7 @@
 ---
 id: 44
 title: Rule Docs Command
-status: 🔲
+status: ✅
 ---
 # Rule Docs Command
 

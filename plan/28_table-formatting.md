@@ -1,7 +1,7 @@
 ---
 id: 28
 title: Table Formatting Rule
-status: 🔲
+status: ✅
 ---
 # Table Formatting Rule
 

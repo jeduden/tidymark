@@ -1,7 +1,7 @@
 ---
 id: 25
 title: Markdown Structure Validation
-status: 🔲
+status: ✅
 ---
 # Markdown Structure Validation
 

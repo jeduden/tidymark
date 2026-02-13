@@ -1,7 +1,7 @@
 ---
 id: 34
 title: Paragraph Readability Score
-status: 🔲
+status: ✅
 ---
 # Paragraph Readability Score
 

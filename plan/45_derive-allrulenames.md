@@ -1,7 +1,7 @@
 ---
 id: 45
 title: Derive allRuleNames from Rule Registry
-status: 🔲
+status: ✅
 ---
 # Derive allRuleNames from Rule Registry
 
