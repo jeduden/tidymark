@@ -628,3 +628,124 @@ func TestE2E_Check_Stdin_ConfigurableSettingsViolation(t *testing.T) {
 		t.Errorf("expected TM001 in stderr, got: %s", stderr)
 	}
 }
+
+// --- Verbose mode tests ---
+
+func TestE2E_Check_Verbose_ShowsConfigAndFile(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
+	configPath := writeFixture(t, dir, ".tidymark.yml", "rules:\n  line-length: true\n")
+
+	_, stderr, exitCode := runBinary(t, "", "check", "--verbose", "--no-color", "--config", configPath, path)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d; stderr: %s", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "config: ") {
+		t.Errorf("expected 'config: ' in verbose stderr, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "file: ") {
+		t.Errorf("expected 'file: ' in verbose stderr, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "rule: ") {
+		t.Errorf("expected 'rule: ' in verbose stderr, got: %s", stderr)
+	}
+}
+
+func TestE2E_Check_Verbose_ShortFlag(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
+
+	_, stderr, exitCode := runBinary(t, "", "check", "-v", "--no-color", path)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d; stderr: %s", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "file: ") {
+		t.Errorf("expected 'file: ' in verbose stderr with -v, got: %s", stderr)
+	}
+}
+
+func TestE2E_Check_Verbose_SummaryLine(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "dirty.md", "# Title\n\nHello   \n")
+
+	_, stderr, exitCode := runBinary(t, "", "check", "--verbose", "--no-color", path)
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "checked 1 files") {
+		t.Errorf("expected summary line in verbose output, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "issues found") {
+		t.Errorf("expected 'issues found' in summary, got: %s", stderr)
+	}
+}
+
+func TestE2E_Check_QuietSuppressesVerbose(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "dirty.md", "# Title\n\nHello   \n")
+
+	_, stderr, exitCode := runBinary(t, "", "check", "--quiet", "--verbose", "--no-color", path)
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1, got %d", exitCode)
+	}
+	if strings.Contains(stderr, "config:") {
+		t.Errorf("expected no verbose output with --quiet, got: %s", stderr)
+	}
+	if strings.Contains(stderr, "file:") {
+		t.Errorf("expected no verbose output with --quiet, got: %s", stderr)
+	}
+	if strings.Contains(stderr, "rule:") {
+		t.Errorf("expected no verbose output with --quiet, got: %s", stderr)
+	}
+	if strings.Contains(stderr, "checked") {
+		t.Errorf("expected no verbose summary with --quiet, got: %s", stderr)
+	}
+}
+
+func TestE2E_Check_Verbose_JSONStdoutClean(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "dirty.md", "# Title\n\nHello   \n")
+
+	_, stderr, exitCode := runBinary(t, "", "check", "--verbose", "--no-color", "--format", "json", path)
+	if exitCode != 1 {
+		t.Errorf("expected exit code 1, got %d", exitCode)
+	}
+
+	// Verbose output should be on stderr, not mixed into JSON.
+	// Find the JSON array in stderr (it starts with [ and ends with ]).
+	jsonStart := strings.Index(stderr, "[")
+	jsonEnd := strings.LastIndex(stderr, "]")
+	if jsonStart < 0 || jsonEnd < 0 {
+		t.Fatalf("expected JSON array in stderr, got: %s", stderr)
+	}
+	jsonPart := stderr[jsonStart : jsonEnd+1]
+
+	var diagnostics []map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonPart), &diagnostics); err != nil {
+		t.Fatalf("JSON portion of stderr is not valid JSON: %v\njson: %s", err, jsonPart)
+	}
+
+	// Verbose lines should appear somewhere in stderr.
+	if !strings.Contains(stderr, "file: ") {
+		t.Errorf("expected verbose 'file: ' in stderr, got: %s", stderr)
+	}
+}
+
+func TestE2E_Fix_Verbose_ShowsFixPasses(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFixture(t, dir, "fixme.md", "# Title\n\nHello   \n")
+
+	_, stderr, exitCode := runBinary(t, "", "fix", "--verbose", "--no-color", path)
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0 after fix, got %d; stderr: %s", exitCode, stderr)
+	}
+	if !strings.Contains(stderr, "file: ") {
+		t.Errorf("expected 'file: ' in verbose stderr, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "fix: pass") {
+		t.Errorf("expected 'fix: pass' in verbose stderr, got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "stable after") {
+		t.Errorf("expected 'stable after' in verbose stderr, got: %s", stderr)
+	}
+}

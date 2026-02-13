@@ -1,7 +1,7 @@
 ---
 id: 41
 title: Verbose Mode
-status: 🔲
+status: ✅
 ---
 # Verbose Mode
 
