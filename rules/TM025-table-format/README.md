@@ -1,13 +1,13 @@
 ---
-id: TM021
+id: TM025
 name: table-format
 description: Tables must have consistent column widths and padding.
 ---
-# TM021: table-format
+# TM025: table-format
 
 Tables must have consistent column widths and padding.
 
-- **ID**: TM021
+- **ID**: TM025
 - **Name**: `table-format`
 - **Default**: enabled, pad: 1
 - **Fixable**: yes

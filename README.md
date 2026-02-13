@@ -164,6 +164,7 @@ row: "| [{{.id}}]({{.filename}}) | `{{.name}}` | {{.description}} |"
 | [TM022](rules/TM022-max-file-length/README.md) | `max-file-length` | File must not exceed maximum number of lines. |
 | [TM023](rules/TM023-paragraph-readability/README.md) | `paragraph-readability` | Paragraph readability grade must not exceed a threshold. |
 | [TM024](rules/TM024-paragraph-structure/README.md) | `paragraph-structure` | Paragraphs must not exceed sentence and word limits. |
+| [TM025](rules/TM025-table-format/README.md) | `table-format` | Tables must have consistent column widths and padding. |
 <!-- /catalog -->
 
 ## Development

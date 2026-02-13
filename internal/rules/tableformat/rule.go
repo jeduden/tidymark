@@ -22,7 +22,7 @@ type Rule struct {
 }
 
 // ID implements rule.Rule.
-func (r *Rule) ID() string { return "TM021" }
+func (r *Rule) ID() string { return "TM025" }
 
 // Name implements rule.Rule.
 func (r *Rule) Name() string { return "table-format" }
@@ -702,7 +702,7 @@ func toInt(v any) (int, bool) {
 
 // FormatString formats all markdown tables in s with the given padding
 // and returns the result. This is used by other rules (e.g. TM019) that
-// generate table content and need it to comply with TM021.
+// generate table content and need it to comply with TM025.
 func FormatString(s string, pad int) string {
 	source := []byte(s)
 	lines := bytes.Split(source, []byte("\n"))

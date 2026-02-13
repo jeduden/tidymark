@@ -85,16 +85,16 @@ func (r *Rule) Generate(f *lint.File, filePath string, line int,
 			fmt.Sprintf("generated section template execution failed: %v", err))}
 	}
 
-	// Format tables to comply with TM021 (table-format) settings.
+	// Format tables to comply with TM025 (table-format) settings.
 	content = tableformat.FormatString(content, tableFormatPad())
 
 	return content, nil
 }
 
-// tableFormatPad returns the pad setting from the TM021 (table-format)
+// tableFormatPad returns the pad setting from the TM025 (table-format)
 // rule, defaulting to 1 if not found.
 func tableFormatPad() int {
-	r := rule.ByID("TM021")
+	r := rule.ByID("TM025")
 	if r == nil {
 		return 1
 	}
