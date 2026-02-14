@@ -64,6 +64,18 @@ rules:
 | aaa  | bbb    | ccc   |
 ```
 
+### Good -- visible text width
+
+Cell width is computed from visible text, not raw source characters.
+For example, backticks in inline code are ignored when aligning columns.
+
+```markdown
+| Setting       | Notes               |
+|---------------|---------------------|
+| `max-columns` | Inline code example |
+| max-rows      | Plain text example  |
+```
+
 ## Edge Cases
 
 | Scenario                       | Behavior                                   |
