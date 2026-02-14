@@ -2,8 +2,6 @@
 id: 58
 title: Select and Package Fast Weasel Classifier (CPU Fallback)
 status: 🔲
-template:
-  allow-extra-sections: true
 ---
 # Select and Package Fast Weasel Classifier (CPU Fallback)
 

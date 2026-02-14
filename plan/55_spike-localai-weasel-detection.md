@@ -2,8 +2,6 @@
 id: 55
 title: Spike LocalAI for Weasel Detection
 status: 🔲
-template:
-  allow-extra-sections: true
 ---
 # Spike LocalAI for Weasel Detection
 
