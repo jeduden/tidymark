@@ -147,6 +147,69 @@ func TestApplySettingsEnumTypeMismatch(t *testing.T) {
 	}
 }
 
+func TestApplySettingsArrayItemsWithoutArrayType(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"fields": map[string]any{
+			"tags": map[string]any{
+				"type":  "string",
+				"items": "string",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for array settings on non-array type")
+	}
+}
+
+func TestApplySettingsArrayBoundsInvalid(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"fields": map[string]any{
+			"tags": map[string]any{
+				"type":      "array",
+				"min-items": 3,
+				"max-items": 1,
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for min-items > max-items")
+	}
+}
+
+func TestApplySettingsArrayItemsValid(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"fields": map[string]any{
+			"tags": map[string]any{
+				"type":      "array",
+				"min-items": 1,
+				"max-items": 3,
+				"items": map[string]any{
+					"type": "string",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ApplySettings() error = %v", err)
+	}
+	schema := r.Fields["tags"]
+	if schema.Items == nil {
+		t.Fatal(`Fields["tags"].Items = nil, want non-nil`)
+	}
+	if schema.MinItems == nil || *schema.MinItems != 1 {
+		t.Fatalf("min-items = %v, want 1", schema.MinItems)
+	}
+	if schema.MaxItems == nil || *schema.MaxItems != 3 {
+		t.Fatalf("max-items = %v, want 3", schema.MaxItems)
+	}
+	if schema.Items.Type != "string" {
+		t.Fatalf("items.type = %q, want string", schema.Items.Type)
+	}
+}
+
 func TestCheckNoSchemaIsNoop(t *testing.T) {
 	r := &Rule{}
 	f := testFile(t, "doc.md", "# Title\n", true)
@@ -256,4 +319,76 @@ func TestCheckDiagnosticIncludesPathAndField(t *testing.T) {
 			diags[0].Message,
 		)
 	}
+}
+
+func TestCheckArrayItemTypeMismatch(t *testing.T) {
+	r := &Rule{
+		Fields: map[string]FieldSchema{
+			"tags": {
+				Type: "array",
+				Items: &FieldSchema{
+					Type: "string",
+				},
+			},
+		},
+	}
+	source := "---\ntags:\n  - alpha\n  - 2\n---\n# Title\n"
+	f := testFile(t, "doc.md", source, true)
+	diags := r.Check(f)
+	expectDiagnosticCount(t, diags, 1)
+	expectMessageContains(t, diags, `field "tags[1]"`)
+	expectMessageContains(t, diags, `must be string`)
+}
+
+func TestCheckArrayMinItems(t *testing.T) {
+	min := 2
+	r := &Rule{
+		Fields: map[string]FieldSchema{
+			"tags": {
+				Type:     "array",
+				MinItems: &min,
+			},
+		},
+	}
+	source := "---\ntags:\n  - alpha\n---\n# Title\n"
+	f := testFile(t, "doc.md", source, true)
+	diags := r.Check(f)
+	expectDiagnosticCount(t, diags, 1)
+	expectMessageContains(t, diags, `field "tags"`)
+	expectMessageContains(t, diags, "at least 2 items")
+}
+
+func TestCheckArrayMaxItems(t *testing.T) {
+	max := 1
+	r := &Rule{
+		Fields: map[string]FieldSchema{
+			"tags": {
+				Type:     "array",
+				MaxItems: &max,
+			},
+		},
+	}
+	source := "---\ntags:\n  - alpha\n  - beta\n---\n# Title\n"
+	f := testFile(t, "doc.md", source, true)
+	diags := r.Check(f)
+	expectDiagnosticCount(t, diags, 1)
+	expectMessageContains(t, diags, `field "tags"`)
+	expectMessageContains(t, diags, "at most 1 items")
+}
+
+func TestCheckArrayItemsValid(t *testing.T) {
+	r := &Rule{
+		Fields: map[string]FieldSchema{
+			"tags": {
+				Type: "array",
+				Items: &FieldSchema{
+					Type: "string",
+				},
+			},
+		},
+	}
+	source := "---\ntags:\n  - alpha\n  - beta\n---\n# Title\n"
+	f := testFile(t, "doc.md", source, true)
+	diags := r.Check(f)
+	expectDiagnosticCount(t, diags, 0)
 }

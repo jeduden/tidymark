@@ -23,8 +23,11 @@ func init() {
 
 // FieldSchema defines validation requirements for a single front matter field.
 type FieldSchema struct {
-	Type string
-	Enum []any
+	Type     string
+	Enum     []any
+	Items    *FieldSchema
+	MinItems *int
+	MaxItems *int
 }
 
 // Rule validates YAML front matter fields against a configured schema.
@@ -196,6 +199,28 @@ func parseFieldSchemaMap(
 				return FieldSchema{}, err
 			}
 			result.Enum = enumValues
+		case "items":
+			itemSchema, err := parseItemsSetting(field, value)
+			if err != nil {
+				return FieldSchema{}, err
+			}
+			result.Items = itemSchema
+		case "min-items":
+			n, err := parseArrayBoundSetting(
+				field, "min-items", value,
+			)
+			if err != nil {
+				return FieldSchema{}, err
+			}
+			result.MinItems = n
+		case "max-items":
+			n, err := parseArrayBoundSetting(
+				field, "max-items", value,
+			)
+			if err != nil {
+				return FieldSchema{}, err
+			}
+			result.MaxItems = n
 		default:
 			return FieldSchema{}, fmt.Errorf(
 				`fields.%s has unknown setting %q`,
@@ -245,29 +270,86 @@ func parseEnumSetting(field string, value any) ([]any, error) {
 	return enumValues, nil
 }
 
+func parseItemsSetting(
+	field string, value any,
+) (*FieldSchema, error) {
+	itemSchema, err := parseFieldSchema(field+".items", value)
+	if err != nil {
+		return nil, err
+	}
+	return &itemSchema, nil
+}
+
+func parseArrayBoundSetting(
+	field, name string, value any,
+) (*int, error) {
+	n, ok := toInt(value)
+	if !ok {
+		return nil, fmt.Errorf(
+			`fields.%s.%s must be an integer, got %T`,
+			field, name, value,
+		)
+	}
+	if n < 0 {
+		return nil, fmt.Errorf(
+			`fields.%s.%s must be >= 0, got %d`,
+			field, name, n,
+		)
+	}
+	return &n, nil
+}
+
 func validateFieldSchema(
 	field string, schema FieldSchema,
 ) error {
-	if schema.Type == "" && len(schema.Enum) == 0 {
+	if schema.Type == "" &&
+		len(schema.Enum) == 0 &&
+		schema.Items == nil &&
+		schema.MinItems == nil &&
+		schema.MaxItems == nil {
 		return fmt.Errorf(
-			`fields.%s must set at least one of "type" or "enum"`,
+			`fields.%s must set at least one validation setting`,
 			field,
 		)
 	}
+
+	if hasArraySettings(schema) && schema.Type != "array" {
+		return fmt.Errorf(
+			`fields.%s uses array settings but type is %q (must be "array")`,
+			field, schema.Type,
+		)
+	}
+
+	if schema.MinItems != nil && schema.MaxItems != nil {
+		if *schema.MinItems > *schema.MaxItems {
+			return fmt.Errorf(
+				`fields.%s.min-items (%d) must be <= max-items (%d)`,
+				field, *schema.MinItems, *schema.MaxItems,
+			)
+		}
+	}
+
 	if schema.Type == "" {
 		return nil
 	}
 
 	for _, enumVal := range schema.Enum {
-		if matchesType(enumVal, schema.Type) {
+		msg := validationMessageForValue(field, enumVal, schema)
+		if msg == "" {
 			continue
 		}
 		return fmt.Errorf(
-			`fields.%s.enum value %s does not match type %q`,
-			field, formatValue(enumVal), schema.Type,
+			`fields.%s.enum value %s is invalid: %s`,
+			field, formatValue(enumVal), msg,
 		)
 	}
 	return nil
+}
+
+func hasArraySettings(schema FieldSchema) bool {
+	return schema.Items != nil ||
+		schema.MinItems != nil ||
+		schema.MaxItems != nil
 }
 
 func frontMatterBlock(f *lint.File) []byte {
@@ -338,25 +420,70 @@ func (r *Rule) fieldDiagnostics(
 			continue
 		}
 
-		if schema.Type != "" && !matchesType(value, schema.Type) {
-			diags = append(diags, r.diag(path, fmt.Sprintf(
-				`front matter field %q must be %s, got %s`,
-				field, schema.Type, valueTypeName(value),
-			)))
-			continue
-		}
-
-		if len(schema.Enum) > 0 && !valueInEnum(value, schema.Enum) {
-			diags = append(diags, r.diag(path, fmt.Sprintf(
-				`front matter field %q has invalid value %s (allowed: %s)`,
-				field,
-				formatValue(value),
-				formatAllowedValues(schema.Enum),
-			)))
+		if msg := validationMessageForValue(field, value, schema); msg != "" {
+			diags = append(diags, r.diag(path, msg))
 		}
 	}
 
 	return diags
+}
+
+func validationMessageForValue(
+	field string, value any, schema FieldSchema,
+) string {
+	if schema.Type != "" && !matchesType(value, schema.Type) {
+		return fmt.Sprintf(
+			`front matter field %q must be %s, got %s`,
+			field, schema.Type, valueTypeName(value),
+		)
+	}
+
+	if len(schema.Enum) > 0 && !valueInEnum(value, schema.Enum) {
+		return fmt.Sprintf(
+			`front matter field %q has invalid value %s (allowed: %s)`,
+			field,
+			formatValue(value),
+			formatAllowedValues(schema.Enum),
+		)
+	}
+
+	if schema.Type != "array" {
+		return ""
+	}
+
+	values, ok := toAnySlice(value)
+	if !ok {
+		return ""
+	}
+
+	if schema.MinItems != nil && len(values) < *schema.MinItems {
+		return fmt.Sprintf(
+			`front matter field %q must have at least %d items, got %d`,
+			field, *schema.MinItems, len(values),
+		)
+	}
+
+	if schema.MaxItems != nil && len(values) > *schema.MaxItems {
+		return fmt.Sprintf(
+			`front matter field %q must have at most %d items, got %d`,
+			field, *schema.MaxItems, len(values),
+		)
+	}
+
+	if schema.Items == nil {
+		return ""
+	}
+
+	for i, item := range values {
+		itemField := fmt.Sprintf("%s[%d]", field, i)
+		if msg := validationMessageForValue(
+			itemField, item, *schema.Items,
+		); msg != "" {
+			return msg
+		}
+	}
+
+	return ""
 }
 
 func (r *Rule) diag(path, message string) lint.Diagnostic {
@@ -502,6 +629,44 @@ func toAnySlice(value any) ([]any, bool) {
 		out[i] = rv.Index(i).Interface()
 	}
 	return out, true
+}
+
+func toInt(value any) (int, bool) {
+	switch n := value.(type) {
+	case int:
+		return n, true
+	case int8:
+		return int(n), true
+	case int16:
+		return int(n), true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case uint:
+		return int(n), true
+	case uint8:
+		return int(n), true
+	case uint16:
+		return int(n), true
+	case uint32:
+		return int(n), true
+	case uint64:
+		return int(n), true
+	case float32:
+		f := float64(n)
+		if f != float64(int(f)) {
+			return 0, false
+		}
+		return int(f), true
+	case float64:
+		if n != float64(int(n)) {
+			return 0, false
+		}
+		return int(n), true
+	default:
+		return 0, false
+	}
 }
 
 func isInt(value any) bool {
