@@ -60,7 +60,7 @@ type Rule struct {
 }
 
 // ID implements rule.Rule.
-func (r *Rule) ID() string { return "MDS027" }
+func (r *Rule) ID() string { return "MDS028" }
 
 // Name implements rule.Rule.
 func (r *Rule) Name() string { return "token-budget" }

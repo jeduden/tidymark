@@ -1,13 +1,13 @@
 ---
-id: MDS027
+id: MDS028
 name: token-budget
 description: File must not exceed a token budget.
 ---
-# MDS027: token-budget
+# MDS028: token-budget
 
 File must not exceed a token budget.
 
-- **ID**: MDS027
+- **ID**: MDS028
 - **Name**: `token-budget`
 - **Default**: enabled, max: 8000, mode: heuristic, ratio: 0.75,
   tokenizer: builtin, encoding: cl100k_base
@@ -82,5 +82,5 @@ This file is well under the configured token budget.
 ### Bad
 
 ```text
-file.md:1:1 MDS027 token budget exceeded (4150 > 4000, mode=tokenizer:builtin/cl100k_base)
+file.md:1:1 MDS028 token budget exceeded (4150 > 4000, mode=tokenizer:builtin/cl100k_base)
 ```
