@@ -2,8 +2,6 @@
 id: 57
 title: Spike yzma for Embedded Weasel Detection
 status: 🔲
-template:
-  allow-extra-sections: true
 ---
 # Spike yzma for Embedded Weasel Detection
 

@@ -161,11 +161,7 @@ func TestCheck_NoTemplateIsNoop(t *testing.T) {
 // =====================================================================
 
 func TestParseTemplate_Headings(t *testing.T) {
-	tmplSrc := `---
-template:
-  allow-extra-sections: true
----
-# ?
+	tmplSrc := `# ?
 
 ## Settings
 
@@ -197,17 +193,10 @@ template:
 			tmpl.Headings[0].Level,
 		)
 	}
-	if !tmpl.Config.AllowExtraSections {
-		t.Error("expected AllowExtraSections true")
-	}
 }
 
 func TestParseTemplate_SyncPoints(t *testing.T) {
-	tmplSrc := `---
-template:
-  allow-extra-sections: true
----
-# {{.id}}: {{.name}}
+	tmplSrc := `# {{.id}}: {{.name}}
 
 {{.description}}
 `
@@ -247,11 +236,7 @@ template:
 }
 
 func TestParseTemplate_StrictOrder(t *testing.T) {
-	tmplSrc := `---
-template:
-  allow-extra-sections: false
----
-# ?
+	tmplSrc := `# ?
 
 ## Goal
 
@@ -262,9 +247,6 @@ template:
 	tmpl, err := parseTemplate([]byte(tmplSrc))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if tmpl.Config.AllowExtraSections {
-		t.Error("expected AllowExtraSections false")
 	}
 	if len(tmpl.Headings) != 4 {
 		t.Fatalf(
@@ -288,7 +270,7 @@ func TestCheck_MissingHeading(t *testing.T) {
 }
 
 func TestCheck_ExtraSectionForbidden(t *testing.T) {
-	tmplPath := writeTmpl(t, "---\ntemplate:\n  allow-extra-sections: false\n---\n# ?\n\n## Goal\n")
+	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n")
 	r := &Rule{Template: tmplPath}
 	f := newTestFile(t, "doc.md",
 		"# My Plan\n\n## Prerequisites\n\n## Goal\n")
@@ -296,11 +278,20 @@ func TestCheck_ExtraSectionForbidden(t *testing.T) {
 	expectDiagMsg(t, diags, `unexpected section "## Prerequisites"`)
 }
 
-func TestCheck_ExtraSectionAllowed(t *testing.T) {
-	tmplPath := writeTmpl(t, "---\ntemplate:\n  allow-extra-sections: true\n---\n# ?\n\n## Settings\n")
+func TestCheck_SectionWildcardAllowsExtras(t *testing.T) {
+	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n\n## ...\n\n## Settings\n")
 	r := &Rule{Template: tmplPath}
 	f := newTestFile(t, "doc.md",
-		"# My Rule\n\n## Overview\n\n## Settings\n")
+		"# My Rule\n\n## Goal\n\n## Overview\n\n## Notes\n\n## Settings\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_SectionWildcardAllowsTrailingExtras(t *testing.T) {
+	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n\n## ...\n")
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"# My Rule\n\n## Goal\n\n## Notes\n\n## Risks\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
@@ -375,14 +366,105 @@ func TestCheck_WildcardHeading(t *testing.T) {
 }
 
 // =====================================================================
+// Embedded front matter CUE schema
+// =====================================================================
+
+func TestCheck_FrontMatterCUESchemaMatch(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+id: 'int & >=1'
+status: '"🔲" | "🔳" | "✅"'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\nstatus: \"✅\"\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_FrontMatterCUESchemaMismatch(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+id: 'int & >=1'
+status: '"🔲" | "🔳" | "✅"'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+func TestCheck_FrontMatterCUESchemaInvalidStatus(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+id: 'int & >=1'
+status: '"🔲" | "🔳" | "✅"'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\nstatus: in-progress\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+func TestCheck_FrontMatterCUESchemaRejectsExtraFields(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+id: 'int & >=1'
+status: '"🔲" | "🔳" | "✅"'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\nstatus: \"✅\"\nextra: true\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+func TestCheck_InvalidTemplateFrontMatterCUESchema(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+id: 'int &'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md", "# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "invalid template")
+}
+
+func TestCheck_LegacyTemplateFrontMatterCUEIsRejected(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+template:
+  allow-extra-sections: true
+  front-matter-cue: |
+    {
+      id: int & >=1
+    }
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md", "# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "template.front-matter-cue is no longer supported")
+}
+
+// =====================================================================
 // Template file skipping
 // =====================================================================
 
 func TestCheck_SkipsTemplateFiles(t *testing.T) {
 	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n")
 	r := &Rule{Template: tmplPath}
-	f := newTestFile(t, "doc.md",
-		"---\ntemplate:\n  allow-extra-sections: true\n---\n# ?\n\n## Settings\n")
+	f := newTestFile(t, tmplPath, "# ?\n\n## Settings\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }

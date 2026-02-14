@@ -1,9 +1,7 @@
 ---
-id: MDSXXX
-name: rule-name
-description: One-sentence description ending with period.
-template:
-  allow-extra-sections: true
+id: '=~"^MDS[0-9]{3}$"'
+name: 'string & != ""'
+description: 'string & != ""'
 ---
 # {{.id}}: {{.name}}
 
@@ -37,6 +35,8 @@ template:
      Type: int, string, list. Description: fragment,
      no period. Delete if not applicable. -->
 
+## ...
+
 ## Config
 
 <!-- Show enable, disable, and (if configurable) custom
@@ -54,6 +54,8 @@ rules:
   rule-name: false
 ```
 
+## ...
+
 ## Examples
 
 <!-- Use ```markdown fenced blocks. Minimal context.
@@ -68,3 +70,5 @@ rules:
 
 <!-- Optional: ## Edge Cases
      Include for complex rules. Delete otherwise. -->
+
+## ...
