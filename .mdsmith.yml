@@ -39,6 +39,7 @@ rules:
     max-words: 40
   catalog: true
   required-structure: true
+  front-matter-validation: true
   include: true
 
 overrides:
@@ -65,10 +66,32 @@ overrides:
     rules:
       required-structure:
         template: rules/proto.md
-  - files: ["plan/*.md"]
+      front-matter-validation:
+        required:
+          - id
+          - name
+          - description
+        fields:
+          id: string
+          name: string
+          description: string
+  - files: ["plan/[0-9]*.md"]
     rules:
       required-structure:
         template: plan/proto.md
+      front-matter-validation:
+        required:
+          - id
+          - title
+          - status
+        fields:
+          id: int
+          title: string
+          status:
+            type: string
+            enum:
+              - 🔲
+              - ✅
   - files: ["guides/*.md"]
     rules:
       line-length:

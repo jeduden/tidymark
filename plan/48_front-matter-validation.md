@@ -1,7 +1,7 @@
 ---
 id: 48
 title: Front Matter Validation
-status: 🔲
+status: ✅
 template:
   allow-extra-sections: true
 ---
@@ -23,8 +23,8 @@ to prevent silent metadata breakage in agent workflows.
 
 ## Acceptance Criteria
 
-- [ ] Rule fails when required front matter fields are missing.
-- [ ] Rule fails when field types or allowed values are invalid.
-- [ ] Errors include file path and field name.
-- [ ] All tests pass: `go test ./...`
-- [ ] `golangci-lint run` reports no issues
+- [x] Rule fails when required front matter fields are missing.
+- [x] Rule fails when field types or allowed values are invalid.
+- [x] Errors include file path and field name.
+- [x] All tests pass: `go test ./...`
+- [x] `golangci-lint run` reports no issues
