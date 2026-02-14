@@ -25,6 +25,20 @@ template.
 When `template` is empty the rule is a no-op. Use
 overrides to apply templates to specific file groups.
 
+Template front matter may embed a CUE schema that validates
+document front matter:
+
+```yaml
+template:
+  allow-extra-sections: true
+  front-matter-cue: |
+    close({
+      id: =~"^MDS[0-9]{3}$"
+      name: string & != ""
+      description: string & != ""
+    })
+```
+
 ## Config
 
 Enable with a template for rule READMEs:
@@ -74,10 +88,11 @@ Line exceeds maximum length.
 
 ## Diagnostics
 
-| Condition       | Message                                                                       |
-|-----------------|-------------------------------------------------------------------------------|
-| section missing | missing required section "## Settings"                                        |
-| wrong level     | heading level mismatch: expected h2, got h3                                   |
-| extra section   | unexpected section "## Extra"                                                 |
-| heading sync    | heading does not match frontmatter: expected "MDS001" (from id), got "MDS002" |
-| body sync       | body does not match frontmatter field "description"                           |
+| Condition           | Message                                                                       |
+|---------------------|-------------------------------------------------------------------------------|
+| section missing     | missing required section "## Settings"                                        |
+| wrong level         | heading level mismatch: expected h2, got h3                                   |
+| extra section       | unexpected section "## Extra"                                                 |
+| heading sync        | heading does not match frontmatter: expected "MDS001" (from id), got "MDS002" |
+| body sync           | body does not match frontmatter field "description"                           |
+| front matter schema | front matter does not satisfy template CUE schema: ...                        |

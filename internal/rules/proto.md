@@ -4,6 +4,12 @@ name: rule-name
 description: One-sentence description ending with period.
 template:
   allow-extra-sections: true
+  front-matter-cue: |
+    close({
+      id: =~"^MDS[0-9]{3}$"
+      name: string & != ""
+      description: string & != ""
+    })
 ---
 # {{.id}}: {{.name}}
 

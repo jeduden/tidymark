@@ -4,6 +4,12 @@ title: Task Title
 status: 🔲
 template:
   allow-extra-sections: true
+  front-matter-cue: |
+    close({
+      id: int & >=1
+      title: string & != ""
+      status: "🔲" | "🔳" | "✅"
+    })
 ---
 # ?
 

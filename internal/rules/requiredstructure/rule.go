@@ -1,11 +1,14 @@
 package requiredstructure
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/yuin/goldmark/ast"
@@ -78,12 +81,19 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	}
 
 	docHeadings := extractHeadings(f)
+	docFMRaw := readDocFrontMatterRaw(f)
 	docFM := readDocFrontMatter(f)
 
 	var diags []lint.Diagnostic
 
 	// Check structure: required headings present and in order.
 	diags = append(diags, checkStructure(f, tmpl, docHeadings)...)
+
+	// Validate document front matter against template-embedded CUE schema.
+	if err := validateFrontMatterCUE(tmpl.Config.FrontMatterCUE, docFMRaw); err != nil {
+		diags = append(diags, makeDiag(f.Path, 1,
+			fmt.Sprintf("front matter does not satisfy template CUE schema: %v", err)))
+	}
 
 	// Check frontmatter-body sync.
 	diags = append(diags, checkSync(f, tmpl, docHeadings, docFM)...)
@@ -108,6 +118,7 @@ var _ rule.Configurable = (*Rule)(nil)
 // templateConfig holds the parsed template frontmatter.
 type templateConfig struct {
 	AllowExtraSections bool
+	FrontMatterCUE     string
 }
 
 // templateHeading represents a required heading from the template.
@@ -142,7 +153,8 @@ func parseTemplateConfig(prefix []byte) (templateConfig, error) {
 	}
 	var fm struct {
 		Template struct {
-			AllowExtraSections bool `yaml:"allow-extra-sections"`
+			AllowExtraSections bool   `yaml:"allow-extra-sections"`
+			FrontMatterCUE     string `yaml:"front-matter-cue"`
 		} `yaml:"template"`
 	}
 	yamlBytes := extractYAML(prefix)
@@ -150,6 +162,10 @@ func parseTemplateConfig(prefix []byte) (templateConfig, error) {
 		return cfg, fmt.Errorf("parsing template frontmatter: %w", err)
 	}
 	cfg.AllowExtraSections = fm.Template.AllowExtraSections
+	cfg.FrontMatterCUE = fm.Template.FrontMatterCUE
+	if err := validateCUESchemaSyntax(cfg.FrontMatterCUE); err != nil {
+		return cfg, err
+	}
 	return cfg, nil
 }
 
@@ -503,8 +519,75 @@ func checkBodySync(
 		fmt.Sprintf("body does not match frontmatter field %q", field))}
 }
 
-// readDocFrontMatter reads the YAML frontmatter from the document.
+func validateCUESchemaSyntax(schema string) error {
+	if strings.TrimSpace(schema) == "" {
+		return nil
+	}
+
+	ctx := cuecontext.New()
+	v := ctx.CompileString(schema)
+	if err := v.Err(); err != nil {
+		return fmt.Errorf("invalid template front-matter-cue schema: %w", err)
+	}
+	return nil
+}
+
+func validateFrontMatterCUE(schema string, fm map[string]any) error {
+	if strings.TrimSpace(schema) == "" {
+		return nil
+	}
+
+	ctx := cuecontext.New()
+	schemaVal := ctx.CompileString(schema)
+	if err := schemaVal.Err(); err != nil {
+		return fmt.Errorf("invalid CUE schema: %w", err)
+	}
+
+	if fm == nil {
+		fm = map[string]any{}
+	}
+
+	data, err := json.Marshal(fm)
+	if err != nil {
+		return fmt.Errorf("serialize front matter: %w", err)
+	}
+
+	dataVal := ctx.CompileBytes(data)
+	if err := dataVal.Err(); err != nil {
+		return fmt.Errorf("compile front matter: %w", err)
+	}
+
+	merged := schemaVal.Unify(dataVal)
+	if err := merged.Validate(cue.Concrete(true)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func stringifyFrontMatter(raw map[string]any) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(raw))
+	for k, v := range raw {
+		if s, ok := v.(string); ok {
+			result[k] = s
+		} else {
+			result[k] = fmt.Sprintf("%v", v)
+		}
+	}
+	return result
+}
+
+// readDocFrontMatter reads YAML frontmatter from the document and returns a
+// stringified view used by sync checks.
 func readDocFrontMatter(f *lint.File) map[string]string {
+	return stringifyFrontMatter(readDocFrontMatterRaw(f))
+}
+
+// readDocFrontMatterRaw reads YAML frontmatter from the document.
+func readDocFrontMatterRaw(f *lint.File) map[string]any {
 	if len(f.FrontMatter) == 0 {
 		return nil
 	}
@@ -518,16 +601,7 @@ func readDocFrontMatter(f *lint.File) map[string]string {
 	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
 		return nil
 	}
-
-	result := make(map[string]string, len(raw))
-	for k, v := range raw {
-		if s, ok := v.(string); ok {
-			result[k] = s
-		} else {
-			result[k] = fmt.Sprintf("%v", v)
-		}
-	}
-	return result
+	return raw
 }
 
 // extractYAML extracts the YAML content between --- delimiters.

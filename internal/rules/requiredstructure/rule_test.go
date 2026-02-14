@@ -375,6 +375,104 @@ func TestCheck_WildcardHeading(t *testing.T) {
 }
 
 // =====================================================================
+// Embedded front matter CUE schema
+// =====================================================================
+
+func TestCheck_FrontMatterCUESchemaMatch(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+template:
+  allow-extra-sections: true
+  front-matter-cue: |
+    close({
+      id: int & >=1
+      status: "🔲" | "🔳" | "✅"
+    })
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\nstatus: \"✅\"\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_FrontMatterCUESchemaMismatch(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+template:
+  allow-extra-sections: true
+  front-matter-cue: |
+    close({
+      id: int & >=1
+      status: "🔲" | "🔳" | "✅"
+    })
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+func TestCheck_FrontMatterCUESchemaInvalidStatus(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+template:
+  allow-extra-sections: true
+  front-matter-cue: |
+    close({
+      id: int & >=1
+      status: "🔲" | "🔳" | "✅"
+    })
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\nstatus: in-progress\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+func TestCheck_FrontMatterCUESchemaRejectsExtraFields(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+template:
+  allow-extra-sections: true
+  front-matter-cue: |
+    close({
+      id: int & >=1
+      status: "🔲" | "🔳" | "✅"
+    })
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 40\nstatus: \"✅\"\nextra: true\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+func TestCheck_InvalidTemplateFrontMatterCUESchema(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+template:
+  front-matter-cue: |
+    {
+      id: int
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md", "# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "invalid template")
+}
+
+// =====================================================================
 // Template file skipping
 // =====================================================================
 
