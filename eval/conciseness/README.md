@@ -6,13 +6,13 @@ conciseness approaches.
 ## Files
 
 - `rubric.md`: annotation policy for paragraph labels.
-- `dataset.schema.json`: record schema for labeled examples.
+- `dataset.schema.cue`: record schema for labeled examples.
 - `scorecard-template.md`: report template for experiment results.
 
 ## Dataset Format
 
 Store datasets as JSONL files where each line matches
-`dataset.schema.json`.
+`dataset.schema.cue` (`#ConcisenessEvalRecord`).
 
 For cue-based experiments, populate `cues` with matched
 token or phrase evidence. Keep cue tags consistent with
