@@ -151,7 +151,8 @@ Use `--config` to override.
 ### Bootstrapping with `mdsmith init`
 
 Run `mdsmith init` to generate a `.mdsmith.yml` with every rule and its
-default enablement/settings. This pins the config to the current defaults so that future
+default enablement and settings. This pins the config to the current defaults so
+that future
 mdsmith upgrades (which may change defaults) do not silently alter your
 lint results. Review the generated file and adjust settings to match your
 project's conventions.

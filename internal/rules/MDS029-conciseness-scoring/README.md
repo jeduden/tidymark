@@ -5,7 +5,7 @@ description: Experimental rule. Paragraph conciseness score must not fall below 
 ---
 # MDS029: conciseness-scoring
 
-Paragraph conciseness score must not fall below a threshold.
+Experimental rule. Paragraph conciseness score must not fall below a threshold.
 
 - **ID**: MDS029
 - **Name**: `conciseness-scoring`
