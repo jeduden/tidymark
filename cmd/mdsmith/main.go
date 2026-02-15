@@ -679,7 +679,7 @@ func listAllRules() int {
 	}
 
 	for _, r := range rules {
-		fmt.Printf("%-6s %-40s %s\n", r.ID, r.Name, r.Description)
+		fmt.Printf("%-6s %-40s %-10s %s\n", r.ID, r.Name, r.Status, r.Description)
 	}
 	return 0
 }

@@ -1,6 +1,7 @@
 ---
 id: MDS010
 name: fenced-code-style
+status: ready
 description: Fenced code blocks must use a consistent delimiter.
 ---
 # MDS010: fenced-code-style
@@ -9,6 +10,7 @@ Fenced code blocks must use a consistent delimiter.
 
 - **ID**: MDS010
 - **Name**: `fenced-code-style`
+- **Status**: ready
 - **Default**: enabled, style: backtick
 - **Fixable**: yes
 - **Implementation**:

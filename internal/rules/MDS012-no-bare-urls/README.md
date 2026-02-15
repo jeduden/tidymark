@@ -1,6 +1,7 @@
 ---
 id: MDS012
 name: no-bare-urls
+status: ready
 description: URLs must be wrapped in angle brackets or as a link, not left bare.
 ---
 # MDS012: no-bare-urls
@@ -9,6 +10,7 @@ URLs must be wrapped in angle brackets or as a link, not left bare.
 
 - **ID**: MDS012
 - **Name**: `no-bare-urls`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: yes
 - **Implementation**:

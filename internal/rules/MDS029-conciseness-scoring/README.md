@@ -1,16 +1,17 @@
 ---
 id: MDS029
 name: conciseness-scoring
-description: Experimental rule. Paragraph conciseness score must not fall below a threshold.
+status: not-ready
+description: Paragraph conciseness score must not fall below a threshold.
 ---
 # MDS029: conciseness-scoring
 
-Experimental rule. Paragraph conciseness score must not fall below a threshold.
+Paragraph conciseness score must not fall below a threshold.
 
 - **ID**: MDS029
 - **Name**: `conciseness-scoring`
+- **Status**: not-ready
 - **Default**: disabled (experimental, not ready yet)
-- **Status**: not ready for production use
 - **Fixable**: no
 - **Implementation**:
   [source](./)

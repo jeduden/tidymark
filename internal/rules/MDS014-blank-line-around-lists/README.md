@@ -1,6 +1,7 @@
 ---
 id: MDS014
 name: blank-line-around-lists
+status: ready
 description: Lists must have a blank line before and after.
 ---
 # MDS014: blank-line-around-lists
@@ -9,6 +10,7 @@ Lists must have a blank line before and after.
 
 - **ID**: MDS014
 - **Name**: `blank-line-around-lists`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: yes
 - **Implementation**:

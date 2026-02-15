@@ -1,6 +1,7 @@
 ---
 id: MDS022
 name: max-file-length
+status: ready
 description: File must not exceed maximum number of lines.
 ---
 # MDS022: max-file-length
@@ -9,6 +10,7 @@ File must not exceed maximum number of lines.
 
 - **ID**: MDS022
 - **Name**: `max-file-length`
+- **Status**: ready
 - **Default**: enabled, max: 300
 - **Fixable**: no
 - **Implementation**:

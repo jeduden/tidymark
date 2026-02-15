@@ -1,6 +1,7 @@
 ---
 id: MDS015
 name: blank-line-around-fenced-code
+status: ready
 description: Fenced code blocks must have a blank line before and after.
 ---
 # MDS015: blank-line-around-fenced-code
@@ -9,6 +10,7 @@ Fenced code blocks must have a blank line before and after.
 
 - **ID**: MDS015
 - **Name**: `blank-line-around-fenced-code`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: yes
 - **Implementation**:

@@ -1,6 +1,7 @@
 ---
 id: '=~"^MDS[0-9]{3}$"'
 name: 'string & != ""'
+status: '"ready" | "not-ready"'
 description: 'string & != ""'
 ---
 # {{.id}}: {{.name}}
@@ -8,7 +9,7 @@ description: 'string & != ""'
 <!-- Rule README template. Copy this file, replace placeholders,
      delete sections and comments that don't apply.
      Front matter is required. The catalog directive reads
-     id, name, description to generate the rules table.
+     id, name, status, description to generate the rules table.
      Repeat the description verbatim. Use prescriptive voice,
      present tense: "Headings must ..." not "Checks that ...". -->
 
@@ -16,6 +17,7 @@ description: 'string & != ""'
 
 - **ID**: {{.id}}
 - **Name**: `{{.name}}`
+- **Status**: {{.status}}
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:
@@ -24,7 +26,7 @@ description: 'string & != ""'
 - **Archetype**:
   [NAME](../../../archetypes/NAME/)
 
-<!-- Bullets in this order: ID, Name, Default, Fixable,
+<!-- Bullets in this order: ID, Name, Status, Default, Fixable,
      Implementation, Category, Archetype (if applicable).
      Default may include key settings: "enabled, max: 80".
      Categories: code, heading, line, link, list, meta,

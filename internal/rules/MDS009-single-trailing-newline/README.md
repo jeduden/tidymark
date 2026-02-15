@@ -1,6 +1,7 @@
 ---
 id: MDS009
 name: single-trailing-newline
+status: ready
 description: File must end with exactly one newline character.
 ---
 # MDS009: single-trailing-newline
@@ -9,6 +10,7 @@ File must end with exactly one newline character.
 
 - **ID**: MDS009
 - **Name**: `single-trailing-newline`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: yes
 - **Implementation**:

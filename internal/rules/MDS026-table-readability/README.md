@@ -1,6 +1,7 @@
 ---
 id: MDS026
 name: table-readability
+status: ready
 description: Tables must stay within readability complexity limits.
 ---
 # MDS026: table-readability
@@ -9,6 +10,7 @@ Tables must stay within readability complexity limits.
 
 - **ID**: MDS026
 - **Name**: `table-readability`
+- **Status**: ready
 - **Default**: enabled
   - `max-columns`: `8`
   - `max-rows`: `30`

@@ -1,6 +1,7 @@
 ---
 id: MDS011
 name: fenced-code-language
+status: ready
 description: Fenced code blocks must specify a language.
 ---
 # MDS011: fenced-code-language
@@ -9,6 +10,7 @@ Fenced code blocks must specify a language.
 
 - **ID**: MDS011
 - **Name**: `fenced-code-language`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:

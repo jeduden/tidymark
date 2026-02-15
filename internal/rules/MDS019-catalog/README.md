@@ -1,6 +1,7 @@
 ---
 id: MDS019
 name: catalog
+status: ready
 description: Catalog content must reflect selected front matter fields from files matching its glob.
 ---
 # MDS019: catalog
@@ -10,6 +11,7 @@ from files matching its glob.
 
 - **ID**: MDS019
 - **Name**: `catalog`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: yes
 - **Implementation**:

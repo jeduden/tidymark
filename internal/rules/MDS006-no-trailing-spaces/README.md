@@ -1,6 +1,7 @@
 ---
 id: MDS006
 name: no-trailing-spaces
+status: ready
 description: No trailing whitespace at the end of lines.
 ---
 # MDS006: no-trailing-spaces
@@ -9,6 +10,7 @@ No trailing whitespace at the end of lines.
 
 - **ID**: MDS006
 - **Name**: `no-trailing-spaces`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: yes
 - **Implementation**:

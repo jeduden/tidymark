@@ -16,6 +16,7 @@ var rulesFS embed.FS
 type RuleInfo struct {
 	ID          string
 	Name        string
+	Status      string
 	Description string
 	Content     string
 }
@@ -78,7 +79,7 @@ func lookupRuleFromFS(fsys fs.FS, query string) (string, error) {
 	return "", fmt.Errorf("unknown rule %q", query)
 }
 
-// parseFrontMatter extracts id, name, and description from YAML front matter.
+// parseFrontMatter extracts id, name, status, and description from YAML front matter.
 func parseFrontMatter(content string) (RuleInfo, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	if !scanner.Scan() || strings.TrimSpace(scanner.Text()) != "---" {
@@ -100,6 +101,8 @@ func parseFrontMatter(content string) (RuleInfo, error) {
 			info.ID = val
 		case "name":
 			info.Name = val
+		case "status":
+			info.Status = val
 		case "description":
 			info.Description = val
 		}
@@ -107,6 +110,9 @@ func parseFrontMatter(content string) (RuleInfo, error) {
 
 	if info.ID == "" {
 		return RuleInfo{}, fmt.Errorf("front matter missing id")
+	}
+	if info.Status == "" {
+		return RuleInfo{}, fmt.Errorf("front matter missing status")
 	}
 
 	return info, nil

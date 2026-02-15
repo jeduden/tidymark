@@ -1,6 +1,7 @@
 ---
 id: MDS004
 name: first-line-heading
+status: ready
 description: First line of the file should be a heading.
 ---
 # MDS004: first-line-heading
@@ -9,6 +10,7 @@ First line of the file should be a heading.
 
 - **ID**: MDS004
 - **Name**: `first-line-heading`
+- **Status**: ready
 - **Default**: enabled, level: 1
 - **Fixable**: no
 - **Implementation**:

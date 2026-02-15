@@ -1,6 +1,7 @@
 ---
 id: MDS023
 name: paragraph-readability
+status: ready
 description: Paragraph readability grade must not exceed a threshold.
 ---
 # MDS023: paragraph-readability
@@ -9,6 +10,7 @@ Paragraph readability grade must not exceed a threshold.
 
 - **ID**: MDS023
 - **Name**: `paragraph-readability`
+- **Status**: ready
 - **Default**: enabled, max-grade: 14.0, min-words: 20
 - **Fixable**: no
 - **Implementation**:

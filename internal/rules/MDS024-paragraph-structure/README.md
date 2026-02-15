@@ -1,6 +1,7 @@
 ---
 id: MDS024
 name: paragraph-structure
+status: ready
 description: Paragraphs must not exceed sentence and word limits.
 ---
 # MDS024: paragraph-structure
@@ -9,6 +10,7 @@ Paragraphs must not exceed sentence and word limits.
 
 - **ID**: MDS024
 - **Name**: `paragraph-structure`
+- **Status**: ready
 - **Default**: enabled, max-sentences: 6, max-words: 40
 - **Fixable**: no
 - **Implementation**:

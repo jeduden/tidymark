@@ -1,6 +1,7 @@
 ---
 id: MDS002
 name: heading-style
+status: ready
 description: Heading style must be consistent.
 ---
 # MDS002: heading-style
@@ -9,6 +10,7 @@ Heading style must be consistent.
 
 - **ID**: MDS002
 - **Name**: `heading-style`
+- **Status**: ready
 - **Default**: enabled, style: atx
 - **Fixable**: yes
 - **Implementation**:

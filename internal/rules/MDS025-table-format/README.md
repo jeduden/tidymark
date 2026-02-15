@@ -1,6 +1,7 @@
 ---
 id: MDS025
 name: table-format
+status: ready
 description: Tables must have consistent column widths and padding.
 ---
 # MDS025: table-format
@@ -9,6 +10,7 @@ Tables must have consistent column widths and padding.
 
 - **ID**: MDS025
 - **Name**: `table-format`
+- **Status**: ready
 - **Default**: enabled, pad: 1
 - **Fixable**: yes
 - **Implementation**:
