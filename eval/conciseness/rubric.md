@@ -57,7 +57,7 @@ and it seems like this is very important for new contributors.
 ```
 
 Why: filler and hedge language with low added signal.
-Cues: `basically`, `just`, `it seems`, `very`.
+Cues: `basically`, `it seems`, `very`.
 
 2. Release process note
 
@@ -67,7 +67,7 @@ publish command at this point in time and then check it again.
 ```
 
 Why: verbose phrases and repeated intent.
-Cues: `in order to`, `at this point in time`, `redundancy`.
+Cues: `in order to`, `at this point in time`, `then check it again`.
 
 3. Incident runbook intro
 
@@ -77,7 +77,7 @@ queue is kind of full, so we should maybe look into that first.
 ```
 
 Why: weak hedging and unnecessary padding.
-Cues: `it appears`, `due to the fact that`, `kind of`, `maybe`.
+Cues: `it appears`, `due to the fact that`, `kind of`.
 
 4. Architecture proposal summary
 
@@ -97,7 +97,7 @@ avoid sharing screenshots because it is generally not ideal.
 ```
 
 Why: filler terms and weak qualifiers obscure the action.
-Cues: `really`, `just`, `in most cases`, `generally`.
+Cues: `really`, `in most cases`, `generally`.
 
 ### `acceptable` examples
 

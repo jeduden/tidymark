@@ -10,6 +10,9 @@ status: 🔳
 Pick a fast classifier for weasel-language detection.
 Package its weights for offline use. Define a CPU fallback path.
 
+For this plan, "weasel-language" is operationalized as
+`verbose-actionable` phrasing in conciseness evaluation.
+
 ## Detection Contract
 
 Use one binary label with calibrated confidence:
@@ -106,11 +109,14 @@ Fallback must preserve rule behavior guarantees:
 
 ## Integration Plan
 
-1. Add classifier interface and output schema in `internal/rules/MDS029`
+1. Add classifier interface and output schema in
+   `internal/rules/concisenessscoring/`
 2. Add model loader with checksum verification and timeout controls
 3. Add backend switch (`classifier`, `heuristic`, `auto`) in config
 4. Add integration tests for classifier path and forced fallback path
-5. Update MDS029 docs with thresholds, packaging, and fallback semantics
+5. Update MDS029 docs in
+   `internal/rules/MDS029-conciseness-scoring/` with thresholds,
+   packaging, and fallback semantics
 
 ## Tasks
 

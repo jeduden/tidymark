@@ -3,18 +3,47 @@
 This document defines the baseline approaches, threshold policy,
 and model-promotion gate for conciseness experiments.
 
+For this baseline, "weasel-language" means
+`verbose-actionable` phrasing in the rubric, not all forms
+of stylistic hedging.
+
+## Why This Policy Exists
+
+The baseline is designed for safe rollout decisions:
+
+- protect precision so diagnostics stay actionable
+- allow measured recall gains, but not at any cost
+- keep evaluation deterministic and reproducible
+- prevent test-set tuning and hidden overfitting
+
+This policy optimizes decision quality, not headline score.
+
 ## Approach Matrix
 
-| ID  | Family     | Core signal                            | Output |
-|-----|------------|----------------------------------------|--------|
-| A0  | heuristic  | current `MDS029` cues and score          | score  |
-| A1  | heuristic  | tuned cue lists and weights            | score  |
-| B0  | classifier | simple linear baseline                 | score  |
-| B1  | classifier | selected candidate from plan 58        | score  |
-| C0  | hybrid     | heuristic prefilter + classifier score | score  |
+| ID  | Family     | Core signal                            | Raw output  |
+|-----|------------|----------------------------------------|-------------|
+| A0  | heuristic  | current `MDS029` cues and score          | score       |
+| A1  | heuristic  | tuned cue lists and weights            | score       |
+| B0  | classifier | simple linear baseline                 | probability |
+| B1  | classifier | selected candidate from plan 58        | probability |
+| C0  | hybrid     | heuristic prefilter + classifier score | probability |
 
-All approaches must output a numeric score in `[0, 1]`.
-Higher score means higher probability of `verbose-actionable`.
+## Normalized Evaluation Score
+
+For evaluation, all approaches must produce:
+
+`risk_score` in `[0, 1]`, where higher means more likely
+`verbose-actionable`.
+
+Normalization rules:
+
+- A0/A1:
+  `risk_score = 1 - conciseness_score`
+- B0/B1/C0:
+  `risk_score = P(verbose-actionable)`
+
+Thresholding, confusion matrices, and scorecards must use
+`risk_score`, not mixed raw outputs.
 
 ## Metrics
 
@@ -39,9 +68,25 @@ Track these metrics on `dev`, `test`, and `holdout`:
    `holdout-outofdomain`.
 6. Do not retune threshold after seeing `test` or holdout metrics.
 
-For A0/A1 where a lower conciseness score is worse, convert with:
+## Impact of This Threshold Policy
 
-`risk_score = 1 - conciseness_score`
+- Precision floor (`>= 0.75`) reduces noisy diagnostics and reviewer load.
+- `F0.5` favors precision over recall, matching lint workflows where
+  false positives are expensive.
+- Frozen thresholds make test and holdout comparisons credible.
+- Tie-breaking by diagnostics per KLOC prefers lower operational churn.
+
+## Alternatives Considered
+
+1. Optimize `F1` directly:
+   rejected because it allows precision to drop too easily.
+2. Tune thresholds on `test`:
+   rejected due to leakage and optimistic estimates.
+3. Use per-doc-type thresholds in baseline:
+   deferred because it raises overfitting risk before enough data exists.
+4. Promote on AUPRC only:
+   rejected because rollout needs one operating threshold, not just curve
+   area.
 
 ## Promotion Gate
 
@@ -55,6 +100,12 @@ Promote `B1` over `A0` only when all criteria pass on frozen `test`:
 6. Holdout precision is within `0.05` of test precision.
 
 If any gate fails, keep classifier mode experimental.
+
+## Why Promotion Gates Are Strict
+
+- protects users from quality regressions hidden by average metrics
+- enforces latency budgets for CPU-only environments
+- guards against distribution drift between test and holdout
 
 ## Run Artifacts
 
