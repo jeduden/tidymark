@@ -22,28 +22,38 @@ frozen `test` and holdout sections.
 | A0  | MDS029 heuristic           | Current shipped heuristic               |
 | A1  | Heuristic + lexicon tuning | Expanded or tuned cue lists             |
 | B0  | Simple classifier baseline | Logistic regression or similar baseline |
-| B1  | PR #15 classifier          | Candidate classifier model              |
+| B1  | Selected candidate         | Selected candidate from plan 58         |
 | C0  | Hybrid                     | Heuristic prefilter + classifier        |
 
 ## Dev Set (threshold tuning only)
 
-| ID  | Threshold | Precision | Recall | F0.5 | AUPRC | Brier |
-|-----|-----------|-----------|--------|------|-------|-------|
-| A0  |           |           |        |      |       |       |
-| A1  |           |           |        |      |       |       |
-| B0  |           |           |        |      |       |       |
-| B1  |           |           |        |      |       |       |
-| C0  |           |           |        |      |       |       |
+| ID  | Threshold | Precision | Recall | F0.5 | AUPRC | Brier | Latency ms (p50/p95) |
+|-----|-----------|-----------|--------|------|-------|-------|----------------------|
+| A0  |           |           |        |      |       |       |                      |
+| A1  |           |           |        |      |       |       |                      |
+| B0  |           |           |        |      |       |       |                      |
+| B1  |           |           |        |      |       |       |                      |
+| C0  |           |           |        |      |       |       |                      |
 
 ## Frozen Test Set
 
-| ID  | Precision | Recall | F0.5 | AUPRC | Brier | Diags/KLOC | p95 latency ms |
-|-----|-----------|--------|------|-------|-------|------------|----------------|
-| A0  |           |        |      |       |       |            |                |
-| A1  |           |        |      |       |       |            |                |
-| B0  |           |        |      |       |       |            |                |
-| B1  |           |        |      |       |       |            |                |
-| C0  |           |        |      |       |       |            |                |
+| ID  | Precision | Recall | F0.5 | AUPRC | Brier | Diags/KLOC | Latency ms (p50/p95) |
+|-----|-----------|--------|------|-------|-------|------------|----------------------|
+| A0  |           |        |      |       |       |            |                      |
+| A1  |           |        |      |       |       |            |                      |
+| B0  |           |        |      |       |       |            |                      |
+| B1  |           |        |      |       |       |            |                      |
+| C0  |           |        |      |       |       |            |                      |
+
+## Holdout Set
+
+| ID  | Precision | Recall | F0.5 | AUPRC | Brier | Diags/KLOC | Latency ms (p50/p95) |
+|-----|-----------|--------|------|-------|-------|------------|----------------------|
+| A0  |           |        |      |       |       |            |                      |
+| A1  |           |        |      |       |       |            |                      |
+| B0  |           |        |      |       |       |            |                      |
+| B1  |           |        |      |       |       |            |                      |
+| C0  |           |        |      |       |       |            |                      |
 
 ## Disagreement Review
 

@@ -25,7 +25,7 @@ Classifier output contract:
 ```json
 {
   "label": "verbose-actionable",
-  "score": 0.73,
+  "risk_score": 0.73,
   "threshold": 0.60,
   "model_id": "cue-linear-v1",
   "mode": "auto",
@@ -37,10 +37,12 @@ Classifier output contract:
 Contract semantics:
 
 - `label` enum: `verbose-actionable` or `acceptable`
+- `risk_score` range: `[0, 1]` where higher means more likely
+  `verbose-actionable`
 - `mode` enum: `classifier`, `heuristic`, or `auto`
 - `backend` enum: runtime backend actually used
   (`classifier` or `heuristic`)
-- decision rule: if `score >= threshold` then label is
+- decision rule: if `risk_score >= threshold` then label is
   `verbose-actionable`; otherwise `acceptable`
 
 Threshold policy:

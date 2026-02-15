@@ -37,7 +37,8 @@ bounded latency and diagnostics overhead.
    sampling requirements across document types.
 3. Implement an experiment matrix that compares at least:
    A0 (MDS029 heuristic), A1 (heuristic + lexicon tuning),
-   B0 (simple classifier baseline), B1 (PR #15 classifier),
+   B0 (simple classifier baseline),
+   B1 (selected candidate from plan 58),
    and C0 (hybrid).
 4. Define evaluation metrics and decision thresholds:
    precision, recall, F0.5, AUPRC, calibration,
