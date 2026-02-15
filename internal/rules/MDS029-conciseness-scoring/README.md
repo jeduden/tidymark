@@ -1,7 +1,7 @@
 ---
 id: MDS029
 name: conciseness-scoring
-description: Paragraph conciseness score must not fall below a threshold.
+description: Experimental rule. Paragraph conciseness score must not fall below a threshold.
 ---
 # MDS029: conciseness-scoring
 
@@ -9,7 +9,8 @@ Paragraph conciseness score must not fall below a threshold.
 
 - **ID**: MDS029
 - **Name**: `conciseness-scoring`
-- **Default**: enabled, min-score: 0.20, min-words: 20
+- **Default**: disabled (experimental, not ready yet)
+- **Status**: not ready for production use
 - **Fixable**: no
 - **Implementation**:
   [source](./)
@@ -29,6 +30,15 @@ The score combines content-word ratio with penalties for filler words,
 hedge phrases, and verbose phrases. Markdown tables are skipped.
 
 ## Config
+
+Enable (experimental):
+
+```yaml
+rules:
+  conciseness-scoring: true
+```
+
+Enable with custom settings:
 
 ```yaml
 rules:

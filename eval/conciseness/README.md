@@ -3,6 +3,9 @@
 This folder defines baseline inputs and outputs for comparing
 conciseness approaches.
 
+Current implementation status: `MDS029` is experimental and disabled by
+default until classifier-based evaluation is complete.
+
 ## Files
 
 - `rubric.md`: annotation policy for paragraph labels.

@@ -67,6 +67,9 @@ func (r *Rule) Name() string { return "conciseness-scoring" }
 // Category implements rule.Rule.
 func (r *Rule) Category() string { return "meta" }
 
+// EnabledByDefault implements rule.Defaultable.
+func (r *Rule) EnabledByDefault() bool { return false }
+
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
@@ -318,3 +321,4 @@ func (r *Rule) heuristics() heuristics {
 }
 
 var _ rule.Configurable = (*Rule)(nil)
+var _ rule.Defaultable = (*Rule)(nil)

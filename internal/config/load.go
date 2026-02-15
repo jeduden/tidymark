@@ -82,13 +82,13 @@ func Discover(startDir string) (string, error) {
 	}
 }
 
-// Defaults returns a Config with all built-in rules enabled
-// with default settings (no custom settings).
+// Defaults returns a Config with all registered rules using each rule's
+// default enabled state and no custom settings.
 func Defaults() *Config {
 	all := rule.All()
 	rules := make(map[string]RuleCfg, len(all))
 	for _, r := range all {
-		rules[r.Name()] = RuleCfg{Enabled: true}
+		rules[r.Name()] = RuleCfg{Enabled: enabledByDefault(r)}
 	}
 	return &Config{
 		Rules: rules,
@@ -96,18 +96,21 @@ func Defaults() *Config {
 	}
 }
 
-// DumpDefaults returns a Config with all registered rules enabled and
-// their default settings populated. Rules that implement Configurable
-// have their DefaultSettings() included in RuleCfg.Settings.
+// DumpDefaults returns a Config with all registered rules using each rule's
+// default enabled state. Enabled rules that implement Configurable have
+// their DefaultSettings() included in RuleCfg.Settings.
 // Categories are included with all set to true (enabled).
 // This is consumed by `mdsmith init` to generate a default config file.
 func DumpDefaults() *Config {
 	all := rule.All()
 	rules := make(map[string]RuleCfg, len(all))
 	for _, r := range all {
-		rc := RuleCfg{Enabled: true}
-		if c, ok := r.(rule.Configurable); ok {
-			rc.Settings = c.DefaultSettings()
+		enabled := enabledByDefault(r)
+		rc := RuleCfg{Enabled: enabled}
+		if enabled {
+			if c, ok := r.(rule.Configurable); ok {
+				rc.Settings = c.DefaultSettings()
+			}
 		}
 		rules[r.Name()] = rc
 	}
@@ -122,4 +125,11 @@ func DumpDefaults() *Config {
 		Categories: categories,
 		Files:      DefaultFiles,
 	}
+}
+
+func enabledByDefault(r rule.Rule) bool {
+	if d, ok := r.(rule.Defaultable); ok {
+		return d.EnabledByDefault()
+	}
+	return true
 }

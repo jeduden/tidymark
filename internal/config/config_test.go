@@ -40,6 +40,14 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/tokenbudget"
 )
 
+func expectedDefaultEnabled(r rule.Rule) bool {
+	d, ok := r.(rule.Defaultable)
+	if !ok {
+		return true
+	}
+	return d.EnabledByDefault()
+}
+
 // --- YAML parsing tests ---
 
 func TestParseValidYAML(t *testing.T) {
@@ -346,7 +354,7 @@ func TestDiscoverReturnsEmptyWhenNotFound(t *testing.T) {
 
 // --- Defaults tests ---
 
-func TestDefaultsAllRulesEnabled(t *testing.T) {
+func TestDefaultsRuleEnablement(t *testing.T) {
 	cfg := Defaults()
 	all := rule.All()
 
@@ -361,8 +369,12 @@ func TestDefaultsAllRulesEnabled(t *testing.T) {
 			t.Errorf("rule %q not found in defaults", name)
 			continue
 		}
-		if !rc.Enabled {
-			t.Errorf("rule %q should be enabled by default", name)
+		wantEnabled := expectedDefaultEnabled(r)
+		if rc.Enabled != wantEnabled {
+			t.Errorf(
+				"rule %q enabled=%v, want %v",
+				name, rc.Enabled, wantEnabled,
+			)
 		}
 		if rc.Settings != nil {
 			t.Errorf("rule %q should have nil settings by default", name)
@@ -379,9 +391,15 @@ func TestMergeNilLoaded(t *testing.T) {
 	if len(merged.Rules) != len(rule.All()) {
 		t.Fatalf("expected %d rules, got %d", len(rule.All()), len(merged.Rules))
 	}
-	for name, rc := range merged.Rules {
-		if !rc.Enabled {
-			t.Errorf("rule %q should be enabled", name)
+	for _, r := range rule.All() {
+		name := r.Name()
+		rc := merged.Rules[name]
+		wantEnabled := expectedDefaultEnabled(r)
+		if rc.Enabled != wantEnabled {
+			t.Errorf(
+				"rule %q enabled=%v, want %v",
+				name, rc.Enabled, wantEnabled,
+			)
 		}
 	}
 }
@@ -464,9 +482,15 @@ func TestEffectiveWithoutOverrides(t *testing.T) {
 	if len(eff) != len(rule.All()) {
 		t.Fatalf("expected %d rules, got %d", len(rule.All()), len(eff))
 	}
-	for name, rc := range eff {
-		if !rc.Enabled {
-			t.Errorf("rule %q should be enabled", name)
+	for _, r := range rule.All() {
+		name := r.Name()
+		rc := eff[name]
+		wantEnabled := expectedDefaultEnabled(r)
+		if rc.Enabled != wantEnabled {
+			t.Errorf(
+				"rule %q enabled=%v, want %v",
+				name, rc.Enabled, wantEnabled,
+			)
 		}
 	}
 }
@@ -744,8 +768,12 @@ func TestDumpDefaults_AllRulesPresent(t *testing.T) {
 			t.Errorf("rule %q not found in DumpDefaults", r.Name())
 			continue
 		}
-		if !rc.Enabled {
-			t.Errorf("rule %q should be enabled", r.Name())
+		wantEnabled := expectedDefaultEnabled(r)
+		if rc.Enabled != wantEnabled {
+			t.Errorf(
+				"rule %q enabled=%v, want %v",
+				r.Name(), rc.Enabled, wantEnabled,
+			)
 		}
 	}
 }
@@ -774,6 +802,23 @@ func TestDumpDefaults_ConfigurableRulesHaveSettings(t *testing.T) {
 		if rc.Settings == nil {
 			t.Errorf("rule %q should have non-nil settings", name)
 		}
+	}
+}
+
+func TestDumpDefaults_DisabledConfigurableRulesHaveNoSettings(t *testing.T) {
+	cfg := DumpDefaults()
+	rc, ok := cfg.Rules["conciseness-scoring"]
+	if !ok {
+		t.Fatal("rule conciseness-scoring not found")
+	}
+	if rc.Enabled {
+		t.Error("conciseness-scoring should be disabled by default")
+	}
+	if rc.Settings != nil {
+		t.Errorf(
+			"conciseness-scoring should have nil settings when disabled, got %v",
+			rc.Settings,
+		)
 	}
 }
 

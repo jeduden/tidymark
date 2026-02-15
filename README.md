@@ -122,7 +122,8 @@ Pattern: `file:line:col rule message`
 ## ⚙️ Configuration
 
 Create a `.mdsmith.yml` in your project root.
-Without one, all rules are enabled with defaults.
+Without one, rules run with their built-in defaults. Experimental rules may be
+disabled by default.
 
 ```yaml
 rules:
@@ -150,7 +151,7 @@ Use `--config` to override.
 ### Bootstrapping with `mdsmith init`
 
 Run `mdsmith init` to generate a `.mdsmith.yml` with every rule and its
-default settings. This pins the config to the current defaults so that future
+default enablement/settings. This pins the config to the current defaults so that future
 mdsmith upgrades (which may change defaults) do not silently alter your
 lint results. Review the generated file and adjust settings to match your
 project's conventions.
@@ -223,7 +224,7 @@ row: "| [{{.id}}]({{.filename}}) | `{{.name}}` | {{.description}} |"
 | [MDS026](internal/rules/MDS026-table-readability/README.md) | `table-readability`                  | Tables must stay within readability complexity limits.                                  |
 | [MDS027](internal/rules/MDS027-cross-file-reference-integrity/README.md) | `cross-file-reference-integrity`     | Links to local files and heading anchors must resolve.                                  |
 | [MDS028](internal/rules/MDS028-token-budget/README.md) | `token-budget`                       | File must not exceed a token budget.                                                    |
-| [MDS029](internal/rules/MDS029-conciseness-scoring/README.md) | `conciseness-scoring`                | Paragraph conciseness score must not fall below a threshold.                            |
+| [MDS029](internal/rules/MDS029-conciseness-scoring/README.md) | `conciseness-scoring`                | Experimental rule. Paragraph conciseness score must not fall below a threshold.         |
 <!-- /catalog -->
 
 ## 🛠️ Development

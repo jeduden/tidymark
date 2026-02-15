@@ -1,7 +1,7 @@
 ---
 id: 53
 title: Conciseness Scoring
-status: ✅
+status: 🔲
 ---
 # Conciseness Scoring
 
@@ -9,6 +9,9 @@ status: ✅
 
 Measure information density and flag verbose Markdown content
 that remains readable but unnecessarily long.
+
+Current state: heuristic prototype only. Keep rule disabled by default until
+classifier-backed evaluation baselines are complete.
 
 ## Tasks
 
@@ -25,3 +28,4 @@ that remains readable but unnecessarily long.
 - [x] Heuristics are configurable and documented.
 - [x] All tests pass: `go test ./...`
 - [x] `golangci-lint run` reports no issues
+- [ ] Rule is validated and ready for default enablement

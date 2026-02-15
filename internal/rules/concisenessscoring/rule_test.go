@@ -228,3 +228,10 @@ func TestCategory(t *testing.T) {
 		t.Errorf("expected meta, got %s", r.Category())
 	}
 }
+
+func TestEnabledByDefault(t *testing.T) {
+	r := &Rule{}
+	if r.EnabledByDefault() {
+		t.Error("conciseness-scoring should be disabled by default")
+	}
+}
