@@ -43,4 +43,5 @@ footer: |
 | 60  | 🔲      | [DU-Style Metrics Ranking](plan/60_du-style-metrics-ranking.md)                                 |
 | 61  | 🔲      | [Required Structure Rule Hardening](plan/61_required-structure-hardening.md)                        |
 | 62  | 🔲      | [Corpus Acquisition and Taxonomy](plan/62_corpus-acquisition.md)                          |
+| 63  | 🔲      | [Empty Section Body Rule](plan/63_empty-section-body-rule.md)                                  |
 <!-- /catalog -->
