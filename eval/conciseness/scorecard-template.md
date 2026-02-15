@@ -6,6 +6,12 @@
 - Commit:
 - Dataset version:
 - Evaluator:
+- CPU/OS:
+
+## Threshold Policy Reference
+
+Apply threshold policy from `approach-matrix.md` before filling
+frozen `test` and holdout sections.
 
 ## Approaches
 
@@ -44,9 +50,26 @@
 - Top false-positive theme:
 - Top false-negative theme:
 
+## Shadow-Trial Outcomes
+
+| Measure                   | Value |
+|---------------------------|-------|
+| Files in trial            |       |
+| Words in trial            |       |
+| Reviewer agreement rate   |       |
+| False-positive escalation |       |
+| False-negative escalation |       |
+| Rollout recommendation    |       |
+
 ## Decision Gate
 
-- Precision improvement vs A0:
-- Recall delta vs A0:
-- Runtime overhead vs A0:
-- Recommendation:
+| Gate                              | Target   | Result | Pass |
+|-----------------------------------|----------|--------|------|
+| Precision delta vs A0             | `>= +0.05` |        |      |
+| Recall delta vs A0                | `>= -0.02` |        |      |
+| F0.5 delta vs A0                  | `>= +0.05` |        |      |
+| p95 latency ratio vs A0           | `<= 2.0x`  |        |      |
+| Diagnostics per KLOC change vs A0 | `<= +10%`  |        |      |
+| Holdout precision drop vs test    | `<= 0.05`  |        |      |
+
+- Final recommendation:

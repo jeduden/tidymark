@@ -38,8 +38,8 @@ footer: |
 | 55  | 🔲      | [Spike LocalAI for Weasel Detection](plan/55_spike-localai-weasel-detection.md)                       |
 | 56  | 🔲      | [Spike Ollama for Weasel Detection](plan/56_spike-ollama-weasel-detection.md)                        |
 | 57  | 🔲      | [Spike yzma for Embedded Weasel Detection](plan/57_spike-yzma-weasel-detection.md)                 |
-| 58  | 🔲      | [Select and Package Fast Weasel Classifier (CPU Fallback)](plan/58_classifier-model-selection-and-embedding.md) |
-| 59  | 🔲      | [Classifier Evaluation Baseline](plan/59_classifier-evaluation-baseline.md)                           |
+| 58  | 🔳      | [Select and Package Fast Weasel Classifier (CPU Fallback)](plan/58_classifier-model-selection-and-embedding.md) |
+| 59  | ✅      | [Classifier Evaluation Baseline](plan/59_classifier-evaluation-baseline.md)                           |
 | 60  | 🔲      | [DU-Style Metrics Ranking](plan/60_du-style-metrics-ranking.md)                                 |
 | 61  | 🔲      | [Required Structure Rule Hardening](plan/61_required-structure-hardening.md)                        |
 | 62  | 🔲      | [Corpus Acquisition and Taxonomy](plan/62_corpus-acquisition.md)                          |
