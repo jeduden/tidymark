@@ -49,14 +49,41 @@ Thresholding, confusion matrices, and scorecards must use
 
 Track these metrics on `dev`, `test`, and `holdout`:
 
-- precision
-- recall
-- `F1`
-- `F0.5`
-- AUPRC
-- Brier score
-- diagnostics per KLOC
-- p50 and p95 latency in milliseconds
+## Dataset Split Roles
+
+- `dev`: tune thresholds and compare approach variants.
+- `test`: frozen in-domain benchmark for final comparison.
+- `holdout`: frozen out-of-domain check for generalization.
+
+## Metric Definitions
+
+1. `precision`
+   True positives divided by all predicted positives.
+   Measures how many flagged paragraphs are truly
+   `verbose-actionable`. Higher means fewer false positives.
+2. `recall`
+   True positives divided by all actual positives.
+   Measures how many `verbose-actionable` paragraphs are caught.
+   Higher means fewer misses.
+3. `F1`
+   Harmonic mean of precision and recall.
+   Balanced summary when both are weighted equally.
+4. `F0.5`
+   Precision-weighted F-score.
+   Used here because false positives are costly in lint workflows.
+5. `AUPRC`
+   Area under the precision-recall curve across thresholds.
+   Threshold-independent ranking quality on imbalanced labels.
+6. `Brier score`
+   Mean squared error of predicted probability vs true label.
+   Lower is better. Measures probability calibration quality.
+7. `diagnostics per KLOC`
+   Number of emitted diagnostics per 1,000 lines.
+   Operational noise metric for reviewer workload.
+8. `p50 latency (ms)`
+   Median inference latency. Represents typical runtime.
+9. `p95 latency (ms)`
+   95th percentile latency. Captures slow-tail behavior.
 
 ## Threshold Policy
 
