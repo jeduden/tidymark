@@ -387,7 +387,7 @@ func runFixSingleFile(
 
 func discoverFixtureDirs(t *testing.T) []string {
 	t.Helper()
-	dirs, err := filepath.Glob("../../rules/MDS*-*")
+	dirs, err := filepath.Glob("../../internal/rules/MDS*-*")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -50,10 +50,10 @@ Enable with a template for rule READMEs:
 
 ```yaml
 overrides:
-  - files: ["rules/*/README.md"]
+  - files: ["internal/rules/*/README.md"]
     rules:
       required-structure:
-        template: rules/proto.md
+        template: internal/rules/proto.md
 ```
 
 Disable:

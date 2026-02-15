@@ -54,25 +54,22 @@ overrides:
     rules:
       paragraph-structure:
         max-sentences: 30
-  - files: ["rules/MDS002-heading-style/good/setext.md",
-            "internal/rules/MDS002-heading-style/good/setext.md"]
+  - files: ["internal/rules/MDS002-heading-style/good/setext.md"]
     rules:
       heading-style:
         style: setext
-  - files: ["rules/MDS010-fenced-code-style/good/tilde.md",
-            "internal/rules/MDS010-fenced-code-style/good/tilde.md"]
+  - files: ["internal/rules/MDS010-fenced-code-style/good/tilde.md"]
     rules:
       fenced-code-style:
         style: tilde
-  - files: ["rules/MDS016-list-indent/good/spaces-4.md",
-            "internal/rules/MDS016-list-indent/good/spaces-4.md"]
+  - files: ["internal/rules/MDS016-list-indent/good/spaces-4.md"]
     rules:
       list-indent:
         spaces: 4
-  - files: ["rules/MDS*/README.md", "internal/rules/MDS*/README.md"]
+  - files: ["internal/rules/MDS*/README.md"]
     rules:
       required-structure:
-        template: rules/proto.md
+        template: internal/rules/proto.md
   - files: ["plan/*.md"]
     rules:
       required-structure:
@@ -101,10 +98,6 @@ overrides:
         max-words: 120
 
 ignore:
-  - "rules/*/bad/**"
-  - "rules/*/bad.md"
-  - "rules/*/good/**"
-  - "rules/*/fixed/**"
   - "internal/rules/*/bad/**"
   - "internal/rules/*/bad.md"
   - "internal/rules/*/good/**"
