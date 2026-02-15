@@ -40,7 +40,7 @@ Highlights from the spike:
   +0.5 MB binary delta, plus model and runtime library artifacts.
 - Recommendation: proceed with optional embedded integration, keep
   heuristic/default path as fallback until classifier selection and
-  baseline evaluation are complete (plans 58 and 59).
+  implementation are complete (plan 58).
 
 ## Acceptance Criteria
 

@@ -95,7 +95,8 @@ Two runs were captured to reduce outlier risk.
 
 Measured artifact sizes:
 
-- llama.cpp library bundle: 86 MB (`/tmp/yzma/lib`)
+- llama.cpp library bundle: 86 MB
+  (produced by `run.sh` under `/tmp/yzma-spike.<id>/lib`)
 - model file: 84 MB (`SmolLM-135M.Q2_K.gguf`)
 - binary size impact for adding yzma import: 2.2 MB -> 2.7 MB (+0.5 MB)
 

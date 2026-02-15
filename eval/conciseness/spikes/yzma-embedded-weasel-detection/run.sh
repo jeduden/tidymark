@@ -1,12 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_TMP=${ROOT_TMP:-/tmp/yzma-spike}
+ROOT_TMP=${ROOT_TMP:-}
+CLEANUP_ROOT_TMP=0
+if [ -z "$ROOT_TMP" ]; then
+  ROOT_TMP=$(mktemp -d /tmp/yzma-spike.XXXXXX)
+  CLEANUP_ROOT_TMP=1
+fi
+
 LIB_DIR="$ROOT_TMP/lib"
 MODEL_DIR="$ROOT_TMP/models"
 MODEL_FILE="SmolLM-135M.Q2_K.gguf"
 MODEL_URL="https://huggingface.co/QuantFactory/SmolLM-135M-GGUF/resolve/main/SmolLM-135M.Q2_K.gguf"
+MODEL_SHA256="ad5e15568f67cb5a34572f57f574eb9109a4dece2b4e0f7cc3928a67395bc8ec"
 PORT=${PORT:-8097}
+SERVER_PID=""
+
+cleanup() {
+  if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+
+  if [ "$CLEANUP_ROOT_TMP" -eq 1 ] && [ "${KEEP_TMP:-0}" != "1" ]; then
+    rm -rf "$ROOT_TMP"
+  fi
+}
+
+trap cleanup EXIT
 
 mkdir -p "$LIB_DIR" "$MODEL_DIR"
 
@@ -17,6 +38,20 @@ go run github.com/hybridgroup/yzma/cmd/yzma@v1.9.0 install \
 echo "[2/5] download model"
 go run github.com/hybridgroup/yzma/cmd/yzma@v1.9.0 model get \
   -u "$MODEL_URL" -o "$MODEL_DIR" -y
+
+MODEL_PATH="$MODEL_DIR/$MODEL_FILE"
+if [ ! -f "$MODEL_PATH" ]; then
+  echo "Error: expected model at $MODEL_PATH" >&2
+  exit 1
+fi
+
+model_sha=$(shasum -a 256 "$MODEL_PATH" | awk '{print $1}')
+if [ "$model_sha" != "$MODEL_SHA256" ]; then
+  echo "Error: model checksum mismatch for $MODEL_PATH" >&2
+  echo "Expected: $MODEL_SHA256" >&2
+  echo "Actual:   $model_sha" >&2
+  exit 1
+fi
 
 echo "[3/5] run embedded benchmark"
 cat > "$ROOT_TMP/embedded_bench.go" <<'GOEOF'
@@ -63,6 +98,28 @@ func clearContext(ctx llama.Context) {
 	}
 }
 
+func tokenPiece(vocab llama.Vocab, token llama.Token) (string, error) {
+	size := 64
+	for tries := 0; tries < 8; tries++ {
+		buf := make([]byte, size)
+		n := llama.TokenToPiece(vocab, token, buf, 0, true)
+		if n < 0 {
+			return "", fmt.Errorf("token to piece failed: %d", n)
+		}
+		if n <= len(buf) {
+			return string(buf[:n]), nil
+		}
+
+		next := n + 1
+		if next < len(buf)*2 {
+			next = len(buf) * 2
+		}
+		size = next
+	}
+
+	return "", fmt.Errorf("token to piece exceeded retry budget")
+}
+
 func generate(ctx llama.Context, model llama.Model, prompt string, max int32) (string, int, error) {
 	vocab := llama.ModelGetVocab(model)
 	fullPrompt := "Classify as WEASEL or OK. Text: " + prompt + " Label:"
@@ -83,10 +140,12 @@ func generate(ctx llama.Context, model llama.Model, prompt string, max int32) (s
 			break
 		}
 		generated++
-		buf := make([]byte, 64)
-		n := llama.TokenToPiece(vocab, token, buf, 0, true)
-		if n > 0 {
-			out = append(out, buf[:n]...)
+		piece, err := tokenPiece(vocab, token)
+		if err != nil {
+			return "", generated, err
+		}
+		if piece != "" {
+			out = append(out, []byte(piece)...)
 		}
 		batch = llama.BatchGetOne([]llama.Token{token})
 	}
@@ -192,7 +251,7 @@ GOEOF
   fi
   GOCACHE="$ROOT_TMP/.gocache" go mod tidy >/dev/null
   GOCACHE="$ROOT_TMP/.gocache" YZMA_LIB="$LIB_DIR" \
-    YZMA_MODEL="$MODEL_DIR/$MODEL_FILE" go run embedded_bench.go \
+    YZMA_MODEL="$MODEL_PATH" go run embedded_bench.go \
     | tee "$ROOT_TMP/embedded-results.txt"
 )
 
@@ -212,15 +271,20 @@ PY
 "$LIB_DIR/llama-server" -m "$MODEL_DIR/$MODEL_FILE" --port "$PORT" \
   -n 16 -c 1024 -t 4 -tb 4 --no-mmap --log-disable \
   >"$ROOT_TMP/server.log" 2>&1 &
-PID=$!
-trap 'kill $PID 2>/dev/null || true' EXIT
+SERVER_PID=$!
 
+server_ready=0
 for _ in {1..60}; do
   if curl -sf "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
+    server_ready=1
     break
   fi
   sleep 0.5
 done
+if [ "$server_ready" -ne 1 ]; then
+  echo "Error: llama-server on port $PORT did not become healthy." >&2
+  exit 1
+fi
 ready_ts=$(python3 - <<'PY'
 import time
 print(time.time())
@@ -232,7 +296,7 @@ r=$ready_ts
 print(f"{(r-s)*1000:.2f}")
 PY
 )
-rss_load=$(ps -o rss= -p "$PID" | tr -d ' ')
+rss_load=$(ps -o rss= -p "$SERVER_PID" | tr -d ' ')
 
 prompts=(
 "Classify as WEASEL or OK. Text: This approach may potentially improve outcomes in many situations. Label:"
@@ -265,7 +329,7 @@ for rep in 1 2 3; do
   done
 done
 
-rss_end=$(ps -o rss= -p "$PID" | tr -d ' ')
+rss_end=$(ps -o rss= -p "$SERVER_PID" | tr -d ' ')
 
 python3 - <<PY | tee "$ROOT_TMP/service-results.txt"
 import statistics
@@ -292,8 +356,9 @@ print(f"tokens_per_sec={16/statistics.mean(lat):.2f}")
 print(f"rss_after_bench_kb={int('$rss_end')}")
 PY
 
-kill "$PID"
-wait "$PID" || true
+kill "$SERVER_PID"
+wait "$SERVER_PID" || true
+SERVER_PID=""
 
 echo "[5/5] done"
 echo "Embedded results: $ROOT_TMP/embedded-results.txt"
