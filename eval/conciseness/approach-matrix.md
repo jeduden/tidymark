@@ -47,15 +47,15 @@ Thresholding, confusion matrices, and scorecards must use
 
 ## Metrics
 
-Track these metrics on `dev`, `test`, and `holdout`:
+Track these metrics on `dev`, `test`, and `holdout`.
 
-## Dataset Split Roles
+### Dataset Split Roles
 
 - `dev`: tune thresholds and compare approach variants.
 - `test`: frozen in-domain benchmark for final comparison.
 - `holdout`: frozen out-of-domain check for generalization.
 
-## Metric Definitions
+### Metric Definitions
 
 1. `precision`
    True positives divided by all predicted positives.
