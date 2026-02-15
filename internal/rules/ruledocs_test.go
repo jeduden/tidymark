@@ -93,7 +93,7 @@ func TestLookupRule_Unknown(t *testing.T) {
 func TestListRulesFromFS_SkipsBadFrontMatter(t *testing.T) {
 	fsys := fstest.MapFS{
 		"good/README.md": &fstest.MapFile{
-			Data: []byte("---\nid: MDS999\nname: good-rule\ndescription: A good rule.\n---\n# MDS999\n"),
+			Data: []byte("---\nid: MDS999\nname: good-rule\nstatus: ready\ndescription: A good rule.\n---\n# MDS999\n"),
 		},
 		"bad/README.md": &fstest.MapFile{
 			Data: []byte("no front matter here\n"),
@@ -117,7 +117,7 @@ func TestListRulesFromFS_SkipsBadFrontMatter(t *testing.T) {
 func TestLookupRuleFromFS_ByIDAndName(t *testing.T) {
 	fsys := fstest.MapFS{
 		"testrule/README.md": &fstest.MapFile{
-			Data: []byte("---\nid: MDS999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
+			Data: []byte("---\nid: MDS999\nname: test-rule\nstatus: ready\ndescription: Test.\n---\n# Content\n"),
 		},
 	}
 
@@ -141,12 +141,28 @@ func TestLookupRuleFromFS_ByIDAndName(t *testing.T) {
 func TestLookupRuleFromFS_NotFound(t *testing.T) {
 	fsys := fstest.MapFS{
 		"testrule/README.md": &fstest.MapFile{
-			Data: []byte("---\nid: MDS999\nname: test-rule\ndescription: Test.\n---\n# Content\n"),
+			Data: []byte("---\nid: MDS999\nname: test-rule\nstatus: ready\ndescription: Test.\n---\n# Content\n"),
 		},
 	}
 
 	_, err := lookupRuleFromFS(fsys, "MDSXXX")
 	if err == nil {
 		t.Fatal("expected error for unknown rule")
+	}
+}
+
+func TestListRulesFromFS_SkipsMissingStatus(t *testing.T) {
+	fsys := fstest.MapFS{
+		"nostatus/README.md": &fstest.MapFile{
+			Data: []byte("---\nid: MDS998\nname: no-status\ndescription: Missing status.\n---\n# MDS998\n"),
+		},
+	}
+
+	rules, err := listRulesFromFS(fsys)
+	if err != nil {
+		t.Fatalf("listRulesFromFS: %v", err)
+	}
+	if len(rules) != 0 {
+		t.Fatalf("expected 0 rules, got %d", len(rules))
 	}
 }

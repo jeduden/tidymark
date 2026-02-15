@@ -21,3 +21,9 @@ type Configurable interface {
 	ApplySettings(settings map[string]any) error
 	DefaultSettings() map[string]any
 }
+
+// Defaultable is implemented by rules that override the default enabled
+// state in generated/runtime configs.
+type Defaultable interface {
+	EnabledByDefault() bool
+}

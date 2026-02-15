@@ -1,6 +1,7 @@
 ---
 id: MDS016
 name: list-indent
+status: ready
 description: List items must use consistent indentation.
 ---
 # MDS016: list-indent
@@ -9,6 +10,7 @@ List items must use consistent indentation.
 
 - **ID**: MDS016
 - **Name**: `list-indent`
+- **Status**: ready
 - **Default**: enabled, spaces: 2
 - **Fixable**: yes
 - **Implementation**:

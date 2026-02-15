@@ -1,6 +1,7 @@
 ---
 id: MDS028
 name: token-budget
+status: ready
 description: File must not exceed a token budget.
 ---
 # MDS028: token-budget
@@ -9,6 +10,7 @@ File must not exceed a token budget.
 
 - **ID**: MDS028
 - **Name**: `token-budget`
+- **Status**: ready
 - **Default**: enabled, max: 8000, mode: heuristic, ratio: 0.75,
   tokenizer: builtin, encoding: cl100k_base
 - **Fixable**: no

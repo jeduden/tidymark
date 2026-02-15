@@ -1,6 +1,7 @@
 ---
 id: MDS017
 name: no-trailing-punctuation-in-heading
+status: ready
 description: Headings should not end with punctuation.
 ---
 # MDS017: no-trailing-punctuation-in-heading
@@ -9,6 +10,7 @@ Headings should not end with punctuation.
 
 - **ID**: MDS017
 - **Name**: `no-trailing-punctuation-in-heading`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:

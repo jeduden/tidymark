@@ -1,6 +1,7 @@
 ---
 id: MDS020
 name: required-structure
+status: ready
 description: Document must match the heading structure defined by its template.
 ---
 # MDS020: required-structure
@@ -10,6 +11,7 @@ template.
 
 - **ID**: MDS020
 - **Name**: `required-structure`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:
@@ -31,6 +33,7 @@ document front matter:
 ```yaml
 id: '=~"^MDS[0-9]{3}$"'
 name: 'string & != ""'
+status: '"ready" | "not-ready"'
 description: 'string & != ""'
 ```
 
@@ -47,10 +50,10 @@ Enable with a template for rule READMEs:
 
 ```yaml
 overrides:
-  - files: ["rules/*/README.md"]
+  - files: ["internal/rules/*/README.md"]
     rules:
       required-structure:
-        template: rules/proto.md
+        template: internal/rules/proto.md
 ```
 
 Disable:

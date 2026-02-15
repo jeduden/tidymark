@@ -1,6 +1,7 @@
 ---
 id: MDS001
 name: line-length
+status: ready
 description: Line exceeds maximum length.
 ---
 # MDS001: line-length
@@ -9,6 +10,7 @@ Line exceeds maximum length.
 
 - **ID**: MDS001
 - **Name**: `line-length`
+- **Status**: ready
 - **Default**: enabled, max: 80
 - **Fixable**: no
 - **Implementation**:

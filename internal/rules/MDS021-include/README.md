@@ -1,6 +1,7 @@
 ---
 id: MDS021
 name: include
+status: ready
 description: Include section content must match the referenced file.
 ---
 # MDS021: include
@@ -9,6 +10,7 @@ Include section content must match the referenced file.
 
 - **ID**: MDS021
 - **Name**: `include`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: yes
 - **Implementation**:

@@ -1,0 +1,37 @@
+# Conciseness Evaluation Baseline
+
+This folder defines baseline inputs and outputs for comparing
+conciseness approaches.
+
+Current implementation status: `MDS029` is experimental and disabled by
+default until classifier-based evaluation is complete.
+
+## Files
+
+- `rubric.md`: annotation policy for paragraph labels.
+- `dataset.schema.cue`: record schema for labeled examples.
+- `scorecard-template.md`: report template for experiment results.
+
+## Dataset Format
+
+Store datasets as JSONL files where each line matches
+`dataset.schema.cue` (`#ConcisenessEvalRecord`).
+
+For cue-based experiments, populate `cues` with matched
+token or phrase evidence. Keep cue tags consistent with
+schema kinds (`filler`, `hedge`, `verbose-phrase`,
+`redundancy`, `other`).
+
+Recommended files:
+
+- `train.jsonl`
+- `dev.jsonl`
+- `test.jsonl`
+- `holdout-outofdomain.jsonl`
+
+## Split Rules
+
+1. Split by file (never by paragraph within one file).
+2. Keep document-type distribution similar across splits.
+3. Freeze test and holdout before threshold tuning.
+4. Use `dev` for threshold and calibration choices only.

@@ -1,6 +1,6 @@
 ---
 settings:
-  template: "../../rules/MDS020-required-structure/good/data/tmpl.md"
+  template: "../../internal/rules/MDS020-required-structure/good/data/tmpl.md"
 ---
 # My Plan
 

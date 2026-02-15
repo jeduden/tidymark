@@ -20,7 +20,8 @@ Follow the [standard Go project layout](https://go.dev/doc/modules/layout):
 
 - `cmd/mdsmith/` — main application entry point
 - `internal/` — private packages not importable by other modules
-- `rules/` — rule documentation (`rules/<id>-<name>/README.md`)
+- `internal/rules/` — rule documentation
+  (`internal/rules/<id>-<name>/README.md`)
 - `testdata/` — test fixtures (markdown files for testing rules)
 
 ## Development Workflow
@@ -147,7 +148,7 @@ Plan files must pass `mdsmith check plan/` with zero diagnostics.
 
 ## Test Fixtures
 
-Rule test fixtures live in `rules/<id>-<name>/`. Each rule
+Rule test fixtures live in `internal/rules/<id>-<name>/`. Each rule
 has `good/` and `bad/` examples (or `good.md` / `bad.md`).
 
 Good fixtures must pass **all** rules, not just their own.
@@ -161,8 +162,9 @@ Bad fixtures are excluded via the `ignore:` section in
 ## Config & Rules
 
 See [README.md](README.md#configuration) for config file format and examples.
-Each rule is documented in [`rules/<id>-<name>/README.md`](rules/).
-Use [`rules/proto.md`](rules/proto.md) as template and content
+Each rule is documented in
+[`internal/rules/<id>-<name>/README.md`](internal/rules/).
+Use [`internal/rules/proto.md`](internal/rules/proto.md) as template and content
 guide when writing rule READMEs (instructions are in HTML comments).
 
 ### `files` Config Key

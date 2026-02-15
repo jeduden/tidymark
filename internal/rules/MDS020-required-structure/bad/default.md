@@ -1,6 +1,6 @@
 ---
 settings:
-  template: "../../rules/MDS020-required-structure/bad/data/tmpl.md"
+  template: "../../internal/rules/MDS020-required-structure/bad/data/tmpl.md"
 diagnostics:
   - line: 1
     column: 1

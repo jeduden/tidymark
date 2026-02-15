@@ -10,6 +10,9 @@ status: 🔲
 Measure information density and flag verbose Markdown content
 that remains readable but unnecessarily long.
 
+Current state: heuristic prototype only. Keep rule disabled by default until
+classifier-backed evaluation baselines are complete.
+
 ## Tasks
 
 1. Define conciseness heuristics
@@ -20,8 +23,9 @@ that remains readable but unnecessarily long.
 
 ## Acceptance Criteria
 
-- [ ] Rule flags paragraphs that exceed a configurable verbosity threshold.
-- [ ] Output includes the paragraph location and conciseness score.
-- [ ] Heuristics are configurable and documented.
-- [ ] All tests pass: `go test ./...`
-- [ ] `golangci-lint run` reports no issues
+- [x] Rule flags paragraphs that exceed a configurable verbosity threshold.
+- [x] Output includes the paragraph location and conciseness score.
+- [x] Heuristics are configurable and documented.
+- [x] All tests pass: `go test ./...`
+- [x] `golangci-lint run` reports no issues
+- [ ] Rule is validated and ready for default enablement

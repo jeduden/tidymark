@@ -1,6 +1,7 @@
 ---
 id: MDS018
 name: no-emphasis-as-heading
+status: ready
 description: Don't use bold or emphasis on a standalone line as a heading substitute.
 ---
 # MDS018: no-emphasis-as-heading
@@ -9,6 +10,7 @@ Don't use bold or emphasis on a standalone line as a heading substitute.
 
 - **ID**: MDS018
 - **Name**: `no-emphasis-as-heading`
+- **Status**: ready
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:
