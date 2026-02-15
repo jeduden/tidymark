@@ -7,7 +7,7 @@ status: 🔳
 
 ## Goal
 
-Pick a fast classifier for weasel-language detection.
+Pick a fast classifier for conciseness weasel-language detection.
 Package its weights for offline use. Define a CPU fallback path.
 
 For this plan, "weasel-language" is operationalized as
@@ -24,14 +24,24 @@ Classifier output contract:
 
 ```json
 {
-  "label": "verbose-actionable | acceptable",
-  "score": 0.0,
-  "threshold": 0.0,
-  "model_id": "string",
-  "backend": "classifier | heuristic-fallback",
-  "version": "string"
+  "label": "verbose-actionable",
+  "score": 0.73,
+  "threshold": 0.60,
+  "model_id": "cue-linear-v1",
+  "mode": "auto",
+  "backend": "classifier",
+  "version": "2026-02-15"
 }
 ```
+
+Contract semantics:
+
+- `label` enum: `verbose-actionable` or `acceptable`
+- `mode` enum: `classifier`, `heuristic`, or `auto`
+- `backend` enum: runtime backend actually used
+  (`classifier` or `heuristic`)
+- decision rule: if `score >= threshold` then label is
+  `verbose-actionable`; otherwise `acceptable`
 
 Threshold policy:
 

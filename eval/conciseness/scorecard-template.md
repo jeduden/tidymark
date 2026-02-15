@@ -7,6 +7,8 @@
 - Dataset version:
 - Evaluator:
 - CPU/OS:
+- Go version:
+- Arch:
 
 ## Threshold Policy Reference
 
