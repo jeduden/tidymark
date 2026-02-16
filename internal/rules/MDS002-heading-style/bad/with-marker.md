@@ -8,3 +8,5 @@ diagnostics:
 
 Section
 -------
+
+<!-- allow-empty-section -->
