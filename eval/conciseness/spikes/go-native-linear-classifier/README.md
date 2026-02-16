@@ -31,6 +31,61 @@ Model shape:
   `label`, `risk_score`, `threshold`, `model_id`, `backend`, `version`
 - runtime dependency footprint: Go stdlib only
 
+## Classifier Implementation
+
+Code pointers:
+
+- loader + scorer:
+  `internal/rules/concisenessscoring/classifier/model.go`
+- embedded artifact:
+  `internal/rules/concisenessscoring/classifier/data/cue-linear-v1.json`
+- tests:
+  `internal/rules/concisenessscoring/classifier/model_test.go`
+
+Artifact schema (current spike):
+
+```json
+{
+  "model_id": "cue-linear-v1",
+  "version": "2026-02-16",
+  "threshold": 0.20,
+  "intercept": -0.85,
+  "weights": {
+    "action_rate": -2.40,
+    "content_ratio": -2.60,
+    "filler_rate": 6.10,
+    "hedge_rate": 7.40,
+    "log_word_count": 0.18,
+    "modal_rate": 5.20,
+    "vague_rate": 4.60,
+    "verbose_phrase_rate": 8.80
+  }
+}
+```
+
+Scoring equation:
+
+```text
+score = intercept + Σ(weight_i * feature_i)
+risk_score = sigmoid(score)
+label = "verbose-actionable" if risk_score >= threshold else "acceptable"
+```
+
+Feature extraction in `model.go`:
+
+- tokenized lowercase words via regex (`[a-z0-9']+`)
+- normalized rates per word:
+  `filler_rate`, `hedge_rate`, `verbose_phrase_rate`, `modal_rate`,
+  `vague_rate`, `action_rate`
+- density/length terms:
+  `content_ratio`, `log_word_count`
+
+Determinism and safety properties:
+
+- no network calls and no external dynamic libraries
+- `go:embed` + pinned SHA256 verification on load
+- same input string always yields the same `risk_score` and `label`
+
 ## Embedded Weight Packaging
 
 Artifact details:
@@ -65,17 +120,17 @@ Result: deterministic outputs were confirmed.
 
 Measured with `ROUNDS=4000` (`24,000` requests total):
 
-| Metric                 | Value      |
-|------------------------|------------|
-| Model load             | 0.0300 ms  |
-| Avg latency            | 2.8613 us  |
-| P50 latency            | 2.8330 us  |
-| P95 latency            | 3.6670 us  |
-| Max latency            | 95.0420 us |
-| RSS after load         | 3,872 KB   |
-| RSS after benchmark    | 7,776 KB   |
-| Heap alloc after bench | 417 KB     |
-| Heap sys after bench   | 7,776 KB   |
+| Metric                 | Value       |
+|------------------------|-------------|
+| Model load             | 0.0310 ms   |
+| Avg latency            | 2.9299 us   |
+| P50 latency            | 2.8750 us   |
+| P95 latency            | 3.6670 us   |
+| Max latency            | 230.7910 us |
+| RSS after load         | 3,872 KB    |
+| RSS after benchmark    | 7,744 KB    |
+| Heap alloc after bench | 421 KB      |
+| Heap sys after bench   | 7,744 KB    |
 
 Per-sample risk scores:
 
@@ -87,6 +142,48 @@ Per-sample risk scores:
 - `direct-03`: 0.0627
 
 The embedded threshold for this spike artifact is `0.20`.
+
+## Captured Run Output
+
+Raw `run.sh` benchmark output captured on 2026-02-16:
+
+```text
+model_id=cue-linear-v1
+model_version=2026-02-16
+threshold=0.2000
+artifact_path=data/cue-linear-v1.json
+artifact_sha256=a17544b94507ad05e5d9db33078ca7a63d3fccd94b1d091ee1c85a88bbc81e44
+artifact_bytes=335
+model_load_ms=0.0310
+rss_after_load_kb=3872
+determinism_digest=41f7fe0f2d6d755b647f4f923f79c5d682cfcda75add60a7e2df3fcba29fce08
+determinism_unique_hashes=1
+requests=24000
+avg_latency_us=2.9299
+p50_latency_us=2.8750
+p95_latency_us=3.6670
+max_latency_us=230.7910
+rss_after_bench_kb=7744
+heap_alloc_after_bench_kb=421
+heap_sys_after_bench_kb=7744
+total_alloc_delta_kb=31005
+labels_verbose_actionable=12000
+labels_acceptable=12000
+risk_direct-01=0.0472
+risk_direct-02=0.0619
+risk_direct-03=0.0627
+risk_weasel-01=0.6323
+risk_weasel-02=0.3833
+risk_weasel-03=0.2101
+```
+
+Raw binary-size output from the same run:
+
+```text
+mdsmith_base_bytes=24511378
+mdsmith_go_native_bytes=24512514
+mdsmith_delta_bytes=1136
+```
 
 ## Binary-Size Impact
 
