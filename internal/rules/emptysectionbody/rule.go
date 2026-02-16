@@ -49,6 +49,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if f.AST == nil {
 		return nil
 	}
+	allowMarkerPattern := buildAllowMarkerPattern(allowMarker)
 
 	nodes := topLevelNodes(f.AST)
 	if len(nodes) == 0 {
@@ -78,7 +79,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		}
 
 		sectionNodes := nodes[i+1 : end]
-		if hasAllowMarker(sectionNodes, f.Source, allowMarker) {
+		if hasAllowMarker(sectionNodes, f.Source, allowMarkerPattern) {
 			continue
 		}
 		if hasMeaningfulContent(sectionNodes, f.Source) {
@@ -242,18 +243,20 @@ func topLevelNodes(root ast.Node) []ast.Node {
 	return nodes
 }
 
-func hasAllowMarker(nodes []ast.Node, source []byte, marker string) bool {
-	if marker == "" {
-		return false
-	}
+func buildAllowMarkerPattern(marker string) *regexp.Regexp {
 	trimmed := strings.TrimSpace(marker)
 	if trimmed == "" {
+		return nil
+	}
+	return regexp.MustCompile(
+		`(?s)<!--\s*` + regexp.QuoteMeta(trimmed) + `\s*-->`,
+	)
+}
+
+func hasAllowMarker(nodes []ast.Node, source []byte, pattern *regexp.Regexp) bool {
+	if pattern == nil {
 		return false
 	}
-	pattern := regexp.MustCompile(
-		`(?is)<!--\s*` + regexp.QuoteMeta(trimmed) + `\s*-->`,
-	)
-
 	for _, node := range nodes {
 		block, ok := node.(*ast.HTMLBlock)
 		if !ok {

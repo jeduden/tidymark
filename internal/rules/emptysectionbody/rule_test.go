@@ -83,6 +83,22 @@ func TestCheck_PrefixedMarkerDoesNotSkipByDefault(t *testing.T) {
 	}
 }
 
+func TestCheck_MarkerCaseSensitive(t *testing.T) {
+	src := []byte(
+		"# Doc\n\n## Template Slot\n\n<!-- ALLOW-EMPTY-SECTION -->\n",
+	)
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := &Rule{}
+	diags := r.Check(f)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d", len(diags))
+	}
+}
+
 func TestCheck_CustomAllowMarkerUsesExactString(t *testing.T) {
 	src := []byte(
 		"# Doc\n\n## Template Slot\n\n<!-- allow-empty-section -->\n",
