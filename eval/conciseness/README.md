@@ -12,6 +12,7 @@ default until classifier-based evaluation is complete.
 - `dataset.schema.cue`: record schema for labeled examples.
 - `approach-matrix.md`: approach definitions and threshold policy.
 - `scorecard-template.md`: report template for experiment results.
+- `model-selection.md`: selected model, metrics, and checksum record.
 
 ## Dataset Format
 

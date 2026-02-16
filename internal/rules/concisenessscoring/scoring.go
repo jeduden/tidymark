@@ -30,10 +30,14 @@ type heuristics struct {
 	verbosePhrases []string
 }
 
-type scoreResult struct {
-	Score     float64
-	WordCount int
-	Examples  []string
+type paragraphSignals struct {
+	WordCount    int
+	ContentRatio float64
+	FillerRatio  float64
+	HedgeRatio   float64
+	VerboseRatio float64
+	CueDensity   float64
+	Examples     []string
 }
 
 func newHeuristics(
@@ -46,10 +50,12 @@ func newHeuristics(
 	}
 }
 
-func scoreParagraph(text string, heur heuristics) scoreResult {
+func analyzeParagraph(text string, heur heuristics) paragraphSignals {
 	tokens := tokenizeWords(text)
 	if len(tokens) == 0 {
-		return scoreResult{Score: 1.0}
+		return paragraphSignals{
+			ContentRatio: 1.0,
+		}
 	}
 
 	joined := " " + strings.Join(tokens, " ") + " "
@@ -83,18 +89,26 @@ func scoreParagraph(text string, heur heuristics) scoreResult {
 	fillerRatio := float64(fillerHits) / float64(total)
 	hedgeRatio := float64(hedgeHits) / float64(total)
 	verboseRatio := float64(verboseHits) / float64(total)
+	cueHits := fillerHits + hedgeHits + verboseHits
+	cueDensity := float64(cueHits) / float64(total)
 
-	score := contentRatio -
-		(fillerWeight * fillerRatio) -
-		(hedgeWeight * hedgeRatio) -
-		(verboseWeight * verboseRatio)
-	score = math.Max(0, math.Min(score, 1))
-
-	return scoreResult{
-		Score:     score,
-		WordCount: total,
-		Examples:  examples,
+	return paragraphSignals{
+		WordCount:    total,
+		ContentRatio: contentRatio,
+		FillerRatio:  fillerRatio,
+		HedgeRatio:   hedgeRatio,
+		VerboseRatio: verboseRatio,
+		CueDensity:   cueDensity,
+		Examples:     examples,
 	}
+}
+
+func heuristicScore(signals paragraphSignals) float64 {
+	score := signals.ContentRatio -
+		(fillerWeight * signals.FillerRatio) -
+		(hedgeWeight * signals.HedgeRatio) -
+		(verboseWeight * signals.VerboseRatio)
+	return math.Max(0, math.Min(score, 1))
 }
 
 func tokenizeWords(text string) []string {

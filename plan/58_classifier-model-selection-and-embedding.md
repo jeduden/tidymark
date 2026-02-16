@@ -1,7 +1,7 @@
 ---
 id: 58
 title: Select and Package Fast Weasel Classifier (CPU Fallback)
-status: 🔳
+status: ✅
 ---
 # Select and Package Fast Weasel Classifier (CPU Fallback)
 
@@ -119,6 +119,29 @@ Fallback must preserve rule behavior guarantees:
 - Keep third-party runtime dependencies minimal for portability
 - Include model/weights license notes in rule docs and release notes
 
+## Selected Model and Metrics
+
+Selected candidate: `cue-linear-v1` with frozen threshold `0.60`.
+
+See `eval/conciseness/model-selection.md` for full scorecard details.
+
+Frozen test summary:
+
+- precision: `0.84`
+- recall: `0.61`
+- `F1`: `0.71`
+- `F0.5`: `0.78`
+- Brier score: `0.133`
+- CPU latency: p50 `0.16 ms`, p95 `0.42 ms`
+- artifact size: `5.2 KB`
+
+Embedded packaging record:
+
+- artifact: `internal/rules/concisenessscoring/models/cue-linear-v1.json`
+- manifest: `internal/rules/concisenessscoring/models/manifest.json`
+- SHA256:
+  `63132fdc0df4085dd056a49ae9d3e9287cd1014a0c5e8262b9ae05d21450a466`
+
 ## Integration Plan
 
 1. Add classifier interface and output schema in
@@ -148,8 +171,8 @@ Fallback must preserve rule behavior guarantees:
 
 ## Acceptance Criteria
 
-- [ ] One classifier model is selected with documented quality
+- [x] One classifier model is selected with documented quality
       and CPU performance metrics.
 - [x] Model artifact packaging strategy is documented and reproducible.
-- [ ] CPU fallback behavior is specified and validated.
+- [x] CPU fallback behavior is specified and validated.
 - [x] Integration plan is ready for implementation in mdsmith.

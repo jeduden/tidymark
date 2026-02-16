@@ -2,8 +2,10 @@ package concisenessscoring
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/mdtext"
@@ -43,19 +45,29 @@ var (
 
 func init() {
 	rule.Register(&Rule{
-		MinScore: defaultMinScore,
-		MinWords: defaultMinWords,
+		MinScore:            defaultMinScore,
+		MinWords:            defaultMinWords,
+		Mode:                defaultMode,
+		Threshold:           defaultClassifierThreshold,
+		ClassifierTimeoutMS: defaultClassifierTimeoutMS,
 	})
 }
 
-// Rule checks paragraph conciseness using a heuristic score
-// based on content ratio and verbose language cues.
+// Rule checks paragraph conciseness using a classifier backend with a
+// deterministic heuristic fallback.
 type Rule struct {
-	MinScore       float64
-	MinWords       int
-	FillerWords    []string
-	HedgePhrases   []string
-	VerbosePhrases []string
+	MinScore            float64
+	MinWords            int
+	Mode                string
+	Threshold           float64
+	ClassifierTimeoutMS int
+	ClassifierModelPath string
+	ClassifierChecksum  string
+	FillerWords         []string
+	HedgePhrases        []string
+	VerbosePhrases      []string
+
+	classifier classifier
 }
 
 // ID implements rule.Rule.
@@ -70,13 +82,20 @@ func (r *Rule) Category() string { return "meta" }
 // EnabledByDefault implements rule.Defaultable.
 func (r *Rule) EnabledByDefault() bool { return false }
 
+type runtimeState struct {
+	heur                heuristics
+	minScore            float64
+	minWords            int
+	useClassifier       bool
+	classifier          classifier
+	classifierThreshold float64
+	inferTimeout        time.Duration
+}
+
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
-	var diags []lint.Diagnostic
-
-	heur := r.heuristics()
-	minScore := r.MinScore
-	minWords := r.MinWords
+	state := r.runtimeState()
+	diags := make([]lint.Diagnostic, 0, 4)
 
 	_ = ast.Walk(
 		f.AST,
@@ -89,44 +108,114 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 			if !ok {
 				return ast.WalkContinue, nil
 			}
-			if isTable(para, f) {
-				return ast.WalkContinue, nil
+			diag := r.checkParagraph(f, para, &state)
+			if diag != nil {
+				diags = append(diags, *diag)
 			}
-
-			text := mdtext.ExtractPlainText(para, f.Source)
-			result := scoreParagraph(text, heur)
-			if result.WordCount < minWords || result.Score >= minScore {
-				return ast.WalkContinue, nil
-			}
-
-			line := paragraphLine(para, f)
-			message := fmt.Sprintf(
-				"conciseness score too low (%.2f < %.2f); target >= %.2f",
-				result.Score, minScore, minScore,
-			)
-			examples := formatExamples(result.Examples)
-			if examples != "" {
-				message += fmt.Sprintf(
-					"; reduce filler or hedge cues (e.g., %s)",
-					examples,
-				)
-			}
-
-			diags = append(diags, lint.Diagnostic{
-				File:     f.Path,
-				Line:     line,
-				Column:   1,
-				RuleID:   r.ID(),
-				RuleName: r.Name(),
-				Severity: lint.Warning,
-				Message:  message,
-			})
 
 			return ast.WalkContinue, nil
 		},
 	)
 
 	return diags
+}
+
+func (r *Rule) runtimeState() runtimeState {
+	state := runtimeState{
+		heur:         r.heuristics(),
+		minScore:     r.MinScore,
+		minWords:     r.MinWords,
+		inferTimeout: classifierTimeout(r.ClassifierTimeoutMS),
+	}
+	if state.minScore <= 0 || state.minScore > 1 {
+		state.minScore = defaultMinScore
+	}
+	if state.minWords <= 0 {
+		state.minWords = defaultMinWords
+	}
+
+	mode := normalizeMode(r.Mode)
+	if mode == "" {
+		mode = defaultMode
+	}
+	if mode == "heuristic" {
+		return state
+	}
+
+	loaded, err := r.resolveClassifier()
+	if err != nil {
+		return state
+	}
+
+	state.useClassifier = true
+	state.classifier = loaded
+	state.classifierThreshold = r.classifierThreshold(loaded)
+	return state
+}
+
+func (r *Rule) checkParagraph(
+	f *lint.File, para *ast.Paragraph, state *runtimeState,
+) *lint.Diagnostic {
+	if isTable(para, f) {
+		return nil
+	}
+
+	text := mdtext.ExtractPlainText(para, f.Source)
+	signals := analyzeParagraph(text, state.heur)
+	if signals.WordCount < state.minWords {
+		return nil
+	}
+
+	score, target := scoreForParagraph(signals, state)
+	if score >= target {
+		return nil
+	}
+
+	line := paragraphLine(para, f)
+	message := fmt.Sprintf(
+		"conciseness score too low (%.2f < %.2f); target >= %.2f",
+		score, target, target,
+	)
+	examples := formatExamples(signals.Examples)
+	if examples != "" {
+		message += fmt.Sprintf(
+			"; reduce filler or hedge cues (e.g., %s)",
+			examples,
+		)
+	}
+
+	return &lint.Diagnostic{
+		File:     f.Path,
+		Line:     line,
+		Column:   1,
+		RuleID:   r.ID(),
+		RuleName: r.Name(),
+		Severity: lint.Warning,
+		Message:  message,
+	}
+}
+
+func scoreForParagraph(
+	signals paragraphSignals, state *runtimeState,
+) (float64, float64) {
+	score := heuristicScore(signals)
+	target := state.minScore
+	if !state.useClassifier || state.classifier == nil {
+		return score, target
+	}
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(), state.inferTimeout,
+	)
+	risk, err := predictWithTimeout(ctx, state.classifier, signals)
+	cancel()
+	if err != nil {
+		// Degrade remaining checks to heuristic mode.
+		state.useClassifier = false
+		return score, target
+	}
+
+	return 1 - risk, 1 - state.classifierThreshold
 }
 
 func formatExamples(examples []string) string {
@@ -159,7 +248,7 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 			return err
 		}
 	}
-	return nil
+	return r.validateClassifierSettings()
 }
 
 func (r *Rule) applySetting(k string, v any) error {
@@ -168,6 +257,16 @@ func (r *Rule) applySetting(k string, v any) error {
 		return r.setMinScore(v)
 	case "min-words":
 		return r.setMinWords(v)
+	case "mode":
+		return r.setMode(v)
+	case "threshold":
+		return r.setThreshold(v)
+	case "classifier-timeout-ms":
+		return r.setClassifierTimeout(v)
+	case "classifier-model-path":
+		return r.setClassifierModelPath(v)
+	case "classifier-checksum":
+		return r.setClassifierChecksum(v)
 	case "filler-words":
 		return r.setWordList("filler-words", v, func(values []string) {
 			r.FillerWords = values
@@ -221,6 +320,91 @@ func (r *Rule) setMinWords(v any) error {
 	return nil
 }
 
+func (r *Rule) setMode(v any) error {
+	s, ok := v.(string)
+	if !ok {
+		return fmt.Errorf(
+			"conciseness-scoring: mode must be a string, got %T",
+			v,
+		)
+	}
+	mode := normalizeMode(s)
+	if !isValidMode(mode) {
+		return fmt.Errorf(
+			"conciseness-scoring: invalid mode %q (valid: auto, classifier, heuristic)",
+			s,
+		)
+	}
+	r.Mode = mode
+	return nil
+}
+
+func (r *Rule) setThreshold(v any) error {
+	n, ok := toFloat(v)
+	if !ok {
+		return fmt.Errorf(
+			"conciseness-scoring: threshold must be a number, got %T",
+			v,
+		)
+	}
+	if n <= 0 || n > 1 {
+		return fmt.Errorf(
+			"conciseness-scoring: threshold must be > 0 and <= 1, got %.2f",
+			n,
+		)
+	}
+	r.Threshold = n
+	return nil
+}
+
+func (r *Rule) setClassifierTimeout(v any) error {
+	n, ok := toInt(v)
+	if !ok {
+		return fmt.Errorf(
+			"conciseness-scoring: classifier-timeout-ms must be an integer, got %T",
+			v,
+		)
+	}
+	if n <= 0 {
+		return fmt.Errorf(
+			"conciseness-scoring: classifier-timeout-ms must be > 0, got %d",
+			n,
+		)
+	}
+	r.ClassifierTimeoutMS = n
+	return nil
+}
+
+func (r *Rule) setClassifierModelPath(v any) error {
+	s, ok := v.(string)
+	if !ok {
+		return fmt.Errorf(
+			"conciseness-scoring: classifier-model-path must be a string, got %T",
+			v,
+		)
+	}
+	r.ClassifierModelPath = strings.TrimSpace(s)
+	return nil
+}
+
+func (r *Rule) setClassifierChecksum(v any) error {
+	s, ok := v.(string)
+	if !ok {
+		return fmt.Errorf(
+			"conciseness-scoring: classifier-checksum must be a string, got %T",
+			v,
+		)
+	}
+	checksum := normalizeChecksum(s)
+	if checksum != "" && !isHexChecksum(checksum) {
+		return fmt.Errorf(
+			"conciseness-scoring: classifier-checksum must be a 64-char hex value",
+		)
+	}
+	r.ClassifierChecksum = checksum
+	return nil
+}
+
 func (r *Rule) setWordList(
 	name string, v any, set func(values []string),
 ) error {
@@ -238,8 +422,11 @@ func (r *Rule) setWordList(
 // DefaultSettings implements rule.Configurable.
 func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
-		"min-score": defaultMinScore,
-		"min-words": defaultMinWords,
+		"min-score":             defaultMinScore,
+		"min-words":             defaultMinWords,
+		"mode":                  defaultMode,
+		"threshold":             defaultClassifierThreshold,
+		"classifier-timeout-ms": defaultClassifierTimeoutMS,
 	}
 }
 
@@ -318,6 +505,47 @@ func (r *Rule) heuristics() heuristics {
 	}
 
 	return newHeuristics(filler, hedge, verbose)
+}
+
+func (r *Rule) validateClassifierSettings() error {
+	hasPath := strings.TrimSpace(r.ClassifierModelPath) != ""
+	hasChecksum := strings.TrimSpace(r.ClassifierChecksum) != ""
+
+	if hasPath && !hasChecksum {
+		return fmt.Errorf(
+			"conciseness-scoring: classifier-checksum is required when classifier-model-path is set",
+		)
+	}
+	if hasChecksum && !hasPath {
+		return fmt.Errorf(
+			"conciseness-scoring: classifier-model-path is required when classifier-checksum is set",
+		)
+	}
+	return nil
+}
+
+func (r *Rule) resolveClassifier() (classifier, error) {
+	if r.classifier != nil {
+		return r.classifier, nil
+	}
+	return loadClassifier(
+		strings.TrimSpace(r.ClassifierModelPath),
+		strings.TrimSpace(r.ClassifierChecksum),
+	)
+}
+
+func (r *Rule) classifierThreshold(clf classifier) float64 {
+	threshold := r.Threshold
+	if threshold > 0 && threshold <= 1 {
+		return threshold
+	}
+	if clf != nil {
+		fallback := clf.DefaultThreshold()
+		if fallback > 0 && fallback <= 1 {
+			return fallback
+		}
+	}
+	return defaultClassifierThreshold
 }
 
 var _ rule.Configurable = (*Rule)(nil)

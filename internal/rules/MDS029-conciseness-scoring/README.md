@@ -19,16 +19,35 @@ Paragraph conciseness score must not fall below a threshold.
 
 ## Settings
 
-| Setting         | Type         | Default  | Description                            |
-|-----------------|--------------|----------|----------------------------------------|
-| `min-score`       | number       | `0.20`     | Minimum allowed conciseness score      |
-| `min-words`       | int          | `20`       | Skip paragraphs shorter than this      |
-| `filler-words`    | list[string] | built-in | Words that reduce score when repeated  |
-| `hedge-phrases`   | list[string] | built-in | Phrases that indicate weak assertions  |
-| `verbose-phrases` | list[string] | built-in | Long phrases with shorter alternatives |
+| Setting               | Type         | Default  | Description                                              |
+|-----------------------|--------------|----------|----------------------------------------------------------|
+| `min-score`             | number       | `0.20`     | Heuristic fallback threshold for conciseness             |
+| `min-words`             | int          | `20`       | Skip paragraphs shorter than this                        |
+| `mode`                  | string       | `auto`     | Backend mode: `auto`, `classifier`, `heuristic`                |
+| `threshold`             | number       | `0.60`     | Classifier risk threshold (`verbose` if `risk >= threshold`) |
+| `classifier-timeout-ms` | int          | `25`       | Per-paragraph classifier timeout before fallback         |
+| `classifier-model-path` | string       | unset    | External model JSON override path                        |
+| `classifier-checksum`   | string       | unset    | SHA256 for external model override                       |
+| `filler-words`          | list[string] | built-in | Words that reduce score when repeated                    |
+| `hedge-phrases`         | list[string] | built-in | Phrases that indicate weak assertions                    |
+| `verbose-phrases`       | list[string] | built-in | Long phrases with shorter alternatives                   |
 
-The score combines content-word ratio with penalties for filler words,
-hedge phrases, and verbose phrases. Markdown tables are skipped.
+The default embedded classifier is `cue-linear-v1` (`2026-02-15`) with
+SHA256 `63132fdc0df4085dd056a49ae9d3e9287cd1014a0c5e8262b9ae05d21450a466`.
+Markdown tables are skipped.
+
+## Backend Selection and Fallback
+
+Runtime selection order:
+
+1. `mode: heuristic` always uses heuristic scoring.
+2. `mode: classifier` and `mode: auto` attempt classifier loading first.
+3. If classifier load fails (read, parse, checksum), fallback to heuristic.
+4. If classifier inference exceeds `classifier-timeout-ms`, fallback to
+   heuristic for remaining paragraphs in the file.
+
+The rule remains deterministic for a fixed file and config because
+classifier artifacts are local and checksum-verified.
 
 ## Config
 
@@ -36,26 +55,30 @@ Enable (experimental):
 
 ```yaml
 rules:
-  conciseness-scoring: true
+  conciseness-scoring:
+    mode: auto
 ```
 
-Enable with custom settings:
+Enable classifier mode with explicit external override:
 
 ```yaml
 rules:
   conciseness-scoring:
-    min-score: 0.20
+    mode: classifier
+    threshold: 0.58
+    classifier-timeout-ms: 25
+    classifier-model-path: ".mdsmith-models/cue-linear-v1.json"
+    classifier-checksum: "63132fdc0df4085dd056a49ae9d3e9287cd1014a0c5e8262b9ae05d21450a466"
+```
+
+Force heuristic-only mode:
+
+```yaml
+rules:
+  conciseness-scoring:
+    mode: heuristic
+    min-score: 0.22
     min-words: 20
-    filler-words:
-      - "actually"
-      - "basically"
-      - "just"
-    hedge-phrases:
-      - "it seems"
-      - "i think"
-    verbose-phrases:
-      - "in order to"
-      - "due to the fact that"
 ```
 
 Disable:
