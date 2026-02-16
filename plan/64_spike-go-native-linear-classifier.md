@@ -35,6 +35,8 @@ Highlights from the spike:
 
 - Prototype is fully pure-Go with stdlib-only runtime dependencies.
 - Weights are embedded with `go:embed` and verified by pinned SHA256.
+- Spike report includes classifier implementation details and raw captured
+  benchmark output in markdown.
 - Determinism was confirmed across in-process and process-restart runs
   (`unique_hashes=1`).
 - Latency and memory metrics were captured on the same six-sample corpus
