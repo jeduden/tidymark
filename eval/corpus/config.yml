@@ -44,6 +44,21 @@ balance:
   troubleshooting:
     min: 0.02
     max: 0.30
+  adr:
+    min: 0.00
+    max: 0.15
+  rfc:
+    min: 0.00
+    max: 0.15
+  runbook:
+    min: 0.00
+    max: 0.20
+  postmortem:
+    min: 0.00
+    max: 0.10
+  changelog:
+    min: 0.00
+    max: 0.10
 
 sources:
   - name: openai-cookbook

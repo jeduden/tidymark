@@ -74,14 +74,14 @@ positive and negative example.
 - Boundary rule: classify when a responder can execute it in
   sequence during operations.
 - Positive example: `ops/runbook/release.md`.
-- Negative example: `postmortems/2026-02-outage.md`.
+- Negative example: `postmortems/2025-12-outage.md`.
 
 ## Incident Postmortem
 
 - Definition: retrospective on incident cause and actions.
 - Boundary rule: classify when the document centers one
   incident timeline.
-- Positive example: `postmortems/2026-02-outage.md`.
+- Positive example: `postmortems/2025-12-outage.md`.
 - Negative example: `ops/runbook/release.md`.
 
 ## Changelog / Release Notes / Migration Guide
@@ -97,6 +97,10 @@ positive and negative example.
 - Definition: repository governance and contributor process.
 - Boundary rule: classify when content is project-level process
   or orientation.
+- README handling: root `README.md` and `docs/**/README.md` map
+  to project docs unless an earlier classifier matches.
+  README files under other folders are not auto-mapped and are
+  classified by their path/title signals or default to reference.
 - Positive example: `README.md` or `CONTRIBUTING.md`.
 - Negative example: `docs/spec/config.md`.
 
