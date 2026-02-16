@@ -111,7 +111,8 @@ This section explains what the command does.
 
 ## Edge Cases
 
-- Parent headings are considered non-empty when nested subsections contain
-  meaningful content.
+- Parent headings are considered non-empty if any meaningful content
+  (including content that appears in nested subsections) exists within the
+  parent section's range before the next same-or-higher-level heading.
 - Heading-only nesting with no body content is reported.
 - End-of-file sections are checked the same way as middle sections.
