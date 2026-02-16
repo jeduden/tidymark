@@ -8,3 +8,5 @@ diagnostics:
 
 Section
 -------
+
+Body text.

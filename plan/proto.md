@@ -7,12 +7,16 @@ status: '"🔲" | "🔳" | "✅"'
 
 ## ...
 
+<!-- mdsmith: allow-empty-section -->
+
 ## Goal
 
 One-sentence summary of what this task achieves and why
 it matters.
 
 ## ...
+
+<!-- mdsmith: allow-empty-section -->
 
 ## Tasks
 
@@ -22,6 +26,8 @@ it matters.
 
 ## ...
 
+<!-- mdsmith: allow-empty-section -->
+
 ## Acceptance Criteria
 
 - [ ] Criterion described as observable behavior
@@ -30,3 +36,5 @@ it matters.
 - [ ] `golangci-lint run` reports no issues
 
 ## ...
+
+<!-- mdsmith: allow-empty-section -->
