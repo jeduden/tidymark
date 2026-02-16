@@ -39,6 +39,8 @@ description: 'string & != ""'
 
 ## ...
 
+<!-- allow-empty-section -->
+
 ## Config
 
 <!-- Show enable, disable, and (if configurable) custom
@@ -58,6 +60,8 @@ rules:
 
 ## ...
 
+<!-- allow-empty-section -->
+
 ## Examples
 
 <!-- Use ```markdown fenced blocks. Minimal context.
@@ -74,3 +78,5 @@ rules:
      Include for complex rules. Delete otherwise. -->
 
 ## ...
+
+<!-- allow-empty-section -->

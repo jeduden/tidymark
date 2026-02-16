@@ -1,7 +1,7 @@
 ---
 id: 63
 title: Empty Section Body Rule
-status: 🔲
+status: ✅
 ---
 # Empty Section Body Rule
 
@@ -9,6 +9,28 @@ status: 🔲
 
 Add a rule that reports headings whose section body is effectively empty,
 so docs do not ship with placeholder or structure-only sections.
+
+## Prior Art Summary
+
+- `markdownlint` core rules do not include a dedicated empty-section-body
+  rule. Nearest behavior is structural heading checks such as MD043.
+- `remark-lint` has dedicated ecosystem coverage via
+  `remark-lint-no-empty-sections`.
+- `textlint` is plugin-driven and ships no bundled rules; the community rule
+  `textlint-rule-no-empty-section` addresses this specific behavior.
+- Vale focuses on style-rule patterns; section-body emptiness needs a custom
+  check or external style package.
+
+## Implemented Semantics
+
+- Rule ID/name: `MDS030` / `empty-section-body`
+- Category/default: `heading`, enabled by default
+- Scope: check heading levels `2..6` by default
+  (`min-level` / `max-level` settings)
+- Meaningful content: paragraph, list, table, code block, or non-comment HTML
+- Ignorable content: blank lines, HTML comments, or nested headings alone
+- Exemption: explicit marker comment
+  `<!-- allow-empty-section -->`
 
 ## Tasks
 
@@ -35,15 +57,15 @@ so docs do not ship with placeholder or structure-only sections.
 
 ## Acceptance Criteria
 
-- [ ] Rule reports headings that have no meaningful body content before the
+- [x] Rule reports headings that have no meaningful body content before the
       next same/higher-level heading.
-- [ ] Rule does not report sections with meaningful list, table, code, or
+- [x] Rule does not report sections with meaningful list, table, code, or
       paragraph content.
-- [ ] Prior-art behavior from other linters is summarized and key trade-offs
+- [x] Prior-art behavior from other linters is summarized and key trade-offs
       are reflected in rule semantics or documented deviations.
-- [ ] Scope and exemptions are documented with examples.
-- [ ] Diagnostics include heading text, location, and clear remediation
+- [x] Scope and exemptions are documented with examples.
+- [x] Diagnostics include heading text, location, and clear remediation
       guidance.
-- [ ] Unit tests and fixtures cover representative edge cases.
-- [ ] All tests pass: `go test ./...`
-- [ ] `golangci-lint run` reports no issues
+- [x] Unit tests and fixtures cover representative edge cases.
+- [x] All tests pass: `go test ./...`
+- [x] `golangci-lint run` reports no issues

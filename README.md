@@ -244,6 +244,7 @@ row: >-
 | [MDS027](internal/rules/MDS027-cross-file-reference-integrity/README.md) | `cross-file-reference-integrity`     | ready     | Links to local files and heading anchors must resolve.                                  |
 | [MDS028](internal/rules/MDS028-token-budget/README.md) | `token-budget`                       | ready     | File must not exceed a token budget.                                                    |
 | [MDS029](internal/rules/MDS029-conciseness-scoring/README.md) | `conciseness-scoring`                | not-ready | Paragraph conciseness score must not fall below a threshold.                            |
+| [MDS030](internal/rules/MDS030-empty-section-body/README.md) | `empty-section-body`                 | ready     | Section headings must include meaningful body content.                                  |
 <!-- /catalog -->
 
 ## 🛠️ Development
