@@ -34,6 +34,17 @@ var (
 	tokenPattern = regexp.MustCompile(`^[a-z0-9']+$`)
 )
 
+var featureOrder = []string{
+	"filler_rate",
+	"hedge_rate",
+	"verbose_phrase_rate",
+	"modal_rate",
+	"vague_rate",
+	"action_rate",
+	"content_ratio",
+	"log_word_count",
+}
+
 type artifact struct {
 	ModelID   string             `json:"model_id"`
 	Version   string             `json:"version"`
@@ -156,7 +167,8 @@ func (m *Model) LexiconCounts() LexiconCounts {
 func (m *Model) Classify(text string) Result {
 	features, cues := extractFeatures(text, m.lexicon)
 	score := m.artifact.Intercept
-	for name, value := range features {
+	for _, name := range featureOrder {
+		value := features[name]
 		weight := m.artifact.Weights[name]
 		score += weight * value
 	}
@@ -186,9 +198,9 @@ func validateArtifact(a artifact) error {
 	if a.Version == "" {
 		return fmt.Errorf("classifier: version must not be empty")
 	}
-	if a.Threshold < 0 || a.Threshold > 1 {
+	if a.Threshold <= 0 || a.Threshold >= 1 {
 		return fmt.Errorf(
-			"classifier: threshold must be in [0,1], got %v",
+			"classifier: threshold must be in (0,1), got %v",
 			a.Threshold,
 		)
 	}
@@ -205,23 +217,15 @@ func validateArtifact(a artifact) error {
 }
 
 func validateWeights(weights map[string]float64) error {
-	required := []string{
-		"filler_rate",
-		"hedge_rate",
-		"verbose_phrase_rate",
-		"modal_rate",
-		"vague_rate",
-		"action_rate",
-		"content_ratio",
-		"log_word_count",
-	}
-	for _, key := range required {
+	required := make(map[string]struct{}, len(featureOrder))
+	for _, key := range featureOrder {
+		required[key] = struct{}{}
 		if _, ok := weights[key]; !ok {
 			return fmt.Errorf("classifier: weights missing required key %q", key)
 		}
 	}
 	for key := range weights {
-		if !containsString(required, key) {
+		if _, ok := required[key]; !ok {
 			return fmt.Errorf("classifier: weights include unknown key %q", key)
 		}
 	}
@@ -450,15 +454,6 @@ func wordSetFromSlice(values []string) map[string]struct{} {
 		out[v] = struct{}{}
 	}
 	return out
-}
-
-func containsString(values []string, want string) bool {
-	for _, v := range values {
-		if v == want {
-			return true
-		}
-	}
-	return false
 }
 
 func sigmoid(x float64) float64 {
