@@ -270,24 +270,90 @@ fi
 
   printf 'aggregate_metrics\n'
   awk -F, '
-    NR > 1 && $4 == "steady" {
+    function mem_to_mib(raw, value) {
+      gsub(/[[:space:]]+/, "", raw)
+      if (raw == "" || raw == "n/a") {
+        return -1
+      }
+      if (raw ~ /KiB$/) {
+        value = substr(raw, 1, length(raw) - 3) + 0
+        return value / 1024
+      }
+      if (raw ~ /MiB$/) {
+        value = substr(raw, 1, length(raw) - 3) + 0
+        return value
+      }
+      if (raw ~ /GiB$/) {
+        value = substr(raw, 1, length(raw) - 3) + 0
+        return value * 1024
+      }
+      if (raw ~ /KB$/) {
+        value = substr(raw, 1, length(raw) - 2) + 0
+        return value / 1024
+      }
+      if (raw ~ /MB$/) {
+        value = substr(raw, 1, length(raw) - 2) + 0
+        return value
+      }
+      if (raw ~ /GB$/) {
+        value = substr(raw, 1, length(raw) - 2) + 0
+        return value * 1024
+      }
+      return -1
+    }
+    function fmt_mem(mib, gib) {
+      if (mib < 0) {
+        return "n/a"
+      }
+      if (mib >= 1024) {
+        gib = mib / 1024
+        return sprintf("%.2f GiB", gib)
+      }
+      return sprintf("%.0f MiB", mib)
+    }
+    NR > 1 {
       key = $1
-      n[key]++
-      latency_sum[key] += $6
-      tok_sum[key] += $9
-      if ($6 > latency_max[key]) {
-        latency_max[key] = $6
+      if ($4 == "steady") {
+        n[key]++
+        latency_sum[key] += $6
+        tok_sum[key] += $9
+        if ($6 > latency_max[key]) {
+          latency_max[key] = $6
+        }
+        if (($5 + 0) > 1) {
+          warm_n[key]++
+          warm_latency_sum[key] += $6
+        }
+        if ($12 != "parse_error") {
+          parse_ok[key]++
+        }
+        correct[key] += $14
+      } else if ($4 ~ /^restart-/) {
+        mem_mib = mem_to_mib($10)
+        if (mem_mib >= 0) {
+          if (!(key in restart_mem_min) || mem_mib < restart_mem_min[key]) {
+            restart_mem_min[key] = mem_mib
+          }
+          if (!(key in restart_mem_max) || mem_mib > restart_mem_max[key]) {
+            restart_mem_max[key] = mem_mib
+          }
+        }
       }
-      if ($12 != "parse_error") {
-        parse_ok[key]++
-      }
-      correct[key] += $14
     }
     END {
       for (k in n) {
-        printf "%s avg_latency_s=%.4f max_latency_s=%.4f avg_tokens_per_s=%.2f parse_rate=%.3f accuracy=%.3f\n",
+        warm_avg = "n/a"
+        if (warm_n[k] > 0) {
+          warm_avg = sprintf("%.4f", warm_latency_sum[k] / warm_n[k])
+        }
+        restart_range = "n/a"
+        if ((k in restart_mem_min) && (k in restart_mem_max)) {
+          restart_range = sprintf("%s - %s",
+            fmt_mem(restart_mem_min[k]), fmt_mem(restart_mem_max[k]))
+        }
+        printf "%s avg_latency_s=%.4f max_latency_s=%.4f avg_tokens_per_s=%.2f warm_avg_latency_s=%s restart_memory_range=%s parse_rate=%.3f accuracy=%.3f\n",
           k, latency_sum[k] / n[k], latency_max[k], tok_sum[k] / n[k],
-          parse_ok[k] / n[k], correct[k] / n[k]
+          warm_avg, restart_range, parse_ok[k] / n[k], correct[k] / n[k]
       }
     }
   ' "$RESULTS_CSV" | sort

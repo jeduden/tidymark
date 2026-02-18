@@ -93,6 +93,17 @@ Steady metrics (`RUNS=3`, 15 steady requests per model):
 | `llama3.2:1b`  | 3.9316          | 8.4270          | 9.13         | 3.8803               | 2.51 GiB - 2.71 GiB  |
 | `smollm2:360m` | 2.6284          | 3.6367          | 12.31        | 2.5370               | 3.64 GiB - 3.69 GiB  |
 
+Metric derivation (`summary.txt` `aggregate_metrics`):
+
+- `Avg latency (s)`: mean `latency_s` over `phase=steady`.
+- `Max latency (s)`: max `latency_s` over `phase=steady`.
+- `Avg tokens/s`: mean `tokens_per_s` over `phase=steady`.
+- `Warm avg latency (s)`: mean `latency_s` over `phase=steady` and `run>1`.
+- `Restart memory range`: min/max of `mem_usage` over
+  `phase=restart-a|restart-b`
+  after unit normalization to MiB; values are rendered as MiB if `<1024`,
+  otherwise GiB.
+
 Restart load durations (`restart-b`, `direct-01`):
 
 - `qwen2.5:0.5b`: 2.879 s
