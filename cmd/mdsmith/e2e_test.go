@@ -1228,3 +1228,193 @@ func TestE2E_Check_NoArgs_NoConfig_ExitsZero(t *testing.T) {
 		t.Errorf("expected exit code 0 for empty dir with no files, got %d", exitCode)
 	}
 }
+
+// --- merge-driver tests ---
+
+func TestE2E_MergeDriver_Help(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "", "merge-driver", "--help")
+	if exitCode != 0 {
+		t.Errorf("expected exit 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "merge-driver") {
+		t.Errorf("expected help text, got: %s", stderr)
+	}
+}
+
+func TestE2E_MergeDriver_NoArgs(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "", "merge-driver")
+	if exitCode != 0 {
+		t.Errorf("expected exit 0, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "Usage:") {
+		t.Errorf("expected usage in stderr, got: %s", stderr)
+	}
+}
+
+func TestE2E_MergeDriver_TooFewArgs(t *testing.T) {
+	_, stderr, exitCode := runBinary(t, "", "merge-driver", "a", "b")
+	if exitCode != 2 {
+		t.Errorf("expected exit 2, got %d", exitCode)
+	}
+	if !strings.Contains(stderr, "requires 4 arguments") {
+		t.Errorf("expected usage error, got: %s", stderr)
+	}
+}
+
+func TestE2E_MergeDriver_CleanMerge(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Non-overlapping changes: ours edits line 3, theirs edits line 5.
+	base := writeFixture(t, dir, "base.md", "# Plans\n\nline a\n\nline b\n")
+	ours := writeFixture(t, dir, "ours.md", "# Plans\n\nline a changed\n\nline b\n")
+	theirs := writeFixture(t, dir, "theirs.md", "# Plans\n\nline a\n\nline b changed\n")
+	pathname := writeFixture(t, dir, "PLAN.md", "# Plans\n\nline a changed\n\nline b\n")
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "merge-driver", base, ours, theirs, pathname)
+	if exitCode != 0 {
+		t.Errorf("expected exit 0 (clean merge), got %d; stderr: %s", exitCode, stderr)
+	}
+
+	result, _ := os.ReadFile(ours)
+	if strings.Contains(string(result), "<<<<<<<") {
+		t.Error("expected no conflict markers in result")
+	}
+}
+
+func TestE2E_MergeDriver_CatalogConflict_Resolved(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Minimal config so fix runs.
+	writeFixture(t, dir, ".mdsmith.yml", "rules:\n  catalog: true\n")
+
+	catalogBase := "# Doc\n\n<!-- catalog\nglob: \"plans/*.md\"\nsort: title\n" +
+		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n-->\n" +
+		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n<!-- /catalog -->\n"
+
+	// Ours adds beta.
+	catalogOurs := "# Doc\n\n<!-- catalog\nglob: \"plans/*.md\"\nsort: title\n" +
+		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n-->\n" +
+		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n| [Beta](plans/beta.md) |\n<!-- /catalog -->\n"
+
+	// Theirs adds gamma.
+	catalogTheirs := "# Doc\n\n<!-- catalog\nglob: \"plans/*.md\"\nsort: title\n" +
+		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n-->\n" +
+		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n" +
+		"| [Gamma](plans/gamma.md) |\n<!-- /catalog -->\n"
+
+	base := writeFixture(t, dir, "base.md", catalogBase)
+	ours := writeFixture(t, dir, "ours.md", catalogOurs)
+	theirs := writeFixture(t, dir, "theirs.md", catalogTheirs)
+	pathname := writeFixture(t, dir, "CATALOG.md", catalogOurs)
+
+	// Create plan files so catalog regeneration has source data.
+	plansDir := filepath.Join(dir, "plans")
+	if err := os.MkdirAll(plansDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, dir, "plans/alpha.md", "---\ntitle: Alpha\n---\n\n# Alpha\n\nContent.\n")
+	writeFixture(t, dir, "plans/beta.md", "---\ntitle: Beta\n---\n\n# Beta\n\nContent.\n")
+	writeFixture(t, dir, "plans/gamma.md", "---\ntitle: Gamma\n---\n\n# Gamma\n\nContent.\n")
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "merge-driver", base, ours, theirs, pathname)
+	if exitCode != 0 {
+		t.Errorf("expected exit 0 (catalog conflict resolved), got %d; stderr: %s", exitCode, stderr)
+	}
+
+	result, _ := os.ReadFile(ours)
+	content := string(result)
+	if strings.Contains(content, "<<<<<<<") {
+		t.Error("expected no conflict markers after merge-driver")
+	}
+}
+
+func TestE2E_MergeDriver_NonCatalogConflict_ExitsOne(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, dir, ".mdsmith.yml", "rules: {}\n")
+
+	// A conflict outside any catalog section cannot be resolved.
+	base := writeFixture(t, dir, "base.md", "# Doc\n\noriginal line\n")
+	ours := writeFixture(t, dir, "ours.md", "# Doc\n\nours change\n")
+	theirs := writeFixture(t, dir, "theirs.md", "# Doc\n\ntheirs change\n")
+	pathname := writeFixture(t, dir, "README.md", "# Doc\n\nours change\n")
+
+	_, _, exitCode := runBinaryInDir(t, dir, "", "merge-driver", base, ours, theirs, pathname)
+	if exitCode != 1 {
+		t.Errorf("expected exit 1 (unresolved conflict), got %d", exitCode)
+	}
+
+	result, _ := os.ReadFile(ours)
+	if !strings.Contains(string(result), "<<<<<<<") {
+		t.Error("expected conflict markers preserved for non-catalog conflict")
+	}
+}
+
+func TestE2E_MergeDriver_Install(t *testing.T) {
+	dir := t.TempDir()
+
+	// Initialize a git repo.
+	cmd := exec.Command("git", "init", dir)
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "merge-driver", "install")
+	if exitCode != 0 {
+		t.Errorf("expected exit 0, got %d; stderr: %s", exitCode, stderr)
+	}
+
+	// Verify git config.
+	out, err := exec.Command("git", "-C", dir, "config", "merge.catalog.driver").Output()
+	if err != nil {
+		t.Fatalf("reading git config: %v", err)
+	}
+	driver := strings.TrimSpace(string(out))
+	if !strings.Contains(driver, "mdsmith merge-driver") {
+		t.Errorf("expected merge driver config, got: %s", driver)
+	}
+
+	// Verify .gitattributes.
+	attrs, err := os.ReadFile(filepath.Join(dir, ".gitattributes"))
+	if err != nil {
+		t.Fatalf("reading .gitattributes: %v", err)
+	}
+	content := string(attrs)
+	if !strings.Contains(content, "PLAN.md merge=catalog") {
+		t.Error("expected PLAN.md entry in .gitattributes")
+	}
+	if !strings.Contains(content, "README.md merge=catalog") {
+		t.Error("expected README.md entry in .gitattributes")
+	}
+}
+
+func TestE2E_MergeDriver_Install_Idempotent(t *testing.T) {
+	dir := t.TempDir()
+
+	cmd := exec.Command("git", "init", dir)
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+
+	// Run install twice.
+	runBinaryInDir(t, dir, "", "merge-driver", "install")
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "merge-driver", "install")
+	if exitCode != 0 {
+		t.Errorf("expected exit 0 on second install, got %d; stderr: %s", exitCode, stderr)
+	}
+
+	// .gitattributes should not have duplicates.
+	attrs, _ := os.ReadFile(filepath.Join(dir, ".gitattributes"))
+	count := strings.Count(string(attrs), "PLAN.md merge=catalog")
+	if count != 1 {
+		t.Errorf("expected 1 PLAN.md entry, got %d; content:\n%s", count, attrs)
+	}
+}

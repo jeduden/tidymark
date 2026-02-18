@@ -50,14 +50,15 @@ mdsmith <command> [flags] [files...]
 
 ### Commands
 
-| Command | Description                  |
-|---------|------------------------------|
-| `check`   | Lint files (default command) |
-| `fix`     | Auto-fix issues in place     |
-| `help`    | Show help for rules/topics   |
-| `metrics` | List and rank shared metrics |
-| `init`    | Generate `.mdsmith.yml`        |
-| `version` | Print version, exit          |
+| Command      | Description                   |
+|--------------|-------------------------------|
+| `check`        | Lint files (default command)  |
+| `fix`          | Auto-fix issues in place      |
+| `help`         | Show help for rules/topics    |
+| `metrics`      | List and rank shared metrics  |
+| `merge-driver` | Git merge driver for catalogs |
+| `init`         | Generate `.mdsmith.yml`         |
+| `version`      | Print version, exit           |
 
 Files are positional arguments. Accepts multiple file paths,
 directories, and glob patterns. Pass `-` to read from stdin.
@@ -195,16 +196,18 @@ in the glob-matched source files. Do not manually resolve
 catalog conflicts — `mdsmith fix` overwrites the entire
 section between the markers.
 
-A custom merge driver in
-[`scripts/merge-driver-catalog.sh`](scripts/merge-driver-catalog.sh)
-automates this. Register it once per clone:
+The built-in `merge-driver` command automates this as a
+git custom merge driver. It strips conflict markers inside
+catalog blocks, runs `mdsmith fix` to regenerate, and
+exits non-zero if unresolved markers remain outside
+catalogs. Register it once per clone:
 
 ```bash
-scripts/setup-merge-drivers.sh
+mdsmith merge-driver install
 ```
 
-This writes a `[merge "catalog"]` entry to `.git/config`.
-The [`.gitattributes`](.gitattributes) file assigns the
+This writes a `[merge "catalog"]` entry to `.git/config`
+and ensures [`.gitattributes`](.gitattributes) assigns the
 driver to PLAN.md and README.md.
 
 ## Cross-Platform Agent Config

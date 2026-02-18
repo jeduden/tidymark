@@ -41,10 +41,10 @@ The catalog rule regenerates the table from front matter
 in the glob-matched files. Do not manually resolve catalog
 conflicts — `mdsmith fix` overwrites the entire section.
 
-A custom merge driver automates this. Register it:
+A built-in merge driver automates this. Register it:
 
 ```bash
-scripts/setup-merge-drivers.sh
+mdsmith merge-driver install
 ```
 
 ## Development Conventions
