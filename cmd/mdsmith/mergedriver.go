@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	fixpkg "github.com/jeduden/mdsmith/internal/fix"
@@ -79,6 +80,12 @@ func runMergeDriverRun(args []string) int {
 	mergeCmd := exec.Command("git", "merge-file", ours, base, theirs)
 	mergeErr := mergeCmd.Run()
 
+	// git merge-file exits 1 for conflicts, 2+ for fatal errors.
+	if exitErr, ok := mergeErr.(*exec.ExitError); ok && exitErr.ExitCode() >= 2 {
+		fmt.Fprintf(os.Stderr, "mdsmith: git merge-file failed: %v\n", mergeErr)
+		return 2
+	}
+
 	// Step 2: strip conflict markers inside catalog sections.
 	content, err := os.ReadFile(ours)
 	if err != nil {
@@ -101,11 +108,9 @@ func runMergeDriverRun(args []string) int {
 
 	// Step 4: check for remaining conflict markers.
 	if hasConflictMarkers(fixed) {
-		if mergeErr != nil {
-			fmt.Fprintf(os.Stderr,
-				"mdsmith: unresolved conflict markers remain in %s\n",
-				pathname)
-		}
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: unresolved conflict markers remain in %s\n",
+			pathname)
 		return 1
 	}
 
@@ -116,6 +121,10 @@ func runMergeDriverRun(args []string) int {
 // fix, copies the result to ours, and restores pathname.
 func fixAtRealPath(cleaned []byte, ours, pathname string) ([]byte, int) {
 	backup, backupErr := os.ReadFile(pathname)
+	if backupErr != nil && !os.IsNotExist(backupErr) {
+		fmt.Fprintf(os.Stderr, "mdsmith: reading %s for backup: %v\n", pathname, backupErr)
+		return nil, 2
+	}
 	if err := os.WriteFile(pathname, cleaned, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: writing to %s: %v\n", pathname, err)
 		return nil, 2
@@ -142,6 +151,7 @@ func fixAtRealPath(cleaned []byte, ours, pathname string) ([]byte, int) {
 
 	if fixErr != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: fix failed: %v\n", fixErr)
+		return fixed, 2
 	}
 
 	return fixed, 0
@@ -249,7 +259,7 @@ func runMergeDriverInstall(args []string) int {
 	}
 
 	// Ensure .gitattributes has the merge driver entries.
-	attrPath := repoRoot + "/.gitattributes"
+	attrPath := filepath.Join(repoRoot, ".gitattributes")
 	if err := ensureGitattributes(attrPath); err != nil {
 		fmt.Fprintf(os.Stderr,
 			"mdsmith: updating .gitattributes: %v\n", err)
@@ -272,7 +282,10 @@ var catalogAttrEntries = []string{
 // ensureGitattributes reads .gitattributes, adds any missing
 // catalog merge driver entries, and writes it back.
 func ensureGitattributes(path string) error {
-	existing, _ := os.ReadFile(path)
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
 	content := string(existing)
 
 	var missing []string
