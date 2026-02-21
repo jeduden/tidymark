@@ -78,12 +78,16 @@ func runMergeDriverRun(args []string) int {
 
 	// Step 1: standard 3-way merge into ours.
 	mergeCmd := exec.Command("git", "merge-file", ours, base, theirs)
+	mergeCmd.Stderr = os.Stderr
 	mergeErr := mergeCmd.Run()
 
 	// git merge-file exits 1 for conflicts, 2+ for fatal errors.
-	if exitErr, ok := mergeErr.(*exec.ExitError); ok && exitErr.ExitCode() >= 2 {
-		fmt.Fprintf(os.Stderr, "mdsmith: git merge-file failed: %v\n", mergeErr)
-		return 2
+	// Non-ExitError (e.g. git not found) is also fatal.
+	if mergeErr != nil {
+		if exitErr, ok := mergeErr.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
+			fmt.Fprintf(os.Stderr, "mdsmith: git merge-file failed: %v\n", mergeErr)
+			return 2
+		}
 	}
 
 	// Step 2: strip conflict markers inside catalog sections.
@@ -145,8 +149,15 @@ func fixAtRealPath(cleaned []byte, ours, pathname string) ([]byte, int) {
 
 	// Restore the original working tree file. Git will overwrite
 	// it with the merge result from ours after the driver exits.
+	var restoreErr error
 	if backupErr == nil {
-		_ = os.WriteFile(pathname, backup, 0644)
+		restoreErr = os.WriteFile(pathname, backup, 0644)
+	} else if os.IsNotExist(backupErr) {
+		restoreErr = os.Remove(pathname)
+	}
+	if restoreErr != nil {
+		fmt.Fprintf(os.Stderr, "mdsmith: restoring %s: %v\n", pathname, restoreErr)
+		return fixed, 2
 	}
 
 	if fixErr != nil {
@@ -288,9 +299,20 @@ func ensureGitattributes(path string) error {
 	}
 	content := string(existing)
 
+	// Build a set of normalized existing lines to avoid substring
+	// matches against comments or whitespace differences.
+	existingSet := make(map[string]struct{})
+	for _, line := range strings.Split(content, "\n") {
+		norm := strings.Join(strings.Fields(line), " ")
+		if norm != "" {
+			existingSet[norm] = struct{}{}
+		}
+	}
+
 	var missing []string
 	for _, entry := range catalogAttrEntries {
-		if !strings.Contains(content, entry) {
+		norm := strings.Join(strings.Fields(entry), " ")
+		if _, ok := existingSet[norm]; !ok {
 			missing = append(missing, entry)
 		}
 	}
