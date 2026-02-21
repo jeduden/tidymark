@@ -252,7 +252,7 @@ func stripSectionConflicts(content []byte) []byte {
 				inConflict = true
 				continue
 			}
-			if isConflictClose(trimmed) {
+			if inConflict && isConflictClose(trimmed) {
 				inConflict = false
 				continue
 			}
