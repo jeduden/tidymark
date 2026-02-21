@@ -63,7 +63,7 @@ Commands:
   fix            Auto-fix lint issues in place
   help           Show help for rules and topics
   metrics        Show and rank shared Markdown metrics
-  merge-driver   Git merge driver for catalog files
+  merge-driver   Git merge driver for regenerable sections
   init           Generate a default .mdsmith.yml config file
   version        Print version and exit
 

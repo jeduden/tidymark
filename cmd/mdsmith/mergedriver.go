@@ -125,34 +125,35 @@ func runMergeDriverRun(args []string) int {
 // fixAtRealPath writes cleaned content to pathname, runs mdsmith
 // fix, copies the result to ours, and restores pathname.
 func fixAtRealPath(cleaned []byte, ours, pathname string) ([]byte, int) {
+	// Capture the original file mode so we can preserve permissions.
+	fileMode := os.FileMode(0644)
+	if info, err := os.Stat(pathname); err == nil {
+		fileMode = info.Mode()
+	}
+
 	backup, backupErr := os.ReadFile(pathname)
 	if backupErr != nil && !os.IsNotExist(backupErr) {
 		fmt.Fprintf(os.Stderr, "mdsmith: reading %s for backup: %v\n", pathname, backupErr)
 		return nil, 2
 	}
-	if err := os.WriteFile(pathname, cleaned, 0644); err != nil {
+	if err := os.WriteFile(pathname, cleaned, fileMode); err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: writing to %s: %v\n", pathname, err)
 		return nil, 2
 	}
 
 	fixErr := fixFileInPlace(pathname)
 
+	// Restore the original working tree file before checking
+	// fixErr, so the working tree is always left clean.
 	fixed, err := os.ReadFile(pathname)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: reading fixed file: %v\n", err)
 		return nil, 2
 	}
 
-	if err := os.WriteFile(ours, fixed, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: writing merge output: %v\n", err)
-		return nil, 2
-	}
-
-	// Restore the original working tree file. Git will overwrite
-	// it with the merge result from ours after the driver exits.
 	var restoreErr error
 	if backupErr == nil {
-		restoreErr = os.WriteFile(pathname, backup, 0644)
+		restoreErr = os.WriteFile(pathname, backup, fileMode)
 	} else if os.IsNotExist(backupErr) {
 		restoreErr = os.Remove(pathname)
 	}
@@ -161,9 +162,16 @@ func fixAtRealPath(cleaned []byte, ours, pathname string) ([]byte, int) {
 		return fixed, 2
 	}
 
+	// Check fixErr before writing to ours so broken content is
+	// not used as the merge result.
 	if fixErr != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: fix failed: %v\n", fixErr)
 		return fixed, 2
+	}
+
+	if err := os.WriteFile(ours, fixed, fileMode); err != nil {
+		fmt.Fprintf(os.Stderr, "mdsmith: writing merge output: %v\n", err)
+		return nil, 2
 	}
 
 	return fixed, 0
@@ -196,7 +204,9 @@ func fixFileInPlace(path string) error {
 var regenSectionNames = []string{"catalog", "include"}
 
 // isRegenSectionStart returns true if the line starts a
-// regenerable section (e.g. <!-- catalog or <!-- include).
+// regenerable section. The start marker begins with
+// "<!-- catalog" or "<!-- include", followed by a YAML body
+// and a closing "-->".
 func isRegenSectionStart(line []byte) bool {
 	for _, name := range regenSectionNames {
 		if bytes.HasPrefix(line, []byte("<!-- "+name)) {
@@ -232,15 +242,16 @@ func stripSectionConflicts(content []byte) []byte {
 		if isRegenSectionStart(trimmed) {
 			inSection = true
 		}
-		if isRegenSectionEnd(trimmed) {
-			inSection = false
-		}
 
 		if inSection && isConflictMarker(trimmed) {
 			continue
 		}
 
 		out = append(out, line)
+
+		if isRegenSectionEnd(trimmed) {
+			inSection = false
+		}
 	}
 
 	return bytes.Join(out, []byte("\n"))
