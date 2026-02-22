@@ -51,10 +51,15 @@ func runBuild(args []string) error {
 		return usageError("build requires -config and -out")
 	}
 
+	statusf("build: loading config %s", *configPath)
 	cfg, err := corpus.LoadConfig(*configPath)
 	if err != nil {
 		return err
 	}
+	cfg.Progress = func(message string) {
+		statusf("build: %s", message)
+	}
+	statusf("build: collecting and building corpus")
 	result, err := corpus.Build(cfg, *cacheDir)
 	if err != nil {
 		return err
@@ -64,12 +69,15 @@ func runBuild(args []string) error {
 	reportPath := filepath.Join(*outDir, "report.json")
 	samplePath := filepath.Join(*outDir, "qa-sample.jsonl")
 
+	statusf("build: writing %s", manifestPath)
 	if err := corpus.WriteManifest(manifestPath, result.Manifest); err != nil {
 		return err
 	}
+	statusf("build: writing %s", reportPath)
 	if err := corpus.WriteJSON(reportPath, result.Report); err != nil {
 		return err
 	}
+	statusf("build: writing %s", samplePath)
 	if err := corpus.WriteQASample(samplePath, result.QASample); err != nil {
 		return err
 	}
@@ -92,18 +100,22 @@ func runQA(args []string) error {
 		return usageError("qa requires -sample, -annotations, and -out")
 	}
 
+	statusf("qa: reading sample %s", *samplePath)
 	sample, err := corpus.ReadQASample(*samplePath)
 	if err != nil {
 		return err
 	}
+	statusf("qa: reading annotations %s", *annotationsPath)
 	annotations, err := corpus.ReadQAAnnotationsCSV(*annotationsPath)
 	if err != nil {
 		return err
 	}
+	statusf("qa: evaluating %d sample rows", len(sample))
 	report, err := corpus.EvaluateQA(sample, annotations)
 	if err != nil {
 		return err
 	}
+	statusf("qa: writing %s", *outPath)
 	if err := corpus.WriteJSON(*outPath, report); err != nil {
 		return err
 	}
@@ -124,15 +136,19 @@ func runDrift(args []string) error {
 		return usageError("drift requires -baseline, -candidate, and -out")
 	}
 
+	statusf("drift: reading baseline %s", *baselinePath)
 	baseline, err := corpus.ReadBuildReport(*baselinePath)
 	if err != nil {
 		return err
 	}
+	statusf("drift: reading candidate %s", *candidatePath)
 	candidate, err := corpus.ReadBuildReport(*candidatePath)
 	if err != nil {
 		return err
 	}
+	statusf("drift: comparing reports")
 	drift := corpus.CompareReports(baseline, candidate)
+	statusf("drift: writing %s", *outPath)
 	if err := corpus.WriteJSON(*outPath, drift); err != nil {
 		return err
 	}
@@ -164,4 +180,8 @@ func defaultCacheDir() string {
 		return filepath.Join(os.TempDir(), "corpusctl")
 	}
 	return filepath.Join(userCacheDir, "corpusctl")
+}
+
+func statusf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, "corpusctl: "+format+"\n", args...)
 }

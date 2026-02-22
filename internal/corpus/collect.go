@@ -26,8 +26,25 @@ func Collect(cfg *Config, cacheDir string) ([]Record, error) {
 	}
 
 	records := make([]Record, 0)
-	for _, source := range cfg.Sources {
+	for idx, source := range cfg.Sources {
+		reportProgress(
+			cfg,
+			fmt.Sprintf(
+				"source %d/%d: %s",
+				idx+1,
+				len(cfg.Sources),
+				source.Name,
+			),
+		)
 		if _, ok := allow[strings.ToUpper(strings.TrimSpace(source.License))]; !ok {
+			reportProgress(
+				cfg,
+				fmt.Sprintf(
+					"source %s skipped: license %s not allowlisted",
+					source.Name,
+					source.License,
+				),
+			)
 			continue
 		}
 
@@ -35,11 +52,23 @@ func Collect(cfg *Config, cacheDir string) ([]Record, error) {
 		if err != nil {
 			return nil, err
 		}
+		reportProgress(
+			cfg,
+			fmt.Sprintf("source %s resolved to %s", source.Name, resolvedRoot),
+		)
 
 		sourceRecords, err := collectFromRoot(cfg, source, resolvedRoot)
 		if err != nil {
 			return nil, err
 		}
+		reportProgress(
+			cfg,
+			fmt.Sprintf(
+				"source %s collected %d records",
+				source.Name,
+				len(sourceRecords),
+			),
+		)
 		records = append(records, sourceRecords...)
 	}
 	return records, nil
@@ -173,4 +202,10 @@ func sha256Hex(text string) string {
 func shortHash(text string) string {
 	sum := sha256.Sum256([]byte(text))
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+func reportProgress(cfg *Config, message string) {
+	if cfg != nil && cfg.Progress != nil {
+		cfg.Progress(message)
+	}
 }

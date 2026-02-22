@@ -28,6 +28,7 @@ type Config struct {
 	QASampleLimit     int            `yaml:"qa_sample_limit" json:"qa_sample_limit"`
 	Sources           []SourceConfig `yaml:"sources" json:"sources"`
 	ResolvedFromLocal bool           `yaml:"-" json:"-"`
+	Progress          func(string)   `yaml:"-" json:"-"`
 }
 
 // SourceConfig defines one configured source repository.

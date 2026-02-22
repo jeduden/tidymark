@@ -23,11 +23,14 @@ func runMeasure(args []string) error {
 		return usageError("measure requires -corpus and -out")
 	}
 
+	statusf("measure: reading manifest %s", filepath.Join(*corpusDir, "manifest.jsonl"))
 	records, err := readManifest(filepath.Join(*corpusDir, "manifest.jsonl"))
 	if err != nil {
 		return err
 	}
+	statusf("measure: computing aggregates for %d records", len(records))
 	report := measureRecords(*corpusDir, records)
+	statusf("measure: writing %s", *outPath)
 	if err := corpus.WriteJSON(*outPath, report); err != nil {
 		return err
 	}
