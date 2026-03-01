@@ -97,6 +97,8 @@ overrides:
         template: plan/proto.md
   - files: ["background/*.md"]
     rules:
+      line-length:
+        stern: true
       max-file-length:
         max: 500
       token-budget:
