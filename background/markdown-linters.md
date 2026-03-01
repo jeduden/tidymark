@@ -155,6 +155,32 @@ All three cover core structural rules. markdownlint has
 the broadest rule set (~60 rules). mdsmith and remark-lint
 are comparable in structural coverage.
 
+### Rules mdsmith Lacks
+
+markdownlint has ~30 rules without mdsmith equivalents.
+Notable gaps:
+
+| Rule area         | markdownlint         | remark-lint           |
+|-------------------|----------------------|-----------------------|
+| Inline HTML       | MD033 no-inline-html | no-html               |
+| Image alt text    | MD045 no-alt-text    | no-empty-image-alt    |
+| OL numbering      | MD029 ol-prefix      | ordered-list-marker   |
+| UL marker style   | MD004 ul-style       | unordered-list-marker |
+| Emphasis style    | MD049, MD050         | emphasis-marker       |
+| HR style          | MD035 hr-style       | rule-style            |
+| Space in emphasis | MD037                | no                    |
+| Space in code     | MD038                | no                    |
+| Space in links    | MD039                | no                    |
+| Proper names      | MD044                | no                    |
+| Required headings | MD043                | no                    |
+| Single H1         | MD047                | no                    |
+| Link fragments    | MD051                | no                    |
+| Reference links   | MD052, MD053         | no                    |
+
+mdsmith covers readability, tokens, and generated content
+rather than formatting details. Teams that need full
+coverage can pair mdsmith with markdownlint.
+
 ### Prose and Readability
 
 | Capability        | mdsmith          | Vale             | LLM |
@@ -270,3 +296,73 @@ mdsmith's conciseness-scoring rule (MDS029, planned) brings
 LLM-grade quality checks into an offline, rule-based tool.
 It uses classifier-backed scoring to bridge the gap between
 static rules and LLM review.
+
+## Front Matter and Document Templates
+
+Front matter (YAML between `---` delimiters) is a key
+integration point. Tools handle it differently.
+
+**mdsmith** uses front matter in three rules:
+
+- **catalog (MDS019)**: reads front matter fields from
+  matched files to build summary tables. Fields become
+  template variables (`{{.title}}`, `{{.status}}`).
+- **required-structure (MDS020)**: validates document
+  headings and front matter against a template. Supports
+  CUE schemas for field types and constraints.
+- **include (MDS021)**: strips front matter from included
+  files by default (`strip-frontmatter: true`).
+
+mdsmith also provides **proto files** as templates for
+rule and metric docs. The proto defines required front
+matter fields (id, name, status, description) with CUE
+validation patterns, required heading structure, and
+content guidelines. Every rule README is validated
+against its proto via the required-structure rule.
+
+Front matter validation as a standalone rule (checking
+required fields and types) is planned but not yet built.
+
+**markdownlint** has no built-in front matter awareness.
+It strips front matter to avoid false positives but does
+not inspect its content. Custom rules can access it.
+
+**remark-lint** supports front matter via the
+`remark-frontmatter` plugin. Rules can then inspect the
+parsed YAML. No built-in validation rules exist.
+
+**Prettier** preserves front matter blocks but does not
+format or validate their content.
+
+**Vale** is front-matter-aware: it skips YAML blocks to
+avoid false positives on metadata fields.
+
+## Progressive Disclosure
+
+mdsmith's catalog rule (MDS019) implements progressive
+disclosure for documentation sets. A summary table gives
+readers the overview; each row links to the full document
+for details. Running `mdsmith fix` keeps the table in
+sync with source front matter.
+
+This pattern is useful for large repos where readers need
+to find the right document without reading everything.
+No other linter in this comparison generates or maintains
+navigational tables from document metadata.
+
+## Slidev and Presentation Markdown
+
+Slidev uses Markdown files as slide decks. Slides are
+split by `---` lines, with YAML front matter for config.
+No tool in this comparison has Slidev support:
+
+- Linters treat `---` separators as horizontal rules,
+  which may trigger false positives
+- Front matter blocks between slides may confuse parsers
+  that expect a single front matter block at file start
+- Slidev-specific directives (layout, clicks, transitions)
+  appear as YAML or HTML comments that linters ignore
+
+Teams using Slidev alongside standard Markdown docs
+should use separate config overrides (e.g. ignore or
+relaxed rules) for presentation files.
