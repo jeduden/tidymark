@@ -82,39 +82,55 @@ modeled after ESLint. ~3k stars.
 ### LLM as Linter
 
 Using language models (GPT-4, Claude, etc.) directly to
-check prose quality, conciseness, and style. This approach
-is emerging through AI code review tools and custom
-prompts.
+check prose quality, conciseness, and style. This is
+emerging through dedicated CLI tools and AI review bots.
 
 How it works:
 
-- Send Markdown content to an LLM with a style prompt
+- Send Markdown to an LLM with a style prompt
 - LLM returns diagnostics: verbose paragraphs, unclear
   phrasing, jargon, redundancy
-- Some tools wrap this in CLI or CI workflows
+- Tools wrap this in CLI or CI workflows
 
-Examples of the approach:
+Dedicated tools:
+
+- **VectorLint**: CLI AI prose linter. Rules defined in
+  natural language in a `VECTORLINT.md` file. Uses
+  error-density scoring and 1-4 rubrics. Supports
+  OpenAI, Anthropic, and Google providers.
+- **GPTLint**: two-pass LLM linter. A cheap model finds
+  candidates, a strong model filters false positives.
+  Uses GritQL to pre-filter files. Cost: ~$0.83 for
+  351 API calls on a small codebase.
+
+AI review services:
 
 - GitHub Copilot code review (reviews Markdown in PRs)
-- Custom GitHub Actions calling OpenAI/Claude APIs
-- Editor plugins using AI for writing suggestions
-- Grammarly (proprietary NLP, not a pure LLM but similar)
+- CodeRabbit (combines 40+ linters with LLM review)
+- Claude Code Action (Anthropic's PR review action)
+
+Hybrid systems:
+
+- Grammarly: rule-based grammar + ML models + LLMs.
+  Their CoEdIT model (770M-11B params) beats GPT-3
+  at text editing while being 60x smaller.
 
 Strengths:
 
-- Excels at subjective quality: conciseness, clarity, tone
-- Can catch semantic issues no rule-based tool can detect
+- Excels at subjective quality: conciseness, clarity
+- Catches semantic issues no rule-based tool can detect
+- A single natural-language instruction replaces many
+  regex patterns (e.g. "flag hedging language")
 - Understands context and intent, not just patterns
-- Flexible: change the prompt to change the "rules"
 
 Weaknesses:
 
-- Non-deterministic: same input may yield different output
+- Non-deterministic: same input may yield different
+  output, even at temperature=0
 - Costly: API calls per file per run add up
-- Slow: seconds per file vs milliseconds for rule-based
-- Requires network access (no offline use)
-- Cannot produce machine-stable exit codes reliably
-- Hard to integrate into pre-commit hooks (latency, cost)
+- Slow: seconds per file vs milliseconds for rules
+- Requires network (local LLMs work but lower quality)
+- Hard to use as a blocking CI gate reliably
 
 ## Feature Comparison
 
