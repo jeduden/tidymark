@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/rule"
@@ -49,8 +50,6 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if f.AST == nil {
 		return nil
 	}
-	allowMarkerPattern := buildAllowMarkerPattern(allowMarker)
-
 	nodes := topLevelNodes(f.AST)
 	if len(nodes) == 0 {
 		return nil
@@ -79,7 +78,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		}
 
 		sectionNodes := nodes[i+1 : end]
-		if hasAllowMarker(sectionNodes, f.Source, allowMarkerPattern) {
+		if hasAllowMarker(sectionNodes, f.Source, allowMarker) {
 			continue
 		}
 		if hasMeaningfulContent(sectionNodes, f.Source) {
@@ -91,7 +90,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 				"add paragraph, list, table, or code content, "+
 				"or add %q for an intentional empty section",
 			headingLabel(heading, f.Source),
-			fmt.Sprintf("<!-- %s -->", allowMarker),
+			fmt.Sprintf("<?%s?>", allowMarker),
 		)
 		diags = append(diags, lint.Diagnostic{
 			File:     f.Path,
@@ -243,30 +242,23 @@ func topLevelNodes(root ast.Node) []ast.Node {
 	return nodes
 }
 
-func buildAllowMarkerPattern(marker string) *regexp.Regexp {
-	trimmed := strings.TrimSpace(marker)
-	if trimmed == "" {
-		return nil
-	}
-	return regexp.MustCompile(
-		`(?s)<!--\s*` + regexp.QuoteMeta(trimmed) + `\s*-->`,
-	)
-}
-
-func hasAllowMarker(nodes []ast.Node, source []byte, pattern *regexp.Regexp) bool {
-	if pattern == nil {
-		return false
-	}
+func hasAllowMarker(nodes []ast.Node, source []byte, markerName string) bool {
 	for _, node := range nodes {
 		block, ok := node.(*ast.HTMLBlock)
 		if !ok {
 			continue
 		}
-		if pattern.MatchString(nodeLinesText(block, source)) {
+		if gensection.IsSingleLineDirective(nodeLinesText(block, source), markerName) {
 			return true
 		}
 	}
 	return false
+}
+
+var processingInstructionPattern = regexp.MustCompile(`(?s)<\?.*?\?>`)
+
+func stripProcessingInstructions(s string) string {
+	return processingInstructionPattern.ReplaceAllString(s, "")
 }
 
 func hasMeaningfulContent(nodes []ast.Node, source []byte) bool {
@@ -275,7 +267,9 @@ func hasMeaningfulContent(nodes []ast.Node, source []byte) bool {
 		case *ast.Heading:
 			continue
 		case *ast.HTMLBlock:
-			raw := stripHTMLComments(nodeLinesText(n, source))
+			raw := nodeLinesText(n, source)
+			raw = stripHTMLComments(raw)
+			raw = stripProcessingInstructions(raw)
 			if strings.TrimSpace(raw) == "" {
 				continue
 			}

@@ -7,7 +7,7 @@ status: '"🔲" | "🔳" | "✅"'
 
 ## ...
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 
 ## Goal
 
@@ -16,7 +16,7 @@ it matters.
 
 ## ...
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 
 ## Tasks
 
@@ -26,7 +26,7 @@ it matters.
 
 ## ...
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 
 ## Acceptance Criteria
 
@@ -37,4 +37,4 @@ it matters.
 
 ## ...
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>

@@ -79,12 +79,12 @@ func TestRule_Name(t *testing.T) {
 
 func TestRendering_MinimalMode(t *testing.T) {
 	// Minimal mode (glob only) produces plain bullet list with basenames as link text.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
--->
+?>
 - [api.md](docs/api.md)
 - [guide.md](docs/guide.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md":   {Data: []byte("# API\n")},
@@ -98,13 +98,13 @@ glob: "docs/*.md"
 
 func TestRendering_ListTemplateWithFrontMatter(t *testing.T) {
 	// List template renders per-file with front matter fields.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 row: "- [{{.title}}]({{.filename}}) -- {{.description}}"
--->
+?>
 - [API Reference](docs/api.md) -- Complete API docs
 - [Getting Started](docs/guide.md) -- How to get started
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md":   {Data: []byte("---\ntitle: API Reference\ndescription: Complete API docs\n---\n# API\n")},
@@ -118,18 +118,18 @@ row: "- [{{.title}}]({{.filename}}) -- {{.description}}"
 
 func TestRendering_TableHeaderRows(t *testing.T) {
 	// Table template renders static header + per-file rows.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 header: |
   | Title | Description |
   |-------|-------------|
 row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
--->
+?>
 | Title           | Description        |
 |-----------------|--------------------|
 | [API Reference](docs/api.md)   | Complete API docs  |
 | [Getting Started](docs/guide.md) | How to get started |
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md":   {Data: []byte("---\ntitle: API Reference\ndescription: Complete API docs\n---\n# API\n")},
@@ -144,17 +144,17 @@ row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
 func TestRendering_MultilineRowPipe(t *testing.T) {
 	// Multi-line `row` value with YAML `|` produces multi-line output per file.
 	// YAML `|` clips trailing newline to one.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 row: |
   ### {{.title}}
   {{.description}}
--->
+?>
 ### API
 Complete API docs
 ### Guide
 How to get started
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md":   {Data: []byte("---\ntitle: API\ndescription: Complete API docs\n---\n")},
@@ -168,14 +168,14 @@ How to get started
 
 func TestRendering_MultilineRowPipePlus(t *testing.T) {
 	// Multi-line `row` value with YAML `|+` preserves trailing blank lines between entries.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 row: |+
   ### [{{.title}}]({{.filename}})
 
   {{.description}}
 
--->
+?>
 ### [API](docs/api.md)
 
 Complete API docs
@@ -184,7 +184,7 @@ Complete API docs
 
 How to get started
 
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md":   {Data: []byte("---\ntitle: API\ndescription: Complete API docs\n---\n")},
@@ -198,14 +198,14 @@ How to get started
 
 func TestRendering_PipeStripImplicitNewline(t *testing.T) {
 	// YAML `|-` strips trailing newlines; implicit `\n` rule adds one back.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: |-
   - {{.filename}}
--->
+?>
 - a.md
 - b.md
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# A\n")},
@@ -219,16 +219,16 @@ row: |-
 
 func TestRendering_EachValueTerminatedByNewline(t *testing.T) {
 	// Each rendered value (header, row, footer, empty) is terminated by implicit trailing `\n`.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 header: "| Title |"
 row: "| {{.filename}} |"
 footer: "---"
--->
+?>
 | Title |
 | a.md |
 ---
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# A\n")},
@@ -241,7 +241,7 @@ footer: "---"
 
 func TestRendering_FooterRendersAfterRows(t *testing.T) {
 	// `footer` renders static content after rows.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 header: |
   | Title | Description |
@@ -250,13 +250,13 @@ row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
 footer: |
 
   ---
--->
+?>
 | Title | Description |
 |-------|-------------|
 | [API](a.md)   | docs        |
 
 ---
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: API\ndescription: docs\n---\n")},
@@ -269,12 +269,12 @@ footer: |
 
 func TestRendering_EmptyFallbackRendersWhenNoMatches(t *testing.T) {
 	// `empty` renders fallback text when glob matches zero files.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
 empty: No documents found.
--->
+?>
 No documents found.
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -285,12 +285,12 @@ No documents found.
 
 func TestRendering_EmptyAloneWithoutRowIsValid(t *testing.T) {
 	// `empty` alone without `row` is valid (no diagnostic).
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
 empty: No documents found.
--->
+?>
 No documents found.
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -301,14 +301,14 @@ No documents found.
 
 func TestRendering_EmptyPlusHeaderWithoutRowProducesDiag(t *testing.T) {
 	// `empty` + `header` without `row` produces missing-row diagnostic.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 empty: No docs.
 header: |
   | Title |
   |-------|
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -320,12 +320,12 @@ header: |
 
 func TestRendering_EmptyValueGetsTrailingNewline(t *testing.T) {
 	// `empty` value gets trailing `\n`.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
 empty: "Nothing here"
--->
+?>
 Nothing here
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -336,10 +336,10 @@ Nothing here
 
 func TestRendering_NoEmptyNoMatchesEmptyContent(t *testing.T) {
 	// No `empty` + no matches produces empty content between markers.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -350,15 +350,15 @@ glob: "nonexistent/*.md"
 
 func TestRendering_WhenEmptyRendersHeaderFooterNotIncluded(t *testing.T) {
 	// When `empty` renders, `header`/`footer` are not included.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
 header: "| Title |"
 row: "| {{.filename}} |"
 footer: "---"
 empty: No documents.
--->
+?>
 No documents.
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -369,13 +369,13 @@ No documents.
 
 func TestRendering_WhenGlobMatchesFilesEmptyIgnored(t *testing.T) {
 	// When glob matches files and `empty` is defined, `empty` is ignored.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- {{.filename}}"
 empty: No documents.
--->
+?>
 - a.md
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# A\n")},
@@ -392,7 +392,7 @@ empty: No documents.
 
 func TestDiag_OrphanedEndMarker(t *testing.T) {
 	src := `Some text
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -405,13 +405,13 @@ func TestDiag_OrphanedEndMarker(t *testing.T) {
 }
 
 func TestDiag_NestedStartMarkers(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
--->
-<!-- catalog
+?>
+<?catalog
 glob: "other/*.md"
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -433,10 +433,10 @@ glob: "other/*.md"
 }
 
 func TestDiag_NonStringYAMLValues(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: 42
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -456,11 +456,11 @@ glob: 42
 
 func TestDiag_NonStringMultipleKeys(t *testing.T) {
 	// Non-string YAML values produce diagnostic per key.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: 42
 sort: true
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -487,12 +487,12 @@ sort: true
 
 func TestFields_FilenameResolvesToRelativePath(t *testing.T) {
 	// `{{.filename}}` resolves to path relative to linted file's directory, never has leading `./`.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 row: "- {{.filename}}"
--->
+?>
 - docs/api.md
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md": {Data: []byte("# API\n")},
@@ -505,12 +505,12 @@ row: "- {{.filename}}"
 
 func TestFields_MissingFrontMatterFieldsEmpty(t *testing.T) {
 	// Files without front matter resolve fields to empty string.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- [{{.title}}]({{.filename}})"
--->
+?>
 - [](a.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# No front matter\n")},
@@ -523,16 +523,16 @@ row: "- [{{.title}}]({{.filename}})"
 
 func TestFields_HeaderFooterContainTemplateLiterals(t *testing.T) {
 	// `header`/`footer` containing `{{...}}` render literally (no template expansion).
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 header: "{{.title}} header"
 row: "- {{.filename}}"
 footer: "{{.footer}} end"
--->
+?>
 {{.title}} header
 - a.md
 {{.footer}} end
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# A\n")},
@@ -545,12 +545,12 @@ footer: "{{.footer}} end"
 
 func TestFields_EmptyContainsTemplateLiterals(t *testing.T) {
 	// `empty` containing `{{...}}` renders literally.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
 empty: "{{.something}} no data"
--->
+?>
 {{.something}} no data
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -564,12 +564,12 @@ empty: "{{.something}} no data"
 // =====================================================================
 
 func TestFix_IdempotentOnFreshContent(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
--->
+?>
 - [a.md](a.md)
 - [b.md](b.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# A\n")},
@@ -585,12 +585,12 @@ glob: "*.md"
 
 func TestFix_LeavesTemplateErrorSectionsUnchanged(t *testing.T) {
 	// Invalid template syntax -> fix leaves section unchanged.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "{{.title"
--->
+?>
 old content
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# A\n")},
@@ -605,11 +605,11 @@ old content
 
 func TestFix_FullCycleIdempotent(t *testing.T) {
 	// First fix generates content, second fix should leave it unchanged.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- [{{.title}}]({{.filename}})"
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: Alpha\n---\n# A\n")},
@@ -631,17 +631,17 @@ row: "- [{{.title}}]({{.filename}})"
 }
 
 func TestFix_MultipleMarkerPairs(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "a/*.md"
--->
+?>
 old
-<!-- /catalog -->
+<?/catalog?>
 
-<!-- catalog
+<?catalog
 glob: "b/*.md"
--->
+?>
 old
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a/one.md": {Data: []byte("# One\n")},
@@ -664,7 +664,7 @@ old
 // =====================================================================
 
 func TestEdge_MarkersInsideFencedCodeBlock(t *testing.T) {
-	src := "```\n<!-- catalog\nglob: \"*.md\"\n-->\n<!-- /catalog -->\n```\n"
+	src := "```\n<?catalog\nglob: \"*.md\"\n?>\n<?/catalog?>\n```\n"
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -675,8 +675,8 @@ func TestEdge_MarkersInsideFencedCodeBlock(t *testing.T) {
 func TestEdge_MarkersInsideIndentedCodeBlock(t *testing.T) {
 	// Indented code blocks (4-space indent) should also ignore markers.
 	src := "Paragraph before.\n\n" +
-		"    <!-- catalog\n    glob: \"*.md\"\n    -->\n" +
-		"    <!-- /catalog -->\n\nParagraph after.\n"
+		"    <?catalog\n    glob: \"*.md\"\n    ?>\n" +
+		"    <?/catalog?>\n\nParagraph after.\n"
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -686,7 +686,7 @@ func TestEdge_MarkersInsideIndentedCodeBlock(t *testing.T) {
 
 func TestEdge_MarkersInsideHTMLBlock(t *testing.T) {
 	// goldmark treats <div>...</div> as an HTML block.
-	src := "<div>\n<!-- catalog\nglob: \"*.md\"\n-->\n<!-- /catalog -->\n</div>\n"
+	src := "<div>\n<?catalog\nglob: \"*.md\"\n?>\n<?/catalog?>\n</div>\n"
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -697,7 +697,7 @@ func TestEdge_MarkersInsideHTMLBlock(t *testing.T) {
 func TestEdge_MarkersInsideHTMLBlockWithClosure(t *testing.T) {
 	// HTML block type 6 with a closing blank line as closure.
 	// <table> is recognized as an HTML block that includes content until a blank line.
-	src := "<table>\n<tr><td><!-- catalog\nglob: \"*.md\"\n--></td></tr>\n</table>\n\nText after.\n"
+	src := "<table>\n<tr><td><?catalog\nglob: \"*.md\"\n?></td></tr>\n</table>\n\nText after.\n"
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -714,7 +714,7 @@ func TestEdge_MarkersInsideHTMLBlockWithClosure(t *testing.T) {
 func TestEdge_MarkersInsidePreBlock(t *testing.T) {
 	// goldmark HTML block type 1 (<pre>) has explicit closure (</pre>).
 	// Markers inside should be ignored.
-	src := "<pre>\n<!-- catalog\nglob: \"*.md\"\n-->\n<!-- /catalog -->\n</pre>\n"
+	src := "<pre>\n<?catalog\nglob: \"*.md\"\n?>\n<?/catalog?>\n</pre>\n"
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -724,7 +724,7 @@ func TestEdge_MarkersInsidePreBlock(t *testing.T) {
 
 func TestEdge_MarkersInsideScriptBlock(t *testing.T) {
 	// goldmark HTML block type 1 (<script>) has explicit closure (</script>).
-	src := "<script>\n<!-- catalog\nglob: \"*.md\"\n-->\n<!-- /catalog -->\n</script>\n"
+	src := "<script>\n<?catalog\nglob: \"*.md\"\n?>\n<?/catalog?>\n</script>\n"
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
 	r := &Rule{}
@@ -733,12 +733,12 @@ func TestEdge_MarkersInsideScriptBlock(t *testing.T) {
 }
 
 func TestEdge_TerminatorAllowsLeadingTrailingWhitespace(t *testing.T) {
-	// `-->` terminator allows leading/trailing whitespace.
-	src := `<!-- catalog
+	// `?>` terminator allows leading/trailing whitespace.
+	src := `<?catalog
 glob: "*.md"
-  -->
+  ?>
 - [a.md](a.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# Hello\n")},
@@ -750,11 +750,11 @@ glob: "*.md"
 }
 
 func TestEdge_EndMarkerWithWhitespace(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
--->
+?>
 - [a.md](a.md)
-  <!-- /catalog -->
+  <?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# Hello\n")},
@@ -767,8 +767,8 @@ glob: "*.md"
 
 func TestEdge_SingleLineStartMarker(t *testing.T) {
 	// Single-line start marker has empty YAML body (triggers missing-parameter diagnostic).
-	src := `<!-- catalog -->
-<!-- /catalog -->
+	src := `<?catalog?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -780,11 +780,11 @@ func TestEdge_SingleLineStartMarker(t *testing.T) {
 
 func TestEdge_StdinInputSkipsRule(t *testing.T) {
 	// Stdin input skips the rule (`f.FS == nil`).
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
--->
+?>
 stale content
-<!-- /catalog -->
+<?/catalog?>
 `
 	f := newTestFile(t, "index.md", src) // no FS set -> nil
 	r := &Rule{}
@@ -793,11 +793,11 @@ stale content
 }
 
 func TestEdge_StdinInputFixReturnsSourceUnchanged(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
--->
+?>
 stale content
-<!-- /catalog -->
+<?/catalog?>
 `
 	f := newTestFile(t, "index.md", src) // no FS set -> nil
 	r := &Rule{}
@@ -809,11 +809,11 @@ stale content
 
 func TestEdge_GlobMatchingDirectorySkipped(t *testing.T) {
 	// Directories matched by glob should be silently skipped.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*"
--->
+?>
 - [a.md](a.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md":    {Data: []byte("# A\n")},
@@ -827,19 +827,19 @@ glob: "*"
 
 func TestEdge_MultipleMarkerPairsIndependent(t *testing.T) {
 	// Multiple marker pairs in one file processed independently.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "a/*.md"
--->
+?>
 - [one.md](a/one.md)
-<!-- /catalog -->
+<?/catalog?>
 
 Text between sections.
 
-<!-- catalog
+<?catalog
 glob: "b/*.md"
--->
+?>
 - [two.md](b/two.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a/one.md": {Data: []byte("# One\n")},
@@ -858,27 +858,27 @@ func TestEdge_AllDiagnosticsReportColumn1(t *testing.T) {
 	}{
 		{
 			"stale",
-			"<!-- catalog\nglob: \"*.md\"\n-->\nold\n<!-- /catalog -->\n",
+			"<?catalog\nglob: \"*.md\"\n?>\nold\n<?/catalog?>\n",
 		},
 		{
 			"unclosed",
-			"<!-- catalog\nglob: \"*.md\"\n-->\nold\n",
+			"<?catalog\nglob: \"*.md\"\n?>\nold\n",
 		},
 		{
 			"orphaned",
-			"<!-- /catalog -->\n",
+			"<?/catalog?>\n",
 		},
 		{
 			"missing glob",
-			"<!-- catalog\nsort: path\n-->\n<!-- /catalog -->\n",
+			"<?catalog\nsort: path\n?>\n<?/catalog?>\n",
 		},
 		{
 			"empty glob",
-			"<!-- catalog\nglob: \"\"\n-->\n<!-- /catalog -->\n",
+			"<?catalog\nglob: \"\"\n?>\n<?/catalog?>\n",
 		},
 		{
 			"empty sort",
-			"<!-- catalog\nglob: \"*.md\"\nsort: \"\"\n-->\n<!-- /catalog -->\n",
+			"<?catalog\nglob: \"*.md\"\nsort: \"\"\n?>\n<?/catalog?>\n",
 		},
 	}
 	for _, tc := range tests {
@@ -900,12 +900,12 @@ func TestEdge_AllDiagnosticsReportColumn1(t *testing.T) {
 
 func TestEdge_RecursiveGlobPatterns(t *testing.T) {
 	// Recursive `**` glob patterns are supported.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "**/*.md"
--->
+?>
 - [deep.md](a/b/c/deep.md)
 - [top.md](top.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"top.md":        {Data: []byte("# Top\n")},
@@ -919,13 +919,13 @@ glob: "**/*.md"
 
 func TestEdge_UnknownYAMLKeysIgnored(t *testing.T) {
 	// Unknown YAML keys are silently ignored.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 unknown_key: something
 another: value
--->
+?>
 - [a.md](a.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# Hello\n")},
@@ -942,12 +942,12 @@ another: value
 
 func TestEdge_DuplicateYAMLKeysRejected(t *testing.T) {
 	// gopkg.in/yaml.v3 rejects duplicate keys as invalid YAML.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
 glob: "*.md"
--->
+?>
 - [a.md](a.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# Hello\n")},
@@ -961,12 +961,12 @@ glob: "*.md"
 
 func TestEdge_InvalidFrontMatterTreatedAsNone(t *testing.T) {
 	// Matched file with invalid front matter treated as no front matter.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- [{{.title}}]({{.filename}})"
--->
+?>
 - [](a.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ninvalid: [yaml\n---\n")},
@@ -980,12 +980,12 @@ row: "- [{{.title}}]({{.filename}})"
 func TestEdge_DotfilesMatchedByStar(t *testing.T) {
 	// The doublestar library matches dotfiles with `*` by default.
 	// Both visible.md and .hidden.md are matched.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
--->
+?>
 - [.hidden.md](.hidden.md)
 - [visible.md](visible.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"visible.md": {Data: []byte("# Visible\n")},
@@ -998,13 +998,13 @@ glob: "*.md"
 }
 
 func TestEdge_NoFrontMatterFilenameWorks(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "{{.filename}}"
--->
+?>
 a.md
 b.md
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("no front matter here\n")},
@@ -1018,10 +1018,10 @@ b.md
 
 func TestEdge_InvalidYAMLShortCircuits(t *testing.T) {
 	// Invalid YAML should prevent template/glob validation.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: [invalid
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -1033,10 +1033,10 @@ glob: [invalid
 
 func TestEdge_NonStringValuesShortCircuit(t *testing.T) {
 	// Non-string values should prevent further validation.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: 42
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -1080,29 +1080,29 @@ func TestCheck_StructuralErrors(t *testing.T) {
 	runDiagScenarios(t, []diagScenario{
 		{
 			name: "valid pair no errors",
-			src: "<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"- [a.md](a.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n?>\n" +
+				"- [a.md](a.md)\n<?/catalog?>\n",
 			fs:        fstest.MapFS{"a.md": {Data: []byte("# A\n")}},
 			wantCount: 0,
 		},
 		{
 			name:      "unclosed start",
-			src:       "<!-- catalog\nglob: \"*.md\"\n-->\ncontent\n",
+			src:       "<?catalog\nglob: \"*.md\"\n?>\ncontent\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "no closing marker",
 		},
 		{
 			name:      "orphaned end",
-			src:       "text\n<!-- /catalog -->\n",
+			src:       "text\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "unexpected generated section end marker",
 		},
 		{
 			name: "stale section",
-			src: "<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"- [a.md](a.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n?>\n" +
+				"- [a.md](a.md)\n<?/catalog?>\n",
 			fs:        fstest.MapFS{"a.md": {Data: []byte("# A\n")}, "b.md": {Data: []byte("# B\n")}},
 			wantCount: 1,
 			wantMsg:   "generated section is out of date",
@@ -1114,7 +1114,7 @@ func TestCheck_DirectiveErrors(t *testing.T) {
 	runDiagScenarios(t, []diagScenario{
 		{
 			name:      "invalid YAML",
-			src:       "<!-- catalog\n: invalid : yaml ::: [\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\n: invalid : yaml ::: [\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "invalid YAML",
@@ -1126,35 +1126,35 @@ func TestCheck_GlobErrors(t *testing.T) {
 	runDiagScenarios(t, []diagScenario{
 		{
 			name:      "empty glob",
-			src:       "<!-- catalog\nglob: \"\"\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: \"\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `empty "glob" parameter`,
 		},
 		{
 			name:      "absolute glob",
-			src:       "<!-- catalog\nglob: /etc/files/*.md\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: /etc/files/*.md\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "absolute glob path",
 		},
 		{
 			name:      "glob with ..",
-			src:       "<!-- catalog\nglob: \"../*.md\"\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: \"../*.md\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `".." path traversal`,
 		},
 		{
 			name:      "missing glob",
-			src:       "<!-- catalog\nsort: path\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nsort: path\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `missing required "glob" parameter`,
 		},
 		{
 			name:      "invalid glob pattern",
-			src:       "<!-- catalog\nglob: \"[invalid\"\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: \"[invalid\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "invalid glob pattern",
@@ -1166,39 +1166,39 @@ func TestCheck_TemplateErrors(t *testing.T) {
 	runDiagScenarios(t, []diagScenario{
 		{
 			name:      "empty row",
-			src:       "<!-- catalog\nglob: \"*.md\"\nrow: \"\"\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: \"*.md\"\nrow: \"\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `empty "row" value`,
 		},
 		{
 			name: "header without row",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"header: \"| T |\"\n-->\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"header: \"| T |\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `missing required "row" key`,
 		},
 		{
 			name: "footer without row",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"footer: \"---\"\n-->\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"footer: \"---\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `missing required "row" key`,
 		},
 		{
 			name: "header and footer without row",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"header: \"| Title |\"\nfooter: \"---\"\n-->\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"header: \"| Title |\"\nfooter: \"---\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `missing required "row" key`,
 		},
 		{
 			name: "invalid template syntax",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"row: \"{{.title\"\n-->\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"row: \"{{.title\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "invalid template",
@@ -1210,30 +1210,30 @@ func TestCheck_SortErrors(t *testing.T) {
 	runDiagScenarios(t, []diagScenario{
 		{
 			name:      "empty sort",
-			src:       "<!-- catalog\nglob: \"*.md\"\nsort: \"\"\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: \"*.md\"\nsort: \"\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   `empty "sort" value`,
 		},
 		{
 			name:      "sort dash only",
-			src:       "<!-- catalog\nglob: \"*.md\"\nsort: \"-\"\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: \"*.md\"\nsort: \"-\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "invalid sort value",
 		},
 		{
 			name: "sort with whitespace",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"sort: \"foo bar\"\n-->\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"sort: \"foo bar\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "invalid sort value",
 		},
 		{
 			name: "sort with tab",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"sort: \"foo\tbar\"\n-->\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"sort: \"foo\tbar\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 1,
 			wantMsg:   "invalid sort value",
@@ -1249,15 +1249,15 @@ func TestCheck_ContentGeneration_MinimalMode(t *testing.T) {
 	runDiagScenarios(t, []diagScenario{
 		{
 			name: "up to date",
-			src: "<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"- [hello.md](hello.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n?>\n" +
+				"- [hello.md](hello.md)\n<?/catalog?>\n",
 			fs:        fstest.MapFS{"hello.md": {Data: []byte("# Hello\n")}},
 			wantCount: 0,
 		},
 		{
 			name: "stale",
-			src: "<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"- [old.md](old.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n?>\n" +
+				"- [old.md](old.md)\n<?/catalog?>\n",
 			fs:        fstest.MapFS{"new.md": {Data: []byte("# New\n")}},
 			wantCount: 1,
 		},
@@ -1268,23 +1268,23 @@ func TestCheck_ContentGeneration_TemplateAndEmpty(t *testing.T) {
 	runDiagScenarios(t, []diagScenario{
 		{
 			name: "template mode with front matter up to date",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"row: \"- [{{.title}}]({{.filename}})\"\n-->\n" +
-				"- [My Title](a.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"row: \"- [{{.title}}]({{.filename}})\"\n?>\n" +
+				"- [My Title](a.md)\n<?/catalog?>\n",
 			fs:        fstest.MapFS{"a.md": {Data: []byte("---\ntitle: My Title\n---\n# A\n")}},
 			wantCount: 0,
 		},
 		{
 			name: "empty fallback up to date",
-			src: "<!-- catalog\n" +
-				"glob: \"nonexistent/*.md\"\nempty: No files found.\n-->\n" +
-				"No files found.\n<!-- /catalog -->\n",
+			src: "<?catalog\n" +
+				"glob: \"nonexistent/*.md\"\nempty: No files found.\n?>\n" +
+				"No files found.\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 0,
 		},
 		{
 			name:      "no empty no matches empty content",
-			src:       "<!-- catalog\nglob: \"nonexistent/*.md\"\n-->\n<!-- /catalog -->\n",
+			src:       "<?catalog\nglob: \"nonexistent/*.md\"\n?>\n<?/catalog?>\n",
 			fs:        fstest.MapFS{},
 			wantCount: 0,
 		},
@@ -1304,33 +1304,33 @@ func TestFix_Scenarios(t *testing.T) {
 	}{
 		{
 			name: "regenerate stale minimal",
-			src: `<!-- catalog
+			src: `<?catalog
 glob: "*.md"
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `,
 			fs:       fstest.MapFS{"a.md": {Data: []byte("# A\n")}},
 			contains: []string{"- [a.md](a.md)"},
 		},
 		{
 			name: "regenerate stale template",
-			src: `<!-- catalog
+			src: `<?catalog
 glob: "*.md"
 row: "- [{{.title}}]({{.filename}})"
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `,
 			fs:       fstest.MapFS{"a.md": {Data: []byte("---\ntitle: Hello\n---\n")}},
 			contains: []string{"- [Hello](a.md)"},
 		},
 		{
 			name: "fix with empty fallback",
-			src: `<!-- catalog
+			src: `<?catalog
 glob: "nonexistent/*.md"
 empty: Nothing here.
--->
+?>
 old content
-<!-- /catalog -->
+<?/catalog?>
 `,
 			fs:       fstest.MapFS{},
 			contains: []string{"Nothing here."},
@@ -1384,20 +1384,20 @@ func TestSort_PathAndFilename(t *testing.T) {
 	runSortScenarios(t, []sortScenario{
 		{
 			name: "path ascending (default)",
-			src: "<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"- [a.md](a.md)\n- [b.md](b.md)\n- [c.md](c.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n?>\n" +
+				"- [a.md](a.md)\n- [b.md](b.md)\n- [c.md](c.md)\n<?/catalog?>\n",
 			fs: threeFiles,
 		},
 		{
 			name: "path descending",
-			src: "<!-- catalog\nglob: \"*.md\"\nsort: -path\n-->\n" +
-				"- [c.md](c.md)\n- [b.md](b.md)\n- [a.md](a.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\nsort: -path\n?>\n" +
+				"- [c.md](c.md)\n- [b.md](b.md)\n- [a.md](a.md)\n<?/catalog?>\n",
 			fs: threeFiles,
 		},
 		{
 			name: "by filename (basename)",
-			src: "<!-- catalog\nglob: \"**/*.md\"\nsort: filename\n-->\n" +
-				"- [apple.md](z/apple.md)\n- [banana.md](a/banana.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"**/*.md\"\nsort: filename\n?>\n" +
+				"- [apple.md](z/apple.md)\n- [banana.md](a/banana.md)\n<?/catalog?>\n",
 			fs: fstest.MapFS{
 				"a/banana.md": {Data: []byte("# Banana\n")},
 				"z/apple.md":  {Data: []byte("# Apple\n")},
@@ -1405,8 +1405,8 @@ func TestSort_PathAndFilename(t *testing.T) {
 		},
 		{
 			name: "filename descending",
-			src: "<!-- catalog\nglob: \"**/*.md\"\nsort: -filename\n-->\n" +
-				"- [beta.md](a/beta.md)\n- [alpha.md](z/alpha.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"**/*.md\"\nsort: -filename\n?>\n" +
+				"- [beta.md](a/beta.md)\n- [alpha.md](z/alpha.md)\n<?/catalog?>\n",
 			fs: fstest.MapFS{
 				"z/alpha.md": {Data: []byte("# Alpha\n")},
 				"a/beta.md":  {Data: []byte("# Beta\n")},
@@ -1414,8 +1414,8 @@ func TestSort_PathAndFilename(t *testing.T) {
 		},
 		{
 			name: "case-insensitive path sort",
-			src: "<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"- [AAA.md](AAA.md)\n- [bbb.md](bbb.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n?>\n" +
+				"- [AAA.md](AAA.md)\n- [bbb.md](bbb.md)\n<?/catalog?>\n",
 			fs: fstest.MapFS{
 				"bbb.md": {Data: []byte("# B\n")},
 				"AAA.md": {Data: []byte("# A\n")},
@@ -1432,22 +1432,22 @@ func TestSort_FrontMatterKey(t *testing.T) {
 	runSortScenarios(t, []sortScenario{
 		{
 			name: "title ascending",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"sort: title\nrow: \"- [{{.title}}]({{.filename}})\"\n-->\n" +
-				"- [Alpha](b.md)\n- [Zulu](a.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"sort: title\nrow: \"- [{{.title}}]({{.filename}})\"\n?>\n" +
+				"- [Alpha](b.md)\n- [Zulu](a.md)\n<?/catalog?>\n",
 			fs: twoFiles,
 		},
 		{
 			name: "title descending",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"sort: -title\nrow: \"- [{{.title}}]({{.filename}})\"\n-->\n" +
-				"- [Zulu](a.md)\n- [Alpha](b.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"sort: -title\nrow: \"- [{{.title}}]({{.filename}})\"\n?>\n" +
+				"- [Zulu](a.md)\n- [Alpha](b.md)\n<?/catalog?>\n",
 			fs: twoFiles,
 		},
 		{
 			name: "front matter key in minimal mode",
-			src: "<!-- catalog\nglob: \"*.md\"\nsort: title\n-->\n" +
-				"- [b.md](b.md)\n- [a.md](a.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\nsort: title\n?>\n" +
+				"- [b.md](b.md)\n- [a.md](a.md)\n<?/catalog?>\n",
 			fs: twoFiles,
 		},
 	})
@@ -1457,9 +1457,9 @@ func TestSort_TiebreakerAndCaseInsensitive(t *testing.T) {
 	runSortScenarios(t, []sortScenario{
 		{
 			name: "tiebreaker when values equal",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"sort: title\nrow: \"- [{{.title}}]({{.filename}})\"\n-->\n" +
-				"- [Same](a.md)\n- [Same](b.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"sort: title\nrow: \"- [{{.title}}]({{.filename}})\"\n?>\n" +
+				"- [Same](a.md)\n- [Same](b.md)\n<?/catalog?>\n",
 			fs: fstest.MapFS{
 				"a.md": {Data: []byte("---\ntitle: Same\n---\n")},
 				"b.md": {Data: []byte("---\ntitle: Same\n---\n")},
@@ -1467,9 +1467,9 @@ func TestSort_TiebreakerAndCaseInsensitive(t *testing.T) {
 		},
 		{
 			name: "case-insensitive title",
-			src: "<!-- catalog\nglob: \"*.md\"\n" +
-				"sort: title\nrow: \"- [{{.title}}]({{.filename}})\"\n-->\n" +
-				"- [alpha](a.md)\n- [Beta](b.md)\n<!-- /catalog -->\n",
+			src: "<?catalog\nglob: \"*.md\"\n" +
+				"sort: title\nrow: \"- [{{.title}}]({{.filename}})\"\n?>\n" +
+				"- [alpha](a.md)\n- [Beta](b.md)\n<?/catalog?>\n",
 			fs: fstest.MapFS{
 				"a.md": {Data: []byte("---\ntitle: alpha\n---\n")},
 				"b.md": {Data: []byte("---\ntitle: Beta\n---\n")},
@@ -2047,7 +2047,7 @@ func TestReplaceContent_EmptyContent(t *testing.T) {
 func TestIntegration_FullTableWithSortAndEmpty(t *testing.T) {
 	src := `# Project Index
 
-<!-- catalog
+<?catalog
 glob: "rules/*/README.md"
 sort: title
 header: |
@@ -2055,12 +2055,12 @@ header: |
   |------|-------------|
 row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
 empty: No rules defined yet.
--->
+?>
 | Rule          | Description        |
 |---------------|--------------------|
 | [First Heading](rules/tm001/README.md) | Checks headings    |
 | [Line Length](rules/tm002/README.md)   | Checks line length |
-<!-- /catalog -->
+<?/catalog?>
 
 Some trailing text.
 `
@@ -2083,12 +2083,12 @@ Some trailing text.
 func TestSpec_TemplateExecutionError_CheckEmitsDiagnostic(t *testing.T) {
 	// Template execution error emits diagnostic.
 	// {{call .title}} tries to call a string as a function, which fails at execution time.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "{{call .title}}"
--->
+?>
 old content
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: Hello\n---\n")},
@@ -2102,12 +2102,12 @@ old content
 
 func TestSpec_TemplateExecutionError_FixLeavesSectionUnchanged(t *testing.T) {
 	// Fix leaves section unchanged when template execution fails.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "{{call .title}}"
--->
+?>
 old content
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: Hello\n---\n")},
@@ -2125,12 +2125,12 @@ func TestSpec_BraceExpansionSupported(t *testing.T) {
 	// The doublestar library supports brace expansion `{a,b}`.
 	// (The spec originally said "not supported" but the implementation
 	// delegates to doublestar which handles braces natively.)
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.{md,txt}"
--->
+?>
 - [a.md](a.md)
 - [b.txt](b.txt)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md":  {Data: []byte("# A\n")},
@@ -2145,7 +2145,7 @@ glob: "*.{md,txt}"
 func TestSpec_WindowsCRLFLineEndingsFlaggedAsStale(t *testing.T) {
 	// Windows \r\n line endings in existing content are flagged as stale
 	// since generated content uses \n.
-	src := "<!-- catalog\nglob: \"*.md\"\n-->\n- [a.md](a.md)\r\n<!-- /catalog -->\n"
+	src := "<?catalog\nglob: \"*.md\"\n?>\n- [a.md](a.md)\r\n<?/catalog?>\n"
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("# A\n")},
 	}
@@ -2158,12 +2158,12 @@ func TestSpec_WindowsCRLFLineEndingsFlaggedAsStale(t *testing.T) {
 
 func TestSpec_GlobMatchingLintedFileIncluded(t *testing.T) {
 	// Glob matching the linted file itself includes it in output.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
--->
+?>
 - [index.md](index.md)
 - [other.md](other.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"index.md": {Data: []byte(src)},
@@ -2177,13 +2177,13 @@ glob: "*.md"
 
 func TestSpec_BinaryNonMarkdownMatchedFiles(t *testing.T) {
 	// Binary/non-Markdown matched files: {{.filename}} resolves, no front matter extracted.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*"
 row: "- [{{.title}}]({{.filename}})"
--->
+?>
 - [](data.bin)
 - [Hello](readme.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"data.bin":  {Data: []byte{0x00, 0x01, 0x02, 0xFF}},
@@ -2197,12 +2197,12 @@ row: "- [{{.title}}]({{.filename}})"
 
 func TestSpec_YAMLAnchorsAliasesSupported(t *testing.T) {
 	// YAML anchors, aliases, and merge keys are supported.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 row: "- {{.filename}}"
--->
+?>
 - docs/a.md
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/a.md": {Data: []byte("# A\n")},
@@ -2215,14 +2215,14 @@ row: "- {{.filename}}"
 
 func TestSpec_DoubleDashSort(t *testing.T) {
 	// `sort: --priority` means descending by key `-priority`.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 sort: "--priority"
 row: "- [{{.title}}]({{.filename}})"
--->
+?>
 - [High](b.md)
 - [Low](a.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: Low\n-priority: \"1\"\n---\n")},
@@ -2241,12 +2241,12 @@ func TestSpec_UnreadableMatchedFilesSilentlySkipped(t *testing.T) {
 	// that is a directory entry in the FS that Stats ok but can't be read.
 	// Instead, test that the rendering logic correctly excludes files that
 	// can't have front matter read (the readFrontMatter returns nil).
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- [{{.title}}]({{.filename}})"
--->
+?>
 - [Hello](good.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"good.md": {Data: []byte("---\ntitle: Hello\n---\n")},
@@ -2263,12 +2263,12 @@ row: "- [{{.title}}]({{.filename}})"
 
 func TestSpec_TemplateOutputNotHTMLEscaped(t *testing.T) {
 	// Template output is not HTML-escaped: <, >, & appear literally.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- {{.title}}"
--->
+?>
 - <b>Bold & "quoted"</b>
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: '<b>Bold & \"quoted\"</b>'\n---\n")},
@@ -2281,12 +2281,12 @@ row: "- {{.title}}"
 
 func TestSpec_GoBuiltinTemplateFunctions(t *testing.T) {
 	// Go built-in template functions (len, print, index) are available.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- {{print .title}} ({{len .title}} chars)"
--->
+?>
 - Hello (5 chars)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: Hello\n---\n")},
@@ -2329,38 +2329,38 @@ func diagLineNumberCases() []struct {
 	}{
 		{
 			"stale section on start marker line",
-			"prefix\n<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"old\n<!-- /catalog -->\n",
+			"prefix\n<?catalog\nglob: \"*.md\"\n?>\n" +
+				"old\n<?/catalog?>\n",
 			2, "out of date",
 		},
 		{
 			"unclosed on start marker line",
-			"prefix\n<!-- catalog\nglob: \"*.md\"\n-->\n" +
+			"prefix\n<?catalog\nglob: \"*.md\"\n?>\n" +
 				"content\n",
 			2, "no closing marker",
 		},
 		{
 			"orphaned on end marker line",
-			"prefix\ntext\n<!-- /catalog -->\n",
+			"prefix\ntext\n<?/catalog?>\n",
 			3, "unexpected generated section end marker",
 		},
 		{
 			"missing glob on start marker line",
-			"prefix\n<!-- catalog\nsort: path\n-->\n" +
-				"<!-- /catalog -->\n",
+			"prefix\n<?catalog\nsort: path\n?>\n" +
+				"<?/catalog?>\n",
 			2, `missing required "glob" parameter`,
 		},
 		{
 			"invalid YAML on start marker line",
-			"prefix\n<!-- catalog\n: [invalid\n-->\n" +
-				"<!-- /catalog -->\n",
+			"prefix\n<?catalog\n: [invalid\n?>\n" +
+				"<?/catalog?>\n",
 			2, "invalid YAML",
 		},
 		{
 			"nested on nested start line",
-			"<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"prefix\n<!-- catalog\nglob: \"*.md\"\n-->\n" +
-				"<!-- /catalog -->\n",
+			"<?catalog\nglob: \"*.md\"\n?>\n" +
+				"prefix\n<?catalog\nglob: \"*.md\"\n?>\n" +
+				"<?/catalog?>\n",
 			5, "nested generated section markers",
 		},
 	}
@@ -2385,14 +2385,14 @@ func TestSpec_MissingFrontMatterValuesSortAsEmptyString(t *testing.T) {
 	// Missing front matter values sort as empty string (end-to-end).
 	// Empty string sorts before any non-empty string, so files without
 	// the sort field come first in ascending order.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 sort: priority
 row: "- [{{.title}}]({{.filename}})"
--->
+?>
 - [No Priority](a.md)
 - [High](b.md)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: No Priority\n---\n")},
@@ -2406,12 +2406,12 @@ row: "- [{{.title}}]({{.filename}})"
 
 func TestSpec_NonStringFrontMatterRenderedThroughTemplate(t *testing.T) {
 	// Non-string front matter values are converted via fmt.Sprintf and rendered.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 row: "- {{.title}} (count: {{.count}})"
--->
+?>
 - Hello (count: 42)
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"a.md": {Data: []byte("---\ntitle: Hello\ncount: 42\n---\n")},
@@ -2424,12 +2424,12 @@ row: "- {{.title}} (count: {{.count}})"
 
 func TestSpec_EmptyPlusFooterWithoutRowProducesDiag(t *testing.T) {
 	// `empty` + `footer` without `row` produces missing-row diagnostic.
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "*.md"
 empty: No docs.
 footer: "---"
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)
@@ -2440,7 +2440,7 @@ footer: "---"
 }
 
 func TestIntegration_EmptyFallbackWithFullTemplate(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "nonexistent/*.md"
 header: |
   | Title |
@@ -2448,9 +2448,9 @@ header: |
 row: "| {{.title}} |"
 footer: "---"
 empty: No documents.
--->
+?>
 No documents.
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{}
 	f := newTestFile(t, "index.md", src, mapFS)

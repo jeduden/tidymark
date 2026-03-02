@@ -1,7 +1,7 @@
 # Include Example
 
-<!-- include
+<?include
 file: data/content.md
--->
+?>
 Hello world
-<!-- /include -->
+<?/include?>

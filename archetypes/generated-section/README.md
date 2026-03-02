@@ -1,9 +1,9 @@
 # Generated Section (Archetype)
 
 A **generated section** is a region of Markdown delimited by
-HTML-comment markers. A linting rule checks that the content
-between the markers matches what the directive would produce,
-and a fix command regenerates it in place.
+HTML processing instruction markers. A linting rule checks that
+the content between the markers matches what the directive would
+produce, and a fix command regenerates it in place.
 
 This archetype documents the shared mechanics. Individual rules
 (e.g., [MDS019 catalog](../../internal/rules/MDS019-catalog/)) define
@@ -11,43 +11,43 @@ their own parameters, template fields, and behaviors.
 
 ## Marker Syntax
 
-Markers are HTML comments that delimit a generated section.
-The marker name is the rule name (e.g., `catalog`):
+Markers are HTML processing instructions that delimit a generated
+section. The marker name is the rule name (e.g., `catalog`):
 
 ```text
-<!-- catalog
+<?catalog
 key: value
--->
+?>
 ...generated content...
-<!-- /catalog -->
+<?/catalog?>
 ```
 
-The opening comment has two parts:
+The opening processing instruction has two parts:
 
-1. **First line** -- `<!-- NAME` opens the directive. The
+1. **First line** -- `<?NAME` opens the directive. The
    marker name must be lowercase. Leading and trailing
    whitespace after the marker name is trimmed. Additional
    text on the first line after the marker name is ignored.
-2. **YAML body** -- all subsequent lines until `-->` are
+2. **YAML body** -- all subsequent lines until `?>` are
    parsed as YAML. This body contains both parameters
    (e.g., `glob`, `sort`) and template sections (e.g.,
    `header`, `row`, `footer`, `empty`).
 
-The closing `-->` is recognized when a line, after trimming
-leading and trailing whitespace, equals `-->`. The YAML body
-may contain any valid YAML except that such a `-->` line
-terminates the comment. If `-->` appears on its own line
-within a YAML value, the HTML comment terminates prematurely,
-likely causing an invalid YAML diagnostic. Avoid `-->` inside
-YAML values.
+The closing `?>` is recognized when a line, after trimming
+leading and trailing whitespace, equals `?>`. The YAML body
+may contain any valid YAML except that such a `?>` line
+terminates the processing instruction. If `?>` appears on
+its own line within a YAML value, the processing instruction
+terminates prematurely, likely causing an invalid YAML
+diagnostic. Avoid `?>` inside YAML values.
 
-If `-->` appears on the same line as the marker name (e.g.,
-`<!-- catalog -->`), the YAML body is empty. This is valid
+If `?>` appears on the same line as the marker name (e.g.,
+`<?catalog?>`), the YAML body is empty. This is valid
 syntax but will typically trigger a missing-parameter
 diagnostic.
 
 The end marker is recognized when a line, after trimming
-leading and trailing whitespace, equals `<!-- /NAME -->`.
+leading and trailing whitespace, equals `<?/NAME?>`.
 It must appear on its own line (no other content on that
 line).
 
@@ -157,7 +157,7 @@ literally in the output.
   ignored.
 - Multiple independent marker pairs per file are supported.
 - Content between markers starts on the line immediately
-  after the start marker's closing `-->` line and ends on
+  after the start marker's closing `?>` line and ends on
   the line immediately before the end marker line. Comparison
   is performed on the exact text between the markers
   (preserving original line endings) versus the freshly

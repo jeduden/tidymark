@@ -53,7 +53,7 @@ func MakeDiag(ruleID, ruleName, filePath string, line int, message string) lint.
 // endMarker are derived from the directive name.
 func FindMarkerPairs(
 	f *lint.File,
-	startPrefix, endMarker, ruleID, ruleName string,
+	startPrefix, endMarker, terminator, ruleID, ruleName string,
 ) ([]MarkerPair, []lint.Diagnostic) {
 	ignored := CollectIgnoredLines(f, startPrefix, endMarker)
 	state := &markerScanState{}
@@ -66,7 +66,7 @@ func FindMarkerPairs(
 		trimmed := strings.TrimSpace(string(line))
 		processMarkerLine(
 			f, state, lineNum, string(line), trimmed,
-			startPrefix, endMarker, ruleID, ruleName,
+			startPrefix, endMarker, terminator, ruleID, ruleName,
 		)
 	}
 
@@ -82,10 +82,10 @@ func FindMarkerPairs(
 // processMarkerLine processes a single line during marker pair scanning.
 func processMarkerLine(
 	f *lint.File, s *markerScanState, lineNum int, line, trimmed string,
-	startPrefix, endMarker, ruleID, ruleName string,
+	startPrefix, endMarker, terminator, ruleID, ruleName string,
 ) {
 	if s.current != nil && s.inYAMLBody {
-		if trimmed == "-->" {
+		if trimmed == terminator {
 			s.current.ContentFrom = lineNum + 1
 			s.inYAMLBody = false
 			return
@@ -95,18 +95,18 @@ func processMarkerLine(
 	}
 
 	if s.current != nil {
-		processLineInsidePair(f, s, lineNum, trimmed, startPrefix, endMarker, ruleID, ruleName)
+		processLineInsidePair(f, s, lineNum, trimmed, startPrefix, endMarker, terminator, ruleID, ruleName)
 		return
 	}
 
-	processLineOutsidePair(f, s, lineNum, trimmed, startPrefix, endMarker, ruleID, ruleName)
+	processLineOutsidePair(f, s, lineNum, trimmed, startPrefix, endMarker, terminator, ruleID, ruleName)
 }
 
 // processLineInsidePair handles a line that is inside an open marker pair
 // (after the YAML body has been closed).
 func processLineInsidePair(
 	f *lint.File, s *markerScanState, lineNum int, trimmed string,
-	startPrefix, endMarker, ruleID, ruleName string,
+	startPrefix, endMarker, terminator, ruleID, ruleName string,
 ) {
 	if strings.HasPrefix(trimmed, startPrefix) {
 		s.diags = append(s.diags,
@@ -125,7 +125,7 @@ func processLineInsidePair(
 // processLineOutsidePair handles a line that is not inside any marker pair.
 func processLineOutsidePair(
 	f *lint.File, s *markerScanState, lineNum int, trimmed string,
-	startPrefix, endMarker, ruleID, ruleName string,
+	startPrefix, endMarker, terminator, ruleID, ruleName string,
 ) {
 	if trimmed == endMarker {
 		s.diags = append(s.diags,
@@ -137,8 +137,8 @@ func processLineOutsidePair(
 	if strings.HasPrefix(trimmed, startPrefix) {
 		mp := MarkerPair{StartLine: lineNum, FirstLine: trimmed}
 		rest := trimmed[len(startPrefix):]
-		if strings.HasSuffix(rest, "-->") {
-			rest = strings.TrimSuffix(rest, "-->")
+		if strings.HasSuffix(rest, terminator) {
+			rest = strings.TrimSuffix(rest, terminator)
 			mp.FirstLine = startPrefix + rest
 			mp.ContentFrom = lineNum + 1
 		} else {
@@ -309,6 +309,12 @@ func addBlockLineRange(f *lint.File, n ast.Node, set map[int]bool) {
 	for ln := startLine; ln <= endLine && ln <= len(f.Lines); ln++ {
 		set[ln] = true
 	}
+}
+
+// IsSingleLineDirective reports whether line is a single-line
+// processing instruction with the given name: <?name?>.
+func IsSingleLineDirective(line, name string) bool {
+	return strings.TrimSpace(line) == "<?"+name+"?>"
 }
 
 // addHTMLBlockLines marks all lines spanned by an HTML block.

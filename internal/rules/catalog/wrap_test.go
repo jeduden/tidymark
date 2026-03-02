@@ -305,7 +305,7 @@ func TestApplyColumnConstraints_NonTableRowPassThrough(t *testing.T) {
 // =====================================================================
 
 func TestRendering_ColumnsMaxWidthTruncation(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 columns:
   description:
@@ -314,11 +314,11 @@ header: |
   | Title | Description |
   |-------|-------------|
 row: "| {{.title}} | {{.description}} |"
--->
+?>
 | Title | Description          |
 |-------|----------------------|
 | API   | Complete API docs... |
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md": {Data: []byte("---\ntitle: API\ndescription: Complete API documentation for developers\n---\n")},
@@ -332,7 +332,7 @@ row: "| {{.title}} | {{.description}} |"
 }
 
 func TestFix_ColumnsMaxWidthTruncation(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 columns:
   description:
@@ -341,9 +341,9 @@ header: |
   | Title | Description |
   |-------|-------------|
 row: "| {{.title}} | {{.description}} |"
--->
+?>
 | old content |
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md": {Data: []byte("---\ntitle: API\ndescription: Complete API documentation for developers\n---\n")},
@@ -359,7 +359,7 @@ row: "| {{.title}} | {{.description}} |"
 }
 
 func TestFix_ColumnsWrapBr(t *testing.T) {
-	src := `<!-- catalog
+	src := `<?catalog
 glob: "docs/*.md"
 columns:
   description:
@@ -369,9 +369,9 @@ header: |
   | Title | Description |
   |-------|-------------|
 row: "| {{.title}} | {{.description}} |"
--->
+?>
 | old content |
-<!-- /catalog -->
+<?/catalog?>
 `
 	mapFS := fstest.MapFS{
 		"docs/api.md": {Data: []byte("---\ntitle: API\ndescription: Complete API documentation for developers\n---\n")},

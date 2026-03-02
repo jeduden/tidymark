@@ -1,7 +1,7 @@
 ---
 id: 66
 title: Switch Directives to HTML Processing Instructions
-status: 🔲
+status: ✅
 ---
 # Switch Directives to HTML Processing Instructions
 

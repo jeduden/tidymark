@@ -155,7 +155,7 @@ Weaknesses:
 
 ## Feature Comparison
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 
 ### Structural Linting
 
@@ -387,14 +387,14 @@ Several tools provide file inclusion for Markdown. All are
 preprocessors: they transform source files at build time,
 producing a separate output file.
 
-| Tool                  | Language   | Include syntax              | Stars |
-|-----------------------|------------|-----------------------------|-------|
-| [markdown-include][]  | Python     | `{!filename!}`              | ~100  |
-| [MarkdownPP][]        | Python     | `!INCLUDE "file.md"`        | ~350  |
-| [Markedpp][]          | Node.js    | `!include(file.md)`         | ~50   |
-| [MyST Markdown][myst] | Python     | `{include} directive`       | ~400  |
-| [Gitdown][]           | Node.js    | `<<< file.md`              | ~460  |
-| [mdpre][]             | Python     | preprocessor directives     | ~20   |
+| Tool                  | Language | Include syntax          | Stars |
+|-----------------------|----------|-------------------------|-------|
+| [markdown-include][]  | Python   | `{!filename!}`            | ~100  |
+| [MarkdownPP][]        | Python   | `!INCLUDE "file.md"`      | ~350  |
+| [Markedpp][]          | Node.js  | `!include(file.md)`       | ~50   |
+| [MyST Markdown][myst] | Python   | `{include} directive`     | ~400  |
+| [Gitdown][]           | Node.js  | `<<< file.md`             | ~460  |
+| [mdpre][]             | Python   | preprocessor directives | ~20   |
 
 Key differences from mdsmith's include rule
 ([MDS021][mds021]):

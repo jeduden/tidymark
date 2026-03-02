@@ -87,7 +87,7 @@ func TestCheck_IncludeUpToDate(t *testing.T) {
 	fsys := fstest.MapFS{
 		"data.md": {Data: []byte("Hello world\n")},
 	}
-	src := "# Doc\n\n<!-- include\nfile: data.md\n-->\nHello world\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: data.md\n?>\nHello world\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -98,7 +98,7 @@ func TestCheck_IncludeOutOfDate(t *testing.T) {
 	fsys := fstest.MapFS{
 		"data.md": {Data: []byte("Updated content\n")},
 	}
-	src := "# Doc\n\n<!-- include\nfile: data.md\n-->\nOld content\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: data.md\n?>\nOld content\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -117,7 +117,7 @@ func TestCheck_StripFrontmatterDefault(t *testing.T) {
 			),
 		},
 	}
-	src := "# Doc\n\n<!-- include\nfile: data.md\n-->\nHello world\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: data.md\n?>\nHello world\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -132,9 +132,9 @@ func TestCheck_StripFrontmatterOff(t *testing.T) {
 			),
 		},
 	}
-	src := "# Doc\n\n<!-- include\nfile: data.md\n" +
-		"strip-frontmatter: \"false\"\n-->\n" +
-		"---\nid: MDS001\n---\nHello world\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: data.md\n" +
+		"strip-frontmatter: \"false\"\n?>\n" +
+		"---\nid: MDS001\n---\nHello world\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -149,9 +149,9 @@ func TestCheck_WrapInCodeFence(t *testing.T) {
 	fsys := fstest.MapFS{
 		"example.md": {Data: []byte("# Hello\n")},
 	}
-	src := "# Doc\n\n<!-- include\nfile: example.md\n" +
-		"wrap: markdown\n-->\n```markdown\n# Hello\n```\n" +
-		"<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: example.md\n" +
+		"wrap: markdown\n?>\n```markdown\n# Hello\n```\n" +
+		"<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -164,7 +164,7 @@ func TestCheck_WrapInCodeFence(t *testing.T) {
 
 func TestCheck_MissingFile(t *testing.T) {
 	fsys := fstest.MapFS{}
-	src := "# Doc\n\n<!-- include\nfile: missing.md\n-->\nold\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: missing.md\n?>\nold\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -177,7 +177,7 @@ func TestCheck_MissingFile(t *testing.T) {
 
 func TestCheck_MissingFileParam(t *testing.T) {
 	fsys := fstest.MapFS{}
-	src := "# Doc\n\n<!-- include\n-->\nold\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\n?>\nold\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -186,7 +186,7 @@ func TestCheck_MissingFileParam(t *testing.T) {
 
 func TestCheck_AbsoluteFilePath(t *testing.T) {
 	fsys := fstest.MapFS{}
-	src := "# Doc\n\n<!-- include\nfile: /etc/passwd\n-->\nold\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: /etc/passwd\n?>\nold\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -195,7 +195,7 @@ func TestCheck_AbsoluteFilePath(t *testing.T) {
 
 func TestCheck_DotDotTraversal(t *testing.T) {
 	fsys := fstest.MapFS{}
-	src := "# Doc\n\n<!-- include\nfile: ../secret.md\n-->\nold\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: ../secret.md\n?>\nold\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -210,11 +210,11 @@ func TestFix_UpdatesContent(t *testing.T) {
 	fsys := fstest.MapFS{
 		"data.md": {Data: []byte("New content\n")},
 	}
-	src := "# Doc\n\n<!-- include\nfile: data.md\n-->\nOld content\n<!-- /include -->\n"
+	src := "# Doc\n\n<?include\nfile: data.md\n?>\nOld content\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src, fsys)
 	r := &Rule{}
 	got := string(r.Fix(f))
-	want := "# Doc\n\n<!-- include\nfile: data.md\n-->\nNew content\n<!-- /include -->\n"
+	want := "# Doc\n\n<?include\nfile: data.md\n?>\nNew content\n<?/include?>\n"
 	if got != want {
 		t.Errorf(
 			"Fix output mismatch\ngot:\n%s\nwant:\n%s", got, want,

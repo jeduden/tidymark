@@ -6,8 +6,8 @@ diagnostics:
 ---
 # Include Example
 
-<!-- include
+<?include
 file: data/content.md
--->
+?>
 Outdated content
-<!-- /include -->
+<?/include?>

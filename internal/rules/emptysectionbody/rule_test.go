@@ -53,7 +53,7 @@ func TestCheck_CommentOnlySection(t *testing.T) {
 
 func TestCheck_AllowMarkerSkipsDiagnostic(t *testing.T) {
 	src := []byte(
-		"# Doc\n\n## Template Slot\n\n<!-- allow-empty-section -->\n",
+		"# Doc\n\n## Template Slot\n\n<?allow-empty-section?>\n",
 	)
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestCheck_MarkerCaseSensitive(t *testing.T) {
 
 func TestCheck_CustomAllowMarkerUsesExactString(t *testing.T) {
 	src := []byte(
-		"# Doc\n\n## Template Slot\n\n<!-- allow-empty-section -->\n",
+		"# Doc\n\n## Template Slot\n\n<?allow-empty-section?>\n",
 	)
 	f, err := lint.NewFile("test.md", src)
 	if err != nil {

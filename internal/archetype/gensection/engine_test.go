@@ -45,7 +45,7 @@ func newTestFile(t *testing.T, path, source string) *lint.File {
 }
 
 func TestEngine_Check_UpToDate(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nhello world\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nhello world\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "hello world\n"}
 	e := NewEngine(d)
@@ -56,7 +56,7 @@ func TestEngine_Check_UpToDate(t *testing.T) {
 }
 
 func TestEngine_Check_OutOfDate(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nold content\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nold content\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "new content\n"}
 	e := NewEngine(d)
@@ -76,7 +76,7 @@ func TestEngine_Check_OutOfDate(t *testing.T) {
 }
 
 func TestEngine_Check_EmptyContent(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: ""}
 	e := NewEngine(d)
@@ -87,7 +87,7 @@ func TestEngine_Check_EmptyContent(t *testing.T) {
 }
 
 func TestEngine_Check_UnclosedMarker(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\ncontent\n"
+	src := "<?mock\nkey: value\n?>\ncontent\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "content\n"}
 	e := NewEngine(d)
@@ -101,7 +101,7 @@ func TestEngine_Check_UnclosedMarker(t *testing.T) {
 }
 
 func TestEngine_Check_OrphanedEndMarker(t *testing.T) {
-	src := "text\n<!-- /mock -->\n"
+	src := "text\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{}
 	e := NewEngine(d)
@@ -115,7 +115,7 @@ func TestEngine_Check_OrphanedEndMarker(t *testing.T) {
 }
 
 func TestEngine_Check_NestedMarkers(t *testing.T) {
-	src := "<!-- mock\nkey: a\n-->\n<!-- mock\nkey: b\n-->\n<!-- /mock -->\n"
+	src := "<?mock\nkey: a\n?>\n<?mock\nkey: b\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: ""}
 	e := NewEngine(d)
@@ -132,7 +132,7 @@ func TestEngine_Check_NestedMarkers(t *testing.T) {
 }
 
 func TestEngine_Check_InvalidYAML(t *testing.T) {
-	src := "<!-- mock\n: invalid : yaml ::: [\n-->\n<!-- /mock -->\n"
+	src := "<?mock\n: invalid : yaml ::: [\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{}
 	e := NewEngine(d)
@@ -146,7 +146,7 @@ func TestEngine_Check_InvalidYAML(t *testing.T) {
 }
 
 func TestEngine_Check_NonStringValues(t *testing.T) {
-	src := "<!-- mock\nkey: 42\n-->\n<!-- /mock -->\n"
+	src := "<?mock\nkey: 42\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{}
 	e := NewEngine(d)
@@ -160,7 +160,7 @@ func TestEngine_Check_NonStringValues(t *testing.T) {
 }
 
 func TestEngine_Check_ValidationDiags(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{
 		valDiags: []lint.Diagnostic{
@@ -178,7 +178,7 @@ func TestEngine_Check_ValidationDiags(t *testing.T) {
 }
 
 func TestEngine_Check_GenerationDiags(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{
 		genDiags: []lint.Diagnostic{
@@ -196,7 +196,7 @@ func TestEngine_Check_GenerationDiags(t *testing.T) {
 }
 
 func TestEngine_Fix_RegeneratesContent(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nold content\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nold content\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "new content\n"}
 	e := NewEngine(d)
@@ -210,21 +210,21 @@ func TestEngine_Fix_RegeneratesContent(t *testing.T) {
 }
 
 func TestEngine_Fix_PreservesMarkers(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nold content\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nold content\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "new content\n"}
 	e := NewEngine(d)
 	result := string(e.Fix(f))
-	if !strings.Contains(result, "<!-- mock") {
+	if !strings.Contains(result, "<?mock") {
 		t.Error("expected start marker in result")
 	}
-	if !strings.Contains(result, "<!-- /mock -->") {
+	if !strings.Contains(result, "<?/mock?>") {
 		t.Error("expected end marker in result")
 	}
 }
 
 func TestEngine_Fix_Idempotent(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nhello world\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nhello world\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "hello world\n"}
 	e := NewEngine(d)
@@ -235,7 +235,7 @@ func TestEngine_Fix_Idempotent(t *testing.T) {
 }
 
 func TestEngine_Fix_MultiplePairs(t *testing.T) {
-	src := "<!-- mock\nkey: a\n-->\nold a\n<!-- /mock -->\n\n<!-- mock\nkey: b\n-->\nold b\n<!-- /mock -->\n"
+	src := "<?mock\nkey: a\n?>\nold a\n<?/mock?>\n\n<?mock\nkey: b\n?>\nold b\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "replaced\n"}
 	e := NewEngine(d)
@@ -247,7 +247,7 @@ func TestEngine_Fix_MultiplePairs(t *testing.T) {
 }
 
 func TestEngine_Fix_SkipsOnValidationError(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nold content\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nold content\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{
 		valDiags: []lint.Diagnostic{
@@ -262,7 +262,7 @@ func TestEngine_Fix_SkipsOnValidationError(t *testing.T) {
 }
 
 func TestEngine_Fix_SkipsOnGenerationError(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nold content\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nold content\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{
 		genDiags: []lint.Diagnostic{
@@ -277,7 +277,7 @@ func TestEngine_Fix_SkipsOnGenerationError(t *testing.T) {
 }
 
 func TestEngine_Check_SingleLineMarker(t *testing.T) {
-	src := "<!-- mock -->\n<!-- /mock -->\n"
+	src := "<?mock?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: ""}
 	e := NewEngine(d)
@@ -288,7 +288,7 @@ func TestEngine_Check_SingleLineMarker(t *testing.T) {
 }
 
 func TestEngine_Check_ColumnsPassedToDirective(t *testing.T) {
-	src := "<!-- mock\nkey: value\ncolumns:\n  desc:\n    max-width: 30\n    wrap: br\n-->\nhello\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\ncolumns:\n  desc:\n    max-width: 30\n    wrap: br\n?>\nhello\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	var receivedCols map[string]ColumnConfig
 	d := &mockDirective{
@@ -319,7 +319,7 @@ func TestEngine_Check_ColumnsPassedToDirective(t *testing.T) {
 }
 
 func TestEngine_Check_MarkerInCodeBlock(t *testing.T) {
-	src := "```\n<!-- mock\nkey: value\n-->\n<!-- /mock -->\n```\n"
+	src := "```\n<?mock\nkey: value\n?>\n<?/mock?>\n```\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{}
 	e := NewEngine(d)
@@ -330,7 +330,7 @@ func TestEngine_Check_MarkerInCodeBlock(t *testing.T) {
 }
 
 func TestEngine_Check_YAMLTerminatorWithWhitespace(t *testing.T) {
-	src := "<!-- mock\nkey: value\n  -->\nhello\n<!-- /mock -->\n"
+	src := "<?mock\nkey: value\n  ?>\nhello\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "hello\n"}
 	e := NewEngine(d)
@@ -341,7 +341,7 @@ func TestEngine_Check_YAMLTerminatorWithWhitespace(t *testing.T) {
 }
 
 func TestEngine_Check_EndMarkerWithWhitespace(t *testing.T) {
-	src := "<!-- mock\nkey: value\n-->\nhello\n  <!-- /mock -->\n"
+	src := "<?mock\nkey: value\n?>\nhello\n  <?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: "hello\n"}
 	e := NewEngine(d)

@@ -11,21 +11,23 @@ type Engine struct {
 	directive   Directive
 	startPrefix string
 	endMarker   string
+	terminator  string
 }
 
 // NewEngine creates a new Engine for the given Directive.
 func NewEngine(d Directive) *Engine {
 	return &Engine{
 		directive:   d,
-		startPrefix: "<!-- " + d.Name(),
-		endMarker:   "<!-- /" + d.Name() + " -->",
+		startPrefix: "<?" + d.Name(),
+		endMarker:   "<?" + "/" + d.Name() + "?>",
+		terminator:  "?>",
 	}
 }
 
 // Check scans the file for marker pairs and returns diagnostics.
 func (e *Engine) Check(f *lint.File) []lint.Diagnostic {
 	pairs, diags := FindMarkerPairs(
-		f, e.startPrefix, e.endMarker,
+		f, e.startPrefix, e.endMarker, e.terminator,
 		e.directive.RuleID(), e.directive.RuleName(),
 	)
 	for _, mp := range pairs {
@@ -38,7 +40,7 @@ func (e *Engine) Check(f *lint.File) []lint.Diagnostic {
 // Fix regenerates content for all marker pairs.
 func (e *Engine) Fix(f *lint.File) []byte {
 	pairs, _ := FindMarkerPairs(
-		f, e.startPrefix, e.endMarker,
+		f, e.startPrefix, e.endMarker, e.terminator,
 		e.directive.RuleID(), e.directive.RuleName(),
 	)
 

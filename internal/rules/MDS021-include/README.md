@@ -22,13 +22,13 @@ Include section content must match the referenced file.
 ## Marker Syntax
 
 ```text
-<!-- include
+<?include
 file: path/to/file.md
 strip-frontmatter: "true"
 wrap: markdown
--->
+?>
 ...included content...
-<!-- /include -->
+<?/include?>
 ```
 
 ## Parameters
@@ -58,21 +58,21 @@ rules:
 ### Good
 
 ```markdown
-<!-- include
+<?include
 file: data.md
--->
+?>
 Hello world
-<!-- /include -->
+<?/include?>
 ```
 
 ### Bad
 
 ```markdown
-<!-- include
+<?include
 file: data.md
--->
+?>
 Outdated content
-<!-- /include -->
+<?/include?>
 ```
 
 ## Diagnostics

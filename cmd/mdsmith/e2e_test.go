@@ -1395,20 +1395,20 @@ func TestE2E_MergeDriver_CatalogConflict_Resolved(t *testing.T) {
 	// Minimal config so fix runs.
 	writeFixture(t, dir, ".mdsmith.yml", "rules:\n  catalog: true\n")
 
-	catalogBase := "# Doc\n\n<!-- catalog\nglob: \"plans/*.md\"\nsort: title\n" +
-		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n-->\n" +
-		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n<!-- /catalog -->\n"
+	catalogBase := "# Doc\n\n<?catalog\nglob: \"plans/*.md\"\nsort: title\n" +
+		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n?>\n" +
+		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n<?/catalog?>\n"
 
 	// Ours adds beta.
-	catalogOurs := "# Doc\n\n<!-- catalog\nglob: \"plans/*.md\"\nsort: title\n" +
-		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n-->\n" +
-		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n| [Beta](plans/beta.md) |\n<!-- /catalog -->\n"
+	catalogOurs := "# Doc\n\n<?catalog\nglob: \"plans/*.md\"\nsort: title\n" +
+		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n?>\n" +
+		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n| [Beta](plans/beta.md) |\n<?/catalog?>\n"
 
 	// Theirs adds gamma.
-	catalogTheirs := "# Doc\n\n<!-- catalog\nglob: \"plans/*.md\"\nsort: title\n" +
-		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n-->\n" +
+	catalogTheirs := "# Doc\n\n<?catalog\nglob: \"plans/*.md\"\nsort: title\n" +
+		"header: |\n  | Title |\n  |-------|\nrow: \"| [{{.title}}]({{.filename}}) |\"\n?>\n" +
 		"| Title       |\n|-------------|\n| [Alpha](plans/alpha.md) |\n" +
-		"| [Gamma](plans/gamma.md) |\n<!-- /catalog -->\n"
+		"| [Gamma](plans/gamma.md) |\n<?/catalog?>\n"
 
 	base := writeFixture(t, dir, "base.md", catalogBase)
 	ours := writeFixture(t, dir, "ours.md", catalogOurs)
@@ -1577,9 +1577,9 @@ func TestE2E_MergeDriver_IncludeConflict_Resolved(t *testing.T) {
 	// Create the included source file.
 	writeFixture(t, dir, "snippet.md", "included content\n")
 
-	includeBase := "# Doc\n\n<!-- include\nfile: snippet.md\n-->\nold content\n<!-- /include -->\n"
-	includeOurs := "# Doc\n\n<!-- include\nfile: snippet.md\n-->\nours content\n<!-- /include -->\n"
-	includeTheirs := "# Doc\n\n<!-- include\nfile: snippet.md\n-->\ntheirs content\n<!-- /include -->\n"
+	includeBase := "# Doc\n\n<?include\nfile: snippet.md\n?>\nold content\n<?/include?>\n"
+	includeOurs := "# Doc\n\n<?include\nfile: snippet.md\n?>\nours content\n<?/include?>\n"
+	includeTheirs := "# Doc\n\n<?include\nfile: snippet.md\n?>\ntheirs content\n<?/include?>\n"
 
 	base := writeFixture(t, dir, "base.md", includeBase)
 	ours := writeFixture(t, dir, "ours.md", includeOurs)
@@ -1615,9 +1615,9 @@ func TestE2E_MergeDriver_SetextInSection_Preserved(t *testing.T) {
 	// not be stripped as a conflict separator.
 	writeFixture(t, dir, "snippet.md", "Title\n=======\n\nBody text.\n")
 
-	includeBase := "# Doc\n\n<!-- include\nfile: snippet.md\n-->\nold\n<!-- /include -->\n"
-	includeOurs := "# Doc\n\n<!-- include\nfile: snippet.md\n-->\nours\n<!-- /include -->\n"
-	includeTheirs := "# Doc\n\n<!-- include\nfile: snippet.md\n-->\ntheirs\n<!-- /include -->\n"
+	includeBase := "# Doc\n\n<?include\nfile: snippet.md\n?>\nold\n<?/include?>\n"
+	includeOurs := "# Doc\n\n<?include\nfile: snippet.md\n?>\nours\n<?/include?>\n"
+	includeTheirs := "# Doc\n\n<?include\nfile: snippet.md\n?>\ntheirs\n<?/include?>\n"
 
 	base := writeFixture(t, dir, "base.md", includeBase)
 	ours := writeFixture(t, dir, "ours.md", includeOurs)
@@ -1653,8 +1653,8 @@ func TestE2E_MergeDriver_ConflictStraddlesSection_Preserved(t *testing.T) {
 	// inside an include section. We pre-build the conflicted file
 	// instead of relying on git merge-file to produce this layout.
 	conflicted := "# Doc\n\n<<<<<<< ours\nours text\n=======\n" +
-		"<!-- include\nfile: snippet.md\n-->\ntheirs content\n>>>>>>> theirs\n" +
-		"<!-- /include -->\n"
+		"<?include\nfile: snippet.md\n?>\ntheirs content\n>>>>>>> theirs\n" +
+		"<?/include?>\n"
 
 	base := writeFixture(t, dir, "base.md", "# Doc\n\noriginal\n")
 	ours := writeFixture(t, dir, "ours.md", conflicted)
@@ -1691,8 +1691,8 @@ func TestE2E_MergeDriver_SectionMarkersInsideConflict_Preserved(t *testing.T) {
 	}
 	writeFixture(t, dir, ".mdsmith.yml", "rules: {}\n")
 
-	conflicted := "# Doc\n\n<<<<<<< ours\n<!-- include\nfile: snippet.md\n-->\n" +
-		"content\n<!-- /include -->\n=======\nno section\n>>>>>>> theirs\n"
+	conflicted := "# Doc\n\n<<<<<<< ours\n<?include\nfile: snippet.md\n?>\n" +
+		"content\n<?/include?>\n=======\nno section\n>>>>>>> theirs\n"
 
 	base := writeFixture(t, dir, "base.md", "# Doc\n\noriginal\n")
 	ours := writeFixture(t, dir, "ours.md", conflicted)
