@@ -255,10 +255,14 @@ func hasAllowMarker(nodes []ast.Node, source []byte, markerName string) bool {
 	return false
 }
 
-var processingInstructionPattern = regexp.MustCompile(`(?s)<\?.*?\?>`)
-
-func stripProcessingInstructions(s string) string {
-	return processingInstructionPattern.ReplaceAllString(s, "")
+// isDirectiveMarker reports whether s is entirely a processing
+// instruction used as an mdsmith directive marker (e.g.
+// <?catalog ...?> or <?/include?>).  Only matches blocks whose
+// trimmed text starts with "<?" and ends with "?>", so regular
+// HTML or non-mdsmith content is not affected.
+func isDirectiveMarker(s string) bool {
+	t := strings.TrimSpace(s)
+	return len(t) >= 4 && strings.HasPrefix(t, "<?") && strings.HasSuffix(t, "?>")
 }
 
 func hasMeaningfulContent(nodes []ast.Node, source []byte) bool {
@@ -269,8 +273,16 @@ func hasMeaningfulContent(nodes []ast.Node, source []byte) bool {
 		case *ast.HTMLBlock:
 			raw := nodeLinesText(n, source)
 			raw = stripHTMLComments(raw)
-			raw = stripProcessingInstructions(raw)
-			if strings.TrimSpace(raw) == "" {
+			trimmed := strings.TrimSpace(raw)
+			if trimmed == "" {
+				continue
+			}
+			// Skip HTML blocks that are mdsmith directive markers
+			// (processing instructions like <?catalog...?> or
+			// <?/include?>). Non-mdsmith PIs are not matched
+			// because goldmark places each PI in its own block,
+			// and only blocks that are entirely a PI are skipped.
+			if isDirectiveMarker(raw) {
 				continue
 			}
 			return true
