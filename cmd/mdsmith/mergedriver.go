@@ -205,11 +205,11 @@ var regenSectionNames = []string{"catalog", "include"}
 
 // isRegenSectionStart returns true if the line starts a
 // regenerable section. The start marker begins with
-// "<!-- catalog" or "<!-- include", followed by a YAML body
-// and a closing "-->".
+// "<?catalog" or "<?include", followed by a YAML body
+// and a closing "?>".
 func isRegenSectionStart(line []byte) bool {
 	for _, name := range regenSectionNames {
-		if bytes.HasPrefix(line, []byte("<!-- "+name)) {
+		if bytes.HasPrefix(line, []byte("<?"+name)) {
 			return true
 		}
 	}
@@ -217,10 +217,10 @@ func isRegenSectionStart(line []byte) bool {
 }
 
 // isRegenSectionEnd returns true if the line ends a regenerable
-// section (e.g. <!-- /catalog --> or <!-- /include -->).
+// section (e.g. <?/catalog?> or <?/include?>).
 func isRegenSectionEnd(line []byte) bool {
 	for _, name := range regenSectionNames {
-		if bytes.Equal(line, []byte("<!-- /"+name+" -->")) {
+		if bytes.Equal(line, []byte("<?/"+name+"?>")) {
 			return true
 		}
 	}

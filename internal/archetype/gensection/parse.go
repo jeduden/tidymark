@@ -312,14 +312,24 @@ func addBlockLineRange(f *lint.File, n ast.Node, set map[int]bool) {
 }
 
 // IsSingleLineDirective reports whether line is a single-line
-// processing instruction with the given name: <?name?>.
+// processing instruction with the given name, allowing optional
+// whitespace before the closing "?>", e.g. "<?name?>" or "<?name ?>".
 func IsSingleLineDirective(line, name string) bool {
-	return strings.TrimSpace(line) == "<?"+name+"?>"
+	s := strings.TrimSpace(line)
+
+	prefix := "<?" + name
+	if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, "?>") {
+		return false
+	}
+
+	// Allow only whitespace between the name and the closing "?>".
+	middle := s[len(prefix) : len(s)-2]
+	return strings.TrimSpace(middle) == ""
 }
 
 // addHTMLBlockLines marks all lines spanned by an HTML block.
 // HTML blocks that are mdsmith markers are not ignored, since
-// the markers are HTML comments that goldmark parses as HTML blocks.
+// the markers are HTML processing instructions that goldmark parses as HTML blocks.
 func addHTMLBlockLines(f *lint.File, n *ast.HTMLBlock, set map[int]bool, startPrefix, endMarker string) {
 	if n.Lines().Len() == 0 {
 		return
