@@ -212,30 +212,6 @@ func regenDirectiveNames() []string {
 	return names
 }
 
-// isRegenSectionStart returns true if the line starts a
-// regenerable section. The start marker begins with
-// "<?catalog" or "<?include", followed by a YAML body
-// and a closing "?>".
-func isRegenSectionStart(line []byte) bool {
-	for _, name := range regenDirectiveNames() {
-		if gensection.IsRawStartMarker(line, name) {
-			return true
-		}
-	}
-	return false
-}
-
-// isRegenSectionEnd returns true if the line ends a regenerable
-// section (e.g. <?/catalog?> or <?/include?>).
-func isRegenSectionEnd(line []byte) bool {
-	for _, name := range regenDirectiveNames() {
-		if gensection.IsRawEndMarker(line, name) {
-			return true
-		}
-	}
-	return false
-}
-
 // stripSectionConflicts removes git conflict markers from lines
 // that fall inside regenerable sections (catalog, include).
 // Conflict markers outside these sections are left unchanged.
@@ -244,6 +220,7 @@ func isRegenSectionEnd(line []byte) bool {
 // <<<<<<< and >>>>>>> to avoid false positives with Markdown
 // setext heading underlines.
 func stripSectionConflicts(content []byte) []byte {
+	names := regenDirectiveNames()
 	lines := bytes.Split(content, []byte("\n"))
 	var out [][]byte
 	inSection := false
@@ -252,7 +229,7 @@ func stripSectionConflicts(content []byte) []byte {
 	for _, line := range lines {
 		trimmed := bytes.TrimSpace(line)
 
-		if isRegenSectionStart(trimmed) {
+		if matchesAnyStart(trimmed, names) {
 			inSection = true
 		}
 
@@ -272,13 +249,31 @@ func stripSectionConflicts(content []byte) []byte {
 
 		out = append(out, line)
 
-		if isRegenSectionEnd(trimmed) {
+		if matchesAnyEnd(trimmed, names) {
 			inSection = false
 			inConflict = false
 		}
 	}
 
 	return bytes.Join(out, []byte("\n"))
+}
+
+func matchesAnyStart(line []byte, names []string) bool {
+	for _, name := range names {
+		if gensection.IsRawStartMarker(line, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesAnyEnd(line []byte, names []string) bool {
+	for _, name := range names {
+		if gensection.IsRawEndMarker(line, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // isConflictOpen returns true if the line opens a git conflict
