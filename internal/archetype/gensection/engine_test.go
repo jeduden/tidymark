@@ -351,6 +351,23 @@ func TestEngine_Check_EndMarkerWithWhitespace(t *testing.T) {
 	}
 }
 
+func TestEngine_Check_EndMarkerWithTrailingContent(t *testing.T) {
+	src := "<?mock\nkey: value\n?>\nhello\n<?/mock?> extra\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{content: "hello\n"}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "only content on its line") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'only content on its line' diagnostic, got %v", diags)
+	}
+}
+
 func TestEnsureTrailingNewline_AddsNewline(t *testing.T) {
 	got := EnsureTrailingNewline("hello")
 	if got != "hello\n" {
