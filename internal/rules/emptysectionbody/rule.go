@@ -171,6 +171,11 @@ func applySetting(
 				"empty-section-body: allow-marker cannot be empty or whitespace-only",
 			)
 		}
+		if strings.ContainsAny(s, " \t") {
+			return fmt.Errorf(
+				"empty-section-body: allow-marker must not contain whitespace",
+			)
+		}
 		*allowMarker = s
 	default:
 		return fmt.Errorf("empty-section-body: unknown setting %q", key)

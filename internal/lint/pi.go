@@ -10,9 +10,9 @@ import (
 // KindProcessingInstruction is the ast.NodeKind for ProcessingInstruction.
 var KindProcessingInstruction = ast.NewNodeKind("ProcessingInstruction")
 
-// ProcessingInstruction is a custom AST block node for XML processing
-// instructions (<?name ... ?>). It replaces the default ast.HTMLBlock
-// representation for PI syntax.
+// ProcessingInstruction is a custom AST block node for processing-instruction
+// blocks (<?name ... ?>). It replaces the default ast.HTMLBlock representation
+// for this PI syntax in CommonMark/HTML.
 type ProcessingInstruction struct {
 	ast.BaseBlock
 	ClosureLine text.Segment

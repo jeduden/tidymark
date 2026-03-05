@@ -86,7 +86,7 @@ func handleStartMarker(
 	if !pi.HasClosure() {
 		return nil, append(diags,
 			MakeDiag(ruleID, ruleName, f.Path, piLine,
-				"generated section has no closing marker"))
+				"generated section start marker is unterminated"))
 	}
 
 	mp := MarkerPair{

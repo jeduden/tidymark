@@ -219,7 +219,7 @@ func TestApplySettings_Valid(t *testing.T) {
 	err := r.ApplySettings(map[string]any{
 		"min-level":    3,
 		"max-level":    5,
-		"allow-marker": "docs: intentionally-empty",
+		"allow-marker": "intentionally-empty",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -230,7 +230,7 @@ func TestApplySettings_Valid(t *testing.T) {
 	if r.MaxLevel != 5 {
 		t.Errorf("expected MaxLevel=5, got %d", r.MaxLevel)
 	}
-	if r.AllowMarker != "docs: intentionally-empty" {
+	if r.AllowMarker != "intentionally-empty" {
 		t.Errorf("unexpected allow marker: %s", r.AllowMarker)
 	}
 }
@@ -248,6 +248,14 @@ func TestApplySettings_AllowMarkerWhitespaceOnly(t *testing.T) {
 	err := r.ApplySettings(map[string]any{"allow-marker": "   "})
 	if err == nil {
 		t.Fatal("expected error for whitespace-only allow-marker")
+	}
+}
+
+func TestApplySettings_AllowMarkerContainsWhitespace(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{"allow-marker": "docs: empty"})
+	if err == nil {
+		t.Fatal("expected error for allow-marker containing whitespace")
 	}
 }
 
