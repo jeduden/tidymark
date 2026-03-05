@@ -77,7 +77,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		}
 
 		sectionNodes := nodes[i+1 : end]
-		if hasAllowMarker(sectionNodes, f.Source, allowMarker) {
+		if hasAllowMarker(sectionNodes, allowMarker) {
 			continue
 		}
 		if hasMeaningfulContent(sectionNodes, f.Source) {
@@ -246,7 +246,7 @@ func topLevelNodes(root ast.Node) []ast.Node {
 	return nodes
 }
 
-func hasAllowMarker(nodes []ast.Node, _ []byte, markerName string) bool {
+func hasAllowMarker(nodes []ast.Node, markerName string) bool {
 	for _, node := range nodes {
 		pi, ok := node.(*lint.ProcessingInstruction)
 		if !ok {
