@@ -37,12 +37,14 @@ Ignored content includes:
 
 - blank lines
 - HTML comments
+- mdsmith directive processing instructions (e.g. `<?catalog?>`,
+  `<?allow-empty-section?>`)
 - nested headings by themselves
 
-Use an explicit allow marker comment for intentional empty sections:
+Use an explicit allow marker for intentional empty sections:
 
 ```markdown
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 ```
 
 ## Prior Art
@@ -92,7 +94,7 @@ This section explains what the command does.
 ```markdown
 ## Compatibility
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 ```
 
 ### Bad
@@ -106,7 +108,7 @@ This section explains what the command does.
 ## Diagnostics
 
 - `section "## Heading" has no meaningful body content; add paragraph, list,
-  table, or code content, or add "<!-- marker -->" for an intentional empty
+  table, or code content, or add "<?marker?>" for an intentional empty
   section`
 
 ## Edge Cases

@@ -6,8 +6,8 @@ diagnostics:
 ---
 # Document Index
 
-<!-- catalog
+<?catalog
 glob: "data/*.md"
--->
+?>
 - [alpha.md](data/alpha.md)
-<!-- /catalog -->
+<?/catalog?>

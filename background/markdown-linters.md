@@ -155,7 +155,7 @@ Weaknesses:
 
 ## Feature Comparison
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 
 ### Structural Linting
 
@@ -381,6 +381,39 @@ to find the right document without reading everything.
 No other linter in this comparison generates or maintains
 navigational tables from document metadata.
 
+## Markdown Include / Preprocessor Tools
+
+Several tools provide file inclusion for Markdown. All are
+preprocessors: they transform source files at build time,
+producing a separate output file.
+
+| Tool                  | Language | Include syntax          | Stars |
+|-----------------------|----------|-------------------------|-------|
+| [markdown-include][]  | Python   | `{!filename!}`            | ~100  |
+| [MarkdownPP][]        | Python   | `!INCLUDE "file.md"`      | ~350  |
+| [Markedpp][]          | Node.js  | `!include(file.md)`       | ~50   |
+| [MyST Markdown][myst] | Python   | `{include} directive`     | ~400  |
+| [Gitdown][]           | Node.js  | `<<< file.md`             | ~460  |
+| [mdpre][]             | Python   | preprocessor directives | ~20   |
+
+Key differences from mdsmith's include rule
+([MDS021][mds021]):
+
+- **Build step required.** Preprocessors read source files
+  and write transformed output. The source and output are
+  different files. mdsmith regenerates included content
+  in place — the source file is always valid Markdown.
+- **No validation.** Preprocessors replace directives with
+  file contents but do not lint the result. mdsmith's
+  include rule validates that included sections stay in
+  sync and auto-fixes drift via `mdsmith fix`.
+- **Not agent-friendly.** Agents read and write the same
+  file. A preprocessor build step adds friction: the
+  agent must know to run the preprocessor after editing,
+  and the included content is invisible in the source.
+  With mdsmith, the included content lives in the source
+  file and is always readable.
+
 ## Slidev and Presentation Markdown
 
 Slidev uses Markdown files as slide decks. Slides are
@@ -475,6 +508,13 @@ relaxed rules) for presentation files.
 [rl-rs]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-rule-style
 [rl-vl]: https://github.com/remarkjs/remark-validate-links
 [rl-fm]: https://github.com/remarkjs/remark-frontmatter
+<!-- include / preprocessor tool links -->
+[markdown-include]: https://github.com/cmacmackin/markdown-include
+[MarkdownPP]: https://github.com/amyreese/markdown-pp
+[Markedpp]: https://github.com/commenthol/markedpp
+[myst]: https://mystmd.org/guide/embed
+[Gitdown]: https://github.com/gajus/gitdown
+[mdpre]: https://github.com/MartinPacker/mdpre
 <!-- prettier, vale, textlint, llm tool links -->
 [Prettier]: https://prettier.io/
 [prosewrap]: https://prettier.io/docs/options#prose-wrap

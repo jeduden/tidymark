@@ -1,6 +1,6 @@
 # Plans
 
-<!-- catalog
+<?catalog
 glob: "plan/[0-9]*.md"
 sort: id
 header: |
@@ -10,7 +10,7 @@ header: |
 row: "| {{.id}} | {{.status}} | [{{.title}}]({{.filename}}) |"
 footer: |
 
--->
+?>
 
 | ID  | Status | Title                                                    |
 |-----|--------|----------------------------------------------------------|
@@ -46,4 +46,6 @@ footer: |
 | 63  | ✅      | [Empty Section Body Rule](plan/63_empty-section-body-rule.md)                                  |
 | 64  | 🔲      | [Spike Pure-Go Embedded Weasel Classifier](plan/64_spike-go-native-linear-classifier.md)                 |
 | 65  | 🔲      | [Spike WASM-Embedded Weasel Inference](plan/65_spike-wasm-embedded-inference.md)                     |
-<!-- /catalog -->
+| 66  | ✅      | [Switch Directives to HTML Processing Instructions](plan/66_processing-instructions.md)        |
+| 67  | ✅      | [Custom ProcessingInstruction AST Node](plan/67_processing-instruction-ast-node.md)                    |
+<?/catalog?>

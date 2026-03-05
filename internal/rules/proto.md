@@ -39,7 +39,7 @@ description: 'string & != ""'
 
 ## ...
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 
 ## Config
 
@@ -60,7 +60,7 @@ rules:
 
 ## ...
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>
 
 ## Examples
 
@@ -79,4 +79,4 @@ rules:
 
 ## ...
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>

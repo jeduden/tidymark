@@ -185,7 +185,7 @@ Upgrades become an explicit, reviewable change.
 
 ## 📚 Guides
 
-<!-- catalog
+<?catalog
 glob: "guides/*.md"
 sort: title
 header: |
@@ -196,15 +196,15 @@ empty: |
   | Guide         | Description                                           |
   |---------------|-------------------------------------------------------|
   | No guides yet | Add guide files under `guides/` to populate this index. |
--->
+?>
 | Guide                                                       | Description                                                                                                      |
 |-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | [Choosing Readability, Conciseness, and Token Budget Metrics](guides/metrics-tradeoffs.md) | Trade-offs, examples, and threshold guidance for readability, structure, length, conciseness, and token budgets. |
-<!-- /catalog -->
+<?/catalog?>
 
 ## 📏 Rules
 
-<!-- catalog
+<?catalog
 glob: "internal/rules/MDS*/README.md"
 sort: id
 header: |
@@ -213,7 +213,7 @@ header: |
 row: >-
   | [{{.id}}]({{.filename}}) | `{{.name}}` | {{.status}} |
   {{.description}} |
--->
+?>
 | Rule   | Name                               | Status    | Description                                                                             |
 |--------|------------------------------------|-----------|-----------------------------------------------------------------------------------------|
 | [MDS001](internal/rules/MDS001-line-length/README.md) | `line-length`                        | ready     | Line exceeds maximum length.                                                            |
@@ -246,7 +246,7 @@ row: >-
 | [MDS028](internal/rules/MDS028-token-budget/README.md) | `token-budget`                       | ready     | File must not exceed a token budget.                                                    |
 | [MDS029](internal/rules/MDS029-conciseness-scoring/README.md) | `conciseness-scoring`                | not-ready | Paragraph conciseness score must not fall below a threshold.                            |
 | [MDS030](internal/rules/MDS030-empty-section-body/README.md) | `empty-section-body`                 | ready     | Section headings must include meaningful body content.                                  |
-<!-- /catalog -->
+<?/catalog?>
 
 ## 🛠️ Development
 

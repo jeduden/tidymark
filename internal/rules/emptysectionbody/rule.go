@@ -49,8 +49,6 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if f.AST == nil {
 		return nil
 	}
-	allowMarkerPattern := buildAllowMarkerPattern(allowMarker)
-
 	nodes := topLevelNodes(f.AST)
 	if len(nodes) == 0 {
 		return nil
@@ -79,7 +77,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		}
 
 		sectionNodes := nodes[i+1 : end]
-		if hasAllowMarker(sectionNodes, f.Source, allowMarkerPattern) {
+		if hasAllowMarker(sectionNodes, allowMarker) {
 			continue
 		}
 		if hasMeaningfulContent(sectionNodes, f.Source) {
@@ -91,7 +89,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 				"add paragraph, list, table, or code content, "+
 				"or add %q for an intentional empty section",
 			headingLabel(heading, f.Source),
-			fmt.Sprintf("<!-- %s -->", allowMarker),
+			fmt.Sprintf("<?%s?>", allowMarker),
 		)
 		diags = append(diags, lint.Diagnostic{
 			File:     f.Path,
@@ -173,6 +171,11 @@ func applySetting(
 				"empty-section-body: allow-marker cannot be empty or whitespace-only",
 			)
 		}
+		if strings.ContainsAny(s, " \t") {
+			return fmt.Errorf(
+				"empty-section-body: allow-marker must not contain whitespace",
+			)
+		}
 		*allowMarker = s
 	default:
 		return fmt.Errorf("empty-section-body: unknown setting %q", key)
@@ -243,26 +246,13 @@ func topLevelNodes(root ast.Node) []ast.Node {
 	return nodes
 }
 
-func buildAllowMarkerPattern(marker string) *regexp.Regexp {
-	trimmed := strings.TrimSpace(marker)
-	if trimmed == "" {
-		return nil
-	}
-	return regexp.MustCompile(
-		`(?s)<!--\s*` + regexp.QuoteMeta(trimmed) + `\s*-->`,
-	)
-}
-
-func hasAllowMarker(nodes []ast.Node, source []byte, pattern *regexp.Regexp) bool {
-	if pattern == nil {
-		return false
-	}
+func hasAllowMarker(nodes []ast.Node, markerName string) bool {
 	for _, node := range nodes {
-		block, ok := node.(*ast.HTMLBlock)
+		pi, ok := node.(*lint.ProcessingInstruction)
 		if !ok {
 			continue
 		}
-		if pattern.MatchString(nodeLinesText(block, source)) {
+		if pi.Name == markerName {
 			return true
 		}
 	}
@@ -274,9 +264,13 @@ func hasMeaningfulContent(nodes []ast.Node, source []byte) bool {
 		switch n := node.(type) {
 		case *ast.Heading:
 			continue
+		case *lint.ProcessingInstruction:
+			continue
 		case *ast.HTMLBlock:
-			raw := stripHTMLComments(nodeLinesText(n, source))
-			if strings.TrimSpace(raw) == "" {
+			raw := nodeLinesText(n, source)
+			raw = stripHTMLComments(raw)
+			trimmed := strings.TrimSpace(raw)
+			if trimmed == "" {
 				continue
 			}
 			return true

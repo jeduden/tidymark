@@ -9,4 +9,4 @@ diagnostics:
 Section
 -------
 
-<!-- allow-empty-section -->
+<?allow-empty-section?>

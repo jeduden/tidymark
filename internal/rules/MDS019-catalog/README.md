@@ -113,62 +113,62 @@ rules:
 ### Good -- minimal
 
 ```markdown
-<!-- catalog
+<?catalog
 glob: docs/*.md
--->
+?>
 - [api-reference.md](docs/api-reference.md)
 - [getting-started.md](docs/getting-started.md)
-<!-- /catalog -->
+<?/catalog?>
 ```
 
 ### Good -- template with header
 
 ```markdown
-<!-- catalog
+<?catalog
 glob: docs/*.md
 header: |
   | Title | Description |
   |-------|-------------|
 row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
--->
+?>
 | Title | Description |
 |-------|-------------|
 | [API Reference](docs/api-reference.md) | Complete API documentation |
-<!-- /catalog -->
+<?/catalog?>
 ```
 
 ### Good -- empty fallback
 
 ```markdown
-<!-- catalog
+<?catalog
 glob: docs/*.md
 empty: No documents found.
--->
+?>
 No documents found.
-<!-- /catalog -->
+<?/catalog?>
 ```
 
 ### Good -- descending sort
 
 ```markdown
-<!-- catalog
+<?catalog
 glob: docs/*.md
 sort: -title
 row: "- [{{.title}}]({{.filename}})"
--->
+?>
 - [Getting Started](docs/getting-started.md)
 - [API Reference](docs/api-reference.md)
-<!-- /catalog -->
+<?/catalog?>
 ```
 
 ### Bad -- stale content
 
 ```markdown
-<!-- catalog
+<?catalog
 glob: docs/*.md
--->
+?>
 - [api-reference.md](docs/api-reference.md)
-<!-- /catalog -->
+<?/catalog?>
 ```
 
 Diagnostic: `generated section is out of date`
@@ -176,9 +176,9 @@ Diagnostic: `generated section is out of date`
 ### Bad -- unclosed marker
 
 ```markdown
-<!-- catalog
+<?catalog
 glob: docs/*.md
--->
+?>
 - [api-reference.md](docs/api-reference.md)
 ```
 
@@ -187,13 +187,13 @@ Diagnostic: `generated section has no closing marker`
 ### Bad -- missing `row` with `header`
 
 ```markdown
-<!-- catalog
+<?catalog
 glob: docs/*.md
 header: |
   | Title | Description |
   |-------|-------------|
--->
-<!-- /catalog -->
+?>
+<?/catalog?>
 ```
 
 Diagnostic:

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"io/fs"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -23,8 +23,20 @@ type File struct {
 // NewFile parses source as Markdown and returns a File.
 func NewFile(path string, source []byte) (*File, error) {
 	reader := text.NewReader(source)
-	parser := goldmark.DefaultParser()
-	node := parser.Parse(reader)
+	p := parser.NewParser(
+		parser.WithBlockParsers(
+			append(parser.DefaultBlockParsers(),
+				PIBlockParserPrioritized(),
+			)...,
+		),
+		parser.WithInlineParsers(
+			parser.DefaultInlineParsers()...,
+		),
+		parser.WithParagraphTransformers(
+			parser.DefaultParagraphTransformers()...,
+		),
+	)
+	node := p.Parse(reader)
 
 	lines := bytes.Split(source, []byte("\n"))
 
