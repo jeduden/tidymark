@@ -100,6 +100,45 @@ func TestEngine_Check_UnclosedMarker(t *testing.T) {
 	}
 }
 
+func TestEngine_Check_UnterminatedStartMarker(t *testing.T) {
+	// Start marker with no ?> terminator — reaches EOF.
+	src := "<?mock\nkey: value\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	if len(diags) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %v", len(diags), diags)
+	}
+	if !strings.Contains(diags[0].Message, "<?mock") {
+		t.Errorf("expected message to contain marker name '<?mock', got %q", diags[0].Message)
+	}
+	if !strings.Contains(diags[0].Message, "?>") {
+		t.Errorf("expected message to mention missing '?>', got %q", diags[0].Message)
+	}
+}
+
+func TestEngine_Check_UnterminatedEndMarker(t *testing.T) {
+	// Start marker is valid, end marker has no ?> terminator.
+	src := "<?mock?>\ncontent\n<?/mock\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{content: "content\n"}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "<?\\/mock") || strings.Contains(d.Message, "<?/mock") {
+			found = true
+			if !strings.Contains(d.Message, "?>") {
+				t.Errorf("expected message to mention missing '?>', got %q", d.Message)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("expected diagnostic mentioning '<?/mock', got %v", diags)
+	}
+}
+
 func TestEngine_Check_OrphanedEndMarker(t *testing.T) {
 	src := "text\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)

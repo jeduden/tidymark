@@ -86,7 +86,7 @@ func handleStartMarker(
 	if !pi.HasClosure() {
 		return nil, append(diags,
 			MakeDiag(ruleID, ruleName, f.Path, piLine,
-				"generated section start marker is unterminated"))
+				fmt.Sprintf("generated section start marker <?%s is missing closing ?>", pi.Name)))
 	}
 
 	mp := MarkerPair{
@@ -111,7 +111,7 @@ func handleEndMarker(
 	if !pi.HasClosure() {
 		return current, pairs, append(diags,
 			MakeDiag(ruleID, ruleName, f.Path, piLine,
-				"generated section end marker is unterminated"))
+				fmt.Sprintf("generated section end marker <?%s is missing closing ?>", pi.Name)))
 	}
 
 	// End marker must be the only content on its line.
