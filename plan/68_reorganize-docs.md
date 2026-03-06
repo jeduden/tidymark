@@ -49,9 +49,9 @@ propagates everywhere.
 
 ### Update CLAUDE.md
 
-11. Replace moved sections with `<?include ... ?>`
-    directives pointing to the new files (or short
-    cross-references where include is not needed).
+11. Add an `<?include ?>` directive in CLAUDE.md that
+    pulls DEVELOPMENT.md so agents still see the
+    development info inline.
 12. Update "Merge Conflicts in PLAN.md and README.md"
     to reference processing-instruction markers
     (`<?name?>` / `<?/name?>`) instead of old
@@ -73,23 +73,31 @@ propagates everywhere.
     `.github/copilot-instructions.md` with an
     `<?include ?>` directive (same approach).
 
+### Update README.md
+
+17. Add an `<?include ?>` directive in README.md that
+    pulls DEVELOPMENT.md so contributors see the
+    development info.
+
 ### Fixups
 
-17. Update internal links in moved files so they
+18. Update internal links in moved files so they
     resolve from their new locations.
-18. Update `.mdsmith.yml` overrides and ignore entries
+19. Update `.mdsmith.yml` overrides and ignore entries
     that reference old paths (`background/`, `guides/`,
     `archetypes/`).
-19. Run `mdsmith fix .` to regenerate all include and
+20. Run `mdsmith fix .` to regenerate all include and
     catalog sections.
-20. Run `mdsmith check .` and fix any diagnostics.
+21. Run `mdsmith check .` and fix any diagnostics.
 
 ## Acceptance Criteria
 
+- [ ] CLAUDE.md includes DEVELOPMENT.md via an
+      `<?include ?>` directive
 - [ ] CLAUDE.md no longer contains Build & Test,
       Project Layout, Development Workflow, Code Style,
       CLI Design, PR Workflow, or Config & Rules
-      sections inline
+      as hand-maintained sections
 - [ ] CLAUDE.md "Merge Conflicts" section references
       `<?...?>` processing-instruction syntax
 - [ ] CLAUDE.md "Cross-Platform Agent Config" says
@@ -103,6 +111,8 @@ propagates everywhere.
 - [ ] `archetypes/` moved to `docs/design/archetypes/`
 - [ ] CLI Design lives in `docs/design/cli.md`
 - [ ] DEVELOPMENT.md exists with the moved sections
+- [ ] README.md includes DEVELOPMENT.md via an
+      `<?include ?>` directive
 - [ ] All tests pass: `go test ./...`
 - [ ] `golangci-lint run` reports no issues
 - [ ] `mdsmith check .` reports zero diagnostics
