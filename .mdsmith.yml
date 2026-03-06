@@ -44,7 +44,7 @@ rules:
     include: []
     exclude:
       # Placeholder link in internal/rules/proto.md; not a real repo path.
-      - "../../../archetypes/NAME"
+      - "../../../docs/design/archetypes/NAME"
     strict: true
   token-budget:
     max: 8000
@@ -67,8 +67,14 @@ rules:
   include: true
 
 overrides:
+  - files: ["DEVELOPMENT.md", ".github/DEVELOPMENT.md"]
+    rules:
+      first-line-heading: false
+      heading-increment: false
   - files: ["README.md"]
     rules:
+      max-file-length:
+        max: 350
       paragraph-structure:
         max-sentences: 30
   - files: ["PLAN.md"]
@@ -95,7 +101,7 @@ overrides:
     rules:
       required-structure:
         template: plan/proto.md
-  - files: ["background/*.md"]
+  - files: ["docs/background/*.md"]
     rules:
       line-length:
         stern: true
@@ -107,7 +113,7 @@ overrides:
         ratio: 0.75
         tokenizer: builtin
         encoding: cl100k_base
-  - files: ["guides/*.md"]
+  - files: ["docs/guides/*.md"]
     rules:
       line-length:
         max: 600

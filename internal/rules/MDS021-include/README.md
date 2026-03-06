@@ -17,7 +17,7 @@ Include section content must match the referenced file.
   [source](./)
 - **Category**: meta
 - **Archetype**:
-  [generated-section](../../../archetypes/generated-section/)
+  [generated-section](../../../docs/design/archetypes/generated-section/)
 
 ## Marker Syntax
 

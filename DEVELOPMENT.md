@@ -1,13 +1,7 @@
-# Copilot Instructions
+---
+title: Development
+---
 
-Instructions for GitHub Copilot. See
-[CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md)
-for full project conventions.
-
-<?include
-file: DEVELOPMENT.md
-strip-frontmatter: "true"
-?>
 Build and test reference for mdsmith contributors.
 
 ## Build & Test Commands
@@ -69,4 +63,3 @@ git push origin <branch>
 
 These commands are auto-approved in
 `.claude/settings.json`.
-<?/include?>

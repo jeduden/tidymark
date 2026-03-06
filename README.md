@@ -186,20 +186,20 @@ Upgrades become an explicit, reviewable change.
 ## 📚 Guides
 
 <?catalog
-glob: "guides/*.md"
+glob: "docs/guides/*.md"
 sort: title
 header: |
   | Guide | Description |
   |-------|-------------|
 row: "| [{{.title}}]({{.filename}}) | {{.description}} |"
 empty: |
-  | Guide         | Description                                           |
-  |---------------|-------------------------------------------------------|
-  | No guides yet | Add guide files under `guides/` to populate this index. |
+  | Guide         | Description                                                |
+  |---------------|------------------------------------------------------------|
+  | No guides yet | Add guide files under `docs/guides/` to populate this index. |
 ?>
 | Guide                                                       | Description                                                                                                      |
 |-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| [Choosing Readability, Conciseness, and Token Budget Metrics](guides/metrics-tradeoffs.md) | Trade-offs, examples, and threshold guidance for readability, structure, length, conciseness, and token budgets. |
+| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) | Trade-offs, examples, and threshold guidance for readability, structure, length, conciseness, and token budgets. |
 <?/catalog?>
 
 ## 📏 Rules
@@ -250,30 +250,80 @@ row: >-
 
 ## 🛠️ Development
 
-### Prerequisites
+<?include
+file: DEVELOPMENT.md
+strip-frontmatter: "true"
+?>
+Build and test reference for mdsmith contributors.
 
-- Go 1.24+
-- [golangci-lint](https://golangci-lint.run/)
+## Build & Test Commands
 
-### Lint
+Requires Go 1.24+.
+
+- `go build ./...` — build all packages
+- `go test ./...` — run all tests
+- `go test -run TestName ./pkg/...` — run a specific test
+- `go tool golangci-lint run` — run linter
+- `go vet ./...` — run go vet
+
+## Project Layout
+
+Follow the [standard Go project
+layout](https://go.dev/doc/modules/layout):
+
+- `cmd/mdsmith/` — main application entry point
+- `internal/` — private packages not importable by
+  other modules
+- `internal/rules/` — rule documentation
+  (`internal/rules/<id>-<name>/README.md`)
+- `testdata/` — test fixtures (markdown files for
+  testing rules)
+
+## Development Workflow
+
+- Any change follows Red / Green TDD: write a failing
+  test (red), make it pass (green), commit
+- Keep commits small and focused on one change
+- Run `mdsmith check .` before committing to ensure all
+  markdown files pass linting
+
+## Code Style
+
+- Follow standard Go conventions (gofmt, goimports)
+- Use golangci-lint for linting
+- Keep functions small and focused
+- Error messages should be lowercase, no trailing
+  punctuation
+- Prefer returning errors over panicking
+
+## PR Workflow
+
+Use `gh` for all GitHub PR operations:
 
 ```bash
-golangci-lint run
+# View PR comments
+gh pr view <number> --comments
+
+# List review comments on a PR
+gh api "$(gh repo view --json nameWithOwner \
+  -q '.nameWithOwner')/pulls/<number>/comments" \
+  --paginate
+
+# Push updates after addressing comments
+git push origin <branch>
 ```
 
-### Test
+These commands are auto-approved in
+`.claude/settings.json`.
+<?/include?>
 
-```bash
-go test ./...
-```
+## 📂 Documentation
 
-### Pre-commit check
-
-```bash
-mdsmith check .
-```
-
-Run before committing to ensure all markdown files pass linting.
+- [CLI design](docs/design/cli.md)
+- [Design archetypes](docs/design/archetypes/)
+- [Guides](docs/guides/)
+- [Background](docs/background/)
+- [Plans](plan/)
 
 ## 📄 License
 
