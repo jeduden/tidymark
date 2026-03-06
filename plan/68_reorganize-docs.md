@@ -75,9 +75,9 @@ propagates everywhere.
 
 ### Update README.md
 
-17. Add an `<?include ?>` directive in README.md that
-    pulls DEVELOPMENT.md so contributors see the
-    development info.
+17. Update README.md to reference the new docs layout:
+    include DEVELOPMENT.md, and link to `docs/design/`,
+    `docs/guides/`, `docs/background/`, and `plan/`.
 
 ### Fixups
 
@@ -113,6 +113,8 @@ propagates everywhere.
 - [ ] DEVELOPMENT.md exists with the moved sections
 - [ ] README.md includes DEVELOPMENT.md via an
       `<?include ?>` directive
+- [ ] README.md links to `docs/design/`,
+      `docs/guides/`, `docs/background/`, and `plan/`
 - [ ] All tests pass: `go test ./...`
 - [ ] `golangci-lint run` reports no issues
 - [ ] `mdsmith check .` reports zero diagnostics
