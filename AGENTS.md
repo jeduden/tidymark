@@ -1,7 +1,8 @@
 # Agent Notes
 
-<!-- Primary source: CLAUDE.md. Edit there first,
-     then run `mdsmith fix .` to propagate. -->
+<!-- Primary sources: CLAUDE.md (conventions) and
+     DEVELOPMENT.md (contributor guide). Edit those
+     first, then run `mdsmith fix .` to propagate. -->
 
 Instructions for AI coding agents (Codex, Copilot,
 Claude). See [CLAUDE.md](CLAUDE.md) for full project
