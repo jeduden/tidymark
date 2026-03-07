@@ -9,26 +9,31 @@ mdsmith — a Markdown linter written in Go.
 - [`DEVELOPMENT.md`](DEVELOPMENT.md) — Build commands,
   project layout, code style, test fixtures, and merge
   conflicts.
-- [`plan/proto.md`](plan/proto.md) — Plan template with
-  required structure and conventions.
-- [`docs/design/cli.md`](docs/design/cli.md) — CLI
-  commands, flags, exit codes, and output format.
-- [`docs/design/archetypes/`](docs/design/archetypes/)
-  — Shared patterns (archetypes) reused across multiple
-  linting rules.
-- [`docs/design/archetypes/generated-section/`][gs]
-  — How generated sections work — markers, directives,
-  and fix behavior.
-- [`docs/guides/metrics-tradeoffs.md`][mt]
-  — Trade-offs and threshold guidance for readability,
-  structure, length, and token budgets.
-- [`docs/background/markdown-linters.md`][ml]
-  — Comparison of mdsmith with other Markdown linters
-  and formatters.
+- [`plan/proto.md`](plan/proto.md) — Plan template
+  with required structure and conventions.
 
-[gs]: docs/design/archetypes/generated-section/
-[mt]: docs/guides/metrics-tradeoffs.md
-[ml]: docs/background/markdown-linters.md
+<?catalog
+glob: "docs/**/*.md"
+sort: path
+header: |
+  | Doc | Summary |
+  |-----|---------|
+row: >-
+  | [`{{.filename}}`]({{.filename}})
+  | {{.summary}} |
+columns:
+  summary:
+    max-width: 50
+    wrap: br
+?>
+| Doc                                                | Summary                                                                                     |
+|----------------------------------------------------|---------------------------------------------------------------------------------------------|
+| [`docs/background/markdown-linters.md`](docs/background/markdown-linters.md)                | Comparison of mdsmith with other Markdown linters<br>and formatters.                        |
+| [`docs/design/archetypes/generated-section/README.md`](docs/design/archetypes/generated-section/README.md) | How generated sections work — markers,<br>directives, and fix behavior.                     |
+| [`docs/design/archetypes/README.md`](docs/design/archetypes/README.md)                   | Shared patterns (archetypes) reused across<br>multiple linting rules.                       |
+| [`docs/design/cli.md`](docs/design/cli.md)                                 | CLI commands, flags, exit codes, and output<br>format.                                      |
+| [`docs/guides/metrics-tradeoffs.md`](docs/guides/metrics-tradeoffs.md)                   | Trade-offs and threshold guidance for readability,<br>structure, length, and token budgets. |
+<?/catalog?>
 
 ## Development Workflow
 
