@@ -1,6 +1,6 @@
 ---
 id: 69
-title: 'Include enhancements: link adjustment and absolute heading level'
+title: 'Include enhancements: link adjustment and heading-level'
 status: "🔲"
 ---
 # Include enhancements
@@ -8,7 +8,7 @@ status: "🔲"
 ## Goal
 
 Add two features to the include directive (MDS021):
-automatic link-path rewriting and an `absolute`
+automatic link-path rewriting and an `heading-level`
 parameter for heading-level adjustment.
 
 ## Background
@@ -24,8 +24,8 @@ link target so it resolves from the including file.
 Heading levels also need adjustment. DEVELOPMENT.md
 uses `##` headings. When included under `## Project`
 in CLAUDE.md those headings appear as siblings, not
-children. The `absolute` parameter shifts the included
-headings so they nest under the parent section.
+children. The `heading-level` parameter (set to `"absolute"`)
+shifts included headings to nest under the parent.
 
 ## Design
 
@@ -48,12 +48,12 @@ or `https://`):
 Skip the transformation when both files share the
 same directory.
 
-### `absolute` parameter
+### `heading-level` parameter
 
-New optional parameter `absolute` (values: `"true"` /
-`"false"`, default `"false"`).
+New optional parameter `heading-level` (values:
+`"absolute"` or omitted).
 
-When `absolute: "true"`:
+When `heading-level: "absolute"`:
 
 1. Find the heading level of the section that contains
    the `<?include?>` marker (the "parent level"). Use
@@ -88,11 +88,11 @@ has `## Build` (level 2) and `### Sub` (level 3).
 5. Write unit tests for `adjustHeadings`: shift up,
    shift down, cap at 6, no headings (no-op)
 6. Extend `validateIncludeDirective` to accept and
-   validate the `absolute` parameter (`"true"` /
-   `"false"`)
+   validate the `heading-level` parameter (only
+   `"absolute"` is valid)
 7. In `generateIncludeContent`, detect the parent
    heading level from the marker position and call
-   `adjustHeadings` when `absolute: "true"`
+   `adjustHeadings` when `heading-level: "absolute"`
 8. Add test for parent-level detection (marker under
    h2, under h3, at document root)
 9. Update the rule README at
@@ -111,13 +111,13 @@ has `## Build` (level 2) and `### Sub` (level 3).
 - [ ] Absolute URLs, anchor-only links (`#foo`), and
       protocol links (`http://`, `https://`) are not
       modified
-- [ ] `absolute: "true"` shifts headings so that the
-      included file's top-level headings appear one
-      level below the enclosing section
-- [ ] `absolute: "false"` (or omitted) leaves heading
-      levels unchanged
+- [ ] `heading-level: "absolute"` shifts headings so
+      the included top-level headings appear one level
+      below the enclosing section
+- [ ] When `heading-level` is omitted, heading levels
+      stay unchanged
 - [ ] Heading level never exceeds 6
-- [ ] Invalid `absolute` values produce a diagnostic
+- [ ] Invalid `heading-level` values produce a diagnostic
 - [ ] Link adjustment is always applied (no parameter
       needed)
 - [ ] All tests pass: `go test ./...`
