@@ -2,7 +2,9 @@
 
 ## Project
 
-mdsmith — a Markdown linter written in Go.
+mdsmith — a Markdown linter written in Go. See
+[`DEVELOPMENT.md`](DEVELOPMENT.md) for the full
+contributor guide.
 
 <?include
 file: DEVELOPMENT.md
