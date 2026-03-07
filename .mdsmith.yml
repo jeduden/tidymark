@@ -82,6 +82,12 @@ overrides:
       heading-increment: false
   - files: ["README.md"]
     rules:
+      line-length:
+        max: 100
+        exclude:
+          - code-blocks
+          - tables
+          - urls
       max-file-length:
         max: 350
       paragraph-structure:
