@@ -50,5 +50,5 @@ footer: |
 | 67  | ✅      | [Custom ProcessingInstruction AST Node](plan/67_processing-instruction-ast-node.md)                                 |
 | 68  | 🔲      | [Reorganize Documentation](plan/68_reorganize-docs.md)                                              |
 | 69  | 🔲      | [Include enhancements: link adjustment and heading-level](plan/69_include-enhancements.md)               |
-| 70  | 🔳      | [Multi-glob lists, brace expansion docs, and folded scalar restriction](plan/70_multi-glob-lists.md) |
+| 70  | ✅      | [Multi-glob lists, brace expansion docs, and folded scalar restriction](plan/70_multi-glob-lists.md) |
 <?/catalog?>

@@ -1,7 +1,7 @@
 ---
 id: 70
 title: Multi-glob lists, brace expansion docs, and folded scalar restriction
-status: "🔳"
+status: "✅"
 summary: >-
   Let the catalog glob key accept a YAML list of patterns,
   document brace expansion, and document the folded-scalar
@@ -64,16 +64,16 @@ generated-section rule docs.
 
 ## Acceptance Criteria
 
-- [ ] `glob:` accepts a YAML list of string patterns in
+- [x] `glob:` accepts a YAML list of string patterns in
       catalog directives
-- [ ] `glob:` with a single string still works
-- [ ] Files matched by multiple patterns appear once
-- [ ] Each pattern in a list is validated independently
+- [x] `glob:` with a single string still works
+- [x] Files matched by multiple patterns appear once
+- [x] Each pattern in a list is validated independently
       (absolute path, `..`, invalid pattern)
-- [ ] Non-string list elements produce a diagnostic
-- [ ] Folded scalar restriction is documented in
+- [x] Non-string list elements produce a diagnostic
+- [x] Folded scalar restriction is documented in
       archetype, MDS019, and MDS021 READMEs
-- [ ] Brace expansion is documented in archetype and
+- [x] Brace expansion is documented in archetype and
       MDS019 READMEs
-- [ ] All tests pass: `go test ./...`
-- [ ] `golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `golangci-lint run` reports no issues
