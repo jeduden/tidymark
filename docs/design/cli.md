@@ -13,7 +13,7 @@ mdsmith <command> [flags] [files...]
 
 | Command      | Description                               |
 |--------------|-------------------------------------------|
-| `check`        | Lint files (default command)              |
+| `check`        | Lint files                                |
 | `fix`          | Auto-fix issues in place                  |
 | `help`         | Show help for rules/topics                |
 | `metrics`      | List and rank shared metrics              |
@@ -21,12 +21,14 @@ mdsmith <command> [flags] [files...]
 | `init`         | Generate `.mdsmith.yml`                     |
 | `version`      | Print version, exit                       |
 
-Files are positional arguments. Accepts multiple file paths,
-directories, and glob patterns. Pass `-` to read from stdin.
+The `check` and `fix` commands accept file paths,
+directories, and glob patterns as positional arguments.
+Pass `-` to read from stdin.
 
-When no file arguments are given, `check` and `fix` discover
-files using the `files` glob patterns from config (default:
-`["**/*.md", "**/*.markdown"]`). If no files match, exits 0.
+When no file arguments are given, `check` and `fix`
+discover files using the `files` glob patterns from config
+(default: `["**/*.md", "**/*.markdown"]`). If no files
+match, exits 0.
 
 ## Subcommand Flags (check, fix)
 

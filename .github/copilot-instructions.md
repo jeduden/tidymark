@@ -1,8 +1,8 @@
 # Copilot Instructions
 
-<!-- Primary sources: CLAUDE.md (conventions) and
-     DEVELOPMENT.md (contributor guide). Edit those
-     first, then run `mdsmith fix .` to propagate. -->
+<!-- Included content comes from DEVELOPMENT.md.
+     Edit DEVELOPMENT.md first, then run
+     `mdsmith fix .` to propagate. -->
 
 Instructions for GitHub Copilot. See
 [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md)

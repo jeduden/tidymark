@@ -228,7 +228,7 @@ func ValidateStringParams(
 			if err != nil {
 				diags = append(diags,
 					MakeDiag(ruleID, ruleName, filePath, line,
-						fmt.Sprintf("generated section has non-string element in list value for key %q", k)))
+						fmt.Sprintf("generated section has non-string element in list value for key %q: %v", k, err)))
 			} else {
 				params[k] = strings.Join(strs, "\n")
 			}
