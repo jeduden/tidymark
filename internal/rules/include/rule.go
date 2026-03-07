@@ -3,6 +3,7 @@ package include
 import (
 	"fmt"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -152,8 +153,12 @@ func generateIncludeContent(
 	// Trim leading blank line (common after stripping frontmatter).
 	text = strings.TrimLeft(text, "\n")
 
-	// Rewrite relative links so they resolve from the including file's directory.
-	text = adjustLinks(text, file, filePath)
+	// Rewrite relative links so they resolve from the including file's
+	// directory. The file param is relative to f.FS (the including file's
+	// directory), so join with filePath's directory to get a repo-root-
+	// relative path matching filePath's coordinate system.
+	includedPath := path.Join(path.Dir(filePath), file)
+	text = adjustLinks(text, includedPath, filePath)
 
 	// Shift headings when heading-level: "absolute" is set.
 	if params["heading-level"] == "absolute" {

@@ -226,14 +226,17 @@ func TestFix_UpdatesContent(t *testing.T) {
 // Link adjustment
 // =====================================================================
 
-func TestCheck_LinkAdjustment(t *testing.T) {
+func TestCheck_LinkAdjustmentSubdir(t *testing.T) {
+	// file: sub/content.md → repo path docs/sub/content.md.
+	// Link images/pic.png rewrites to sub/images/pic.png
+	// from docs/guide.md.
 	fsys := fstest.MapFS{
-		"DEVELOPMENT.md": {
-			Data: []byte("See [layout](internal/rules/) for details.\n"),
+		"sub/content.md": {
+			Data: []byte("See [pic](images/pic.png) here.\n"),
 		},
 	}
-	src := "# Guide\n\n<?include\nfile: DEVELOPMENT.md\n?>\n" +
-		"See [layout](../internal/rules/) for details.\n<?/include?>\n"
+	src := "# Guide\n\n<?include\nfile: sub/content.md\n?>\n" +
+		"See [pic](sub/images/pic.png) here.\n<?/include?>\n"
 	f := newTestFile(t, "docs/guide.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
@@ -241,6 +244,7 @@ func TestCheck_LinkAdjustment(t *testing.T) {
 }
 
 func TestCheck_LinkAdjustmentSameDir(t *testing.T) {
+	// file: other.md in same dir as including file → no rewriting.
 	fsys := fstest.MapFS{
 		"other.md": {
 			Data: []byte("See [link](foo.md) here.\n"),
@@ -255,17 +259,19 @@ func TestCheck_LinkAdjustmentSameDir(t *testing.T) {
 }
 
 func TestFix_LinkAdjustment(t *testing.T) {
+	// file: sub/content.md from docs/guide.md → included path
+	// is docs/sub/content.md; links rewrite from sub/ to guide's dir.
 	fsys := fstest.MapFS{
-		"DEVELOPMENT.md": {
+		"sub/content.md": {
 			Data: []byte("See [layout](internal/rules/) for details.\n"),
 		},
 	}
-	src := "# Guide\n\n<?include\nfile: DEVELOPMENT.md\n?>\nold\n<?/include?>\n"
+	src := "# Guide\n\n<?include\nfile: sub/content.md\n?>\nold\n<?/include?>\n"
 	f := newTestFile(t, "docs/guide.md", src, fsys)
 	r := &Rule{}
 	got := string(r.Fix(f))
-	want := "# Guide\n\n<?include\nfile: DEVELOPMENT.md\n?>\n" +
-		"See [layout](../internal/rules/) for details.\n<?/include?>\n"
+	want := "# Guide\n\n<?include\nfile: sub/content.md\n?>\n" +
+		"See [layout](sub/internal/rules/) for details.\n<?/include?>\n"
 	if got != want {
 		t.Errorf("Fix output mismatch\ngot:\n%s\nwant:\n%s", got, want)
 	}
@@ -376,16 +382,18 @@ func TestFix_HeadingLevelAbsolute(t *testing.T) {
 // =====================================================================
 
 func TestCheck_LinkAndHeadingCombined(t *testing.T) {
+	// file: sub/dev.md from docs/guide.md → included path is
+	// docs/sub/dev.md. Heading shift + link rewrite both apply.
 	fsys := fstest.MapFS{
-		"DEVELOPMENT.md": {
+		"sub/dev.md": {
 			Data: []byte("## Build\n\nSee [rules](internal/rules/).\n"),
 		},
 	}
 	// Parent ## Project (level 2), shift=1 → ### Build
-	// Link rewritten: internal/rules/ → ../internal/rules/
-	src := "# Doc\n\n## Project\n\n<?include\nfile: DEVELOPMENT.md\n" +
+	// Link rewritten: internal/rules/ → sub/internal/rules/
+	src := "# Doc\n\n## Project\n\n<?include\nfile: sub/dev.md\n" +
 		"heading-level: \"absolute\"\n?>\n" +
-		"### Build\n\nSee [rules](../internal/rules/).\n<?/include?>\n"
+		"### Build\n\nSee [rules](sub/internal/rules/).\n<?/include?>\n"
 	f := newTestFile(t, "docs/guide.md", src, fsys)
 	r := &Rule{}
 	diags := r.Check(f)
