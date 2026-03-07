@@ -9,6 +9,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/yuin/goldmark/ast"
 )
 
 func init() {
@@ -110,6 +111,14 @@ func validateIncludeDirective(
 		}
 	}
 
+	// Validate heading-level parameter if present.
+	if hl, ok := params["heading-level"]; ok {
+		if hl != "absolute" {
+			return []lint.Diagnostic{makeDiag(filePath, line,
+				`include directive "heading-level" must be "absolute"`)}
+		}
+	}
+
 	return nil
 }
 
@@ -143,6 +152,15 @@ func generateIncludeContent(
 	// Trim leading blank line (common after stripping frontmatter).
 	text = strings.TrimLeft(text, "\n")
 
+	// Rewrite relative links so they resolve from the including file's directory.
+	text = adjustLinks(text, file, filePath)
+
+	// Shift headings when heading-level: "absolute" is set.
+	if params["heading-level"] == "absolute" {
+		parentLevel := findParentHeadingLevel(f, line)
+		text = adjustHeadings(text, parentLevel)
+	}
+
 	// Wrap in code fence if requested.
 	if wrap, ok := params["wrap"]; ok {
 		text = "```" + wrap + "\n" + text
@@ -153,6 +171,25 @@ func generateIncludeContent(
 	}
 
 	return gensection.EnsureTrailingNewline(text), nil
+}
+
+// findParentHeadingLevel returns the level of the most recent heading
+// before the given 1-based line in the file's AST. Returns 0 if the
+// marker is at the document root (no heading precedes it).
+func findParentHeadingLevel(f *lint.File, markerLine int) int {
+	parentLevel := 0
+	for child := f.AST.FirstChild(); child != nil; child = child.NextSibling() {
+		heading, ok := child.(*ast.Heading)
+		if !ok {
+			continue
+		}
+		headingLine := f.LineOfOffset(heading.Lines().At(0).Start)
+		if headingLine >= markerLine {
+			break
+		}
+		parentLevel = heading.Level
+	}
+	return parentLevel
 }
 
 func containsDotDot(path string) bool {

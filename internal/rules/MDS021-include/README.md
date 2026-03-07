@@ -26,6 +26,7 @@ Include section content must match the referenced file.
 file: path/to/file.md
 strip-frontmatter: "true"
 wrap: markdown
+heading-level: "absolute"
 ?>
 ...included content...
 <?/include?>
@@ -41,11 +42,40 @@ for details.
 
 ## Parameters
 
-| Parameter         | Required | Default | Description                           |
-|-------------------|----------|---------|---------------------------------------|
-| `file`              | yes      | --      | Relative path to include              |
-| `strip-frontmatter` | no       | `"true"`  | Remove YAML frontmatter               |
-| `wrap`              | no       | --      | Wrap in code fence (value = language) |
+| Parameter         | Required | Default | Description                                     |
+|-------------------|----------|---------|-------------------------------------------------|
+| `file`              | yes      | --      | Relative path to include                        |
+| `strip-frontmatter` | no       | `"true"`  | Remove YAML frontmatter                         |
+| `wrap`              | no       | --      | Wrap in code fence (value = language)           |
+| `heading-level`     | no       | --      | `"absolute"`: shift headings to nest under parent |
+
+## Link Adjustment
+
+Relative link and image targets in included content are
+automatically rewritten so they resolve from the
+including file's directory. Absolute URLs, anchor-only
+links (`#foo`), and protocol links (`http://`,
+`https://`, `mailto:`) are not modified.
+
+For example, `DEVELOPMENT.md` contains
+`[rules](internal/rules/)`. When included from
+`docs/guide.md`, the link becomes
+`[rules](../internal/rules/)`.
+
+## Heading-Level Adjustment
+
+When `heading-level: "absolute"` is set, included
+headings shift so the top-level heading becomes a
+child of the enclosing section.
+
+Example: the marker sits under `## Project` (level 2).
+The included file has `## Build` (level 2) and
+`### Sub` (level 3). The shift is
+`2 - 2 + 1 = 1`. Result: `### Build` (3) and
+`#### Sub` (4). Levels are capped at 6.
+
+When the marker sits at document root (no preceding
+heading), no shift is applied.
 
 ## Config
 
@@ -85,10 +115,11 @@ Outdated content
 
 ## Diagnostics
 
-| Condition        | Message                                             |
-|------------------|-----------------------------------------------------|
-| content mismatch | generated section is out of date                    |
-| missing file     | include file "x.md" not found                       |
-| no file param    | include directive missing required "file" parameter |
-| absolute path    | include directive has absolute file path            |
-| path traversal   | include directive has file path with ".." traversal |
+| Condition             | Message                                              |
+|-----------------------|------------------------------------------------------|
+| content mismatch      | generated section is out of date                     |
+| missing file          | include file "x.md" not found                        |
+| no file param         | include directive missing required "file" parameter  |
+| absolute path         | include directive has absolute file path             |
+| path traversal        | include directive has file path with ".." traversal  |
+| invalid heading-level | include directive "heading-level" must be "absolute" |
