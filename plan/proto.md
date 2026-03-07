@@ -5,6 +5,15 @@ status: '"🔲" | "🔳" | "✅"'
 ---
 # ?
 
+<!-- Plan conventions:
+  - Work test-driven: write a failing test, make it
+    pass, commit.
+  - Plan files must pass `mdsmith check plan/`.
+  - Use Markdown links for real repo paths in prose.
+    Bare backticked paths are allowed in commands,
+    code blocks, and placeholders.
+-->
+
 ## ...
 
 <?allow-empty-section?>
