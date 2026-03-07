@@ -1,3 +1,6 @@
+---
+summary: Comparison of mdsmith with other Markdown linters and formatters.
+---
 # Markdown Linters Comparison
 
 This document compares mdsmith with popular Markdown

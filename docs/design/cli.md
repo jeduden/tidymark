@@ -1,3 +1,6 @@
+---
+summary: CLI commands, flags, exit codes, and output format.
+---
 # CLI Design
 
 ## Usage

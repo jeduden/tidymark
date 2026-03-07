@@ -1,3 +1,6 @@
+---
+summary: How generated sections work — markers, directives, and fix behavior.
+---
 # Generated Section (Archetype)
 
 A **generated section** is a region of Markdown delimited by

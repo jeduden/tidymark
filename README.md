@@ -197,9 +197,9 @@ empty: |
   |---------------|------------------------------------------------------------|
   | No guides yet | Add guide files under `docs/guides/` to populate this index. |
 ?>
-| Guide                                                       | Description                                                                                                      |
-|-------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) | Trade-offs, examples, and threshold guidance for readability, structure, length, conciseness, and token budgets. |
+| Guide                                                       | Description |
+|-------------------------------------------------------------|-------------|
+| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) |             |
 <?/catalog?>
 
 ## 📏 Rules
