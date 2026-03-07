@@ -31,6 +31,14 @@ wrap: markdown
 <?/include?>
 ```
 
+Do not use YAML folded scalars (`>`, `>-`) in the YAML
+body. Markdown parsers interpret `>` at the start of a
+line as a blockquote marker, which breaks the processing
+instruction content. Use literal block scalars (`|`,
+`|-`, `|+`) or quoted strings instead. See the
+[archetype docs](../../../docs/design/archetypes/generated-section/)
+for details.
+
 ## Parameters
 
 | Parameter         | Required | Default | Description                           |
