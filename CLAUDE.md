@@ -71,7 +71,6 @@ git push origin <branch>
 
 These commands are auto-approved in
 `.claude/settings.json`.
-<?/include?>
 
 ## Plans
 
@@ -145,6 +144,9 @@ files in sync via include directives:
 
 Edit CLAUDE.md or the shared source files; run
 `mdsmith fix .` to propagate changes.
+<?/include?>
+
+## Writing Guidelines
 
 When writing descriptions, state the concrete constraint:
 what specific data must satisfy what condition. Name the

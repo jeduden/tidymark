@@ -71,6 +71,9 @@ overrides:
     rules:
       first-line-heading: false
       heading-increment: false
+  - files: [".github/copilot-instructions.md"]
+    rules:
+      cross-file-reference-integrity: false
   - files: ["README.md"]
     rules:
       max-file-length:
@@ -141,3 +144,4 @@ ignore:
   - "internal/rules/*/bad.md"
   - "internal/rules/*/good/**"
   - "internal/rules/*/fixed/**"
+  - ".github/DEVELOPMENT.md"
