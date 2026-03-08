@@ -132,6 +132,47 @@ func TestAdjustLinks_Complex(t *testing.T) {
 	}
 }
 
+func TestAdjustLinks_CodeSkip(t *testing.T) {
+	tests := []struct {
+		name          string
+		content       string
+		includedFile  string
+		includingFile string
+		want          string
+	}{
+		{
+			name:          "link inside fenced code block not rewritten",
+			content:       "## Heading\n\n```md\n[link](foo.md)\n```\n",
+			includedFile:  "DEVELOPMENT.md",
+			includingFile: "docs/guide.md",
+			want:          "## Heading\n\n```md\n[link](foo.md)\n```\n",
+		},
+		{
+			name:          "link inside inline code not rewritten",
+			content:       "Use `[link](foo.md)` syntax.\n",
+			includedFile:  "DEVELOPMENT.md",
+			includingFile: "docs/guide.md",
+			want:          "Use `[link](foo.md)` syntax.\n",
+		},
+		{
+			name:          "link outside code rewritten, inside code preserved",
+			content:       "[real](foo.md) and `[fake](bar.md)`\n",
+			includedFile:  "DEVELOPMENT.md",
+			includingFile: "docs/guide.md",
+			want:          "[real](../foo.md) and `[fake](bar.md)`\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adjustLinks(tt.content, tt.includedFile, tt.includingFile)
+			if got != tt.want {
+				t.Errorf("adjustLinks() =\n  %q\nwant:\n  %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAdjustLinks_Skip(t *testing.T) {
 	tests := []struct {
 		name          string

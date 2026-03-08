@@ -7,12 +7,14 @@ import (
 )
 
 // linkRe matches Markdown links [text](target) and images ![alt](target).
-// It handles nested brackets in the text portion.
+// It handles nested brackets in the text portion. Does not handle link
+// titles (e.g. [x](url "title")) or URLs containing literal ')'.
 var linkRe = regexp.MustCompile(`(!?\[(?:[^\[\]]|\[[^\]]*\])*\])\(([^)]*)\)`)
 
 // adjustLinks rewrites relative link targets in content so they remain valid
 // when the included file (includedFilePath) is rendered inside the including
 // file (includingFilePath). Both paths are FS-root-relative, slash-separated.
+// Links inside fenced code blocks and inline code spans are left unchanged.
 func adjustLinks(content string, includedFilePath string, includingFilePath string) string {
 	includedDir := path.Dir(includedFilePath)
 	includingDir := path.Dir(includingFilePath)
@@ -21,39 +23,119 @@ func adjustLinks(content string, includedFilePath string, includingFilePath stri
 		return content
 	}
 
-	return linkRe.ReplaceAllStringFunc(content, func(match string) string {
-		sub := linkRe.FindStringSubmatch(match)
-		if sub == nil {
-			return match
-		}
-		linkText := sub[1] // e.g. [text] or ![alt]
-		target := sub[2]   // e.g. foo.md#section
+	rewriteSegment := func(segment string) string {
+		return linkRe.ReplaceAllStringFunc(segment, func(match string) string {
+			sub := linkRe.FindStringSubmatch(match)
+			if sub == nil {
+				return match
+			}
+			linkText := sub[1] // e.g. [text] or ![alt]
+			target := sub[2]   // e.g. foo.md#section
 
-		if target == "" {
-			return match
+			if target == "" || shouldSkip(target) {
+				return match
+			}
+
+			pathPart, suffix := splitTargetSuffix(target)
+
+			trailingSlash := strings.HasSuffix(pathPart, "/")
+			resolved := path.Join(includedDir, pathPart)
+			newPath, err := relPath(includingDir, resolved)
+			if err != nil {
+				return match
+			}
+			if trailingSlash && !strings.HasSuffix(newPath, "/") {
+				newPath += "/"
+			}
+
+			return linkText + "(" + newPath + suffix + ")"
+		})
+	}
+
+	return rewriteSkippingCode(content, rewriteSegment)
+}
+
+// rewriteSkippingCode applies rewriteFn to non-code portions of content,
+// leaving fenced code blocks and inline code spans unchanged.
+func rewriteSkippingCode(content string, rewriteFn func(string) string) string {
+	var b strings.Builder
+	inFence := false
+	fenceMarker := ""
+
+	lines := strings.SplitAfter(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+
+		if inFence {
+			b.WriteString(line)
+			stripped := strings.TrimRight(trimmed, " \t\n")
+			if len(stripped) >= len(fenceMarker) && allSameChar(stripped, fenceMarker[0]) {
+				inFence = false
+			}
+			continue
 		}
 
-		if shouldSkip(target) {
-			return match
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = true
+			if strings.HasPrefix(trimmed, "```") {
+				fenceMarker = "```"
+			} else {
+				fenceMarker = "~~~"
+			}
+			b.WriteString(line)
+			continue
 		}
 
-		// Separate fragment and query string from the path portion.
-		pathPart, suffix := splitTargetSuffix(target)
+		// Process line respecting inline code spans.
+		b.WriteString(rewriteLineSkippingInlineCode(line, rewriteFn))
+	}
 
-		// Compute new path: resolve target relative to included dir,
-		// then make it relative to including dir.
-		trailingSlash := strings.HasSuffix(pathPart, "/")
-		resolved := path.Join(includedDir, pathPart)
-		newPath, err := relPath(includingDir, resolved)
-		if err != nil {
-			return match
-		}
-		if trailingSlash && !strings.HasSuffix(newPath, "/") {
-			newPath += "/"
-		}
+	return b.String()
+}
 
-		return linkText + "(" + newPath + suffix + ")"
-	})
+// rewriteLineSkippingInlineCode applies rewriteFn to parts of a line
+// outside backtick-delimited inline code spans.
+func rewriteLineSkippingInlineCode(line string, rewriteFn func(string) string) string {
+	var b strings.Builder
+	inCode := false
+	start := 0
+
+	for i := 0; i < len(line); i++ {
+		if line[i] != '`' {
+			continue
+		}
+		if inCode {
+			b.WriteString(line[start : i+1])
+			start = i + 1
+			inCode = false
+		} else {
+			if start < i {
+				b.WriteString(rewriteFn(line[start:i]))
+			}
+			b.WriteByte('`')
+			start = i + 1
+			inCode = true
+		}
+	}
+
+	if start < len(line) {
+		if inCode {
+			b.WriteString(line[start:])
+		} else {
+			b.WriteString(rewriteFn(line[start:]))
+		}
+	}
+	return b.String()
+}
+
+// allSameChar checks if s consists entirely of character ch.
+func allSameChar(s string, ch byte) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] != ch {
+			return false
+		}
+	}
+	return true
 }
 
 // shouldSkip returns true for targets that must not be rewritten.

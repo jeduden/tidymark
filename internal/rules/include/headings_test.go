@@ -125,6 +125,12 @@ func TestAdjustHeadings_CodeBlocks(t *testing.T) {
 			parentLevel: 2,
 			want:        "### Heading\n\n```\nFake Title\n=====\n```\n",
 		},
+		{
+			name:        "indented code fence (up to 3 spaces) skipped",
+			content:     "## Heading\n\n   ```\n## fake heading\n   ```\n",
+			parentLevel: 2,
+			want:        "### Heading\n\n   ```\n## fake heading\n   ```\n",
+		},
 	}
 
 	for _, tt := range tests {

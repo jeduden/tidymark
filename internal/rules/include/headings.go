@@ -6,7 +6,7 @@ import (
 )
 
 // atxRe matches an ATX heading line: one or more '#' followed by a space or end of line.
-var atxRe = regexp.MustCompile(`^(#{1,6})([ \t].*)$`)
+var atxRe = regexp.MustCompile(`^(#{1,6})([ \t].*)?$`)
 
 // setextH1Re matches a setext h1 underline: one or more '=' characters.
 var setextH1Re = regexp.MustCompile(`^=+\s*$`)
@@ -15,7 +15,8 @@ var setextH1Re = regexp.MustCompile(`^=+\s*$`)
 var setextH2Re = regexp.MustCompile(`^-+\s*$`)
 
 // codeFenceRe matches the opening/closing of a fenced code block.
-var codeFenceRe = regexp.MustCompile("^(`{3,}|~{3,})")
+// Allows up to 3 leading spaces per the CommonMark spec.
+var codeFenceRe = regexp.MustCompile("^(?: {0,3})(`{3,}|~{3,})")
 
 // adjustHeadings shifts all heading levels in content so that the minimum
 // heading level becomes parentLevel+1. If parentLevel is 0 or the computed
@@ -140,7 +141,11 @@ func applyShift(lines []string, shift int) []string {
 		if m := atxRe.FindStringSubmatch(line); m != nil {
 			oldLevel := len(m[1])
 			newLevel := clampLevel(oldLevel + shift)
-			result = append(result, strings.Repeat("#", newLevel)+m[2])
+			rest := m[2]
+			if rest == "" {
+				rest = " "
+			}
+			result = append(result, strings.Repeat("#", newLevel)+rest)
 			continue
 		}
 
@@ -151,8 +156,14 @@ func applyShift(lines []string, shift int) []string {
 }
 
 // isClosingFence checks if a line closes a code fence opened with the given marker.
+// Allows up to 3 leading spaces per the CommonMark spec.
 func isClosingFence(line, marker string) bool {
-	trimmed := strings.TrimRight(line, " \t")
+	trimmed := strings.TrimLeft(line, " ")
+	// At most 3 leading spaces allowed.
+	if len(line)-len(trimmed) > 3 {
+		return false
+	}
+	trimmed = strings.TrimRight(trimmed, " \t")
 	if len(trimmed) < len(marker) {
 		return false
 	}
