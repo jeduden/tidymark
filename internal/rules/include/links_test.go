@@ -161,6 +161,13 @@ func TestAdjustLinks_CodeSkip(t *testing.T) {
 			includingFile: "docs/guide.md",
 			want:          "[real](../foo.md) and `[fake](bar.md)`\n",
 		},
+		{
+			name:          "multi-backtick inline code preserved",
+			content:       "Use ``[link](foo.md)`` syntax.\n",
+			includedFile:  "DEVELOPMENT.md",
+			includingFile: "docs/guide.md",
+			want:          "Use ``[link](foo.md)`` syntax.\n",
+		},
 	}
 
 	for _, tt := range tests {

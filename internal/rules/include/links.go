@@ -94,28 +94,45 @@ func rewriteSkippingCode(content string, rewriteFn func(string) string) string {
 }
 
 // rewriteLineSkippingInlineCode applies rewriteFn to parts of a line
-// outside backtick-delimited inline code spans.
+// outside backtick-delimited inline code spans. Handles multi-backtick
+// delimiters where the opening and closing run lengths must match.
 func rewriteLineSkippingInlineCode(line string, rewriteFn func(string) string) string {
 	var b strings.Builder
 	inCode := false
+	codeRunLen := 0
 	start := 0
 
-	for i := 0; i < len(line); i++ {
+	for i := 0; i < len(line); {
 		if line[i] != '`' {
+			i++
 			continue
 		}
+
+		// Count consecutive backticks.
+		j := i
+		for j < len(line) && line[j] == '`' {
+			j++
+		}
+		runLen := j - i
+
 		if inCode {
-			b.WriteString(line[start : i+1])
-			start = i + 1
-			inCode = false
+			if runLen == codeRunLen {
+				b.WriteString(line[start:j])
+				start = j
+				inCode = false
+				codeRunLen = 0
+			}
 		} else {
 			if start < i {
 				b.WriteString(rewriteFn(line[start:i]))
 			}
-			b.WriteByte('`')
-			start = i + 1
+			b.WriteString(line[i:j])
+			start = j
 			inCode = true
+			codeRunLen = runLen
 		}
+
+		i = j
 	}
 
 	if start < len(line) {

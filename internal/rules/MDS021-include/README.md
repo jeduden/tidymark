@@ -185,5 +185,4 @@ Outdated content
 | missing file          | include file "x.md" not found                        |
 | no file param         | include directive missing required "file" parameter  |
 | absolute path         | include directive has absolute file path             |
-| path traversal        | include directive has file path with ".." traversal  |
 | invalid heading-level | include directive "heading-level" must be "absolute" |

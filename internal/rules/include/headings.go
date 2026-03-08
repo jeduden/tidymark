@@ -62,9 +62,9 @@ func findMinHeadingLevel(lines []string) int {
 			continue
 		}
 
-		if m := codeFenceRe.FindString(line); m != "" {
+		if m := codeFenceRe.FindStringSubmatch(line); m != nil {
 			inFence = true
-			fenceMarker = m
+			fenceMarker = m[1]
 			continue
 		}
 
@@ -110,9 +110,9 @@ func applyShift(lines []string, shift int) []string {
 			continue
 		}
 
-		if m := codeFenceRe.FindString(line); m != "" {
+		if m := codeFenceRe.FindStringSubmatch(line); m != nil {
 			inFence = true
-			fenceMarker = m
+			fenceMarker = m[1]
 			result = append(result, line)
 			continue
 		}

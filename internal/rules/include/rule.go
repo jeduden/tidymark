@@ -124,6 +124,9 @@ func generateIncludeContent(
 ) (string, []lint.Diagnostic) {
 	file := params["file"]
 
+	// Normalize to slash-separated paths for the path package and fs.FS.
+	filePath = filepath.ToSlash(filePath)
+
 	// Resolve file relative to the including file's directory.
 	// Use RootFS (project root) when available so that paths
 	// with ".." segments work across directories.

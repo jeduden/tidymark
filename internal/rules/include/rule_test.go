@@ -194,7 +194,7 @@ func TestCheck_AbsoluteFilePath(t *testing.T) {
 	expectDiagMsg(t, diags, "absolute file path")
 }
 
-func TestCheck_DotDotTraversal(t *testing.T) {
+func TestCheck_DotDotPathResolvesWithRootFS(t *testing.T) {
 	// file: ../CLAUDE.md from .github/copilot.md resolves
 	// to CLAUDE.md at the project root via RootFS.
 	fsys := fstest.MapFS{
