@@ -179,10 +179,12 @@ Outdated content
 
 ## Diagnostics
 
-| Condition             | Message                                              |
-|-----------------------|------------------------------------------------------|
-| content mismatch      | generated section is out of date                     |
-| missing file          | include file "x.md" not found                        |
-| no file param         | include directive missing required "file" parameter  |
-| absolute path         | include directive has absolute file path             |
-| invalid heading-level | include directive "heading-level" must be "absolute" |
+| Condition             | Message                                                            |
+|-----------------------|--------------------------------------------------------------------|
+| content mismatch      | generated section is out of date                                   |
+| missing file          | include file "x.md" not found                                      |
+| no file param         | include directive missing required "file" parameter                |
+| absolute path         | include directive has absolute file path                           |
+| escapes root          | include file path escapes project root                             |
+| no root for dotdot    | include file path contains ".." but project root is not configured |
+| invalid heading-level | include directive "heading-level" must be "absolute"               |

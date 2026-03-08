@@ -134,9 +134,14 @@ func generateIncludeContent(
 	readFS := f.FS
 	readPath := path.Clean(file)
 	if f.RootFS != nil {
+		// Reject resolved paths that escape the project root.
+		if strings.HasPrefix(resolvedFile, "..") {
+			return "", []lint.Diagnostic{makeDiag(filePath, line,
+				`include file path escapes project root`)}
+		}
 		readFS = f.RootFS
 		readPath = resolvedFile
-	} else if strings.Contains(file, "..") {
+	} else if containsDotDotElement(file) {
 		return "", []lint.Diagnostic{makeDiag(filePath, line,
 			`include file path contains ".." but project root is not configured`)}
 	}
@@ -221,6 +226,17 @@ func makeDiag(file string, line int, msg string) lint.Diagnostic {
 		Severity: lint.Error,
 		Message:  msg,
 	}
+}
+
+// containsDotDotElement reports whether the slash-separated path contains
+// a ".." path element. It does not match filenames like "foo..bar.md".
+func containsDotDotElement(p string) bool {
+	for _, elem := range strings.Split(p, "/") {
+		if elem == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 var _ rule.FixableRule = (*Rule)(nil)

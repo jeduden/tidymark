@@ -208,6 +208,29 @@ func TestCheck_DotDotPathResolvesWithRootFS(t *testing.T) {
 	expectDiags(t, diags, 0)
 }
 
+func TestCheck_DoubleDotInFilenameNotRejected(t *testing.T) {
+	// A filename like "foo..bar.md" should not be treated as path traversal.
+	fsys := fstest.MapFS{
+		"foo..bar.md": {Data: []byte("Content\n")},
+	}
+	src := "# Doc\n\n<?include\nfile: foo..bar.md\n?>\nContent\n<?/include?>\n"
+	f := newTestFile(t, "doc.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_DotDotEscapesProjectRoot(t *testing.T) {
+	// When the resolved path escapes the project root, a diagnostic
+	// should be emitted.
+	fsys := fstest.MapFS{}
+	src := "# Doc\n\n<?include\nfile: ../../escape.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "doc.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "escapes project root")
+}
+
 func TestCheck_DotDotPathWithoutRootFS(t *testing.T) {
 	// When RootFS is nil and file contains "..", a clear diagnostic
 	// should be emitted instead of a confusing "not found" error.
