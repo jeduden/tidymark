@@ -54,12 +54,16 @@ also passes.
 Bad fixtures are excluded via the `ignore:` section in
 `.mdsmith.yml`.
 
-## Merge Conflicts in Generated Sections
+## Generated Sections
 
-`PLAN.md` and `README.md` have auto-generated
-sections between `<?name` ...
-`?>` and `<?/name?>` markers. Run `mdsmith fix <file>`
-after merging — it regenerates these sections. The
+Content between `<?directive ... ?>` and
+`<?/directive?>` markers is auto-generated. Do not
+edit the body by hand — edit the directive parameters
+or the source file it references, then run
+`mdsmith fix <file>` to regenerate.
+
+After merge conflicts in generated sections, run
+`mdsmith fix <file>` to regenerate. The
 `merge-driver` command automates this:
 
 ```bash
