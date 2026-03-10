@@ -77,7 +77,7 @@ func hasClosingFence(f *lint.File, fcb *ast.FencedCodeBlock) bool {
 		return false
 	}
 
-	// The closing line must contain the fence character.
+	// Require a non-empty closing line; the fence characters are validated below.
 	if closeStart == closeEnd {
 		return false
 	}
