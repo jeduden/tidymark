@@ -1,6 +1,8 @@
 package config
 
 import (
+	"path/filepath"
+
 	"github.com/gobwas/glob"
 )
 
@@ -207,14 +209,19 @@ func ApplyCategories(
 }
 
 // matchesAny returns true if filePath matches any of the given glob patterns.
+// It checks the raw path, the cleaned path, and the base name, consistent
+// with how ignore patterns are matched (see IsIgnored).
 func matchesAny(patterns []string, filePath string) bool {
+	cleanPath := filepath.Clean(filePath)
+	base := filepath.Base(filePath)
+
 	for _, pattern := range patterns {
 		g, err := glob.Compile(pattern)
 		if err != nil {
 			// Skip invalid patterns silently.
 			continue
 		}
-		if g.Match(filePath) {
+		if g.Match(filePath) || g.Match(cleanPath) || g.Match(base) {
 			return true
 		}
 	}
