@@ -217,8 +217,8 @@ func regenDirectiveNames() []string {
 // discovered dynamically from registered gensection.Directive rules.
 // Conflict markers outside these sections are left unchanged.
 //
-// Both standard (<<<, ===, >>>) and diff3 (<<<, |||, ===, >>>)
-// conflict styles are supported.
+// Both standard (<<<<<<<, =======, >>>>>>>) and diff3
+// (<<<<<<<, |||||||, =======, >>>>>>>) conflict styles are supported.
 //
 // The ======= separator is only stripped when it appears between
 // <<<<<<< and >>>>>>> to avoid false positives with Markdown
