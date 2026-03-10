@@ -1,8 +1,7 @@
 # QA Annotation Guide
 
 1. Open `qa-sample.jsonl` from the dataset version you are
-   reviewing.
-Use `qa-init` to generate a matching template:
+   reviewing. Use `qa-init` to generate a matching template:
 
 ```bash
 go run ./cmd/corpusctl qa-init \
