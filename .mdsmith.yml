@@ -65,6 +65,7 @@ rules:
   catalog: true
   required-structure: true
   include: true
+  unclosed-code-block: true
 
 overrides:
   - files: ["CLAUDE.md"]
@@ -106,6 +107,8 @@ overrides:
           - urls
       max-file-length:
         max: 350
+      table-readability:
+        max-rows: 35
       paragraph-structure:
         max-sentences: 30
   - files: ["PLAN.md"]
