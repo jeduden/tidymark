@@ -12,6 +12,10 @@ license_allowlist:
   - CC0-1.0
   - CC-BY-4.0
 
+# policy and balance are informational metadata used by the refresh
+# workflow (eval/corpus/refresh.md) but are not parsed by the Go
+# Config struct.  They document source-selection criteria and target
+# category proportions for human reviewers.
 policy:
   min_stars: 5000
   min_recent_commits_90d: 1

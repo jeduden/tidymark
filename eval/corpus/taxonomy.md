@@ -32,11 +32,18 @@ Examples:
 The current classifier labels a record as `reference` when at
 least one signal matches:
 
-- path contains `reference`, `api`, `/spec/`, `/specification/`, or `man`
+- path contains `/reference/`, `/api/`, `/spec/`, `/specification/`, or `/man/`
 - filename contains `reference`, `api`, `spec`, `schema`,
   `config`, `changelog`, or `release-notes`
 - first markdown heading contains `reference`, `api`,
   `specification`, `changelog`, `command`, or `options`
+
+## Candidate Future Categories
+
+The sections below describe document types that are not yet
+implemented as classifier categories. They are recorded here
+as boundary-rule references for future taxonomy expansion.
+Currently all of these map to `other`.
 
 ## Request for Comments (RFC)
 
