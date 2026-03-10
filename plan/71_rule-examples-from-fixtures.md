@@ -11,10 +11,12 @@ summary: >-
 
 ## Context
 
-Every rule README (MDS001–MDS031) has an `## Examples`
+Every rule README (MDS001–MDS032) has an `## Examples`
 section with inline code blocks showing good and bad
 Markdown. These snippets are disconnected from the test
-fixtures in each rule's `good/` and `bad/` directories.
+fixtures in each rule's fixture files. Most rules store
+fixtures in `good/` and `bad/` directories; MDS023 and
+MDS024 use single `good.md` and `bad.md` files instead.
 When a fixture changes the README can become wrong. When
 someone edits only the README the example may not match
 what the tests assert.
@@ -28,20 +30,21 @@ is a real, tested fixture file.
 
 Replace inline examples in rule README `## Examples`
 sections with `<?include?>` directives that point at
-files in each rule's `good/` and `bad/` directories.
-After this change, no rule README contains an example
-that is not a fixture file.
+each rule's fixture files (`good/`/`bad/` directories or
+`good.md`/`bad.md` files). After this change, no rule
+README contains an example that is not a fixture file.
 
 ## Tasks
 
-1. Audit every rule README (MDS001 through MDS031):
+1. Audit every rule README (MDS001 through MDS032):
    list each inline example and identify which existing
-   `good/` or `bad/` fixture it corresponds to.
+   fixture it corresponds to. Cover both layouts:
+   `good/`/`bad/` directories and `good.md`/`bad.md`
+   files (used by MDS023, MDS024).
 2. Where an inline example has no matching fixture, create
-   a new fixture file in the appropriate `good/` or `bad/`
-   directory that reproduces the example. Add `diagnostics`
-   front matter as required so the fixture passes its own
-   rule's tests.
+   a new fixture file in the appropriate location. Add
+   `diagnostics` front matter as required so the fixture
+   passes its own rule's tests.
 3. For each rule README, replace every inline example code
    block in the `## Examples` section with an
    `<?include?>` directive referencing the corresponding
@@ -57,11 +60,12 @@ that is not a fixture file.
 
 - [ ] No rule README contains an inline example code block
       in its `## Examples` section that is not backed by a
-      file in `good/` or `bad/`
+      fixture file
 - [ ] Every example in a rule README uses an `<?include?>`
-      directive pointing at a `good/` or `bad/` fixture
+      directive pointing at a fixture (`good/`/`bad/`
+      directory entry or `good.md`/`bad.md` file)
 - [ ] No existing test is broken by the change
 - [ ] All fixtures have correct `diagnostics` front matter
 - [ ] All tests pass: `go test ./...`
-- [ ] `golangci-lint run` reports no issues
+- [ ] `go tool golangci-lint run` reports no issues
 - [ ] `go run ./cmd/mdsmith check .` passes
