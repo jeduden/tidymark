@@ -14,7 +14,7 @@ Fenced code blocks must have a closing fence delimiter.
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**:
-  [source](../../rules/unclosedcodeblock/)
+  [source](./)
 - **Category**: code
 
 ## Config

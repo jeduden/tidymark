@@ -65,7 +65,7 @@ func hasClosingFence(f *lint.File, fcb *ast.FencedCodeBlock) bool {
 		return true
 	}
 
-	fenceChar := fenceCharAt(f.Source, openStart)
+	fenceChar := fencedcodestyle.FenceCharAt(f.Source, openStart)
 	if fenceChar == 0 {
 		return true
 	}
@@ -84,16 +84,4 @@ func hasClosingFence(f *lint.File, fcb *ast.FencedCodeBlock) bool {
 	closingLine := bytes.TrimLeft(f.Source[closeStart:closeEnd], " ")
 	minFence := []byte{fenceChar, fenceChar, fenceChar}
 	return bytes.HasPrefix(closingLine, minFence)
-}
-
-// fenceCharAt returns the fence character at the given position, skipping
-// leading spaces.
-func fenceCharAt(src []byte, pos int) byte {
-	for pos < len(src) && src[pos] == ' ' {
-		pos++
-	}
-	if pos < len(src) && (src[pos] == '`' || src[pos] == '~') {
-		return src[pos]
-	}
-	return 0
 }
