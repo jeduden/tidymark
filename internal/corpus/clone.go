@@ -341,7 +341,7 @@ func cachedCommitExists(repoDir string, commitSHA string, runner GitRunner) (boo
 	if strings.Contains(err.Error(), "unknown revision") {
 		return false, nil
 	}
-	return false, nil
+	return false, fmt.Errorf("git cat-file %s: %w", commitSHA, err)
 }
 
 func classifyGitError(err error, remote string, commitSHA string) error {

@@ -116,10 +116,3 @@ func makeQASample(records []Record, limit int) []QASampleRecord {
 	})
 	return picked
 }
-
-func min(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
