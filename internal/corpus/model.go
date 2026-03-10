@@ -1,6 +1,5 @@
 package corpus
 
-import "time"
 
 // Category is the taxonomy label for a corpus record.
 type Category string
@@ -55,9 +54,8 @@ type Record struct {
 	Chars          int       `json:"chars"`
 	ContentSHA256  string    `json:"content_sha256,omitempty"`
 	CollectedAt    string    `json:"collected_at,omitempty"`
-	SourceResolved string    `json:"-"`
-	RawContent     string    `json:"-"`
-	CollectedTime  time.Time `json:"-"`
+	SourceResolved string `json:"-"`
+	RawContent     string `json:"-"`
 }
 
 // BuildResult contains build artifacts.
