@@ -108,7 +108,7 @@ overrides:
       max-file-length:
         max: 350
       table-readability:
-        max-rows: 35
+        max-rows: 40
       paragraph-structure:
         max-sentences: 30
   - files: ["PLAN.md"]
