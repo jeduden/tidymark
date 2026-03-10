@@ -59,27 +59,57 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 func imageAltText(img *ast.Image, f *lint.File) string {
 	var b strings.Builder
-	for c := img.FirstChild(); c != nil; c = c.NextSibling() {
+	collectText(&b, img, f.Source)
+	return b.String()
+}
+
+func collectText(b *strings.Builder, n ast.Node, source []byte) {
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		if t, ok := c.(*ast.Text); ok {
-			b.Write(t.Segment.Value(f.Source))
+			b.Write(t.Segment.Value(source))
+		} else {
+			collectText(b, c, source)
 		}
 	}
-	return b.String()
+}
+
+// isInlineNode returns true for inline AST nodes whose Lines() panics.
+func isInlineNode(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.Text, *ast.String, *ast.CodeSpan, *ast.Emphasis,
+		*ast.Link, *ast.Image, *ast.AutoLink, *ast.RawHTML:
+		return true
+	}
+	return false
 }
 
 func imageLine(img *ast.Image, f *lint.File) int {
 	// Try child text nodes first for precise position.
-	for c := img.FirstChild(); c != nil; c = c.NextSibling() {
-		if t, ok := c.(*ast.Text); ok {
-			return f.LineOfOffset(t.Segment.Start)
-		}
+	line := firstTextLine(img, f)
+	if line > 0 {
+		return line
 	}
-	// Walk up ancestors to find a block node with line info.
+	// Walk up ancestors, skipping inline nodes whose Lines() panics.
 	for p := img.Parent(); p != nil; p = p.Parent() {
+		if isInlineNode(p) {
+			continue
+		}
 		lines := p.Lines()
 		if lines != nil && lines.Len() > 0 {
 			return f.LineOfOffset(lines.At(0).Start)
 		}
 	}
 	return 1
+}
+
+func firstTextLine(n ast.Node, f *lint.File) int {
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if t, ok := c.(*ast.Text); ok {
+			return f.LineOfOffset(t.Segment.Start)
+		}
+		if line := firstTextLine(c, f); line > 0 {
+			return line
+		}
+	}
+	return 0
 }
