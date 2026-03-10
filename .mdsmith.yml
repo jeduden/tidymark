@@ -65,6 +65,7 @@ rules:
   catalog: true
   required-structure: true
   include: true
+  unclosed-code-block: true
 
 overrides:
   - files: ["CLAUDE.md"]
