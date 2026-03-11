@@ -13,6 +13,13 @@ summary: 'string | *""'
   - Use Markdown links for real repo paths in prose.
     Bare backticked paths are allowed in commands,
     code blocks, and placeholders.
+  - When a plan adds or updates examples in a rule
+    README, require the use of <?include?> directives
+    that reference fixture files (good/ and bad/
+    directories, or good.md/bad.md). Never inline
+    example content directly; include it from the
+    tested fixture so documentation stays in sync
+    with tests.
 -->
 
 ## ...
