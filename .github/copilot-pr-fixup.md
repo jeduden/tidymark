@@ -42,7 +42,8 @@ if ! command -v gh &>/dev/null; then
   if command -v sudo &>/dev/null && [ "$(id -u)" -ne 0 ]; then
     SUDO="sudo "
   fi
-  if curl -fsSL "$URL" | tar -xz -C "$TMP"; then
+  if curl -fsSL "$URL" -o "$TMP/gh.tar.gz" && \
+     tar -xzf "$TMP/gh.tar.gz" -C "$TMP"; then
     ${SUDO}cp "$TMP"/gh_*/bin/gh /usr/local/bin/gh
   elif command -v brew &>/dev/null; then
     brew install gh
