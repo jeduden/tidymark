@@ -79,13 +79,38 @@ REPO=$(gh repo view --json nameWithOwner \
   -q '.nameWithOwner')
 ```
 
-### 3. Push pending changes
+### 3. Rebase onto the base branch
 
 ```bash
-git push origin "$BRANCH"
+BASE=$(gh pr view --json baseRefName \
+  -q '.baseRefName')
+git fetch origin "$BASE"
+git rebase "origin/$BASE"
 ```
 
-### 4. Poll CI checks until they finish
+If the rebase produces conflicts, resolve them, then
+continue:
+
+```bash
+git rebase --continue
+```
+
+After a successful rebase, verify linting still passes:
+
+```bash
+mdsmith check .
+```
+
+### 4. Push changes
+
+After rebase a force push is required (subsequent
+pushes after CI/review fixes can use a regular push):
+
+```bash
+git push --force-with-lease origin "$BRANCH"
+```
+
+### 5. Poll CI checks until they finish
 
 ```bash
 gh pr checks "$PR" --watch --fail-fast
@@ -103,7 +128,7 @@ while true; do
 done
 ```
 
-### 5. On CI failure — diagnose and fix
+### 6. On CI failure — diagnose and fix
 
 Fetch the failed job log:
 
@@ -126,9 +151,9 @@ git add -A && git commit -m "fix: address CI failure"
 git push origin "$BRANCH"
 ```
 
-Return to step 4.
+Return to step 5.
 
-### 6. Fetch review comments
+### 7. Fetch review comments
 
 Retrieve all review comments on the PR:
 
@@ -175,7 +200,7 @@ gh api "repos/$REPO/pulls/$PR/reviews" \
   }'
 ```
 
-### 7. Retrieve review thread IDs for resolving
+### 8. Retrieve review thread IDs for resolving
 
 GitHub review comments map to threads via GraphQL.
 Query the thread node IDs:
@@ -205,7 +230,7 @@ query($owner: String!, $repo: String!, $pr: Int!) {
    -F pr="$PR"
 ```
 
-### 8. Address each comment
+### 9. Address each comment
 
 For every unresolved review thread:
 
@@ -231,7 +256,7 @@ mutation($threadId: ID!) {
 }' -f threadId="THREAD_NODE_ID"
 ```
 
-### 9. Push fixes and repeat
+### 10. Push fixes and repeat
 
 ```bash
 git add -A && git commit -m "fix: address review comments"
@@ -245,7 +270,7 @@ Return to step 4 and repeat the full cycle until:
   (a review with state APPROVED or COMMENTED
   with zero new actionable items).
 
-### 10. Final verification
+### 11. Final verification
 
 ```bash
 # Confirm all checks pass
@@ -283,8 +308,9 @@ to the notes below.
 - Keep fix commits small and focused — one commit per
   CI fix, one commit per batch of related review
   comments.
-- Do not force-push; append fix commits so reviewers
-  can see incremental progress.
+- Use `--force-with-lease` only after rebase (step 3).
+  After that, append fix commits with regular pushes so
+  reviewers can see incremental progress.
 
 Once the unresolved count is 0 and CI is green, the PR
 is ready for merge.

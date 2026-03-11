@@ -174,10 +174,10 @@ empty: |
   |---------------|------------------------------------------------------------|
   | No guides yet | Add guide files under `docs/guides/` to populate this index. |
 ?>
-| Guide                                                       | Description                                                                              |
-|-------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) | Trade-offs and threshold guidance for readability, structure, length, and token budgets. |
-| [PR Fixup Workflow](docs/guides/pr-fixup-workflow.md)                                           | PR fixup workflow for CI monitoring, review comment resolution, and gh CLI setup.        |
+| Guide                                                       | Description                                                                               |
+|-------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) | Trade-offs and threshold guidance for readability, structure, length, and token budgets.  |
+| [PR Fixup Workflow](docs/guides/pr-fixup-workflow.md)                                           | PR fixup workflow for rebase, CI monitoring, review comment resolution, and gh CLI setup. |
 <?/catalog?>
 
 ## 📏 Rules
