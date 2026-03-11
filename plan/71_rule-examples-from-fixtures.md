@@ -65,7 +65,8 @@ README contains an example that is not a fixture file.
       directive pointing at a fixture (`good/`/`bad/`
       directory entry or `good.md`/`bad.md` file)
 - [ ] No existing test is broken by the change
-- [ ] All fixtures have correct `diagnostics` front matter
+- [ ] Bad fixtures have correct `diagnostics` front matter
+      (good fixtures omit diagnostics)
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no issues
 - [ ] `go run ./cmd/mdsmith check .` passes

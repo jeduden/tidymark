@@ -50,6 +50,40 @@ rules:
 
 ## Examples
 
+### Good (when style is `backtick`)
+
+<?include
+file: good/default.md
+wrap: markdown
+?>
+
+````markdown
+# Title
+
+```go
+fmt.Println("hello")
+```
+````
+
+<?/include?>
+
+### Good (when style is `tilde`)
+
+<?include
+file: good/tilde.md
+wrap: markdown
+?>
+
+```markdown
+# Title
+
+~~~go
+fmt.Println("hello")
+~~~
+```
+
+<?/include?>
+
 ### Bad (when style is `backtick`)
 
 <?include
@@ -67,7 +101,7 @@ fmt.Println("hello")
 
 <?/include?>
 
-Backtick style when configured for tilde:
+### Bad (when style is `tilde`)
 
 <?include
 file: bad/tilde.md
