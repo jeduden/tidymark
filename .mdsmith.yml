@@ -77,21 +77,12 @@ overrides:
           - tables
           - urls
       blank-line-around-lists: false
-  - files: [".claude/skills/pr-fixup.md"]
+  - files: [".claude/skills/pr-fixup.md",
+            ".github/copilot-pr-fixup.md",
+            "AGENTS-PR-FIXUP.md"]
     rules:
       max-file-length:
         max: 600
-      heading-increment: false
-  - files: [".github/copilot-pr-fixup.md"]
-    rules:
-      max-file-length:
-        max: 600
-      heading-increment: false
-  - files: ["AGENTS-PR-FIXUP.md"]
-    rules:
-      max-file-length:
-        max: 600
-      heading-increment: false
   - files: ["AGENTS.md", ".github/copilot-instructions.md"]
     rules:
       line-length:

@@ -217,6 +217,11 @@ query($owner: String!, $repo: String!, $pr: Int!) {
    -F pr="$PR"
 ```
 
+This query returns the first 100 threads and 10
+comments per thread. For PRs that exceed these limits,
+add `pageInfo { hasNextPage endCursor }` and loop with
+an `after` cursor.
+
 ### 9. Address each comment
 
 For every unresolved review thread:
@@ -229,7 +234,7 @@ For every unresolved review thread:
 # Reply to an inline review comment
 gh api "repos/$REPO/pulls/$PR/comments" \
   -f body="Fixed — see latest push." \
-  -F in_reply_to_id=COMMENT_ID
+  -F in_reply_to=COMMENT_ID
 ```
 
 4. Resolve the thread:
@@ -250,7 +255,7 @@ git add -A && git commit -m "fix: address review comments"
 git push origin "$BRANCH"
 ```
 
-Return to step 4 and repeat the full cycle until:
+Return to step 5 (checks) and repeat the cycle until:
 
 - All CI checks pass, AND
 - The latest review has no unresolved comments
