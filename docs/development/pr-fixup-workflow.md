@@ -45,10 +45,6 @@ if ! command -v gh &>/dev/null; then
     ${SUDO}cp "$TMP"/gh_*/bin/gh /usr/local/bin/gh
   elif command -v brew &>/dev/null; then
     brew install gh
-  elif command -v dnf &>/dev/null; then
-    ${SUDO}dnf install -y gh
-  elif command -v pacman &>/dev/null; then
-    ${SUDO}pacman -S --noconfirm github-cli
   else
     echo "ERROR: could not install gh" >&2
     echo "Install manually: https://cli.github.com" >&2
