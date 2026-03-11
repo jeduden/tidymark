@@ -97,10 +97,11 @@ func mergeLocalOverrides(configPath string, cfg *Config) error {
 		return nil
 	}
 
-	// Overwriting source.Root with an absolute local path changes record IDs
-	// because the record ID includes the source root. This is intentional for
-	// local development: it lets developers point sources at local checkouts
-	// without committing path changes to the shared config.
+	// Overwriting source.Root with an absolute local path changes record IDs:
+	// when Root is absolute, sourceRelativePath returns only the relative path
+	// within the checkout (no configured root prefix), so manifest paths and
+	// IDs will differ from a pinned remote build. This is acceptable for local
+	// development where reproducibility against the shared config is not needed.
 	for i := range cfg.Sources {
 		if root, ok := byName[cfg.Sources[i].Name]; ok {
 			cfg.Sources[i].Root = root
