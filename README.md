@@ -174,10 +174,9 @@ empty: |
   |---------------|------------------------------------------------------------|
   | No guides yet | Add guide files under `docs/guides/` to populate this index. |
 ?>
-| Guide                                                       | Description                                                                               |
-|-------------------------------------------------------------|-------------------------------------------------------------------------------------------|
-| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) | Trade-offs and threshold guidance for readability, structure, length, and token budgets.  |
-| [PR Fixup Workflow](docs/guides/pr-fixup-workflow.md)                                           | PR fixup workflow for rebase, CI monitoring, review comment resolution, and gh CLI setup. |
+| Guide                                                       | Description                                                                              |
+|-------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) | Trade-offs and threshold guidance for readability, structure, length, and token budgets. |
 <?/catalog?>
 
 ## 📏 Rules
@@ -229,7 +228,7 @@ row: "| [{{.id}}]({{.filename}}) | `{{.name}}` | {{.status}} | {{.description}} 
 ## 🛠️ Development
 
 Requires Go 1.24+. See
-[`DEVELOPMENT.md`](DEVELOPMENT.md) for the full
+[`docs/development/index.md`](docs/development/index.md) for the full
 contributor guide (build commands, project layout,
 workflow, code style, and PR conventions).
 

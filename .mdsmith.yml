@@ -99,7 +99,7 @@ overrides:
         level: 1
       cross-file-reference-integrity: true
       catalog: false
-  - files: ["DEVELOPMENT.md"]
+  - files: ["docs/development/index.md"]
     rules:
       first-line-heading: false
       heading-increment: false
@@ -154,10 +154,12 @@ overrides:
         ratio: 0.75
         tokenizer: builtin
         encoding: cl100k_base
-  - files: ["docs/guides/pr-fixup-workflow.md"]
+  - files: ["docs/development/pr-fixup-workflow.md"]
     rules:
       first-line-heading: false
       heading-increment: false
+      max-file-length:
+        max: 310
   - files: ["docs/guides/*.md"]
     rules:
       line-length:

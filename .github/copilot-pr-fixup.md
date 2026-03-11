@@ -1,7 +1,7 @@
 # PR Fixup — GitHub Copilot
 
 <?include
-file: ../docs/guides/pr-fixup-workflow.md
+file: ../docs/development/pr-fixup-workflow.md
 strip-frontmatter: "true"
 ?>
 Push changes, monitor CI, and address review comments
@@ -218,10 +218,8 @@ query($owner: String!, $repo: String!, $pr: Int!) {
    -F pr="$PR"
 ```
 
-This query returns the first 100 threads and 10
-comments per thread. For PRs that exceed these limits,
-add `pageInfo { hasNextPage endCursor }` and loop with
-an `after` cursor.
+This query returns the first 100 threads (10 comments
+each). Paginate with `pageInfo` if the PR exceeds this.
 
 ### 9. Address each comment
 
