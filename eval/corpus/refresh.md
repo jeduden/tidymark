@@ -4,9 +4,10 @@ Use this workflow to refresh the corpus dataset.
 
 1. Update source pins in `eval/corpus/config.yml`.
 
-- bump each source `commit_sha`
-- update source `annotations` when selection rationale changes
-- update `dataset_version` and `collected_at`
+  - bump each source `commit_sha`
+  - update source `annotations` when selection
+    rationale changes
+  - update `dataset_version` and `collected_at`
 
 2. Build dataset.
 
