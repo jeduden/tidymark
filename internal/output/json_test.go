@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJSONFormatter_ValidJSON(t *testing.T) {
@@ -25,9 +28,7 @@ func TestJSONFormatter_ValidJSON(t *testing.T) {
 	}
 
 	err := f.Format(&buf, diagnostics)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err, "unexpected error: %v", err)
 
 	// Verify the output is valid JSON
 	var result []jsonDiagnostic
@@ -53,9 +54,7 @@ func TestJSONFormatter_CorrectFieldNamesAndValues(t *testing.T) {
 	}
 
 	err := f.Format(&buf, diagnostics)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err, "unexpected error: %v", err)
 
 	// Unmarshal into a generic structure to verify field names
 	var rawResult []map[string]any
@@ -63,9 +62,7 @@ func TestJSONFormatter_CorrectFieldNamesAndValues(t *testing.T) {
 		t.Fatalf("failed to unmarshal JSON: %v", err)
 	}
 
-	if len(rawResult) != 1 {
-		t.Fatalf("expected 1 element, got %d", len(rawResult))
-	}
+	require.Len(t, rawResult, 1, "expected 1 element, got %d", len(rawResult))
 
 	item := rawResult[0]
 
@@ -107,9 +104,7 @@ func TestJSONFormatter_EmptyDiagnostics(t *testing.T) {
 	var buf bytes.Buffer
 
 	err := f.Format(&buf, []lint.Diagnostic{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err, "unexpected error: %v", err)
 
 	output := buf.String()
 
@@ -119,13 +114,9 @@ func TestJSONFormatter_EmptyDiagnostics(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, output)
 	}
 
-	if result == nil {
-		t.Error("expected non-nil empty slice, got nil")
-	}
+	assert.NotNil(t, result, "expected non-nil empty slice, got nil")
 
-	if len(result) != 0 {
-		t.Errorf("expected 0 elements, got %d", len(result))
-	}
+	assert.Len(t, result, 0, "expected 0 elements, got %d", len(result))
 
 	// Verify the raw output starts with [] (not null)
 	trimmed := bytes.TrimSpace(buf.Bytes())
@@ -161,9 +152,7 @@ func TestJSONFormatter_MultipleDiagnostics(t *testing.T) {
 
 	result := formatAndUnmarshal(t, f, &buf, diagnostics)
 
-	if len(result) != 2 {
-		t.Fatalf("expected 2 elements, got %d", len(result))
-	}
+	require.Len(t, result, 2, "expected 2 elements, got %d", len(result))
 
 	assertJSONDiag(t, result[0], "README.md", "MDS001", "error", "", 10)
 	assertJSONDiag(t, result[1], "docs/guide.md", "MDS002", "warning", "first-heading", 3)
@@ -217,9 +206,7 @@ func TestJSONFormatter_ExactOutput(t *testing.T) {
 	}
 
 	err := f.Format(&buf, diagnostics)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err, "unexpected error: %v", err)
 
 	expected := `[
   {

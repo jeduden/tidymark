@@ -1,12 +1,13 @@
 package metrics
 
-import "testing"
+import (
+	"testing"
+	"github.com/stretchr/testify/require"
+)
 
 func TestSortRows_DescendingWithPathTieBreak(t *testing.T) {
 	def, ok := LookupScope(ScopeFile, "bytes")
-	if !ok {
-		t.Fatal("bytes metric not found")
-	}
+	require.True(t, ok, "bytes metric not found")
 
 	rows := []Row{
 		{Path: "b.md", Metrics: map[string]Value{"bytes": AvailableValue(10)}},
@@ -26,9 +27,7 @@ func TestSortRows_DescendingWithPathTieBreak(t *testing.T) {
 
 func TestSortRows_AvailableBeforeUnavailable(t *testing.T) {
 	def, ok := LookupScope(ScopeFile, "conciseness")
-	if !ok {
-		t.Fatal("conciseness metric not found")
-	}
+	require.True(t, ok, "conciseness metric not found")
 
 	rows := []Row{
 		{Path: "a.md", Metrics: map[string]Value{"conciseness": UnavailableValue()}},
@@ -48,20 +47,14 @@ func TestLimitRows(t *testing.T) {
 		{Path: "c.md"},
 	}
 	limited := LimitRows(rows, 2)
-	if len(limited) != 2 {
-		t.Fatalf("len = %d, want 2", len(limited))
-	}
+	require.Len(t, limited, 2, "len = %d, want 2", len(limited))
 }
 
 func TestFormatValue(t *testing.T) {
 	intDef, ok := LookupScope(ScopeFile, "bytes")
-	if !ok {
-		t.Fatal("bytes metric not found")
-	}
+	require.True(t, ok, "bytes metric not found")
 	floatDef, ok := LookupScope(ScopeFile, "conciseness")
-	if !ok {
-		t.Fatal("conciseness metric not found")
-	}
+	require.True(t, ok, "conciseness metric not found")
 
 	if got := FormatValue(intDef, AvailableValue(12.4)); got != "12" {
 		t.Fatalf("int format = %q, want 12", got)
