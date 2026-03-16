@@ -440,21 +440,18 @@ id: 'int &'
 	expectDiagMsg(t, diags, "invalid template")
 }
 
-func TestCheck_LegacyTemplateFrontMatterCUEIsRejected(t *testing.T) {
+func TestCheck_TemplateKeyInFrontmatterAsCUESchema(t *testing.T) {
+	// template is no longer a reserved key — it's a regular CUE schema field.
 	tmplPath := writeTmpl(t, `---
-template:
-  allow-extra-sections: true
-  front-matter-cue: |
-    {
-      id: int & >=1
-    }
+template: 'string'
 ---
 # ?
 `)
 	r := &Rule{Template: tmplPath}
-	f := newTestFile(t, "doc.md", "# Any title\n")
+	f := newTestFile(t, "doc.md",
+		"---\ntemplate: my-value\n---\n# Any title\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, "template.front-matter-cue is no longer supported")
+	expectDiags(t, diags, 0)
 }
 
 // =====================================================================
@@ -524,10 +521,9 @@ name: 'string & != ""'
 // =====================================================================
 
 func TestCheck_FilenamePatternMatch(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
-template:
-  filename: "[0-9]*_*.md"
----
+	tmplPath := writeTmpl(t, `<?require
+filename: "[0-9]*_*.md"
+?>
 # ?
 `)
 	r := &Rule{Template: tmplPath}
@@ -537,10 +533,9 @@ template:
 }
 
 func TestCheck_FilenamePatternMismatch(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
-template:
-  filename: "[0-9]*_*.md"
----
+	tmplPath := writeTmpl(t, `<?require
+filename: "[0-9]*_*.md"
+?>
 # ?
 `)
 	r := &Rule{Template: tmplPath}
@@ -550,35 +545,23 @@ template:
 		`filename "my-plan.md" does not match required pattern`)
 }
 
-func TestCheck_FilenamePatternInvalidType(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
-template:
-  filename: 42
----
-# ?
-`)
-	r := &Rule{Template: tmplPath}
-	f := newTestFile(t, "anything.md", "# Title\n")
-	diags := r.Check(f)
-	expectDiagMsg(t, diags, "template.filename must be a string")
-}
-
-func TestCheck_TemplateNotAMap(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
-template: "not-a-map"
----
-# ?
-`)
-	r := &Rule{Template: tmplPath}
-	f := newTestFile(t, "anything.md", "# Title\n")
-	diags := r.Check(f)
-	expectDiagMsg(t, diags, "template must be a mapping")
-}
-
 func TestCheck_FilenamePatternNotSet(t *testing.T) {
 	tmplPath := writeTmpl(t, "# ?\n")
 	r := &Rule{Template: tmplPath}
 	f := newTestFile(t, "anything.md", "# Title\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_TemplateKeyInFrontmatterIsSchema(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+template: 'string & != ""'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\ntemplate: my-template\n---\n# Title\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }

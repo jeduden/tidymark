@@ -195,3 +195,5 @@ ignore:
   - "internal/rules/*/good/**"
   - "internal/rules/*/fixed/**"
   - ".claude/skills/proto.md"
+  - "plan/proto.md"
+  - "internal/rules/proto.md"

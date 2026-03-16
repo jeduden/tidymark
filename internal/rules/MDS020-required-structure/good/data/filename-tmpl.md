@@ -1,5 +1,4 @@
----
-template:
-  filename: "filename-*.md"
----
+<?require
+filename: "filename-*.md"
+?>
 # ?

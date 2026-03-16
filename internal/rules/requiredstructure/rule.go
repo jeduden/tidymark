@@ -161,16 +161,6 @@ func parseTemplateConfig(prefix []byte) (templateConfig, error) {
 		return cfg, nil
 	}
 	yamlBytes := extractYAML(prefix)
-	if hasLegacyFrontMatterCUE(yamlBytes) {
-		return cfg, fmt.Errorf(
-			"template.front-matter-cue is no longer supported; define frontmatter schema with top-level fields",
-		)
-	}
-	pattern, err := extractFilenamePattern(yamlBytes)
-	if err != nil {
-		return cfg, err
-	}
-	cfg.FilenamePattern = pattern
 	derivedSchema, err := deriveFrontMatterSchemaFromTemplate(yamlBytes)
 	if err != nil {
 		return cfg, err
@@ -182,48 +172,36 @@ func parseTemplateConfig(prefix []byte) (templateConfig, error) {
 	return cfg, nil
 }
 
-// extractFilenamePattern reads the template.filename field from
-// template frontmatter YAML. Returns "" if not set. Returns an error
-// if the field is present but has the wrong type.
-func extractFilenamePattern(yamlBytes []byte) (string, error) {
-	var raw map[string]any
-	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
-		return "", nil
+// extractRequireDirective walks the template AST for a <?require?> PI
+// and parses its YAML body to extract constraints like filename.
+func extractRequireDirective(f *lint.File) (string, error) {
+	var filenamePattern string
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		pi, ok := c.(*lint.ProcessingInstruction)
+		if !ok || pi.Name != "require" {
+			continue
+		}
+		// Extract YAML body from PI lines (skip first line with <?require
+		// and exclude the ?> closure line).
+		lines := pi.Lines()
+		if lines.Len() < 2 {
+			continue
+		}
+		var body []byte
+		for i := 1; i < lines.Len(); i++ {
+			seg := lines.At(i)
+			body = append(body, seg.Value(f.Source)...)
+		}
+		var params map[string]string
+		if err := yaml.Unmarshal(body, &params); err != nil {
+			return "", fmt.Errorf("invalid <?require?> directive: %w", err)
+		}
+		if fn, ok := params["filename"]; ok {
+			filenamePattern = fn
+		}
+		break
 	}
-	tmplAny, ok := raw["template"]
-	if !ok {
-		return "", nil
-	}
-	tmplMap, ok := tmplAny.(map[string]any)
-	if !ok {
-		return "", fmt.Errorf("template must be a mapping, got %T", tmplAny)
-	}
-	fn, ok := tmplMap["filename"]
-	if !ok {
-		return "", nil
-	}
-	s, ok := fn.(string)
-	if !ok {
-		return "", fmt.Errorf("template.filename must be a string, got %T", fn)
-	}
-	return s, nil
-}
-
-func hasLegacyFrontMatterCUE(yamlBytes []byte) bool {
-	var raw map[string]any
-	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
-		return false
-	}
-	tmplAny, ok := raw["template"]
-	if !ok {
-		return false
-	}
-	tmplMap, ok := tmplAny.(map[string]any)
-	if !ok {
-		return false
-	}
-	_, found := tmplMap["front-matter-cue"]
-	return found
+	return filenamePattern, nil
 }
 
 func deriveFrontMatterSchemaFromTemplate(yamlBytes []byte) (string, error) {
@@ -231,7 +209,6 @@ func deriveFrontMatterSchemaFromTemplate(yamlBytes []byte) (string, error) {
 	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
 		return "", fmt.Errorf("parsing template frontmatter: %w", err)
 	}
-	delete(raw, "template")
 	if len(raw) == 0 {
 		return "", nil
 	}
@@ -350,6 +327,13 @@ func parseTemplate(data []byte) (*parsedTemplate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing template markdown: %w", err)
 	}
+
+	// Extract <?require?> directive from template body.
+	filenamePattern, err := extractRequireDirective(f)
+	if err != nil {
+		return nil, err
+	}
+	cfg.FilenamePattern = filenamePattern
 
 	headings := extractHeadings(f)
 	tmplHeadings := make([]templateHeading, len(headings))

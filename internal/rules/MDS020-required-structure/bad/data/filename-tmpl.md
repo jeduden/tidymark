@@ -1,5 +1,4 @@
----
-template:
-  filename: "[0-9]*_*.md"
----
+<?require
+filename: "[0-9]*_*.md"
+?>
 # ?

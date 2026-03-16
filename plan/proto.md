@@ -1,11 +1,12 @@
 ---
-template:
-  filename: "[0-9]*_*.md"
 id: 'int & >=1'
 title: 'string & != ""'
 status: '"🔲" | "🔳" | "✅"'
 summary: 'string | *""'
 ---
+<?require
+filename: "[0-9]*_*.md"
+?>
 # ?
 
 <!-- Plan conventions:

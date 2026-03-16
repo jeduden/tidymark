@@ -37,18 +37,19 @@ status: '"ready" | "not-ready"'
 description: 'string & != ""'
 ```
 
-### Template configuration
+### Require directive
 
-The `template` key in template front matter holds rule
-configuration. It is stripped before schema derivation.
+Use `<?require?>` in the template body to declare
+constraints on files validated against this template:
 
-| Field    | Type   | Description                                   |
-|----------|--------|-----------------------------------------------|
-| `filename` | string | Glob pattern the document basename must match |
+| Field    | Type   | Description                           |
+|----------|--------|---------------------------------------|
+| `filename` | string | Glob the document basename must match |
 
-```yaml
-template:
-  filename: "[0-9]*_*.md"
+```markdown
+<?require
+filename: "[0-9]*_*.md"
+?>
 ```
 
 ### Optional fields
