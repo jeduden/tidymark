@@ -31,55 +31,21 @@ comments.
 
 ### 1. Ensure `gh` CLI is installed
 
-Check whether `gh` is on the PATH. If missing, download
-the release tarball from GitHub and copy the binary into
-`/usr/local/bin`. This approach works in sandboxes where
-package-manager repos are blocked:
-
 ```bash
-if ! command -v gh &>/dev/null; then
-  GH_VER="2.67.0"
-  ARCH=$(uname -m)
-  case "$ARCH" in
-    x86_64)  ARCH="amd64" ;;
-    aarch64) ARCH="arm64" ;;
-    *)
-      echo "ERROR: unsupported arch $ARCH" >&2
-      exit 1 ;;
-  esac
-  OS=$(uname -s)
-  case "$OS" in
-    Linux)  OS="linux" ;;
-    Darwin) OS="macOS" ;;
-    *)
-      echo "ERROR: unsupported OS $OS" >&2
-      exit 1 ;;
-  esac
-  URL="https://github.com/cli/cli/releases"
-  URL="$URL/download/v${GH_VER}"
-  URL="$URL/gh_${GH_VER}_${OS}_${ARCH}.tar.gz"
-  TMP=$(mktemp -d)
-  trap 'rm -rf "$TMP"' EXIT
-  SUDO=""
-  if command -v sudo &>/dev/null && [ "$(id -u)" -ne 0 ]; then
-    SUDO="sudo "
-  fi
-  if curl -fsSL "$URL" -o "$TMP/gh.tar.gz" && \
-     tar -xzf "$TMP/gh.tar.gz" -C "$TMP"; then
-    ${SUDO}cp "$TMP"/gh_*/bin/gh /usr/local/bin/gh
-  elif command -v brew &>/dev/null; then
-    brew install gh
-  else
-    echo "ERROR: could not install gh" >&2
-    echo "Install manually: https://cli.github.com" >&2
-    exit 1
-  fi
-fi
 gh --version
 ```
 
-If `gh` is installed but not authenticated, run
-`gh auth login` or set `GITHUB_TOKEN` in the environment.
+If missing, install from
+[cli.github.com](https://cli.github.com):
+
+```bash
+brew install gh
+```
+
+If `brew` is unavailable, download the release tarball
+from the [GitHub releases page](https://github.com/cli/cli/releases).
+If not authenticated, run `gh auth login` or set
+`GITHUB_TOKEN`.
 
 ### 2. Identify the PR
 
@@ -174,57 +140,10 @@ git push origin "$BRANCH"
 
 Return to step 5.
 
-### 7. Fetch review comments
+### 7. Fetch review threads
 
-Retrieve all review comments on the PR:
-
-```bash
-# PR-level review comments (inline code comments)
-gh api "repos/$REPO/pulls/$PR/comments" \
-  --paginate \
-  --jq '.[] | {
-    id: .id,
-    node_id: .node_id,
-    path: .path,
-    line: .line,
-    body: .body,
-    user: .user.login,
-    in_reply_to_id: .in_reply_to_id,
-    created_at: .created_at
-  }'
-```
-
-```bash
-# PR issue-level comments (general discussion)
-gh api "repos/$REPO/issues/$PR/comments" \
-  --paginate \
-  --jq '.[] | {
-    id: .id,
-    node_id: .node_id,
-    body: .body,
-    user: .user.login,
-    created_at: .created_at
-  }'
-```
-
-```bash
-# Full reviews with state (APPROVED,
-# CHANGES_REQUESTED, COMMENTED)
-gh api "repos/$REPO/pulls/$PR/reviews" \
-  --paginate \
-  --jq '.[] | {
-    id: .id,
-    node_id: .node_id,
-    state: .state,
-    body: .body,
-    user: .user.login
-  }'
-```
-
-### 8. Retrieve review thread IDs for resolving
-
-GitHub review comments map to threads via GraphQL.
-Query the thread node IDs:
+Fetch all review threads with their comments, paths,
+and resolution status in a single GraphQL call:
 
 ```bash
 gh api graphql -f query='
@@ -251,10 +170,10 @@ query($owner: String!, $repo: String!, $pr: Int!) {
    -F pr="$PR"
 ```
 
-This query returns the first 100 threads (10 comments
-each). Paginate with `pageInfo` if the PR exceeds this.
+Returns the first 100 threads (10 comments each).
+Paginate with `pageInfo` if the PR exceeds this.
 
-### 9. Address each comment
+### 8. Address each comment
 
 For every unresolved review thread:
 
@@ -263,7 +182,6 @@ For every unresolved review thread:
 3. Reply to the thread:
 
 ```bash
-# Reply to an inline review comment
 gh api "repos/$REPO/pulls/$PR/comments" \
   -f body="Fixed — see latest push." \
   -F in_reply_to=COMMENT_ID
@@ -280,7 +198,7 @@ mutation($threadId: ID!) {
 }' -f threadId="THREAD_NODE_ID"
 ```
 
-### 10. Push fixes and repeat
+### 9. Push fixes and repeat
 
 ```bash
 git add -A
@@ -294,40 +212,18 @@ git commit -m "fix: address review comments"
 git push origin "$BRANCH"
 ```
 
-Return to step 5 (checks) and repeat the cycle until:
+Return to step 5 and repeat until all CI checks pass
+and no unresolved threads remain.
 
-- All CI checks pass, AND
-- The latest review has no unresolved comments
-  (a review with state APPROVED or COMMENTED
-  with zero new actionable items).
-
-### 11. Final verification
+### 10. Final verification
 
 ```bash
-# Confirm all checks pass
 gh pr checks "$PR"
-
-# Confirm no unresolved threads remain
-gh api graphql -f query='
-query($owner: String!, $repo: String!, $pr: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $pr) {
-      reviewThreads(first: 100) {
-        nodes {
-          id
-          isResolved
-        }
-      }
-    }
-  }
-}' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" \
-   -F pr="$PR" \
-   --jq '.data.repository.pullRequest.reviewThreads.nodes
-     | map(select(.isResolved == false)) | length'
 ```
 
-If the unresolved count is 0 and CI is green, proceed
-to the notes below.
+Re-run the step 7 query and filter for unresolved
+threads. If the count is 0 and CI is green, the PR is
+ready for merge.
 
 ## Notes
 
