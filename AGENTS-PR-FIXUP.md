@@ -109,25 +109,31 @@ pushes after CI/review fixes can use a regular push):
 git push --force-with-lease origin "$BRANCH"
 ```
 
-### 5. Poll CI checks until they finish
+### 5. Schedule recurring polling
 
-Always use the `--watch` flag — it is a single command
-that matches permission patterns and blocks until all
-checks complete:
+Use the `/loop` skill to re-invoke `/pr-fixup` every
+minute. This avoids blocking bash loops and long-running
+`--watch` commands:
 
-```bash
-gh pr checks "$PR" --watch --fail-fast
+```text
+/loop 1m /pr-fixup
 ```
 
-If `--watch` is unavailable (older `gh` versions or web
-sandbox), poll manually with repeated single calls:
+On each invocation, check CI and review threads. If
+everything is green and resolved, cancel the loop
+(step 10). If action is needed, handle it inline and
+let the next loop iteration verify the result.
+
+Check CI status:
 
 ```bash
 gh pr checks "$PR" --json name,state
 ```
 
-Re-run the command every 30 seconds until all checks
-reach `SUCCESS`, `FAILURE`, or `ERROR`.
+If all checks show `SUCCESS`, proceed to step 7. If
+any show `FAILURE`, proceed to step 6. If checks are
+still `IN_PROGRESS` or `PENDING`, wait for the next
+loop iteration.
 
 ### 6. On CI failure — diagnose and fix
 
@@ -167,7 +173,7 @@ git commit -m "fix: address CI failure"
 git push origin "$BRANCH"
 ```
 
-Return to step 5.
+The next `/loop` iteration will re-check CI.
 
 ### 7. Fetch review threads
 
@@ -241,18 +247,19 @@ git commit -m "fix: address review comments"
 git push origin "$BRANCH"
 ```
 
-Return to step 5 and repeat until all CI checks pass
-and no unresolved threads remain.
+The next `/loop` iteration will re-check CI and
+threads automatically.
 
-### 10. Final verification
+### 10. Final verification and loop cancellation
 
 ```bash
 gh pr checks "$PR"
 ```
 
 Re-run the step 7 query and filter for unresolved
-threads. If the count is 0 and CI is green, the PR is
-ready for merge.
+threads. If the count is 0 and CI is green, cancel
+the recurring loop and report that the PR is ready
+for merge.
 
 ## Notes
 
