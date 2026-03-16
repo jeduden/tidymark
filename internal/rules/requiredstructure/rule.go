@@ -186,11 +186,14 @@ func extractRequireDirective(f *lint.File) (string, error) {
 		var body []byte
 		if lines.Len() == 1 {
 			// Single-line: <?require key: value ?>
+			// Extract content between <?require and ?>
+			// (ignoring any trailing text after ?>).
 			seg := lines.At(0)
 			line := strings.TrimSpace(string(seg.Value(f.Source)))
 			line = strings.TrimPrefix(line, "<?require")
-			line = strings.TrimSuffix(line, "\n")
-			line = strings.TrimSuffix(line, "?>")
+			if idx := strings.Index(line, "?>"); idx >= 0 {
+				line = line[:idx]
+			}
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue

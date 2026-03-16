@@ -8,7 +8,9 @@ user-invocable: true
 allowed-tools: >-
   Bash(gh pr:*), Bash(gh api:*), Bash(gh run:*),
   Bash(git push:*), Bash(git fetch:*),
-  Bash(git rebase:*), Bash(go run ./cmd/mdsmith:*)
+  Bash(git rebase:*), Bash(git branch:*),
+  Bash(git add:*), Bash(git commit:*),
+  Bash(go run ./cmd/mdsmith:*)
 argument-hint: "[PR number]"
 ---
 
