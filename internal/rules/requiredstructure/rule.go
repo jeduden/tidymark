@@ -222,7 +222,11 @@ func cueExprForMap(m map[string]any) (string, error) {
 			return "", fmt.Errorf("field %q: %w", k, err)
 		}
 		b.WriteString("  ")
-		b.WriteString(cueFieldLabel(k))
+		fieldName, optional := strings.CutSuffix(k, "?")
+		b.WriteString(cueFieldLabel(fieldName))
+		if optional {
+			b.WriteString("?")
+		}
 		b.WriteString(": ")
 		b.WriteString(expr)
 		b.WriteString("\n")

@@ -458,6 +458,68 @@ template:
 }
 
 // =====================================================================
+// Optional frontmatter fields (key? suffix)
+// =====================================================================
+
+func TestCheck_OptionalFieldPresent(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+name: 'string & != ""'
+"description?": 'string'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nname: my-skill\ndescription: A helpful skill.\n---\n# My Skill\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_OptionalFieldAbsent(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+name: 'string & != ""'
+"description?": 'string'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nname: my-skill\n---\n# My Skill\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_OptionalFieldRejectsExtraFields(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+name: 'string & != ""'
+"description?": 'string'
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nname: my-skill\nunknown: true\n---\n# My Skill\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+func TestCheck_OptionalFieldInvalidType(t *testing.T) {
+	tmplPath := writeTmpl(t, `---
+name: 'string & != ""'
+"user-invocable?": bool
+---
+# ?
+`)
+	r := &Rule{Template: tmplPath}
+	f := newTestFile(t, "doc.md",
+		"---\nname: my-skill\nuser-invocable: not-a-bool\n---\n# My Skill\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		"front matter does not satisfy template CUE schema")
+}
+
+// =====================================================================
 // Template file skipping
 // =====================================================================
 

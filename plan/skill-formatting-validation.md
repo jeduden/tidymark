@@ -4,15 +4,14 @@ title: Fix skill formatting and add validation
 status: "🔲"
 summary: Fix pr-fixup skill directory layout for Claude Code and add mdsmith validation for skill files.
 ---
-
 # Fix skill formatting and add validation
 
 ## Goal
 
-Fix the pr-fixup skill so Claude Code discovers it
-(requires `SKILL.md` inside a directory), and add
-mdsmith validation for skill files using the existing
-`required-structure` rule with a template.
+Fix the pr-fixup skill so Claude Code discovers it.
+Claude Code requires `SKILL.md` inside a directory.
+Add mdsmith validation for skill files using the
+existing `required-structure` rule with a template.
 
 ## Context
 
@@ -27,11 +26,10 @@ like `name`, `description`, `user-invocable`,
 `allowed-tools`, `disable-model-invocation`, `model`,
 `context`, `agent`, `argument-hint`.
 
-The repo also has parallel agent instruction files for
-Copilot (`.github/copilot-pr-fixup.md`) and OpenAI
-Codex (`AGENTS-PR-FIXUP.md`). These are plain markdown
-without frontmatter requirements; their existing
-overrides in `.mdsmith.yml` are sufficient.
+The repo has parallel agent instruction files for
+Copilot and OpenAI Codex. These are plain markdown
+without frontmatter. Their existing overrides in
+`.mdsmith.yml` are sufficient.
 
 ## Tasks
 
