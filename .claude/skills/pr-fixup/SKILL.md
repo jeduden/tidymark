@@ -37,7 +37,7 @@ comments.
 ### 1. Ensure `gh` CLI is installed
 
 ```bash
-gh --version
+gh pr --help
 ```
 
 If missing, install from
@@ -54,19 +54,41 @@ If not authenticated, run `gh auth login` or set
 
 ### 2. Identify the PR
 
+Store the PR number, branch, and repo name for later
+steps. Run each command separately:
+
 ```bash
-PR=$(gh pr view --json number -q '.number')
-BRANCH=$(git branch --show-current)
-REPO=$(gh repo view --json nameWithOwner \
-  -q '.nameWithOwner')
+gh pr view --json number -q '.number'
 ```
+
+Note the number as `$PR`. Then:
+
+```bash
+git branch --show-current
+```
+
+Note the branch as `$BRANCH`. Then:
+
+```bash
+gh pr view --json headRepository \
+  -q '.headRepository.owner.login + "/" + .headRepository.name'
+```
+
+Note the repo as `$REPO`.
 
 ### 3. Rebase onto the base branch
 
 ```bash
-BASE=$(gh pr view --json baseRefName \
-  -q '.baseRefName')
+gh pr view --json baseRefName -q '.baseRefName'
+```
+
+Note the base branch as `$BASE`. Then:
+
+```bash
 git fetch origin "$BASE"
+```
+
+```bash
 git rebase "origin/$BASE"
 ```
 
@@ -117,14 +139,21 @@ reach `SUCCESS`, `FAILURE`, or `ERROR`.
 Fetch the failed job log:
 
 ```bash
-# list failed checks
 gh pr checks "$PR" --json name,state,conclusion \
   -q '.[] | select(.conclusion == "FAILURE")'
+```
 
-# get the run ID and download logs
-RUN_ID=$(gh run list --branch "$BRANCH" \
+Get the run ID of the most recent failure:
+
+```bash
+gh run list --branch "$BRANCH" \
   --status failure --limit 1 \
-  --json databaseId -q '.[0].databaseId')
+  --json databaseId -q '.[0].databaseId'
+```
+
+Note the run ID as `$RUN_ID`. Then download the log:
+
+```bash
 gh run view "$RUN_ID" --log-failed
 ```
 

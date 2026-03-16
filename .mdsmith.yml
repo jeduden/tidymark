@@ -194,6 +194,7 @@ ignore:
   - "internal/rules/*/bad.md"
   - "internal/rules/*/good/**"
   - "internal/rules/*/fixed/**"
+  - ".claude/worktrees/**"
   - ".claude/skills/proto.md"
   - "plan/proto.md"
   - "internal/rules/proto.md"
