@@ -37,6 +37,31 @@ status: '"ready" | "not-ready"'
 description: 'string & != ""'
 ```
 
+### Template configuration
+
+The `template` key in template front matter holds rule
+configuration. It is stripped before schema derivation.
+
+| Field    | Type   | Description                                   |
+|----------|--------|-----------------------------------------------|
+| `filename` | string | Glob pattern the document basename must match |
+
+```yaml
+template:
+  filename: "[0-9]*_*.md"
+```
+
+### Optional fields
+
+Append `?` to a template front matter key to make it
+optional. The field may be absent in the document, but
+if present it must satisfy the type constraint:
+
+```yaml
+name: 'string & != ""'
+"description?": string
+```
+
 Template body controls section strictness:
 
 - By default, extra sections are rejected.
@@ -113,3 +138,4 @@ Describe the goal here.
 | heading sync        | heading does not match frontmatter: expected "MDS001" (from id), got "MDS002" |
 | body sync           | body does not match frontmatter field "description"                           |
 | front matter schema | front matter does not satisfy template CUE schema: ...                        |
+| filename mismatch   | filename "foo.md" does not match required pattern "[0-9]*_*.md"                 |
