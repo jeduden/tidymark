@@ -14,6 +14,7 @@ import (
 )
 
 var binaryPath string
+var coverDir string
 
 func TestMain(m *testing.M) {
 	// Build the binary once for all e2e tests.
@@ -25,17 +26,45 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// Create a shared directory for coverage data from all e2e runs.
+	coverDir, err = os.MkdirTemp("", "mdsmith-e2e-cover-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create cover dir: %v\n", err)
+		_ = os.RemoveAll(tmp)
+		os.Exit(1)
+	}
+
 	binaryPath = filepath.Join(tmp, "mdsmith")
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	cmd := exec.Command("go", "build", "-cover", "-covermode=atomic", "-o", binaryPath, ".")
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to build binary: %v\n", err)
+		_ = os.RemoveAll(tmp)
+		_ = os.RemoveAll(coverDir)
 		os.Exit(1)
 	}
 
 	code := m.Run()
 
+	// Merge e2e coverage data into a text profile if E2E_COVERDIR is
+	// set by the caller, so it can be combined with unit-test coverage.
+	if outDir := os.Getenv("E2E_COVERDIR"); outDir != "" {
+		if err := os.MkdirAll(outDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "E2E_COVERDIR: cannot create %s: %v\n", outDir, err)
+			code = 1
+		} else {
+			mergeCmd := exec.Command("go", "tool", "covdata", "textfmt",
+				"-i="+coverDir, "-o="+filepath.Join(outDir, "e2e_coverage.txt"))
+			mergeCmd.Stderr = os.Stderr
+			if err := mergeCmd.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "E2E_COVERDIR: failed to export coverage: %v\n", err)
+				code = 1
+			}
+		}
+	}
+
 	_ = os.RemoveAll(tmp)
+	_ = os.RemoveAll(coverDir)
 	os.Exit(code)
 }
 
@@ -45,6 +74,7 @@ func runBinary(t *testing.T, stdin string, args ...string) (stdout, stderr strin
 	t.Helper()
 
 	cmd := exec.Command(binaryPath, args...)
+	cmd.Env = envWithCoverDir(coverDir)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
@@ -72,6 +102,7 @@ func runBinaryInDir(t *testing.T, dir, stdin string, args ...string) (stdout, st
 
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Dir = dir
+	cmd.Env = envWithCoverDir(coverDir)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
@@ -91,6 +122,18 @@ func runBinaryInDir(t *testing.T, dir, stdin string, args ...string) (stdout, st
 	}
 
 	return outBuf.String(), errBuf.String(), exitCode
+}
+
+// envWithCoverDir returns os.Environ() with any existing GOCOVERDIR removed
+// and the given dir set as GOCOVERDIR.
+func envWithCoverDir(dir string) []string {
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "GOCOVERDIR=") {
+			env = append(env, e)
+		}
+	}
+	return append(env, "GOCOVERDIR="+dir)
 }
 
 // writeFixture creates a file with the given content in the given directory.
@@ -121,6 +164,24 @@ func parseStats(t *testing.T, stderr string) (checked, fixed, failures, unfixed 
 	}
 
 	return values[0], values[1], values[2], values[3]
+}
+
+// --- Coverage instrumentation test ---
+
+func TestE2E_CoverageInstrumentation(t *testing.T) {
+	tmpCoverDir := t.TempDir()
+	cmd := exec.Command(binaryPath, "version")
+	cmd.Env = envWithCoverDir(tmpCoverDir)
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("unexpected error running binary: %v", err)
+	}
+	entries, err := os.ReadDir(tmpCoverDir)
+	if err != nil {
+		t.Fatalf("reading cover dir: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("binary was not built with -cover: no coverage data written to GOCOVERDIR")
+	}
 }
 
 // --- Top-level behavior tests ---
