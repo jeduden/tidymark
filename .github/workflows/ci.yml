@@ -43,7 +43,7 @@ jobs:
           # Exclude cmd/mdsmith from unit profile — those functions
           # are only exercised via the subprocess binary, so the
           # test-process counters are always zero.
-          grep -v 'cmd/mdsmith/' unit.cov >> merged.cov || true
+          tail -n +2 unit.cov | grep -v 'cmd/mdsmith/' >> merged.cov || true
           if [ -f e2e-cover/e2e_coverage.txt ]; then
             tail -n +2 e2e-cover/e2e_coverage.txt >> merged.cov
           fi
