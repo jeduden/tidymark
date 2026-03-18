@@ -45,7 +45,9 @@ jobs:
           # test-process counters are always zero.
           tail -n +2 unit.cov | grep -v 'cmd/mdsmith/' >> merged.cov || true
           if [ -f "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt" ]; then
-            tail -n +2 "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt" >> merged.cov
+            # Only include cmd/mdsmith coverage from the e2e profile to avoid
+            # duplicating blocks for packages already present in unit.cov.
+            tail -n +2 "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt" | grep 'cmd/mdsmith/' >> merged.cov || true
           fi
       - name: Coverage summary
         run: |
