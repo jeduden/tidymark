@@ -44,6 +44,10 @@ jobs:
           # are only exercised via the subprocess binary, so the
           # test-process counters are always zero.
           tail -n +2 unit.cov | grep -v 'cmd/mdsmith/' >> merged.cov || true
+          if [ ! -f "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt" ]; then
+            echo "e2e_coverage.txt not found in E2E_COVERDIR — cmd/mdsmith coverage will be missing" >&2
+            exit 1
+          fi
           if [ -f "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt" ]; then
             unit_mode_line=$(head -1 unit.cov)
             e2e_mode_line=$(head -1 "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt")
