@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 	}
 
 	binaryPath = filepath.Join(tmp, "mdsmith")
-	cmd := exec.Command("go", "build", "-cover", "-o", binaryPath, ".")
+	cmd := exec.Command("go", "build", "-cover", "-covermode=atomic", "-o", binaryPath, ".")
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to build binary: %v\n", err)
