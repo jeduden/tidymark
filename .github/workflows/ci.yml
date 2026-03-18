@@ -39,12 +39,13 @@ jobs:
           E2E_COVERDIR=e2e-cover go test -coverprofile=unit.cov ./...
       - name: Merge coverage profiles
         run: |
+          head -1 unit.cov > merged.cov
+          # Exclude cmd/mdsmith from unit profile — those functions
+          # are only exercised via the subprocess binary, so the
+          # test-process counters are always zero.
+          grep -v 'cmd/mdsmith/' unit.cov >> merged.cov || true
           if [ -f e2e-cover/e2e_coverage.txt ]; then
-            head -1 unit.cov > merged.cov
-            tail -n +2 unit.cov >> merged.cov
             tail -n +2 e2e-cover/e2e_coverage.txt >> merged.cov
-          else
-            cp unit.cov merged.cov
           fi
       - name: Coverage summary
         run: |
