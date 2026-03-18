@@ -35,8 +35,8 @@ jobs:
           go-version-file: go.mod
       - name: Run tests with coverage
         run: |
-          mkdir -p e2e-cover
-          E2E_COVERDIR=e2e-cover go test -coverprofile=unit.cov ./...
+          mkdir -p "$GITHUB_WORKSPACE/e2e-cover"
+          E2E_COVERDIR="$GITHUB_WORKSPACE/e2e-cover" go test -coverprofile=unit.cov ./...
       - name: Merge coverage profiles
         run: |
           head -1 unit.cov > merged.cov
@@ -44,8 +44,8 @@ jobs:
           # are only exercised via the subprocess binary, so the
           # test-process counters are always zero.
           tail -n +2 unit.cov | grep -v 'cmd/mdsmith/' >> merged.cov || true
-          if [ -f e2e-cover/e2e_coverage.txt ]; then
-            tail -n +2 e2e-cover/e2e_coverage.txt >> merged.cov
+          if [ -f "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt" ]; then
+            tail -n +2 "$GITHUB_WORKSPACE/e2e-cover/e2e_coverage.txt" >> merged.cov
           fi
       - name: Coverage summary
         run: |
