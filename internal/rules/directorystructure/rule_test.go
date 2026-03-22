@@ -207,34 +207,26 @@ func TestApplySettings_UnknownKey(t *testing.T) {
 func TestDefaultSettings(t *testing.T) {
 	r := &Rule{}
 	s := r.DefaultSettings()
-	allowed, ok := s["allowed"]
-	if !ok {
-		t.Fatal("expected 'allowed' in default settings")
-	}
-	list, ok := allowed.([]string)
-	if !ok {
-		t.Fatalf("expected []string, got %T", allowed)
-	}
-	if len(list) != 0 {
-		t.Errorf("expected empty default allowed list, got %v", list)
+	if _, ok := s["allowed"]; ok {
+		t.Error("default settings should not include 'allowed' key (rule stays unconfigured/no-op)")
 	}
 }
 
-func TestApplyDefaultSettings_Unconfigured(t *testing.T) {
-	r := &Rule{}
+func TestApplyDefaultSettings_RemainsUnconfigured(t *testing.T) {
+	// Simulate the CloneRule/fixture-harness flow: configure the rule,
+	// then restore defaults. The rule should return to unconfigured/no-op.
+	r := newRule([]string{"docs/**"})
 	err := r.ApplySettings(r.DefaultSettings())
 	if err != nil {
 		t.Fatal(err)
 	}
-	// After applying default settings (empty allowed), the rule is configured
-	// and should warn on every file since nothing is allowed.
 	src := []byte("# Title\n")
-	f, err := lint.NewFile("docs/guide.md", src)
+	f, err := lint.NewFile("anywhere/guide.md", src)
 	if err != nil {
 		t.Fatal(err)
 	}
 	diags := r.Check(f)
-	if len(diags) != 1 {
-		t.Fatalf("expected 1 diagnostic (configured with empty allowed), got %d: %+v", len(diags), diags)
+	if len(diags) != 0 {
+		t.Fatalf("expected 0 diagnostics (restored to unconfigured no-op), got %d: %+v", len(diags), diags)
 	}
 }

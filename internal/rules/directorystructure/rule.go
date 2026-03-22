@@ -58,7 +58,8 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 // isAllowed returns true if the file path matches any allowed pattern.
 func (r *Rule) isAllowed(filePath string) bool {
-	dir := filepath.Dir(filePath)
+	cleaned := filepath.ToSlash(filepath.Clean(filePath))
+	dir := filepath.ToSlash(filepath.Dir(cleaned))
 	for i, pattern := range r.Allowed {
 		// "." means root-level files only.
 		if pattern == "." {
@@ -67,7 +68,7 @@ func (r *Rule) isAllowed(filePath string) bool {
 			}
 			continue
 		}
-		if r.matchers[i].Match(filePath) || r.matchers[i].Match(dir) {
+		if r.matchers[i].Match(cleaned) || r.matchers[i].Match(dir) {
 			return true
 		}
 	}
@@ -76,6 +77,11 @@ func (r *Rule) isAllowed(filePath string) bool {
 
 // ApplySettings implements rule.Configurable.
 func (r *Rule) ApplySettings(settings map[string]any) error {
+	// Reset to unconfigured so that restoring defaults (empty map)
+	// returns the rule to its no-op state.
+	r.configured = false
+	r.Allowed = nil
+	r.matchers = nil
 	for k, v := range settings {
 		switch k {
 		case "allowed":
@@ -106,7 +112,8 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 
 // DefaultSettings implements rule.Configurable.
 func (r *Rule) DefaultSettings() map[string]any {
-	return map[string]any{"allowed": []string{}}
+	// No default "allowed" list: by default the rule remains unconfigured/no-op
+	return map[string]any{}
 }
 
 func toStringSlice(v any) ([]string, bool) {
