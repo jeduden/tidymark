@@ -160,32 +160,20 @@ func TestJSONFormatter_MultipleDiagnostics(t *testing.T) {
 
 func formatAndUnmarshal(t *testing.T, f *JSONFormatter, buf *bytes.Buffer, diags []lint.Diagnostic) []jsonDiagnostic {
 	t.Helper()
-	if err := f.Format(buf, diags); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, f.Format(buf, diags), "unexpected error")
 	var result []jsonDiagnostic
-	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
-		t.Fatalf("output is not valid JSON: %v", err)
-	}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result), "output is not valid JSON")
 	return result
 }
 
 func assertJSONDiag(t *testing.T, got jsonDiagnostic, file, ruleID, severity, name string, line int) {
 	t.Helper()
-	if got.File != file {
-		t.Errorf("file: got %q, want %q", got.File, file)
-	}
-	if got.Line != line {
-		t.Errorf("line: got %d, want %d", got.Line, line)
-	}
-	if got.Rule != ruleID {
-		t.Errorf("rule: got %q, want %q", got.Rule, ruleID)
-	}
-	if got.Severity != severity {
-		t.Errorf("severity: got %q, want %q", got.Severity, severity)
-	}
-	if name != "" && got.Name != name {
-		t.Errorf("name: got %q, want %q", got.Name, name)
+	assert.Equal(t, file, got.File, "file mismatch")
+	assert.Equal(t, line, got.Line, "line mismatch")
+	assert.Equal(t, ruleID, got.Rule, "rule mismatch")
+	assert.Equal(t, severity, got.Severity, "severity mismatch")
+	if name != "" {
+		assert.Equal(t, name, got.Name, "name mismatch")
 	}
 }
 

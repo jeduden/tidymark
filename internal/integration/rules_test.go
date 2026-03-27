@@ -49,6 +49,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/tokenbudget"
 	_ "github.com/jeduden/mdsmith/internal/rules/unclosedcodeblock"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -404,11 +405,7 @@ func reportUnexpectedDiags(
 	t *testing.T, filename string, diags []lint.Diagnostic,
 ) {
 	t.Helper()
-	if len(diags) != 0 {
-		t.Errorf(
-			"%s: expected 0 diagnostics from all rules, got %d",
-			filename, len(diags),
-		)
+	if !assert.Empty(t, diags, "%s: expected 0 diagnostics from all rules, got %d", filename, len(diags)) {
 		for _, d := range diags {
 			t.Logf(
 				"  %s line %d col %d: %s",
@@ -426,19 +423,10 @@ func assertExpectedDiags(
 ) {
 	t.Helper()
 	if len(expected) == 0 {
-		if len(diags) == 0 {
-			t.Errorf(
-				"%s: expected at least 1 diagnostic, got 0",
-				filename,
-			)
-		}
+		assert.NotEmpty(t, diags, "%s: expected at least 1 diagnostic, got 0", filename)
 		return
 	}
-	if len(diags) != len(expected) {
-		t.Errorf(
-			"%s: expected %d diagnostics, got %d",
-			filename, len(expected), len(diags),
-		)
+	if !assert.Len(t, diags, len(expected), "%s: expected %d diagnostics, got %d", filename, len(expected), len(diags)) {
 		for _, d := range diags {
 			t.Logf(
 				"  actual: line %d col %d: %s",
@@ -448,20 +436,19 @@ func assertExpectedDiags(
 	}
 	for i, exp := range expected {
 		if i >= len(diags) {
-			t.Errorf(
+			assert.Fail(t, "missing diagnostic",
 				"missing diagnostic %d: line %d col %d: %s",
 				i, exp.Line, exp.Column, exp.Message,
 			)
 			continue
 		}
 		d := diags[i]
-		if d.Line != exp.Line || d.Column != exp.Column || d.Message != exp.Message {
-			t.Errorf(
-				"diagnostic %d:\n  want: line %d col %d: %s\n  got:  line %d col %d: %s",
-				i, exp.Line, exp.Column, exp.Message,
-				d.Line, d.Column, d.Message,
-			)
-		}
+		assert.Equal(t, exp.Line, d.Line,
+			"diagnostic %d line mismatch", i)
+		assert.Equal(t, exp.Column, d.Column,
+			"diagnostic %d column mismatch", i)
+		assert.Equal(t, exp.Message, d.Message,
+			"diagnostic %d message mismatch", i)
 	}
 }
 
