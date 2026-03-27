@@ -199,7 +199,10 @@ func TestApplySettings_InvalidGlob(t *testing.T) {
 	if r.configured {
 		t.Error("rule should remain unconfigured after invalid glob error")
 	}
-	f, _ := lint.NewFile("anywhere.md", []byte("# Title\n"))
+	f, err2 := lint.NewFile("anywhere.md", []byte("# Title\n"))
+	if err2 != nil {
+		t.Fatal(err2)
+	}
 	if diags := r.Check(f); len(diags) != 0 {
 		t.Errorf("expected no-op after error, got %d diagnostics", len(diags))
 	}
@@ -215,7 +218,10 @@ func TestApplySettings_UnknownKey(t *testing.T) {
 	if r.configured {
 		t.Error("rule should remain unconfigured after unknown key error")
 	}
-	f, _ := lint.NewFile("anywhere.md", []byte("# Title\n"))
+	f, err2 := lint.NewFile("anywhere.md", []byte("# Title\n"))
+	if err2 != nil {
+		t.Fatal(err2)
+	}
 	if diags := r.Check(f); len(diags) != 0 {
 		t.Errorf("expected no-op after error, got %d diagnostics", len(diags))
 	}
