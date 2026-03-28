@@ -67,6 +67,10 @@ Some content here.
 
 ### Bad — blank line before heading
 
+The file below has a blank line between the frontmatter closing
+`---` and `# Title`. The blank line is not visible in the code
+block but triggers the diagnostic.
+
 <?include
 file: bad/blank-line.md
 wrap: markdown

@@ -35,6 +35,15 @@ func TestCheck_EmphasisHeading_NoViolation(t *testing.T) {
 	require.Len(t, diags, 0, "heading with emphasis on line 1 should pass, got %d: %+v", len(diags), diags)
 }
 
+func TestCheck_LinkHeading_NoViolation(t *testing.T) {
+	src := []byte("# [link](url)\n\nSome text\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 1}
+	diags := r.Check(f)
+	require.Len(t, diags, 0, "heading with link on line 1 should pass, got %d: %+v", len(diags), diags)
+}
+
 func TestCheck_BlankLineSetextHeading(t *testing.T) {
 	src := []byte("\nTitle\n=====\n")
 	f, err := lint.NewFile("test.md", src)
