@@ -127,8 +127,8 @@ func headingLine(heading *ast.Heading, f *lint.File) int {
 	}
 	// Empty headings (e.g. "# \n") have no text segments.
 	// Check whether the source starts with a newline to detect
-	// leading blank lines.
-	if len(f.Source) > 0 && f.Source[0] == '\n' {
+	// leading blank lines. Include \r for Windows-style line endings.
+	if len(f.Source) > 0 && (f.Source[0] == '\n' || f.Source[0] == '\r') {
 		return 2
 	}
 	return 1

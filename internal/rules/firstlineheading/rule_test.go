@@ -17,6 +17,34 @@ func TestCheck_FirstLineH1_NoViolation(t *testing.T) {
 	require.Len(t, diags, 0, "expected 0 diagnostics, got %d: %+v", len(diags), diags)
 }
 
+func TestCheck_SetextHeading_NoViolation(t *testing.T) {
+	src := []byte("Title\n=====\n\nSome text\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 1}
+	diags := r.Check(f)
+	require.Len(t, diags, 0, "setext heading on line 1 should pass, got %d: %+v", len(diags), diags)
+}
+
+func TestCheck_EmphasisHeading_NoViolation(t *testing.T) {
+	src := []byte("# *Title*\n\nSome text\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 1}
+	diags := r.Check(f)
+	require.Len(t, diags, 0, "heading with emphasis on line 1 should pass, got %d: %+v", len(diags), diags)
+}
+
+func TestCheck_BlankLineSetextHeading(t *testing.T) {
+	src := []byte("\nTitle\n=====\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 1}
+	diags := r.Check(f)
+	require.Len(t, diags, 1, "setext heading after blank line should fail, got %d: %+v", len(diags), diags)
+	require.Equal(t, "first line should be a level 1 heading, found blank line", diags[0].Message)
+}
+
 func TestCheck_EmptyFile(t *testing.T) {
 	src := []byte("")
 	f, err := lint.NewFile("test.md", src)
