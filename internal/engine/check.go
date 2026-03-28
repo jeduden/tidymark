@@ -60,13 +60,21 @@ func CheckRules(f *lint.File, rules []rule.Rule, effective map[string]config.Rul
 // populateSourceContext fills each diagnostic's SourceLines and
 // SourceStartLine with surrounding context from f.Lines.
 func populateSourceContext(f *lint.File, diags []lint.Diagnostic, context int) {
+	// bytes.Split produces an empty trailing element when source ends
+	// with a newline. Exclude it so context windows don't include a
+	// phantom empty line.
+	numLines := len(f.Lines)
+	if numLines > 0 && len(f.Lines[numLines-1]) == 0 {
+		numLines--
+	}
+
 	for i := range diags {
 		lineIdx := diags[i].Line - f.LineOffset - 1 // 0-based into f.Lines
-		if lineIdx < 0 || lineIdx >= len(f.Lines) {
+		if lineIdx < 0 || lineIdx >= numLines {
 			continue
 		}
 		start := max(0, lineIdx-context)
-		end := min(len(f.Lines), lineIdx+context+1)
+		end := min(numLines, lineIdx+context+1)
 		lines := make([]string, end-start)
 		for j := start; j < end; j++ {
 			lines[j-start] = string(f.Lines[j])

@@ -212,6 +212,60 @@ func TestJSONFormatter_ExactOutput(t *testing.T) {
 	}
 }
 
+func TestJSONFormatter_WithSourceContext(t *testing.T) {
+	f := &JSONFormatter{}
+	var buf bytes.Buffer
+
+	diagnostics := []lint.Diagnostic{
+		{
+			File:            "README.md",
+			Line:            5,
+			Column:          81,
+			RuleID:          "MDS001",
+			RuleName:        "line-length",
+			Severity:        lint.Error,
+			Message:         "line too long",
+			SourceLines:     []string{"before", "the long line", "after"},
+			SourceStartLine: 4,
+		},
+	}
+
+	result := formatAndUnmarshal(t, f, &buf, diagnostics)
+	require.Len(t, result, 1)
+
+	assert.Equal(t, []string{"before", "the long line", "after"}, result[0].SourceLines)
+	assert.Equal(t, 4, result[0].SourceStartLine)
+}
+
+func TestJSONFormatter_SourceContextOmittedWhenEmpty(t *testing.T) {
+	f := &JSONFormatter{}
+	var buf bytes.Buffer
+
+	diagnostics := []lint.Diagnostic{
+		{
+			File:     "README.md",
+			Line:     1,
+			Column:   1,
+			RuleID:   "MDS001",
+			RuleName: "line-length",
+			Severity: lint.Error,
+			Message:  "some issue",
+		},
+	}
+
+	err := f.Format(&buf, diagnostics)
+	require.NoError(t, err)
+
+	// source_lines and source_start_line should be omitted from JSON
+	var rawResult []map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &rawResult))
+
+	_, hasSourceLines := rawResult[0]["source_lines"]
+	_, hasSourceStartLine := rawResult[0]["source_start_line"]
+	assert.False(t, hasSourceLines, "source_lines should be omitted when empty")
+	assert.False(t, hasSourceStartLine, "source_start_line should be omitted when zero")
+}
+
 func TestJSONFormatter_ImplementsFormatter(t *testing.T) {
 	var _ Formatter = &JSONFormatter{}
 }

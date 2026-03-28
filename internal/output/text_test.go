@@ -346,3 +346,42 @@ func TestTextFormatter_SnippetColumnZero(t *testing.T) {
 
 	assert.Equal(t, expected, buf.String())
 }
+
+func TestTextFormatter_SnippetThreeDigitLineNumbers(t *testing.T) {
+	f := &TextFormatter{Color: false}
+	var buf bytes.Buffer
+
+	diagnostics := []lint.Diagnostic{
+		{
+			File:     "big.md",
+			Line:     100,
+			Column:   3,
+			RuleID:   "MDS010",
+			RuleName: "some-rule",
+			Severity: lint.Error,
+			Message:  "some issue",
+			SourceLines: []string{
+				"line 98",
+				"line 99",
+				"line 100",
+				"line 101",
+				"line 102",
+			},
+			SourceStartLine: 98,
+		},
+	}
+
+	err := f.Format(&buf, diagnostics)
+	require.NoError(t, err)
+
+	// 3-digit gutter width for all lines
+	expected := "big.md:100:3 MDS010 some issue\n" +
+		" 98 | line 98\n" +
+		" 99 | line 99\n" +
+		"100 | line 100\n" +
+		"    |   ^\n" +
+		"101 | line 101\n" +
+		"102 | line 102\n"
+
+	assert.Equal(t, expected, buf.String())
+}
