@@ -31,12 +31,12 @@ func TestCheckRules_PopulatesSourceContextAtFileEnd(t *testing.T) {
 	assert.Equal(t, 5, d.Line)
 	// With context=2 from line 5: should include lines 3, 4, 5
 	require.Len(t, d.SourceLines, 3, "expected 3 context lines (line 5 - 2)")
-	
+
 	// Check that no empty line is included
 	for i, line := range d.SourceLines {
 		assert.NotEmpty(t, line, "SourceLines[%d] should not be empty", i)
 	}
-	
+
 	assert.Equal(t, "line three", d.SourceLines[0])
 	assert.Equal(t, "line four", d.SourceLines[1])
 	assert.Equal(t, "line five", d.SourceLines[2])
