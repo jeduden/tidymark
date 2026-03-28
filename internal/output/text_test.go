@@ -30,9 +30,7 @@ func TestTextFormatter_SingleDiagnostic(t *testing.T) {
 	require.NoError(t, err, "unexpected error: %v", err)
 
 	expected := "README.md:10:5 MDS001 line too long (120 > 80)\n"
-	if buf.String() != expected {
-		t.Errorf("got %q, want %q", buf.String(), expected)
-	}
+	assert.Equal(t, expected, buf.String())
 }
 
 func TestTextFormatter_MultipleDiagnostics(t *testing.T) {
@@ -66,15 +64,8 @@ func TestTextFormatter_MultipleDiagnostics(t *testing.T) {
 	lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
 	require.Len(t, lines, 2, "expected 2 lines, got %d: %q", len(lines), buf.String())
 
-	expected1 := "README.md:10:5 MDS001 line too long (120 > 80)"
-	expected2 := "docs/guide.md:3:1 MDS002 first line should be a heading"
-
-	if lines[0] != expected1 {
-		t.Errorf("line 1: got %q, want %q", lines[0], expected1)
-	}
-	if lines[1] != expected2 {
-		t.Errorf("line 2: got %q, want %q", lines[1], expected2)
-	}
+	assert.Equal(t, "README.md:10:5 MDS001 line too long (120 > 80)", lines[0])
+	assert.Equal(t, "docs/guide.md:3:1 MDS002 first line should be a heading", lines[1])
 }
 
 func TestTextFormatter_WithColor(t *testing.T) {
@@ -143,9 +134,7 @@ func TestTextFormatter_EmptyDiagnostics(t *testing.T) {
 	err := f.Format(&buf, []lint.Diagnostic{})
 	require.NoError(t, err, "unexpected error: %v", err)
 
-	if buf.String() != "" {
-		t.Errorf("expected empty output for no diagnostics, got %q", buf.String())
-	}
+	assert.Empty(t, buf.String(), "expected empty output for no diagnostics")
 }
 
 func TestTextFormatter_ImplementsFormatter(t *testing.T) {
