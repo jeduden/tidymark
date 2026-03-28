@@ -36,6 +36,7 @@ func TestCheck_StartsWithParagraph(t *testing.T) {
 	r := &Rule{Level: 1}
 	diags := r.Check(f)
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d: %+v", len(diags), diags)
+	require.Equal(t, "first line should be a level 1 heading", diags[0].Message)
 }
 
 func TestCheck_BlankLineThenHeading(t *testing.T) {
@@ -48,6 +49,35 @@ func TestCheck_BlankLineThenHeading(t *testing.T) {
 	require.Equal(t, "first line should be a level 1 heading, found blank line", diags[0].Message)
 }
 
+func TestCheck_MultipleBlankLinesThenHeading(t *testing.T) {
+	src := []byte("\n\n\n# Title\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 1}
+	diags := r.Check(f)
+	require.Len(t, diags, 1, "expected 1 diagnostic, got %d: %+v", len(diags), diags)
+	require.Equal(t, "first line should be a level 1 heading, found blank line", diags[0].Message)
+}
+
+func TestCheck_BlankLineThenEmptyHeading(t *testing.T) {
+	src := []byte("\n# \n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 1}
+	diags := r.Check(f)
+	require.Len(t, diags, 1, "expected 1 diagnostic for empty heading after blank line, got %d: %+v", len(diags), diags)
+	require.Equal(t, "first line should be a level 1 heading, found blank line", diags[0].Message)
+}
+
+func TestCheck_LevelZeroDefault(t *testing.T) {
+	src := []byte("# Title\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 0}
+	diags := r.Check(f)
+	require.Len(t, diags, 0, "Level 0 should default to 1; expected 0 diagnostics, got %d: %+v", len(diags), diags)
+}
+
 func TestCheck_WrongLevel(t *testing.T) {
 	src := []byte("## Title\n\nSome text\n")
 	f, err := lint.NewFile("test.md", src)
@@ -55,6 +85,7 @@ func TestCheck_WrongLevel(t *testing.T) {
 	r := &Rule{Level: 1}
 	diags := r.Check(f)
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d: %+v", len(diags), diags)
+	require.Equal(t, "first heading should be level 1, got 2", diags[0].Message)
 }
 
 func TestCheck_Level2Config(t *testing.T) {
@@ -102,6 +133,12 @@ func TestApplySettings_LevelOutOfRange(t *testing.T) {
 	r := &Rule{Level: 1}
 	err := r.ApplySettings(map[string]any{"level": 7})
 	require.Error(t, err, "expected error for level > 6")
+}
+
+func TestApplySettings_LevelZero(t *testing.T) {
+	r := &Rule{Level: 1}
+	err := r.ApplySettings(map[string]any{"level": 0})
+	require.Error(t, err, "expected error for level 0")
 }
 
 func TestApplySettings_UnknownKey(t *testing.T) {
