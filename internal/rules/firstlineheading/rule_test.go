@@ -96,6 +96,18 @@ func TestCheck_MultipleBlankLinesThenHeading(t *testing.T) {
 	require.Equal(t, "first line should be a level 1 heading, found blank line", diags[0].Message)
 }
 
+func TestCheck_WhitespaceBlankLineThenEmptyHeading(t *testing.T) {
+	src := []byte("   \n# \n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Level: 1}
+	diags := r.Check(f)
+	require.Len(t, diags, 1,
+		"whitespace-only blank line before empty heading should trigger, got %d: %+v",
+		len(diags), diags)
+	require.Equal(t, "first line should be a level 1 heading, found blank line", diags[0].Message)
+}
+
 func TestCheck_BlankLineThenEmptyHeading(t *testing.T) {
 	src := []byte("\n# \n")
 	f, err := lint.NewFile("test.md", src)

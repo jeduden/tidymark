@@ -126,10 +126,18 @@ func headingLine(heading *ast.Heading, f *lint.File) int {
 		}
 	}
 	// Empty headings (e.g. "# \n") have no text segments.
-	// Check whether the source starts with a newline to detect
-	// leading blank lines. Include \r for Windows-style line endings.
-	if len(f.Source) > 0 && (f.Source[0] == '\n' || f.Source[0] == '\r') {
-		return 2
+	// Detect whether the first line is blank (only spaces/tabs
+	// before a newline). Markdown treats such lines as blank,
+	// so a heading on the following line starts on line 2.
+	for i := 0; i < len(f.Source); i++ {
+		b := f.Source[i]
+		if b == ' ' || b == '\t' {
+			continue
+		}
+		if b == '\n' || b == '\r' {
+			return 2
+		}
+		return 1
 	}
 	return 1
 }
