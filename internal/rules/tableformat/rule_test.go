@@ -126,9 +126,9 @@ func TestDisplayWidth_CJK(t *testing.T) {
 		input string
 		want  int
 	}{
-		{"日本語", 6},     // 3 CJK chars × 2 columns each
-		{"a日b", 4},      // 1 + 2 + 1
-		{"中文测试", 8},    // 4 CJK chars × 2
+		{"日本語", 6},  // 3 CJK chars × 2 columns each
+		{"a日b", 4},  // 1 + 2 + 1
+		{"中文测试", 8}, // 4 CJK chars × 2
 	}
 	for _, tt := range tests {
 		got := displayWidth(tt.input)

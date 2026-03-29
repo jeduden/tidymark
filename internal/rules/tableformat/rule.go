@@ -399,7 +399,6 @@ func displayWidth(s string) int {
 	return runewidth.StringWidth(s)
 }
 
-
 // formatTable produces a formatted version of a table with aligned columns.
 func formatTable(tbl table, pad int) table {
 	if len(tbl.rows) < 2 {
