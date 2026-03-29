@@ -134,20 +134,20 @@ func validateIncludeDirective(
 // resolveIncludePath resolves the included file path and returns the
 // filesystem and path to read from, or a diagnostic on error.
 func resolveIncludePath(
-	f *lint.File, filePath, file string,
+	f *lint.File, filePath, file string, line int,
 ) (fs.FS, string, string, []lint.Diagnostic) {
 	resolvedFile := path.Clean(path.Join(path.Dir(filePath), file))
 	readFS := f.FS
 	readPath := path.Clean(file)
 	if f.RootFS != nil {
 		if strings.HasPrefix(resolvedFile, "..") {
-			return nil, "", "", []lint.Diagnostic{makeDiag(filePath, 0,
+			return nil, "", "", []lint.Diagnostic{makeDiag(filePath, line,
 				`include file path escapes project root`)}
 		}
 		readFS = f.RootFS
 		readPath = resolvedFile
 	} else if containsDotDotElement(file) {
-		return nil, "", "", []lint.Diagnostic{makeDiag(filePath, 0,
+		return nil, "", "", []lint.Diagnostic{makeDiag(filePath, line,
 			`include file path contains ".." but project root is not configured`)}
 	}
 	return readFS, readPath, resolvedFile, nil
@@ -182,12 +182,8 @@ func (r *Rule) generateIncludeContent(
 	file := params["file"]
 	filePath = filepath.ToSlash(filePath)
 
-	readFS, readPath, resolvedFile, diags := resolveIncludePath(f, filePath, file)
+	readFS, readPath, resolvedFile, diags := resolveIncludePath(f, filePath, file, line)
 	if len(diags) > 0 {
-		// Fix up line numbers (resolveIncludePath uses 0).
-		for i := range diags {
-			diags[i].Line = line
-		}
 		return "", diags
 	}
 

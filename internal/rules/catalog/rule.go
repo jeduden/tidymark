@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -77,6 +78,12 @@ func (r *Rule) Generate(f *lint.File, filePath string, line int,
 ) (string, []lint.Diagnostic) {
 	cols := fromGensectionColumns(columns)
 	entries := buildCatalogEntries(f, params)
+
+	// Check if any matched file includes (directly or indirectly) the
+	// catalog-owning file. If so, the catalog body would contain itself.
+	if diags := checkCatalogIncludeCycle(f, filePath, line, entries); len(diags) > 0 {
+		return "", diags
+	}
 
 	_, hasRow := params["row"]
 	content, err := renderCatalogContent(params, entries, cols, hasRow)
@@ -340,6 +347,82 @@ func readFrontMatter(fsys fs.FS, path string) map[string]any {
 	}
 
 	return raw
+}
+
+// checkCatalogIncludeCycle checks whether any file matched by the catalog
+// glob has an include chain that leads back to the catalog-owning file.
+// If so, the catalog body would recursively contain itself.
+func checkCatalogIncludeCycle(
+	f *lint.File, filePath string, line int,
+	entries []fileEntry,
+) []lint.Diagnostic {
+	if f.FS == nil {
+		return nil
+	}
+	catalogFile := filepath.ToSlash(filePath)
+	for _, entry := range entries {
+		matchedPath := entry.fields["filename"]
+		if fileIncludesTarget(f.FS, matchedPath, catalogFile) {
+			return []lint.Diagnostic{makeDiag(filePath, line,
+				fmt.Sprintf(
+					"catalog includes %q which includes %q via <?include?>, creating a cycle",
+					matchedPath, catalogFile))}
+		}
+	}
+	return nil
+}
+
+// fileIncludesTarget checks whether the file at filePath contains
+// include directives that (directly or indirectly) reference the
+// target file. Uses a visited set to avoid infinite recursion.
+func fileIncludesTarget(
+	fsys fs.FS, filePath, target string,
+) bool {
+	visited := map[string]bool{filePath: true}
+	return scanIncludesForTarget(fsys, filePath, target, visited, 0)
+}
+
+func scanIncludesForTarget(
+	fsys fs.FS, filePath, target string,
+	visited map[string]bool, depth int,
+) bool {
+	if depth > 10 {
+		return false
+	}
+	data, err := fs.ReadFile(fsys, filePath)
+	if err != nil {
+		return false
+	}
+	_, content := lint.StripFrontMatter(data)
+	f, err := lint.NewFile(filePath, content)
+	if err != nil {
+		return false
+	}
+	pairs, _ := gensection.FindMarkerPairs(
+		f, "include", "MDS021", "include")
+	for _, mp := range pairs {
+		dir, diags := gensection.ParseDirective(
+			filePath, mp, "MDS021", "include")
+		if dir == nil || len(diags) > 0 {
+			continue
+		}
+		file := dir.Params["file"]
+		if file == "" {
+			continue
+		}
+		resolved := path.Clean(path.Join(path.Dir(filePath), file))
+		if resolved == target {
+			return true
+		}
+		if visited[resolved] {
+			continue
+		}
+		visited[resolved] = true
+		if scanIncludesForTarget(fsys, resolved, target, visited, depth+1) {
+			return true
+		}
+	}
+	return false
 }
 
 // containsDotDot checks if a glob pattern contains ".." path traversal.

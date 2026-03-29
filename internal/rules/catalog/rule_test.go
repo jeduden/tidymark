@@ -2598,3 +2598,35 @@ glob: "docs/*.md"
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
+
+// =====================================================================
+// Catalog include-cycle detection
+// =====================================================================
+
+func TestCheck_CatalogIncludeCycle(t *testing.T) {
+	// A catalog in index.md globs for docs/*.md.
+	// docs/guide.md includes index.md via <?include?>, creating a cycle.
+	guide := "# Guide\n\n<?include\nfile: ../index.md\n?>\nold\n<?/include?>\n"
+	src := "# Index\n\n<?catalog\nglob: \"docs/*.md\"\n?>\n- [docs/guide.md](docs/guide.md)\n<?/catalog?>\n"
+	mapFS := fstest.MapFS{
+		"index.md":      {Data: []byte(src)},
+		"docs/guide.md": {Data: []byte(guide)},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "creating a cycle")
+}
+
+func TestCheck_CatalogNoCycleWhenNoInclude(t *testing.T) {
+	// Matched file does not include the catalog owner — no cycle.
+	src := "# Index\n\n<?catalog\nglob: \"docs/*.md\"\n?>\n- [guide.md](docs/guide.md)\n<?/catalog?>\n"
+	mapFS := fstest.MapFS{
+		"index.md":      {Data: []byte(src)},
+		"docs/guide.md": {Data: []byte("# Guide\n\nJust content.\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
