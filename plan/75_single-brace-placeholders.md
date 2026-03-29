@@ -89,7 +89,7 @@ recognized by required-structure.
 
   - `plan/proto.md`
   - `internal/rules/proto.md`
-  - `.claude/skills/proto.md` (if it exists)
+  - `.claude/skills/proto.md`
 
 5. Update
    `internal/rules/MDS020-required-structure/README.md`
