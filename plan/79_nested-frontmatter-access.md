@@ -3,8 +3,8 @@ id: 79
 title: Nested front-matter access
 status: "🔲"
 summary: >-
-  Support dot-separated keys in {field} and
-  {{.field}} for nested YAML front matter.
+  Use CUE path syntax in {field} placeholders
+  for nested and quoted front-matter access.
 ---
 # Nested front-matter access
 
@@ -20,20 +20,21 @@ together).
 
 ## Goal
 
-`{params.sub}` in a schema heading and
-`{{.params.sub}}` in a catalog row both resolve
-nested YAML front matter. A document with:
+Use CUE path syntax for field access in schema
+headings. A document with:
 
 ```yaml
 ---
 params:
   subtitle: Overview
+my-key: value
 ---
 ```
 
-matches `# {params.subtitle}` in the schema
-and renders `{{.params.subtitle}}` as
-`Overview` in catalog output.
+matches `# {params.subtitle}` and
+`{"my-key"}` resolves to `value`. Catalog
+rows use Go template dot access:
+`{{.params.subtitle}}`.
 
 ## Context
 
@@ -48,42 +49,41 @@ support this yet.
 
 ## Design
 
-Keep the existing `map[string]any` parse but
-add dot-path resolution that walks nested maps
-instead of flattening to strings.
+Use CUE path syntax inside `{...}` placeholders
+and for catalog field resolution. One path
+grammar across the whole tool.
 
-- `{a.b.c}` splits on `.` and walks:
+- `{a.b.c}` resolves nested maps:
   `fm["a"].(map)["b"].(map)["c"]`
+- `{"my-key".sub}` quotes non-identifier keys
+  (hyphens, dots, spaces), same as CUE
+- `{"a.b"}` is one key with a literal dot,
+  distinct from `{a.b}` (two nested keys)
 - If any step is not a map, emit a diagnostic:
   `front-matter key "a.b" is not a map`
-- Top-level keys with literal dots (e.g.
-  `"a.b": value`) take precedence over nested
-  lookup to avoid breaking existing configs
-- Catalog `{{.a.b}}` already works in Go
-  `text/template` if the data is a nested map;
-  only the data structure needs to change
+- Catalog `{{.a.b}}` uses Go `text/template`
+  native dot access for nested maps; quoted
+  CUE-style keys (`{{"my-key"}}`) are not
+  supported in catalog rows since Go templates
+  have their own quoting via `index`
 
-### Grammar comparison: `{field}` vs CUE paths
+### Why CUE paths
 
-CUE paths and `{field}` paths both use `.` for
-nesting but differ in key quoting:
+The tool already uses CUE for front-matter
+schema validation. Reusing CUE path syntax
+for field access means one grammar to learn:
 
-| Feature     | CUE path          | `{field}` path         |
-|-------------|-------------------|------------------------|
-| Separator   | `.`               | `.`                    |
-| Simple key  | `a.b`             | `{a.b}`                |
-| Hyphenated  | `"my-key".sub`    | `{my-key.sub}`         |
-| Quoted dots | `"a.b"` (one key) | literal-dot precedence |
-| Optional    | `a?.b`            | not supported          |
+| Context             | Syntax              | Example             |
+|---------------------|---------------------|---------------------|
+| Schema front matter | CUE expr            | `'string & != ""'`  |
+| Schema heading      | CUE path in `{...}` | `{params.title}`    |
+| Quoted key          | CUE quoting         | `{"my-key".sub}`    |
+| Catalog row         | Go template         | `{{.params.title}}` |
 
-CUE requires quoting for non-identifier keys.
-The `{field}` syntax does not quote; instead,
-literal-dot keys take precedence. This keeps
-the placeholder syntax simple (no quotes inside
-braces) at the cost of not supporting keys
-that are both dotted and nested. This is an
-acceptable trade-off: YAML keys with literal
-dots are rare in practice.
+Catalog rows keep Go template syntax (they
+already use it). Schema headings adopt CUE
+paths. The two contexts remain visually
+distinct (`{...}` vs `{{...}}`).
 
 ## Tasks
 
@@ -92,16 +92,18 @@ dots are rare in practice.
    `requiredstructure/rule.go`
    (`readDocFrontMatterRaw`/`stringifyFrontMatter`)
    to preserve nested `map[string]any` values.
-2. Add a `resolvePath(fm map[string]any,
+2. Add a `resolveCUEPath(fm map[string]any,
    path string) (string, error)` helper that
-   splits on `.` and walks nested maps.
+   parses a CUE path (dot-separated, with
+   quoted labels) and walks nested maps.
 3. Update `requiredstructure/rule.go`:
 
-  - `resolveFields` uses `resolvePath`
+  - `resolveFields` uses `resolveCUEPath`
   - `docFM` type changes to `map[string]any`
-  - Update `fieldPattern` regex to allow dots
-    in placeholder names (`\{([\w.]+)\}`) so
-    `{a.b}` is captured as a dotted path
+  - Update `fieldPattern` regex to capture
+    CUE paths inside `{...}`: identifiers,
+    dots, and quoted strings
+    (e.g. `{a.b}`, `{"my-key".sub}`)
 
 4. Update `catalog/generate.go`:
 
@@ -122,10 +124,12 @@ dots are rare in practice.
 
 - [ ] `{a.b}` in a schema heading resolves
       nested front-matter key `a.b`
+- [ ] `{"my-key".sub}` in a schema heading
+      resolves quoted non-identifier key
 - [ ] `{{.a.b}}` in catalog row resolves
       nested front-matter key `a.b`
-- [ ] Literal dot-key `"a.b": val` takes
-      precedence over nested lookup
+- [ ] `{"a.b"}` resolves a single key with
+      a literal dot (CUE quoting)
 - [ ] Missing nested key emits a diagnostic
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no
