@@ -15,12 +15,12 @@ import (
 	"cuelang.org/go/cue"
 )
 
-// fieldPattern matches a single-brace placeholder like {fieldname},
-// {a.b.c} nested paths, or {"quoted-key".sub} CUE paths. Each path
-// segment may be an identifier or a quoted label at any position.
-// Quoted labels may not contain unescaped } (which would terminate
-// the placeholder). Backslash escapes inside quotes are allowed.
-var fieldPattern = regexp.MustCompile(`\{((?:[\w-]+|"(?:[^"\\}]|\\.)*")(\.(?:[\w-]+|"(?:[^"\\}]|\\.)*"))*)\}`)
+// fieldPattern matches a single-brace placeholder using CUE path
+// syntax. Each segment is either a CUE identifier (\w+) or a quoted
+// label ("..."). Quoted labels may contain backslash escapes but not
+// unescaped } (which would terminate the placeholder). Non-identifier
+// keys (hyphens, dots, spaces) must be quoted: {"my-key"}.
+var fieldPattern = regexp.MustCompile(`\{((?:\w+|"(?:[^"\\}]|\\.)*")(?:\.(?:\w+|"(?:[^"\\}]|\\.)*"))*)\}`)
 
 // Interpolate replaces {field} placeholders in text with values resolved
 // from data using CUE path semantics. Supports nested access ({a.b}) and
@@ -89,7 +89,8 @@ func SplitOnFields(text string) []string {
 }
 
 // Validate checks that text has valid placeholder syntax. It returns an error
-// if there are unclosed braces, stray closing braces, or invalid field names.
+// if there are unclosed braces, stray closing braces, or invalid CUE paths.
+// Non-identifier keys must be quoted: {"my-key"} not {my-key}.
 func Validate(text string) error {
 	for i := 0; i < len(text); {
 		if text[i] == '{' {
@@ -104,6 +105,13 @@ func Validate(text string) error {
 			field := text[i+1 : i+1+end]
 			if !fieldPattern.MatchString("{" + field + "}") {
 				return fmt.Errorf("invalid placeholder %q at position %d", "{"+field+"}", i)
+			}
+			path := ParseCUEPath(field)
+			if path == nil {
+				return fmt.Errorf(
+					"invalid CUE path %q at position %d; "+
+						"non-identifier keys must be quoted, e.g. {\"my-key\"} not {my-key}",
+					field, i)
 			}
 			i = i + 1 + end + 1 // skip past }
 			continue
@@ -121,9 +129,8 @@ func Validate(text string) error {
 }
 
 // ParseCUEPath parses a CUE path expression into unquoted label
-// segments using cue.ParsePath. Hyphenated identifiers (e.g. "my-field")
-// that CUE treats as subtraction are accepted as literal keys when the
-// expression contains no quotes or dots. Returns nil for malformed
+// segments using cue.ParsePath. Non-identifier keys (hyphens, dots,
+// spaces) must be quoted: "my-key". Returns nil for malformed
 // expressions.
 func ParseCUEPath(expr string) []string {
 	if expr == "" {
@@ -131,12 +138,6 @@ func ParseCUEPath(expr string) []string {
 	}
 	p := cue.ParsePath(expr)
 	if p.Err() != nil {
-		// CUE rejects hyphenated identifiers like "my-field" (treats
-		// as subtraction). If the expression is a simple identifier
-		// with hyphens and no dots or quotes, accept it as a literal.
-		if !strings.ContainsAny(expr, ".\"") && identWithHyphen.MatchString(expr) {
-			return []string{expr}
-		}
 		return nil
 	}
 	sels := p.Selectors()
@@ -149,10 +150,6 @@ func ParseCUEPath(expr string) []string {
 	}
 	return segments
 }
-
-// identWithHyphen matches identifiers containing hyphens that CUE
-// rejects but YAML front-matter keys commonly use.
-var identWithHyphen = regexp.MustCompile(`^[\w][\w-]*$`)
 
 // ResolvePath walks data using the given path segments and returns
 // the string value at the resolved location.

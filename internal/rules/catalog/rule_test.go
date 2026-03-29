@@ -2183,10 +2183,10 @@ row: "- {filename}"
 }
 
 func TestSpec_DoubleDashSort(t *testing.T) {
-	// `sort: --priority` means descending by key `-priority`.
+	// `sort: -"-priority"` means descending by quoted key `-priority`.
 	src := `<?catalog
 glob: "*.md"
-sort: "--priority"
+sort: '-"-priority"'
 row: "- [{title}]({filename})"
 ?>
 - [High](b.md)

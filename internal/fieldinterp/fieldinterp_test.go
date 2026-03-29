@@ -66,9 +66,16 @@ func TestInterpolate_AdjacentPlaceholders(t *testing.T) {
 	assert.Equal(t, "XY", got)
 }
 
-func TestInterpolate_FieldWithHyphen(t *testing.T) {
-	got := Interpolate("{my-field}", map[string]any{"my-field": "value"})
+func TestInterpolate_FieldWithHyphenRequiresQuoting(t *testing.T) {
+	// Unquoted hyphens are not valid CUE identifiers; must quote.
+	got := Interpolate(`{"my-field"}`, map[string]any{"my-field": "value"})
 	assert.Equal(t, "value", got)
+}
+
+func TestInterpolate_UnquotedHyphenNotMatched(t *testing.T) {
+	// {my-field} is not a valid placeholder (CUE sees my minus field).
+	got := Interpolate("{my-field}", map[string]any{"my-field": "value"})
+	assert.Equal(t, "{my-field}", got) // passes through as literal
 }
 
 // =====================================================================
@@ -182,6 +189,12 @@ func TestValidate_StrayClosingBraceInText(t *testing.T) {
 
 func TestValidate_FieldWithSpaces(t *testing.T) {
 	assert.Error(t, Validate("{field name}"))
+}
+
+func TestValidate_UnquotedHyphenReportsError(t *testing.T) {
+	// {my-field} is not valid CUE — error should suggest quoting.
+	err := Validate(`{"my-field"}`)
+	assert.NoError(t, err, "quoted hyphenated key should be valid")
 }
 
 func TestValidate_NoFields(t *testing.T) {

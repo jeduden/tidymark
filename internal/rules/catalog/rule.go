@@ -188,6 +188,16 @@ func validateSort(filePath string, line int, sortVal string) []lint.Diagnostic {
 		return []lint.Diagnostic{makeDiag(filePath, line,
 			fmt.Sprintf("generated section directive has invalid sort value %q", sortVal))}
 	}
+	// Built-in sort keys don't need CUE path validation.
+	if key == "path" || key == "filename" {
+		return nil
+	}
+	// Front-matter sort keys must be valid CUE paths.
+	if fieldinterp.ParseCUEPath(key) == nil {
+		return []lint.Diagnostic{makeDiag(filePath, line,
+			fmt.Sprintf("generated section directive has invalid sort key %q; "+
+				"non-identifier keys must be quoted, e.g. sort: '\"my-key\"'", key))}
+	}
 	return nil
 }
 
@@ -291,8 +301,7 @@ func sortValue(entry fileEntry, key string) string {
 	default:
 		path := fieldinterp.ParseCUEPath(key)
 		if path == nil {
-			// Not a valid CUE path; try direct map lookup.
-			return fieldinterp.Stringify(entry.fields[key])
+			return "" // validated at directive parse time
 		}
 		val, err := fieldinterp.ResolvePath(entry.fields, path)
 		if err != nil {
