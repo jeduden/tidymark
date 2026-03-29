@@ -73,7 +73,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 			fmt.Sprintf("cannot read template %q: %v", r.Template, err))}
 	}
 
-	tmpl, err := parseTemplate(tmplData)
+	tmpl, err := parseTemplate(tmplData, r.Template)
 	if err != nil {
 		return []lint.Diagnostic{r.diag(f.Path, 1,
 			fmt.Sprintf("invalid template %q: %v", r.Template, err))}
@@ -327,9 +327,13 @@ func collectBodySyncPoints(
 	}
 }
 
+// maxSchemaIncludeDepth is the maximum nesting depth for schema includes.
+const maxSchemaIncludeDepth = 10
+
 // parseTemplate reads template bytes, extracts frontmatter config and
-// required headings.
-func parseTemplate(data []byte) (*parsedTemplate, error) {
+// required headings. When schemaPath is non-empty, <?include?> directives
+// in the schema are expanded and their headings spliced in.
+func parseTemplate(data []byte, schemaPath string) (*parsedTemplate, error) {
 	prefix, content := lint.StripFrontMatter(data)
 
 	cfg, err := parseTemplateConfig(prefix)
@@ -349,7 +353,24 @@ func parseTemplate(data []byte) (*parsedTemplate, error) {
 	}
 	cfg.FilenamePattern = filenamePattern
 
-	headings := extractHeadings(f)
+	// Extract headings, expanding <?include?> directives in the schema.
+	var headings []docHeading
+	if schemaPath != "" {
+		cleanPath := filepath.Clean(schemaPath)
+		visited := map[string]bool{cleanPath: true}
+		chain := []string{cleanPath}
+		var fp string
+		headings, fp, err = extractSchemaHeadings(f, schemaPath, visited, chain)
+		if err != nil {
+			return nil, err
+		}
+		if fp != "" && cfg.FilenamePattern == "" {
+			cfg.FilenamePattern = fp
+		}
+	} else {
+		headings = extractHeadings(f)
+	}
+
 	tmplHeadings := make([]templateHeading, len(headings))
 	syncPoints := make(map[int][]syncPoint)
 
@@ -367,6 +388,134 @@ func parseTemplate(data []byte) (*parsedTemplate, error) {
 		Headings:   tmplHeadings,
 		SyncPoints: syncPoints,
 	}, nil
+}
+
+// extractSchemaHeadings walks the schema AST, collecting headings and
+// expanding <?include?> PIs by splicing in the included file's headings.
+// It uses a visited set for cycle detection.
+func extractSchemaHeadings(
+	schemaFile *lint.File, schemaPath string,
+	visited map[string]bool, chain []string,
+) ([]docHeading, string, error) {
+	var headings []docHeading
+	var filenamePattern string
+
+	for n := schemaFile.AST.FirstChild(); n != nil; n = n.NextSibling() {
+		// Collect regular headings.
+		if h, ok := n.(*ast.Heading); ok {
+			text := headingText(h, schemaFile.Source)
+			line := schemaFile.LineOfOffset(h.Lines().At(0).Start)
+			headings = append(headings, docHeading{Level: h.Level, Text: text, Line: line})
+			continue
+		}
+
+		// Process <?include?> PIs.
+		pi, ok := n.(*lint.ProcessingInstruction)
+		if !ok || pi.Name != "include" {
+			continue
+		}
+
+		fileParam, err := extractPIFileParam(pi, schemaFile.Source)
+		if err != nil || fileParam == "" {
+			continue
+		}
+
+		// Resolve path relative to schema directory.
+		dir := filepath.Dir(schemaPath)
+		includedPath := filepath.Clean(filepath.Join(dir, fileParam))
+
+		// Check depth.
+		if len(chain) > maxSchemaIncludeDepth {
+			return nil, "", fmt.Errorf(
+				"schema include depth exceeds maximum (%d)", maxSchemaIncludeDepth)
+		}
+
+		// Check cycle.
+		if visited[includedPath] {
+			chainCopy := make([]string, len(chain))
+			copy(chainCopy, chain)
+			chainCopy = append(chainCopy, includedPath)
+			return nil, "", fmt.Errorf(
+				"cyclic include: %s", strings.Join(chainCopy, " -> "))
+		}
+
+		// Read included file.
+		fragData, err := os.ReadFile(includedPath)
+		if err != nil {
+			return nil, "", fmt.Errorf(
+				"schema include file %q not found: %w", fileParam, err)
+		}
+
+		// Strip frontmatter (ignored for fragments).
+		_, fragContent := lint.StripFrontMatter(fragData)
+
+		fragFile, err := lint.NewFile(includedPath, fragContent)
+		if err != nil {
+			return nil, "", fmt.Errorf(
+				"parsing schema include %q: %w", fileParam, err)
+		}
+
+		// Merge <?require?> from fragment.
+		fp, err := extractRequireDirective(fragFile)
+		if err != nil {
+			return nil, "", err
+		}
+		if fp != "" && filenamePattern == "" {
+			filenamePattern = fp
+		}
+
+		// Recursively extract headings.
+		visited[includedPath] = true
+		chain = append(chain, includedPath)
+		fragHeadings, fp2, err := extractSchemaHeadings(
+			fragFile, includedPath, visited, chain)
+		if err != nil {
+			return nil, "", err
+		}
+		if fp2 != "" && filenamePattern == "" {
+			filenamePattern = fp2
+		}
+		delete(visited, includedPath)
+		chain = chain[:len(chain)-1]
+
+		headings = append(headings, fragHeadings...)
+	}
+
+	return headings, filenamePattern, nil
+}
+
+// extractPIFileParam parses the YAML body of an include PI to extract
+// the "file" parameter.
+func extractPIFileParam(pi *lint.ProcessingInstruction, source []byte) (string, error) {
+	lines := pi.Lines()
+	var body string
+	if lines.Len() == 1 {
+		seg := lines.At(0)
+		raw := strings.TrimSpace(string(seg.Value(source)))
+		raw = strings.TrimPrefix(raw, "<?"+pi.Name)
+		if idx := strings.Index(raw, "?>"); idx >= 0 {
+			raw = raw[:idx]
+		}
+		body = strings.TrimSpace(raw)
+	} else {
+		var b strings.Builder
+		for i := 1; i < lines.Len(); i++ {
+			seg := lines.At(i)
+			b.Write(seg.Value(source))
+		}
+		body = b.String()
+	}
+
+	if body == "" {
+		return "", nil
+	}
+
+	var params map[string]string
+	if err := yaml.Unmarshal([]byte(body), &params); err != nil {
+		return "", fmt.Errorf("invalid include directive YAML: %w", err)
+	}
+
+	return params["file"], nil
 }
 
 // docHeading represents a heading found in the document being checked.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/lint"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -165,7 +166,7 @@ func TestParseTemplate_Headings(t *testing.T) {
 
 ### Bad
 `
-	tmpl, err := parseTemplate([]byte(tmplSrc))
+	tmpl, err := parseTemplate([]byte(tmplSrc), "")
 	require.NoError(t, err, "unexpected error: %v", err)
 	if len(tmpl.Headings) != 5 {
 		t.Fatalf(
@@ -192,7 +193,7 @@ func TestParseTemplate_SyncPoints(t *testing.T) {
 
 {description}
 `
-	tmpl, err := parseTemplate([]byte(tmplSrc))
+	tmpl, err := parseTemplate([]byte(tmplSrc), "")
 	require.NoError(t, err, "unexpected error: %v", err)
 	headingSyncs := tmpl.SyncPoints[0]
 	if len(headingSyncs) < 2 {
@@ -234,7 +235,7 @@ func TestParseTemplate_StrictOrder(t *testing.T) {
 
 ## Acceptance Criteria
 `
-	tmpl, err := parseTemplate([]byte(tmplSrc))
+	tmpl, err := parseTemplate([]byte(tmplSrc), "")
 	require.NoError(t, err, "unexpected error: %v", err)
 	if len(tmpl.Headings) != 4 {
 		t.Fatalf(
@@ -639,6 +640,109 @@ func TestCheck_FilenamePatternNotSet(t *testing.T) {
 	f := newTestFile(t, "anything.md", "# Title\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
+}
+
+// =====================================================================
+// Template file skipping
+// =====================================================================
+
+// =====================================================================
+// Schema composition via <?include?>
+// =====================================================================
+
+func TestParseTemplate_SchemaInclude(t *testing.T) {
+	dir := t.TempDir()
+	// Write a fragment file with headings.
+	fragDir := filepath.Join(dir, "common")
+	require.NoError(t, os.MkdirAll(fragDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(fragDir, "acceptance.md"),
+		[]byte("## Acceptance Criteria\n\n- [ ] All tests pass\n"),
+		0o644,
+	))
+
+	// Write a schema that includes the fragment.
+	schema := "# ?\n\n## Goal\n\n<?include\nfile: common/acceptance.md\n?>\n"
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	tmpl, err := parseTemplate([]byte(schema), schemaPath)
+	require.NoError(t, err)
+	require.Len(t, tmpl.Headings, 3)
+	assert.Equal(t, "?", tmpl.Headings[0].Text)
+	assert.Equal(t, "Goal", tmpl.Headings[1].Text)
+	assert.Equal(t, "Acceptance Criteria", tmpl.Headings[2].Text)
+}
+
+func TestParseTemplate_SchemaIncludeRequireMerge(t *testing.T) {
+	dir := t.TempDir()
+	// Fragment with a <?require?> directive.
+	frag := "<?require\nfilename: \"[0-9]*_*.md\"\n?>\n## Tasks\n"
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "frag.md"),
+		[]byte(frag), 0o644,
+	))
+
+	schema := "# ?\n\n## Goal\n\n<?include\nfile: frag.md\n?>\n"
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	tmpl, err := parseTemplate([]byte(schema), schemaPath)
+	require.NoError(t, err)
+	assert.Equal(t, `[0-9]*_*.md`, tmpl.Config.FilenamePattern)
+	require.Len(t, tmpl.Headings, 3)
+	assert.Equal(t, "Tasks", tmpl.Headings[2].Text)
+}
+
+func TestParseTemplate_SchemaIncludeIgnoresFragmentFM(t *testing.T) {
+	dir := t.TempDir()
+	// Fragment with frontmatter that should be ignored.
+	frag := "---\nid: 99\n---\n## Extra\n"
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "frag.md"),
+		[]byte(frag), 0o644,
+	))
+
+	schema := "---\nid: 'int & >=1'\n---\n# ?\n\n<?include\nfile: frag.md\n?>\n"
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	tmpl, err := parseTemplate([]byte(schema), schemaPath)
+	require.NoError(t, err)
+	// CUE schema should only come from root, not fragment.
+	assert.Contains(t, tmpl.Config.FrontMatterCUE, "id")
+	require.Len(t, tmpl.Headings, 2)
+	assert.Equal(t, "Extra", tmpl.Headings[1].Text)
+}
+
+func TestParseTemplate_SchemaIncludeCycleDetected(t *testing.T) {
+	dir := t.TempDir()
+	// Schema includes itself.
+	schema := "# ?\n\n<?include\nfile: schema.md\n?>\n"
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	_, err := parseTemplate([]byte(schema), schemaPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cyclic include")
+}
+
+func TestParseTemplate_SchemaIncludeIndirectCycle(t *testing.T) {
+	dir := t.TempDir()
+	// a.md includes b.md which includes a.md
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "b.md"),
+		[]byte("## B\n\n<?include\nfile: a.md\n?>\n"),
+		0o644,
+	))
+
+	schema := "# ?\n\n<?include\nfile: b.md\n?>\n"
+	schemaPath := filepath.Join(dir, "a.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	_, err := parseTemplate([]byte(schema), schemaPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cyclic include")
 }
 
 // =====================================================================
