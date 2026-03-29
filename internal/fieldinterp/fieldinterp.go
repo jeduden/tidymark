@@ -16,7 +16,9 @@ import (
 // fieldPattern matches a single-brace placeholder like {fieldname},
 // {a.b.c} nested paths, or {"quoted-key".sub} CUE paths. Each path
 // segment may be an identifier or a quoted label at any position.
-var fieldPattern = regexp.MustCompile(`\{((?:[\w-]+|"[^"]+")(\.(?:[\w-]+|"[^"]+"))*)\}`)
+// Quoted labels may not contain } (which would terminate the placeholder)
+// or backslash escapes (not needed for YAML front-matter keys).
+var fieldPattern = regexp.MustCompile(`\{((?:[\w-]+|"[^"}]+")(\.(?:[\w-]+|"[^"}"]+"))*)\}`)
 
 // Interpolate replaces {field} placeholders in text with values resolved
 // from data using CUE path semantics. Supports nested access ({a.b}) and
@@ -120,6 +122,11 @@ func Validate(text string) error {
 // Supports: identifiers (a.b.c), quoted labels ("my-key".sub),
 // and quoted keys with dots ("a.b"). Returns nil for malformed
 // expressions (unclosed quotes, empty segments, missing separators).
+//
+// This is a lightweight subset of CUE path syntax sufficient for
+// YAML front-matter key navigation. Backslash escapes and unicode
+// escapes inside quoted labels are not supported — quoted labels
+// are treated as literal strings between the quote delimiters.
 func ParseCUEPath(expr string) []string {
 	if expr == "" {
 		return nil
