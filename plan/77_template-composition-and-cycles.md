@@ -1,7 +1,7 @@
 ---
 id: 77
 title: Template composition and cycle detection
-status: "🔲"
+status: "✅"
 summary: >-
   Allow include directives in schema files for
   template composition, add cycle detection for
@@ -204,18 +204,18 @@ schema files; this directive has no effect here
 
 ## Acceptance Criteria
 
-- [ ] Schema files can use `<?include?>` to
+- [x] Schema files can use `<?include?>` to
       pull in heading fragments
-- [ ] Cycle detection works for normal-file
+- [x] Cycle detection works for normal-file
       includes (direct and indirect)
-- [ ] Cycle detection works for schema-file
+- [x] Cycle detection works for schema-file
       includes
-- [ ] Max include depth (10) is enforced
-- [ ] `<?require?>` in a non-schema file emits
+- [x] Max include depth (10) is enforced
+- [x] `<?require?>` in a non-schema file emits
       a warning
-- [ ] Config key is `schema`, not `template`
-- [ ] All `.mdsmith.yml` overrides updated
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] Config key is `schema`, not `template`
+- [x] All `.mdsmith.yml` overrides updated
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues
-- [ ] `mdsmith check .` passes
+- [x] `mdsmith check .` passes
