@@ -11,6 +11,15 @@ summary: >-
 
 Part of the user-model work from
 [plan 73](73_unify-template-directives.md).
+Sibling plans:
+
+- [75](75_single-brace-placeholders.md) --
+  `{field}` syntax
+- [76](76_rename-misleading-params.md) --
+  param renames
+- [77](77_template-composition-and-cycles.md) --
+  composition, cycles, `schema` rename
+
 Addresses
 [#68](https://github.com/jeduden/mdsmith/issues/68),
 [#70](https://github.com/jeduden/mdsmith/issues/70).

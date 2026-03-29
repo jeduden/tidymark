@@ -253,7 +253,7 @@ guide) depends on all three and must land last.
 
 ## Acceptance Criteria
 
-- [ ] Plans 74, 75, 76, 77 exist and pass lint
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] Plans 74, 75, 76, 77 exist and pass lint
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues
