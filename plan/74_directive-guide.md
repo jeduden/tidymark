@@ -92,15 +92,25 @@ markers is visible.
   - Two kinds of markers: closing tag means
     `fix` regenerates body; no closing tag means
     `check` validates a condition
-  - Placement rules: max 3-space indent, not
-    inside fenced code or HTML blocks
-  - Explicit warning: 4 spaces turns directive
-    into a code block with no error
+  - Placement rules: PIs are only recognized at
+    document root (parent must be Document node),
+    max 3-space indent. Not recognized inside
+    list items, blockquotes, tables, fenced code,
+    or HTML blocks
+  - Explicit warning: 4+ leading spaces at
+    document root turns directive into a code
+    block with no error; inside other block
+    constructs directives are never recognized
   - Each directive section: purpose, all
     parameters, good example, bad example, what
     `check` reports, what `fix` does
-  - Nesting: state that directives inside
-    generated content are not re-processed
+  - Nesting: same-type nesting is prohibited
+    (emits "nested generated section markers
+    are not allowed"). Cross-type directives
+    between markers may appear but can be
+    overwritten by the outer generator on fix.
+    Generated output is not re-parsed for
+    further directives
   - Placeholder syntax section: `{field}` is
     the only syntax, works in both catalog rows
     and schema headings (plan 75). CUE paths
