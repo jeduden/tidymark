@@ -25,7 +25,20 @@ READMEs. Must also serve Hugo users per
 Depends on: plans 75, 76, 77 (guide documents
 the final syntax, parameter names, and schema
 composition). Write the guide last so it
-reflects all changes.
+reflects all changes:
+
+- Plan 75: `{field}` replaces `{{.field}}` in
+  required-structure headings.
+- Plan 76: `ratio` -> `words-per-token`,
+  `max-words` -> `max-words-per-sentence`,
+  `variance` -> `max-column-width-ratio`;
+  "did you mean?" hint for case-mismatched
+  front-matter keys in catalog.
+- Plan 77: config key `template` -> `schema`;
+  `<?include?>` works in schema files for
+  composition; cycle detection with max depth
+  10; `<?require?>` in non-schema files emits
+  a warning.
 
 ## Context
 
@@ -77,20 +90,34 @@ markers is visible.
     `check` reports, what `fix` does
   - Nesting: state that directives inside
     generated content are not re-processed
-  - Template vs normal file section: explain
-    that `<?require?>` only works in templates,
+  - Template syntax section: `{field}` in
+    schema headings (plan 75) vs `{{.field}}`
+    in catalog rows; explain the difference
+  - Schema vs normal file section: explain
+    that `<?require?>` only works in schema
+    files (plan 77 adds a warning for misuse),
     that `<?allow-empty-section?>` does not
-    propagate from template to document, and
-    that templates enforce headings and front
+    propagate from schema to document, and
+    that schemas enforce headings and front
     matter only (not directives)
+  - Schema composition: `<?include?>` in
+    schema files splices headings (plan 77);
+    cycle detection with max depth 10
   - Fixability summary table for all 33 rules
+  - Renamed parameters: `words-per-token`,
+    `max-words-per-sentence`,
+    `max-column-width-ratio` (plan 76)
   - "Coming from Hugo" section covering:
     `{{.title}}` is case-sensitive (not
-    `.Title`), "template" means validation
-    schema not rendering, generated content is
-    committed to git (not gitignored), no
-    nesting or composition, no template
-    functions, directive params are YAML strings
+    `.Title`) with "did you mean?" hint
+    (plan 76), `schema` is a validation
+    contract not a rendering template
+    (plan 77), generated content is committed
+    to git (not gitignored), schema files can
+    compose via `<?include?>` (plan 77), no
+    nesting in normal files, no template
+    functions, directive params are YAML
+    strings
     (per [#73](https://github.com/jeduden/mdsmith/issues/73))
 
 2. Add a "see the directive guide" link from
@@ -109,12 +136,18 @@ markers is visible.
       rules
 - [ ] Guide documents 4-space indent footgun
 - [ ] Guide states nesting is not supported
-- [ ] Guide has template-vs-normal-file section
+- [ ] Guide documents `{field}` vs `{{.field}}`
+- [ ] Guide has schema-vs-normal-file section
 - [ ] Guide states `<?require?>` is
-      template-only
-- [ ] Guide states template directives do not
+      schema-only
+- [ ] Guide states schema directives do not
       propagate to documents
+- [ ] Guide documents schema composition via
+      `<?include?>`
+- [ ] Guide documents renamed parameters
 - [ ] Guide has "coming from Hugo" section
+- [ ] Guide uses `schema` not `template`
+      throughout
 - [ ] Guide passes `mdsmith check docs/guides/`
 - [ ] Rule READMEs link to the guide
 - [ ] All tests pass: `go test ./...`
