@@ -68,7 +68,7 @@ README.md:10:81 MDS001 line too long (120 > 80)
  8 | Previous line of context.
  9 | Another context line.
 10 | This very long line exceeds the configured 80 character limit and keeps going...
-·····································································································^
+·····················································································^
 11 | Next line of context.
 12 | Another context line.
 ```

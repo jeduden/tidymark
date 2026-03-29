@@ -24,9 +24,7 @@ func TestCheckRules_BasicDiagnostics(t *testing.T) {
 	diags, errs := CheckRules(f, rules, effective)
 	require.Len(t, errs, 0, "unexpected errors: %v", errs)
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
-	if diags[0].RuleID != "MDS999" {
-		t.Errorf("expected RuleID MDS999, got %s", diags[0].RuleID)
-	}
+	assert.Equal(t, "MDS999", diags[0].RuleID)
 }
 
 func TestCheckRules_DisabledRuleSkipped(t *testing.T) {
@@ -139,10 +137,7 @@ func TestCheckRules_AdjustsLineOffset(t *testing.T) {
 	diags, errs := CheckRules(f, rules, effective)
 	require.Len(t, errs, 0, "unexpected errors: %v", errs)
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
-	// mockRule reports line 1; front matter has 3 lines, so adjusted = 4.
-	if diags[0].Line != 4 {
-		t.Errorf("expected adjusted line 4, got %d", diags[0].Line)
-	}
+	assert.Equal(t, 4, diags[0].Line, "line should be adjusted for front matter")
 }
 
 func TestCheckRules_PopulatesSourceContext(t *testing.T) {

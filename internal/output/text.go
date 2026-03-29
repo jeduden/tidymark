@@ -81,11 +81,10 @@ func (f *TextFormatter) writeSourceLine(w io.Writer, gutterWidth, lineNum int, l
 	return err
 }
 
-// writeCaretLine writes a continuous dot path from column 0 to the caret,
-// connecting visually with the > marker on the line above.
+// writeCaretLine writes a continuous dot path from column 0 to the caret.
+// Source lines use "%*d | %s" so content column C (1-based) starts at
+// rune position gutterWidth+3+C-1. Dots fill positions 0..caret-1.
 func (f *TextFormatter) writeCaretLine(w io.Writer, gutterWidth, column int) error {
-	// The > line format is ">%*d | %s" so content column C starts at
-	// position gutterWidth+3+C-1.  We fill everything before ^ with dots.
 	dots := strings.Repeat("·", gutterWidth+column+2)
 	format := "%s^\n"
 	if f.Color {

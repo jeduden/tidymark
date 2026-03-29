@@ -266,6 +266,96 @@ func TestTextFormatter_SnippetColumnOne(t *testing.T) {
 	assert.Equal(t, expected, buf.String())
 }
 
+func TestTextFormatter_SnippetColumnOneWithColor(t *testing.T) {
+	f := &TextFormatter{Color: true}
+	var buf bytes.Buffer
+
+	diagnostics := []lint.Diagnostic{
+		{
+			File:     "test.md",
+			Line:     1,
+			Column:   1,
+			RuleID:   "MDS009",
+			RuleName: "first-heading",
+			Severity: lint.Error,
+			Message:  "first line should be a heading",
+			SourceLines: []string{
+				"Some paragraph text.",
+				"Next line.",
+			},
+			SourceStartLine: 1,
+		},
+	}
+
+	err := f.Format(&buf, diagnostics)
+	require.NoError(t, err)
+
+	output := buf.String()
+
+	// Red caret in dot path
+	assert.Contains(t, output, "\033[31m^\033[0m", "expected red caret")
+	// Context line should be dim
+	assert.Contains(t, output, "\033[2m", "expected dim context line")
+	// Diagnostic line should NOT be dim
+	assert.NotContains(t, output, "\033[2m1 |", "diagnostic line should not be dim")
+}
+
+func TestTextFormatter_SnippetMultipleDiagsSameFile(t *testing.T) {
+	f := &TextFormatter{Color: false}
+	var buf bytes.Buffer
+
+	diagnostics := []lint.Diagnostic{
+		{
+			File:     "test.md",
+			Line:     2,
+			Column:   1,
+			RuleID:   "MDS004",
+			RuleName: "first-heading",
+			Severity: lint.Error,
+			Message:  "missing heading",
+			SourceLines: []string{
+				"line one",
+				"line two",
+				"line three",
+			},
+			SourceStartLine: 1,
+		},
+		{
+			File:     "test.md",
+			Line:     5,
+			Column:   10,
+			RuleID:   "MDS012",
+			RuleName: "no-bare-urls",
+			Severity: lint.Error,
+			Message:  "bare URL",
+			SourceLines: []string{
+				"line four",
+				"visit at https://example.com",
+				"line six",
+			},
+			SourceStartLine: 4,
+		},
+	}
+
+	err := f.Format(&buf, diagnostics)
+	require.NoError(t, err)
+
+	// Both diagnostics should appear with their own snippets
+	// gutterWidth=1 for both (max line 3 and 6 respectively)
+	expected := "test.md:2:1 MDS004 missing heading\n" +
+		"1 | line one\n" +
+		"2 | line two\n" +
+		"····^\n" +
+		"3 | line three\n" +
+		"test.md:5:10 MDS012 bare URL\n" +
+		"4 | line four\n" +
+		"5 | visit at https://example.com\n" +
+		"·············^\n" +
+		"6 | line six\n"
+
+	assert.Equal(t, expected, buf.String())
+}
+
 func TestTextFormatter_SnippetAtFileStart(t *testing.T) {
 	f := &TextFormatter{Color: false}
 	var buf bytes.Buffer
