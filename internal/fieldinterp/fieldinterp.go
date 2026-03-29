@@ -82,7 +82,7 @@ func SplitOnFields(text string) []string {
 }
 
 // Validate checks that text has valid placeholder syntax. It returns an error
-// if there are unclosed braces or empty placeholders like {}.
+// if there are unclosed braces, stray closing braces, or invalid field names.
 func Validate(text string) error {
 	const openSentinel = "\x00OPEN\x00"
 	const closeSentinel = "\x00CLOSE\x00"
@@ -90,6 +90,9 @@ func Validate(text string) error {
 	s = strings.ReplaceAll(s, "}}", closeSentinel)
 
 	for i := 0; i < len(s); i++ {
+		if s[i] == '}' {
+			return fmt.Errorf("stray closing brace at position %d", i)
+		}
 		if s[i] == '{' {
 			// Find matching close
 			end := strings.IndexByte(s[i+1:], '}')
@@ -97,8 +100,8 @@ func Validate(text string) error {
 				return fmt.Errorf("unclosed placeholder at position %d", i)
 			}
 			field := s[i+1 : i+1+end]
-			if field == "" {
-				return fmt.Errorf("empty placeholder at position %d", i)
+			if !fieldPattern.MatchString("{" + field + "}") {
+				return fmt.Errorf("invalid placeholder %q at position %d", "{"+field+"}", i)
 			}
 			i = i + 1 + end // skip past }
 		}

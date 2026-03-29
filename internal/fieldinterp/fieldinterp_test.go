@@ -172,6 +172,22 @@ func TestValidate_EmptyPlaceholder(t *testing.T) {
 	assert.Error(t, Validate("{}"))
 }
 
+func TestValidate_StrayClosingBrace(t *testing.T) {
+	assert.Error(t, Validate("}"))
+}
+
+func TestValidate_StrayClosingBraceInText(t *testing.T) {
+	assert.Error(t, Validate("foo } bar"))
+}
+
+func TestValidate_FieldWithSpaces(t *testing.T) {
+	assert.Error(t, Validate("{field name}"))
+}
+
 func TestValidate_NoFields(t *testing.T) {
 	assert.NoError(t, Validate("plain text"))
+}
+
+func TestValidate_EscapedBracesOnly(t *testing.T) {
+	assert.NoError(t, Validate("{{literal}}"))
 }
