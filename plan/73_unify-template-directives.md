@@ -139,6 +139,40 @@ Remaining gaps:
 All three template-vs-normal gaps addressed
 by plan 74 (guide section on templates).
 
+## Hugo-user trial (5 participants)
+
+Tested all 33 rules with agents primed as Hugo
+users per
+[#73](https://github.com/jeduden/mdsmith/issues/73).
+
+Hugo-specific traps (confidence drops):
+
+- `{{.title}}` vs Hugo's `{{ .Title }}`:
+  case-sensitive key lookup silently returns
+  empty string. 5/5 flagged.
+- "Template" means validation schema, not
+  rendering. 5/5 confused by the word reuse.
+- Generated content committed to git: inverts
+  Hugo's "never commit build output" model.
+  5/5 called this disorienting.
+- No nesting: Hugo shortcodes compose freely.
+  5/5 expected nesting to work.
+- `<?...?>` YAML quoting rules are alien vs
+  Hugo's `{{< key="val" >}}`. 4/5 flagged.
+- No template functions (`humanize`, etc.).
+  3/5 reached for them.
+
+What worked: simple style rules (5.0), config
+overrides (5.0), self-describing names (5.0).
+
+Confirmed prior findings: `max-words` misread
+as per-paragraph (5/5), `variance` misread as
+statistical (4/5).
+
+All Hugo-specific gaps addressed by plan 74
+(guide must include a "coming from Hugo"
+section).
+
 ## Tasks
 
 1. Write plan 74 (directive guide)

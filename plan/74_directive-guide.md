@@ -18,7 +18,8 @@ Addresses
 
 One guide a developer reads to understand every
 directive and rule without consulting per-rule
-READMEs.
+READMEs. Must also serve Hugo users per
+[#73](https://github.com/jeduden/mdsmith/issues/73).
 
 ## Context
 
@@ -77,6 +78,14 @@ markers is visible.
     that templates enforce headings and front
     matter only (not directives)
   - Fixability summary table for all 33 rules
+  - "Coming from Hugo" section covering:
+    `{{.title}}` is case-sensitive (not
+    `.Title`), "template" means validation
+    schema not rendering, generated content is
+    committed to git (not gitignored), no
+    nesting or composition, no template
+    functions, directive params are YAML strings
+    (per [#73](https://github.com/jeduden/mdsmith/issues/73))
 
 2. Add a "see the directive guide" link from
    each rule README that uses a directive
@@ -99,6 +108,7 @@ markers is visible.
       template-only
 - [ ] Guide states template directives do not
       propagate to documents
+- [ ] Guide has "coming from Hugo" section
 - [ ] Guide passes `mdsmith check docs/guides/`
 - [ ] Rule READMEs link to the guide
 - [ ] All tests pass: `go test ./...`
