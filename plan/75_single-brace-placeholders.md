@@ -89,11 +89,10 @@ loops, or functions today.
 
 ### Escaping literal braces
 
-If a row template needs a literal `{`, use
-`{{` (doubled). Same convention as Python's
-`str.format`. Example:
-`row: "{{literal}} {title}"` renders as
-`{literal} My Title`.
+Literal `{` is written as `{{`, literal `}` as
+`}}`. Same convention as Python's `str.format`.
+Example: `row: "{{literal}} {title}"` renders
+as `{literal} My Title`.
 
 ## Tasks
 

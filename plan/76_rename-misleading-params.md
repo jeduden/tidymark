@@ -94,18 +94,18 @@ config files and docs in a single PR.
    case-mismatched front-matter keys in catalog
    (MDS019):
 
-  - Extract referenced `{{.Field}}` names from
-    the row template before rendering
+  - Extract referenced `{Field}` placeholder
+    names from the row template (or `{{.Field}}`
+    if plan 75 has not yet landed)
   - For each name, check key presence in the
     file's front-matter map (not empty-value)
   - If exact key is missing but a case-
     insensitive match exists, emit:
     `catalog: field "Title" not found;
     did you mean "title"?`
-  - Hugo users write `{{ .Title }}`; this
-    catches muscle-memory errors without
-    false-positiving on intentionally empty
-    values
+  - Hugo users write `.Title`; this catches
+    muscle-memory errors without false-
+    positiving on intentionally empty values
 
 6. Update all overrides in `.mdsmith.yml` that
    reference renamed keys.

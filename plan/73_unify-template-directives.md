@@ -190,7 +190,7 @@ composition, and fixability table.
 
 | Snippet | Topic                  | Dev | Hugo | Writer | Avg |
 |---------|------------------------|-----|------|--------|-----|
-| S1      | catalog `{{.title}}`   | 5.0 | 5.0  | 5.0    | 5.0 |
+| S1      | catalog `{title}`      | 5.0 | 5.0  | 5.0    | 5.0 |
 | S2      | schema `{id}: {name}`  | 4.0 | 4.0  | 5.0    | 4.3 |
 | S3      | `{{.f}}` vs `{f}`      | 5.0 | 5.0  | 5.0    | 5.0 |
 | S4      | 4-space indent         | 5.0 | 2.7  | 5.0    | 4.2 |
@@ -203,18 +203,18 @@ composition, and fixability table.
 | S11     | fixability             | 4.3 | 5.0  | 5.0    | 4.8 |
 | S12     | schema `<?include?>`   | 4.0 | 4.0  | 3.7    | 3.9 |
 | S13     | dir-structure warn     | 4.0 | 4.3  | 4.0    | 4.1 |
-| S14     | `{{.Title}}` hint      | 5.0 | 2.7  | 5.0    | 4.2 |
+| S14     | `{Title}` hint         | 5.0 | 2.7  | 5.0    | 4.2 |
 
 Before/after on originally-confused areas:
 
-| Area                   | Before | After    | Delta |
-|------------------------|--------|----------|-------|
-| `{{.field}}` ambiguity | 4.0    | 5.0 (S3) | +1.0  |
-| 4-space footgun        | 2.6    | 4.2      | +1.6  |
-| Nesting                | 2.0    | 4.6      | +2.6  |
-| Fixability             | ~2.5   | 4.8      | +2.3  |
-| `ratio` param          | 3.8    | 4.1 (S6) | +0.3  |
-| `max-words` param      | ~3.0   | 5.0 (S7) | +2.0  |
+| Area              | Before | After    | Delta |
+|-------------------|--------|----------|-------|
+| `{field}` clarity | 4.0    | 5.0 (S3) | +1.0  |
+| 4-space footgun   | 2.6    | 4.2      | +1.6  |
+| Nesting           | 2.0    | 4.6      | +2.6  |
+| Fixability        | ~2.5   | 4.8      | +2.3  |
+| `ratio` param     | 3.8    | 4.1 (S6) | +0.3  |
+| `max-words` param | ~3.0   | 5.0 (S7) | +2.0  |
 
 Remaining below 4.0: `max-column-width-ratio`
 (3.9) and schema `<?include?>` composition
