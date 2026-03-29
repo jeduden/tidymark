@@ -15,6 +15,7 @@ mdsmith <command> [flags] [files...]
 |----------------|-------------------------------------------|
 | `check`        | Lint files                                |
 | `fix`          | Auto-fix issues in place                  |
+| `query`        | Select files by CUE expression on front matter |
 | `help`         | Show help for rules/topics                |
 | `metrics`      | List and rank shared metrics              |
 | `merge-driver` | Git merge driver for regenerable sections |

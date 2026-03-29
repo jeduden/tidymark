@@ -58,6 +58,7 @@ mdsmith <command> [flags] [files...]
 |----------------|-------------------------------------------|
 | `check`        | Lint files (default command)              |
 | `fix`          | Auto-fix issues in place                  |
+| `query`        | Select files by CUE expression on front matter |
 | `help`         | Show help for docs and topics             |
 | `metrics`      | List and rank Markdown metrics            |
 | `merge-driver` | Git merge driver for regenerable sections |
