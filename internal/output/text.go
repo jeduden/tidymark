@@ -38,7 +38,8 @@ func (f *TextFormatter) Format(w io.Writer, diagnostics []lint.Diagnostic) error
 }
 
 // formatSnippet writes the source context lines with a line-number gutter
-// and a caret marker under the diagnostic column.
+// and either a > marker (whole-line, Column≤1) or a dot-leader caret
+// (exact position, Column>1) for the diagnostic line.
 func (f *TextFormatter) formatSnippet(w io.Writer, d lint.Diagnostic) error {
 	if len(d.SourceLines) == 0 {
 		return nil
@@ -46,39 +47,55 @@ func (f *TextFormatter) formatSnippet(w io.Writer, d lint.Diagnostic) error {
 
 	maxLineNum := d.SourceStartLine + len(d.SourceLines) - 1
 	gutterWidth := len(fmt.Sprintf("%d", maxLineNum))
-	if gutterWidth < 1 {
-		gutterWidth = 1
+	if gutterWidth < 2 {
+		gutterWidth = 2
 	}
 
 	for i, line := range d.SourceLines {
 		lineNum := d.SourceStartLine + i
 		isDiagLine := lineNum == d.Line
 
-		if f.Color && !isDiagLine {
-			// Context lines in dim
-			if _, err := fmt.Fprintf(w, "\033[2m%*d | %s\033[0m\n", gutterWidth, lineNum, line); err != nil {
-				return err
-			}
-		} else {
-			if _, err := fmt.Fprintf(w, "%*d | %s\n", gutterWidth, lineNum, line); err != nil {
-				return err
-			}
+		if err := f.writeSourceLine(w, gutterWidth, lineNum, line, isDiagLine); err != nil {
+			return err
 		}
 
 		if isDiagLine && d.Column > 1 {
-			caretPad := strings.Repeat("·", d.Column-1)
-			gutterPad := strings.Repeat(" ", gutterWidth)
-			if f.Color {
-				if _, err := fmt.Fprintf(w, "%s | %s\033[31m^\033[0m\n", gutterPad, caretPad); err != nil {
-					return err
-				}
-			} else {
-				if _, err := fmt.Fprintf(w, "%s | %s^\n", gutterPad, caretPad); err != nil {
-					return err
-				}
+			if err := f.writeCaretLine(w, gutterWidth, d.Column); err != nil {
+				return err
 			}
 		}
 	}
 
 	return nil
+}
+
+// writeSourceLine writes a single source line with line-number gutter.
+// Diagnostic lines get a > prefix; context lines are dimmed when color is on.
+func (f *TextFormatter) writeSourceLine(w io.Writer, gutterWidth, lineNum int, line string, isDiag bool) error {
+	if isDiag {
+		format := ">%*d | %s\n"
+		if f.Color {
+			format = "\033[31m>\033[0m%*d | %s\n"
+		}
+		_, err := fmt.Fprintf(w, format, gutterWidth-1, lineNum, line)
+		return err
+	}
+	format := "%*d | %s\n"
+	if f.Color {
+		format = "\033[2m%*d | %s\033[0m\n"
+	}
+	_, err := fmt.Fprintf(w, format, gutterWidth, lineNum, line)
+	return err
+}
+
+// writeCaretLine writes the dot-leader caret line under the diagnostic column.
+func (f *TextFormatter) writeCaretLine(w io.Writer, gutterWidth, column int) error {
+	caretPad := strings.Repeat("·", column-1)
+	gutterPad := strings.Repeat(" ", gutterWidth)
+	format := "%s | %s^\n"
+	if f.Color {
+		format = "%s | %s\033[31m^\033[0m\n"
+	}
+	_, err := fmt.Fprintf(w, format, gutterPad, caretPad)
+	return err
 }
