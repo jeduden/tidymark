@@ -391,11 +391,12 @@ func parseAlignments(cells []string) []align {
 	return aligns
 }
 
-// displayWidth returns the visible width of a cell's content,
-// accounting for markdown syntax that is not displayed.
+// displayWidth returns the raw display width of a cell's content
+// in a monospace terminal/editor, accounting for wide Unicode
+// characters (emoji, CJK) but preserving markdown syntax as-is
+// so that column delimiters align in source text.
 func displayWidth(s string) int {
-	visible := stripMarkdown(s)
-	return runewidth.StringWidth(visible)
+	return runewidth.StringWidth(s)
 }
 
 // stripMarkdown removes markdown formatting syntax to get the visible text.

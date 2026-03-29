@@ -88,50 +88,37 @@ func TestDisplayWidth_Emoji(t *testing.T) {
 
 func TestDisplayWidth_Link(t *testing.T) {
 	got := displayWidth("[text](https://example.com)")
-	if got != 4 { // only "text" is visible
-		t.Errorf("displayWidth([text](url)) = %d, want 4", got)
-	}
+	assert.Equal(t, 27, got, "displayWidth counts raw characters including URL")
 }
 
 func TestDisplayWidth_InlineCode(t *testing.T) {
 	got := displayWidth("`code`")
-	if got != 4 { // only "code" is visible
-		t.Errorf("displayWidth(`code`) = %d, want 4", got)
-	}
+	assert.Equal(t, 6, got, "displayWidth counts backticks")
 }
 
 func TestDisplayWidth_Bold(t *testing.T) {
 	got := displayWidth("**bold**")
-	if got != 4 { // only "bold" is visible
-		t.Errorf("displayWidth(**bold**) = %d, want 4", got)
-	}
+	assert.Equal(t, 8, got, "displayWidth counts asterisks")
 }
 
 func TestDisplayWidth_Italic(t *testing.T) {
 	got := displayWidth("*italic*")
-	if got != 6 { // only "italic" is visible
-		t.Errorf("displayWidth(*italic*) = %d, want 6", got)
-	}
+	assert.Equal(t, 8, got, "displayWidth counts asterisks")
 }
 
 func TestDisplayWidth_Image(t *testing.T) {
 	got := displayWidth("![alt text](image.png)")
-	if got != 8 { // only "alt text" is visible
-		t.Errorf("displayWidth(![alt](url)) = %d, want 8", got)
-	}
+	assert.Equal(t, 22, got, "displayWidth counts raw characters including URL")
 }
 
 func TestDisplayWidth_Strikethrough(t *testing.T) {
 	got := displayWidth("~~deleted~~")
-	if got != 7 { // only "deleted" is visible
-		t.Errorf("displayWidth(~~deleted~~) = %d, want 7", got)
-	}
+	assert.Equal(t, 11, got, "displayWidth counts tildes")
 }
 
 func TestDisplayWidth_Mixed(t *testing.T) {
-	// "see text for details" -> "see " + "text" + " for details" = 20
 	got := displayWidth("see [text](url) for details")
-	assert.Equal(t, 20, got, "displayWidth(mixed) = %d, want 20", got)
+	assert.Equal(t, 27, got, "displayWidth counts raw characters")
 }
 
 // --- Table detection tests ---
