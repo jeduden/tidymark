@@ -559,6 +559,10 @@ func checkSyncPoint(
 ) []lint.Diagnostic {
 	// Check if the field exists in front matter using CUE path resolution.
 	path := fieldinterp.ParseCUEPath(sp.Field)
+	if path == nil {
+		return []lint.Diagnostic{makeDiag(f.Path, dh.Line,
+			fmt.Sprintf("invalid CUE path in sync placeholder: %q", sp.Field))}
+	}
 	if _, err := fieldinterp.ResolvePath(docFM, path); err != nil {
 		return nil
 	}

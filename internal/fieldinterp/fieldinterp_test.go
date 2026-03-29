@@ -191,8 +191,8 @@ func TestValidate_FieldWithSpaces(t *testing.T) {
 	assert.Error(t, Validate("{field name}"))
 }
 
-func TestValidate_UnquotedHyphenReportsError(t *testing.T) {
-	// {my-field} is not valid CUE — error should suggest quoting.
+func TestValidate_QuotedHyphenAccepted(t *testing.T) {
+	// {"my-field"} is valid CUE — quoted hyphenated keys should be accepted.
 	err := Validate(`{"my-field"}`)
 	assert.NoError(t, err, "quoted hyphenated key should be valid")
 }
