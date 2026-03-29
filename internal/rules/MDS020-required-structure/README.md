@@ -2,33 +2,32 @@
 id: MDS020
 name: required-structure
 status: ready
-description: Document structure and front matter must match its template.
+description: Document structure and front matter must match its schema.
 ---
 # MDS020: required-structure
 
 Document structure and front matter must match its
-template.
+schema.
 
 - **ID**: MDS020
 - **Name**: `required-structure`
 - **Status**: ready
 - **Default**: enabled
 - **Fixable**: no
-- **Implementation**:
-  [source](./)
+- **Implementation**: [source](./)
 - **Category**: meta
 
 ## Settings
 
-| Setting    | Type   | Default | Description           |
-|------------|--------|---------|-----------------------|
-| `template` | string | `""`    | Path to template file |
+| Setting  | Type   | Default | Description          |
+|----------|--------|---------|----------------------|
+| `schema` | string | `""`    | Path to schema file  |
 
-When `template` is empty the rule is a no-op. Use
-overrides to apply templates to specific file groups.
+When `schema` is empty the rule is a no-op. Use
+overrides to apply schemas to specific file groups.
 
-Template front matter may embed a CUE schema that validates
-document front matter:
+Schema front matter may embed a CUE schema that
+validates document front matter:
 
 ```yaml
 id: '=~"^MDS[0-9]{3}$"'
@@ -39,8 +38,8 @@ description: 'string & != ""'
 
 ### Require directive
 
-Use `<?require?>` in the template body to declare
-constraints on files validated against this template:
+Use `<?require?>` in the schema body to declare
+constraints on files validated against this schema:
 
 | Field      | Type   | Description                           |
 |------------|--------|---------------------------------------|
@@ -52,18 +51,39 @@ filename: "[0-9]*_*.md"
 ?>
 ```
 
+### Schema composition
+
+Schema files can use `<?include?>` to share
+structure across schemas. Included fragment
+headings are spliced into the heading list at
+the include position. Fragment front matter is
+ignored. `<?require?>` from fragments is merged.
+
+```markdown
+# ?
+
+## Goal
+
+<?include
+file: common/acceptance-criteria.md
+?>
+```
+
+Cycle detection prevents circular includes.
+Max include depth is 10.
+
 ### Optional fields
 
-Append `?` to a template front matter key to make it
-optional. The field may be absent in the document, but
-if present it must satisfy the type constraint:
+Append `?` to a schema front matter key to make it
+optional. The field may be absent in the document,
+but if present it must satisfy the type constraint:
 
 ```yaml
 name: 'string & != ""'
 "description?": string
 ```
 
-Template body controls section strictness:
+Schema body controls section strictness:
 
 - By default, extra sections are rejected.
 - Add a heading with text `...` (for example `## ...`) to
@@ -72,14 +92,14 @@ Template body controls section strictness:
 
 ## Config
 
-Enable with a template for rule READMEs:
+Enable with a schema for rule READMEs:
 
 ```yaml
 overrides:
   - files: ["internal/rules/*/README.md"]
     rules:
       required-structure:
-        template: internal/rules/proto.md
+        schema: internal/rules/proto.md
 ```
 
 Disable:
@@ -140,3 +160,5 @@ Describe the goal here.
 | body sync           | body does not match frontmatter field "description"                           |
 | front matter schema | front matter does not satisfy template CUE schema: ...                        |
 | filename mismatch   | filename "foo.md" does not match required pattern "[0-9]*_*.md"               |
+| misplaced require   | <?require?> is only recognized in schema files; this directive has no effect  |
+| schema include loop | cyclic include: a.md -> b.md -> a.md                                         |
