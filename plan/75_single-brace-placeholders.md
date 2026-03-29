@@ -24,13 +24,10 @@ template in catalog). `{field}` always means
 "heading must contain front-matter value"
 (required-structure pattern). No overlap.
 
-Both syntaxes access top-level front-matter
-keys only. Nested YAML (e.g. `params.sub`) is
-not supported: `{params.sub}` would look for a
-key literally named `params.sub`, not a nested
-lookup. This matches current `{{.field}}`
-behavior in required-structure (flat
-`map[string]string`).
+Both syntaxes currently access top-level
+front-matter keys only. Nested YAML support
+(`{a.b}` for hierarchical access) is planned
+in [plan 79](79_nested-frontmatter-access.md).
 
 ## Context
 
