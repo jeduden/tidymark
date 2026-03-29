@@ -83,28 +83,33 @@ func SplitOnFields(text string) []string {
 
 // Validate checks that text has valid placeholder syntax. It returns an error
 // if there are unclosed braces, stray closing braces, or invalid field names.
+// Positions in error messages refer to the original input string.
 func Validate(text string) error {
-	const openSentinel = "\x00OPEN\x00"
-	const closeSentinel = "\x00CLOSE\x00"
-	s := strings.ReplaceAll(text, "{{", openSentinel)
-	s = strings.ReplaceAll(s, "}}", closeSentinel)
-
-	for i := 0; i < len(s); i++ {
-		if s[i] == '}' {
-			return fmt.Errorf("stray closing brace at position %d", i)
-		}
-		if s[i] == '{' {
-			// Find matching close
-			end := strings.IndexByte(s[i+1:], '}')
+	for i := 0; i < len(text); {
+		if text[i] == '{' {
+			if i+1 < len(text) && text[i+1] == '{' {
+				i += 2 // escaped {{
+				continue
+			}
+			end := strings.IndexByte(text[i+1:], '}')
 			if end < 0 {
 				return fmt.Errorf("unclosed placeholder at position %d", i)
 			}
-			field := s[i+1 : i+1+end]
+			field := text[i+1 : i+1+end]
 			if !fieldPattern.MatchString("{" + field + "}") {
 				return fmt.Errorf("invalid placeholder %q at position %d", "{"+field+"}", i)
 			}
-			i = i + 1 + end // skip past }
+			i = i + 1 + end + 1 // skip past }
+			continue
 		}
+		if text[i] == '}' {
+			if i+1 < len(text) && text[i+1] == '}' {
+				i += 2 // escaped }}
+				continue
+			}
+			return fmt.Errorf("stray closing brace at position %d", i)
+		}
+		i++
 	}
 	return nil
 }
