@@ -12,6 +12,14 @@ summary: >-
 
 Part of the user-model work from
 [plan 73](73_unify-template-directives.md).
+Addresses
+[#68](https://github.com/jeduden/mdsmith/issues/68)
+(user model clarity) and
+[#73](https://github.com/jeduden/mdsmith/issues/73)
+(Hugo user "did you mean?" hint).
+
+Depends on: none (independent of other plans).
+Update plan 74 guide after landing.
 
 ## Goal
 

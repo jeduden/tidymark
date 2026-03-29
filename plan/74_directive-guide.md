@@ -12,6 +12,7 @@ summary: >-
 Part of the user-model work from
 [plan 73](73_unify-template-directives.md).
 Addresses
+[#68](https://github.com/jeduden/mdsmith/issues/68),
 [#70](https://github.com/jeduden/mdsmith/issues/70).
 
 ## Goal
@@ -20,6 +21,11 @@ One guide a developer reads to understand every
 directive and rule without consulting per-rule
 READMEs. Must also serve Hugo users per
 [#73](https://github.com/jeduden/mdsmith/issues/73).
+
+Depends on: plans 75, 76, 77 (guide documents
+the final syntax, parameter names, and schema
+composition). Write the guide last so it
+reflects all changes.
 
 ## Context
 

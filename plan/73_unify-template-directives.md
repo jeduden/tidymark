@@ -176,15 +176,34 @@ All Hugo-specific gaps addressed by plan 74
 (guide must include a "coming from Hugo"
 section).
 
+## Execution order
+
+Plans 75, 76, 77 are independent of each
+other and can land in any order. Plan 74 (the
+guide) depends on all three and must land last.
+
+```text
+75 (single-brace) ──┐
+76 (param renames) ──┼──> 74 (guide)
+77 (composition)  ──┘
+```
+
+## Issue coverage
+
+| Issue | Plans          |
+|-------|----------------|
+| [#68](https://github.com/jeduden/mdsmith/issues/68)   | 73, 74, 75, 77 |
+| [#70](https://github.com/jeduden/mdsmith/issues/70)   | 73, 74         |
+| [#71](https://github.com/jeduden/mdsmith/issues/71)   | 77             |
+| [#73](https://github.com/jeduden/mdsmith/issues/73)   | 73, 74, 76, 77 |
+
 ## Tasks
 
-1. Write plan 74 (directive guide)
-2. Write plan 75 (single-brace placeholders)
-3. Write plan 76 (rename misleading params)
+1. Plans 74, 75, 76, 77 written (done)
 
 ## Acceptance Criteria
 
-- [ ] Plans 74, 75, 76 exist and pass lint
+- [ ] Plans 74, 75, 76, 77 exist and pass lint
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no
       issues

@@ -16,6 +16,12 @@ Addresses
 (cycle detection) and
 [#73](https://github.com/jeduden/mdsmith/issues/73)
 (Hugo comparison -- composition gap).
+Also addresses
+[#68](https://github.com/jeduden/mdsmith/issues/68)
+(`schema` rename clarifies user model).
+
+Depends on: none (independent of other plans).
+Update plan 74 guide after landing.
 
 ## Goal
 

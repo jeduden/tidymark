@@ -14,6 +14,9 @@ Part of the user-model work from
 Addresses
 [#68](https://github.com/jeduden/mdsmith/issues/68).
 
+Depends on: none (independent of other plans).
+Update plan 74 guide after landing.
+
 ## Goal
 
 `{{.field}}` always means "insert value" (Go
