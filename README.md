@@ -54,16 +54,16 @@ mdsmith <command> [flags] [files...]
 
 ### Commands
 
-| Command        | Description                               |
-|----------------|-------------------------------------------|
-| `check`        | Lint files (default command)              |
-| `fix`          | Auto-fix issues in place                  |
+| Command        | Description                                    |
+|----------------|------------------------------------------------|
+| `check`        | Lint files (default command)                   |
+| `fix`          | Auto-fix issues in place                       |
 | `query`        | Select files by CUE expression on front matter |
-| `help`         | Show help for docs and topics             |
-| `metrics`      | List and rank Markdown metrics            |
-| `merge-driver` | Git merge driver for regenerable sections |
-| `init`         | Generate `.mdsmith.yml`                   |
-| `version`      | Print version, exit                       |
+| `help`         | Show help for docs and topics                  |
+| `metrics`      | List and rank Markdown metrics                 |
+| `merge-driver` | Git merge driver for regenerable sections      |
+| `init`         | Generate `.mdsmith.yml`                        |
+| `version`      | Print version, exit                            |
 
 Files can be paths, directories (walked recursively for `*.md`),
 or glob patterns.

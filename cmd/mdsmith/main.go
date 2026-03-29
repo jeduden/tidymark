@@ -299,6 +299,16 @@ func runQuery(args []string) int {
 		delim = "\x00"
 	}
 
+	matched := queryFiles(matcher, files, delim, verbose)
+	if matched > 0 {
+		return 0
+	}
+	return 1
+}
+
+// queryFiles tests each file against matcher and writes matching paths
+// to stdout. Returns the number of matches.
+func queryFiles(matcher *query.Matcher, files []string, delim string, verbose bool) int {
 	matched := 0
 	for _, f := range files {
 		fm, err := readFrontMatterRaw(f)
@@ -315,17 +325,13 @@ func runQuery(args []string) int {
 			continue
 		}
 		if matcher.Match(fm) {
-			fmt.Fprintf(os.Stdout, "%s%s", f, delim)
+			_, _ = fmt.Fprintf(os.Stdout, "%s%s", f, delim)
 			matched++
 		} else if verbose {
 			fmt.Fprintf(os.Stderr, "skip %s: expression not satisfied\n", f)
 		}
 	}
-
-	if matched > 0 {
-		return 0
-	}
-	return 1
+	return matched
 }
 
 // readFrontMatterRaw reads a file, strips front matter, and
