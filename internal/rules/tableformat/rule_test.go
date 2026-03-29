@@ -66,9 +66,24 @@ func TestDisplayWidth_ASCII(t *testing.T) {
 }
 
 func TestDisplayWidth_Multibyte(t *testing.T) {
-	// Each rune counts as 1 for basic multibyte.
 	got := displayWidth("café")
 	assert.Equal(t, 4, got, "displayWidth(café) = %d, want 4", got)
+}
+
+func TestDisplayWidth_Emoji(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"✅", 2},
+		{"🔲", 2},
+		{"🔳", 2},
+		{"✅ done", 7},
+	}
+	for _, tt := range tests {
+		got := displayWidth(tt.input)
+		assert.Equal(t, tt.want, got, "displayWidth(%q) = %d, want %d", tt.input, got, tt.want)
+	}
 }
 
 func TestDisplayWidth_Link(t *testing.T) {

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
 
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
@@ -394,7 +395,7 @@ func parseAlignments(cells []string) []align {
 // accounting for markdown syntax that is not displayed.
 func displayWidth(s string) int {
 	visible := stripMarkdown(s)
-	return utf8.RuneCountInString(visible)
+	return runewidth.StringWidth(visible)
 }
 
 // stripMarkdown removes markdown formatting syntax to get the visible text.
