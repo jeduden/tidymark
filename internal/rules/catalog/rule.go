@@ -359,7 +359,10 @@ func checkCatalogIncludeCycle(
 	if f.FS == nil {
 		return nil
 	}
-	catalogFile := filepath.ToSlash(filePath)
+	// matchedPath from doublestar.Glob is relative to f.FS (the
+	// catalog file's directory). filePath may be repo-relative, so
+	// normalize the catalog owner to the same FS-relative form.
+	catalogFile := filepath.Base(filePath)
 	for _, entry := range entries {
 		matchedPath := fieldinterp.Stringify(entry.fields["filename"])
 		if fileIncludesTarget(f.FS, matchedPath, catalogFile) {

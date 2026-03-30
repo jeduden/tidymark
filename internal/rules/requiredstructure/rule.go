@@ -442,8 +442,11 @@ func expandSchemaInclude(
 	schemaPath string, visited map[string]bool, chain []string,
 ) ([]docHeading, string, error) {
 	fileParam, err := extractPIFileParam(pi, source)
-	if err != nil || fileParam == "" {
-		return nil, "", nil
+	if err != nil {
+		return nil, "", fmt.Errorf("parsing include processing instruction: %w", err)
+	}
+	if strings.TrimSpace(fileParam) == "" {
+		return nil, "", fmt.Errorf("include processing instruction missing required 'file' attribute")
 	}
 
 	dir := filepath.Dir(schemaPath)

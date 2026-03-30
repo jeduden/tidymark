@@ -21,7 +21,7 @@ func newTestFile(
 	return f
 }
 
-// writeSchema writes template content to a temp file and
+// writeSchema writes schema content to a temp file and
 // returns its path.
 func writeSchema(t *testing.T, content string) string {
 	t.Helper()
