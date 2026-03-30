@@ -84,70 +84,33 @@ markers is visible.
 
 ## Tasks
 
-1. Create `docs/guides/directives.md` with:
+1. Create use-case guides split by topic:
 
-  - Quick-reference table: name, purpose,
-    closing tag (yes/no), fixable (yes/no),
-    parameters
-  - Two kinds of markers: closing tag means
-    `fix` regenerates body; no closing tag means
-    `check` validates a condition
-  - Placement rules: PIs are only recognized at
-    document root (parent must be Document node),
-    max 3-space indent. Not recognized inside
-    list items, blockquotes, tables, fenced code,
-    or HTML blocks
-  - Explicit warning: 4+ leading spaces at
-    document root turns directive into a code
-    block with no error; inside other block
-    constructs directives are never recognized
-  - Each directive section: purpose, all
-    parameters, good example, bad example, what
-    `check` reports, what `fix` does
-  - Nesting: same-type nesting is prohibited
-    (emits "nested generated section markers
-    are not allowed"). Cross-type directives
-    between markers may appear but can be
-    overwritten by the outer generator on fix.
-    Generated output is not re-parsed for
-    further directives
-  - Placeholder syntax section: `{field}` is
-    the only syntax, works in both catalog rows
-    and schema headings (plan 75). CUE paths
-    for nested access (plan 79)
-  - Schema vs normal file section: explain
-    that `<?require?>` only works in schema
-    files (plan 77 adds a warning for misuse),
-    that `<?allow-empty-section?>` does not
-    propagate from schema to document, and
-    that schemas enforce headings and front
-    matter only (not directives)
-  - Schema composition: `<?include?>` in
-    schema files splices headings (plan 77);
-    cycle detection with max depth 10
-  - Fixability summary table for all 33 rules
-  - Renamed parameters: `words-per-token`,
-    `max-words-per-sentence`,
-    `max-column-width-ratio` (plan 76)
-  - "Coming from Hugo" section covering:
-    `{title}` not `{{ .Title }}` (case-
-    sensitive, no Go templates) with "did you
-    mean?" hint (plan 76), `schema` is a
-    validation contract not a rendering
-    template (plan 77), generated content is
-    committed to git (not gitignored), schema
-    files compose via `<?include?>` (plan 77),
-    no nesting in normal files, `{field}` uses
-    CUE paths not Go template syntax, directive
-    params are YAML strings
-    (per [#73](https://github.com/jeduden/mdsmith/issues/73))
+  - `docs/guides/directives.md`: slim overview
+    with quick-reference table, placement rules,
+    4-space indent warning, and links to
+    use-case guides
+  - `docs/guides/generating-content.md`: catalog
+    and include use cases with examples,
+    placeholder syntax, nesting, and placement
+    rules
+  - `docs/guides/enforcing-structure.md`: schema,
+    require, allow-empty-section use cases with
+    composition, schema-vs-normal-file, and
+    optional fields
+  - `docs/guides/hugo-migration.md`: standalone
+    Hugo migration guide with placeholder syntax,
+    schema differences, and renamed parameters
+  - `docs/guides/rule-directory.md`: generated
+    catalog of all 33 rules from rule READMEs
 
 2. Add a "see the directive guide" link from
    each rule README that uses a directive
    (MDS019, MDS020, MDS021, MDS030).
-3. Run `mdsmith fix docs/guides/directives.md`
-   to regenerate any catalog/include sections.
-4. Run `mdsmith check docs/guides/` to verify.
+3. Replace embedded rules table in README.md with
+   a link to the rule directory.
+4. Run `mdsmith fix` and `mdsmith check .` to
+   verify.
 
 ## Acceptance Criteria
 
