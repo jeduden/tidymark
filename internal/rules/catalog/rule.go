@@ -361,7 +361,7 @@ func checkCatalogIncludeCycle(
 	}
 	catalogFile := filepath.ToSlash(filePath)
 	for _, entry := range entries {
-		matchedPath := entry.fields["filename"]
+		matchedPath := fieldinterp.Stringify(entry.fields["filename"])
 		if fileIncludesTarget(f.FS, matchedPath, catalogFile) {
 			return []lint.Diagnostic{makeDiag(filePath, line,
 				fmt.Sprintf(
@@ -382,11 +382,14 @@ func fileIncludesTarget(
 	return scanIncludesForTarget(fsys, filePath, target, visited, 0)
 }
 
+// maxIncludeDepth mirrors the include rule's depth limit for consistency.
+const maxIncludeDepth = 10
+
 func scanIncludesForTarget(
 	fsys fs.FS, filePath, target string,
 	visited map[string]bool, depth int,
 ) bool {
-	if depth > 10 {
+	if depth > maxIncludeDepth {
 		return false
 	}
 	data, err := fs.ReadFile(fsys, filePath)

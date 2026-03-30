@@ -21,9 +21,9 @@ func newTestFile(
 	return f
 }
 
-// writeTmpl writes template content to a temp file and
+// writeSchema writes template content to a temp file and
 // returns its path.
-func writeTmpl(t *testing.T, content string) string {
+func writeSchema(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	p := filepath.Join(dir, "tmpl.md")
@@ -156,7 +156,7 @@ func TestCheck_NoSchemaIsNoop(t *testing.T) {
 // =====================================================================
 
 func TestParseSchema_Headings(t *testing.T) {
-	tmplSrc := `# ?
+	schemaSrc := `# ?
 
 ## Settings
 
@@ -166,7 +166,7 @@ func TestParseSchema_Headings(t *testing.T) {
 
 ### Bad
 `
-	tmpl, err := parseSchema([]byte(tmplSrc), "")
+	tmpl, err := parseSchema([]byte(schemaSrc), "")
 	require.NoError(t, err, "unexpected error: %v", err)
 	if len(tmpl.Headings) != 5 {
 		t.Fatalf(
@@ -189,11 +189,11 @@ func TestParseSchema_Headings(t *testing.T) {
 }
 
 func TestParseSchema_SyncPoints(t *testing.T) {
-	tmplSrc := `# {id}: {name}
+	schemaSrc := `# {id}: {name}
 
 {description}
 `
-	tmpl, err := parseSchema([]byte(tmplSrc), "")
+	tmpl, err := parseSchema([]byte(schemaSrc), "")
 	require.NoError(t, err, "unexpected error: %v", err)
 	headingSyncs := tmpl.SyncPoints[0]
 	if len(headingSyncs) < 2 {
@@ -227,7 +227,7 @@ func TestParseSchema_SyncPoints(t *testing.T) {
 }
 
 func TestParseSchema_StrictOrder(t *testing.T) {
-	tmplSrc := `# ?
+	schemaSrc := `# ?
 
 ## Goal
 
@@ -235,7 +235,7 @@ func TestParseSchema_StrictOrder(t *testing.T) {
 
 ## Acceptance Criteria
 `
-	tmpl, err := parseSchema([]byte(tmplSrc), "")
+	tmpl, err := parseSchema([]byte(schemaSrc), "")
 	require.NoError(t, err, "unexpected error: %v", err)
 	if len(tmpl.Headings) != 4 {
 		t.Fatalf(
@@ -250,17 +250,17 @@ func TestParseSchema_StrictOrder(t *testing.T) {
 // =====================================================================
 
 func TestCheck_MissingHeading(t *testing.T) {
-	tmplPath := writeTmpl(t,
+	schemaPath := writeSchema(t,
 		"# ?\n\n## Settings\n\n## Examples\n")
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md", "# My Rule\n\n## Examples\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags, `missing required section "## Settings"`)
 }
 
 func TestCheck_ExtraSectionForbidden(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n## Goal\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"# My Plan\n\n## Prerequisites\n\n## Goal\n")
 	diags := r.Check(f)
@@ -268,8 +268,8 @@ func TestCheck_ExtraSectionForbidden(t *testing.T) {
 }
 
 func TestCheck_SectionWildcardAllowsExtras(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n\n## ...\n\n## Settings\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n## Goal\n\n## ...\n\n## Settings\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"# My Rule\n\n## Goal\n\n## Overview\n\n## Notes\n\n## Settings\n")
 	diags := r.Check(f)
@@ -277,8 +277,8 @@ func TestCheck_SectionWildcardAllowsExtras(t *testing.T) {
 }
 
 func TestCheck_SectionWildcardAllowsTrailingExtras(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n\n## ...\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n## Goal\n\n## ...\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"# My Rule\n\n## Goal\n\n## Notes\n\n## Risks\n")
 	diags := r.Check(f)
@@ -286,8 +286,8 @@ func TestCheck_SectionWildcardAllowsTrailingExtras(t *testing.T) {
 }
 
 func TestCheck_WrongLevel(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n## Settings\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n## Settings\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"# My Rule\n\n### Settings\n")
 	diags := r.Check(f)
@@ -295,9 +295,9 @@ func TestCheck_WrongLevel(t *testing.T) {
 }
 
 func TestCheck_AllPresent(t *testing.T) {
-	tmplPath := writeTmpl(t,
+	schemaPath := writeSchema(t,
 		"# ?\n\n## Settings\n\n## Examples\n\n### Good\n\n### Bad\n")
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"# MDS001: line-length\n\n## Settings\n\n## Examples\n\n### Good\n\n### Bad\n")
 	diags := r.Check(f)
@@ -309,8 +309,8 @@ func TestCheck_AllPresent(t *testing.T) {
 // =====================================================================
 
 func TestCheck_HeadingSyncMismatch(t *testing.T) {
-	tmplPath := writeTmpl(t, "# {id}: {name}\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# {id}: {name}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nid: MDS001\nname: line-length\n---\n# MDS002: line-length\n")
 	diags := r.Check(f)
@@ -318,8 +318,8 @@ func TestCheck_HeadingSyncMismatch(t *testing.T) {
 }
 
 func TestCheck_HeadingSyncMatch(t *testing.T) {
-	tmplPath := writeTmpl(t, "# {id}: {name}\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# {id}: {name}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nid: MDS001\nname: line-length\n---\n# MDS001: line-length\n")
 	diags := r.Check(f)
@@ -327,8 +327,8 @@ func TestCheck_HeadingSyncMatch(t *testing.T) {
 }
 
 func TestCheck_BodySyncMismatch(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n{description}\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n{description}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\ndescription: Line exceeds maximum length.\n---\n# My Rule\n\nWrong description here.\n")
 	diags := r.Check(f)
@@ -337,8 +337,8 @@ func TestCheck_BodySyncMismatch(t *testing.T) {
 }
 
 func TestCheck_BodySyncMatch(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n{description}\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n{description}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\ndescription: Line exceeds maximum length.\n---\n# My Rule\n\nLine exceeds maximum length.\n")
 	diags := r.Check(f)
@@ -346,8 +346,8 @@ func TestCheck_BodySyncMatch(t *testing.T) {
 }
 
 func TestCheck_WildcardHeading(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n## Goal\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"# Any Title Works\n\n## Goal\n")
 	diags := r.Check(f)
@@ -359,8 +359,8 @@ func TestCheck_WildcardHeading(t *testing.T) {
 // =====================================================================
 
 func TestCheck_NestedFieldInHeading(t *testing.T) {
-	tmplPath := writeTmpl(t, "# {params.subtitle}\n")
-	r := &Rule{Template: tmplPath}
+	schemaPath := writeSchema(t, "# {params.subtitle}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nparams:\n  subtitle: Overview\n---\n# Overview\n")
 	diags := r.Check(f)
@@ -368,8 +368,8 @@ func TestCheck_NestedFieldInHeading(t *testing.T) {
 }
 
 func TestCheck_NestedFieldInHeadingMismatch(t *testing.T) {
-	tmplPath := writeTmpl(t, "# {params.subtitle}\n")
-	r := &Rule{Template: tmplPath}
+	schemaPath := writeSchema(t, "# {params.subtitle}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nparams:\n  subtitle: Overview\n---\n# Wrong Title\n")
 	diags := r.Check(f)
@@ -377,8 +377,8 @@ func TestCheck_NestedFieldInHeadingMismatch(t *testing.T) {
 }
 
 func TestCheck_QuotedKeyInHeading(t *testing.T) {
-	tmplPath := writeTmpl(t, "# {\"my-key\"}\n")
-	r := &Rule{Template: tmplPath}
+	schemaPath := writeSchema(t, "# {\"my-key\"}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nmy-key: value\n---\n# value\n")
 	diags := r.Check(f)
@@ -386,8 +386,8 @@ func TestCheck_QuotedKeyInHeading(t *testing.T) {
 }
 
 func TestCheck_NestedFieldInBody(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n{params.description}\n")
-	r := &Rule{Template: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n{params.description}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nparams:\n  description: A detailed overview.\n---\n# My Doc\n\nA detailed overview.\n")
 	diags := r.Check(f)
@@ -395,8 +395,8 @@ func TestCheck_NestedFieldInBody(t *testing.T) {
 }
 
 func TestCheck_NestedFieldInBodyMismatch(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n{params.description}\n")
-	r := &Rule{Template: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n{params.description}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nparams:\n  description: A detailed overview.\n---\n# My Doc\n\nWrong content.\n")
 	diags := r.Check(f)
@@ -406,8 +406,8 @@ func TestCheck_NestedFieldInBodyMismatch(t *testing.T) {
 
 func TestCheck_MissingNestedKeyEmitsDiagnostic(t *testing.T) {
 	// Template references {params.missing} but front matter has params.subtitle.
-	tmplPath := writeTmpl(t, "# {params.missing}\n")
-	r := &Rule{Template: tmplPath}
+	schemaPath := writeSchema(t, "# {params.missing}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nparams:\n  subtitle: Overview\n---\n# Overview\n")
 	diags := r.Check(f)
@@ -415,8 +415,8 @@ func TestCheck_MissingNestedKeyEmitsDiagnostic(t *testing.T) {
 }
 
 func TestCheck_MissingNestedKeyInBodyEmitsDiagnostic(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n{params.missing}\n")
-	r := &Rule{Template: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n\n{params.missing}\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nparams:\n  subtitle: Overview\n---\n# My Doc\n\nSome content.\n")
 	diags := r.Check(f)
@@ -428,13 +428,13 @@ func TestCheck_MissingNestedKeyInBodyEmitsDiagnostic(t *testing.T) {
 // =====================================================================
 
 func TestCheck_FrontMatterCUESchemaMatch(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 id: 'int & >=1'
 status: '"🔲" | "🔳" | "✅"'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nid: 40\nstatus: \"✅\"\n---\n# Any title\n")
 	diags := r.Check(f)
@@ -442,13 +442,13 @@ status: '"🔲" | "🔳" | "✅"'
 }
 
 func TestCheck_FrontMatterCUESchemaMismatch(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 id: 'int & >=1'
 status: '"🔲" | "🔳" | "✅"'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nid: 40\n---\n# Any title\n")
 	diags := r.Check(f)
@@ -457,13 +457,13 @@ status: '"🔲" | "🔳" | "✅"'
 }
 
 func TestCheck_FrontMatterCUESchemaInvalidStatus(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 id: 'int & >=1'
 status: '"🔲" | "🔳" | "✅"'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nid: 40\nstatus: in-progress\n---\n# Any title\n")
 	diags := r.Check(f)
@@ -472,13 +472,13 @@ status: '"🔲" | "🔳" | "✅"'
 }
 
 func TestCheck_FrontMatterCUESchemaRejectsExtraFields(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 id: 'int & >=1'
 status: '"🔲" | "🔳" | "✅"'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nid: 40\nstatus: \"✅\"\nextra: true\n---\n# Any title\n")
 	diags := r.Check(f)
@@ -487,12 +487,12 @@ status: '"🔲" | "🔳" | "✅"'
 }
 
 func TestCheck_InvalidSchemaFrontMatterCUE(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 id: 'int &'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md", "# Any title\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags, "invalid schema")
@@ -500,12 +500,12 @@ id: 'int &'
 
 func TestCheck_TemplateKeyInFrontmatterAsCUEField(t *testing.T) {
 	// "template" is not a reserved key — it's a regular CUE schema field.
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 template: 'string'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\ntemplate: my-value\n---\n# Any title\n")
 	diags := r.Check(f)
@@ -517,13 +517,13 @@ template: 'string'
 // =====================================================================
 
 func TestCheck_OptionalFieldPresent(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 name: 'string & != ""'
 "description?": 'string'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nname: my-skill\ndescription: A helpful skill.\n---\n# My Skill\n")
 	diags := r.Check(f)
@@ -531,13 +531,13 @@ name: 'string & != ""'
 }
 
 func TestCheck_OptionalFieldAbsent(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 name: 'string & != ""'
 "description?": 'string'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nname: my-skill\n---\n# My Skill\n")
 	diags := r.Check(f)
@@ -545,13 +545,13 @@ name: 'string & != ""'
 }
 
 func TestCheck_OptionalFieldRejectsExtraFields(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 name: 'string & != ""'
 "description?": 'string'
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nname: my-skill\nunknown: true\n---\n# My Skill\n")
 	diags := r.Check(f)
@@ -560,13 +560,13 @@ name: 'string & != ""'
 }
 
 func TestCheck_OptionalFieldInvalidType(t *testing.T) {
-	tmplPath := writeTmpl(t, `---
+	schemaPath := writeSchema(t, `---
 name: 'string & != ""'
 "user-invocable?": bool
 ---
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"---\nname: my-skill\nuser-invocable: not-a-bool\n---\n# My Skill\n")
 	diags := r.Check(f)
@@ -579,24 +579,24 @@ name: 'string & != ""'
 // =====================================================================
 
 func TestCheck_FilenamePatternMatch(t *testing.T) {
-	tmplPath := writeTmpl(t, `<?require
+	schemaPath := writeSchema(t, `<?require
 filename: "[0-9]*_*.md"
 ?>
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "50_my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
 
 func TestCheck_FilenamePatternMismatch(t *testing.T) {
-	tmplPath := writeTmpl(t, `<?require
+	schemaPath := writeSchema(t, `<?require
 filename: "[0-9]*_*.md"
 ?>
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
@@ -604,10 +604,10 @@ filename: "[0-9]*_*.md"
 }
 
 func TestCheck_FilenamePatternSingleLinePI(t *testing.T) {
-	tmplPath := writeTmpl(t, `<?require filename: "[0-9]*_*.md" ?>
+	schemaPath := writeSchema(t, `<?require filename: "[0-9]*_*.md" ?>
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
@@ -615,8 +615,8 @@ func TestCheck_FilenamePatternSingleLinePI(t *testing.T) {
 }
 
 func TestCheck_FilenamePatternPIWithTrailingContent(t *testing.T) {
-	tmplPath := writeTmpl(t, "<?require filename: \"[0-9]*_*.md\" ?>trailing\n# ?\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "<?require filename: \"[0-9]*_*.md\" ?>trailing\n# ?\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
@@ -624,10 +624,10 @@ func TestCheck_FilenamePatternPIWithTrailingContent(t *testing.T) {
 }
 
 func TestCheck_FilenamePatternIndentedPI(t *testing.T) {
-	tmplPath := writeTmpl(t, `  <?require filename: "[0-9]*_*.md" ?>
+	schemaPath := writeSchema(t, `  <?require filename: "[0-9]*_*.md" ?>
 # ?
 `)
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
@@ -635,8 +635,8 @@ func TestCheck_FilenamePatternIndentedPI(t *testing.T) {
 }
 
 func TestCheck_FilenamePatternNotSet(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "anything.md", "# Title\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
@@ -750,8 +750,8 @@ func TestParseSchema_SchemaIncludeIndirectCycle(t *testing.T) {
 // =====================================================================
 
 func TestCheck_RequireInNonSchemaFileWarns(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n")
-	r := &Rule{Schema: tmplPath}
+	schemaPath := writeSchema(t, "# ?\n")
+	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
 		"<?require\nfilename: \"*.md\"\n?>\n# My Doc\n")
 	diags := r.Check(f)
@@ -769,11 +769,11 @@ func TestCheck_RequireInNonSchemaFileNoSchemaSet(t *testing.T) {
 }
 
 func TestCheck_RequireInSchemaFileNoWarning(t *testing.T) {
-	tmplPath := writeTmpl(t,
+	schemaPath := writeSchema(t,
 		"<?require\nfilename: \"*.md\"\n?>\n# ?\n")
-	r := &Rule{Schema: tmplPath}
+	r := &Rule{Schema: schemaPath}
 	// Check the schema file itself — should not warn.
-	f := newTestFile(t, tmplPath,
+	f := newTestFile(t, schemaPath,
 		"<?require\nfilename: \"*.md\"\n?>\n# ?\n")
 	diags := r.Check(f)
 	// Should have no require warning.
@@ -789,9 +789,9 @@ func TestCheck_RequireInSchemaFileNoWarning(t *testing.T) {
 // =====================================================================
 
 func TestCheck_SkipsSchemaFiles(t *testing.T) {
-	tmplPath := writeTmpl(t, "# ?\n\n## Goal\n")
-	r := &Rule{Schema: tmplPath}
-	f := newTestFile(t, tmplPath, "# ?\n\n## Settings\n")
+	schemaPath := writeSchema(t, "# ?\n\n## Goal\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, schemaPath, "# ?\n\n## Settings\n")
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }

@@ -77,13 +77,13 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return diags
 	}
 
-	tmplData, err := os.ReadFile(r.Schema)
+	schData, err := os.ReadFile(r.Schema)
 	if err != nil {
 		return append(diags, r.diag(f.Path, 1,
 			fmt.Sprintf("cannot read schema %q: %v", r.Schema, err)))
 	}
 
-	tmpl, err := parseSchema(tmplData, r.Schema)
+	sch, err := parseSchema(schData, r.Schema)
 	if err != nil {
 		return append(diags, r.diag(f.Path, 1,
 			fmt.Sprintf("invalid schema %q: %v", r.Schema, err)))
@@ -98,19 +98,19 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	docFMRaw := readDocFrontMatterRaw(f)
 
 	// Check filename pattern.
-	diags = append(diags, checkFilenamePattern(f, tmpl)...)
+	diags = append(diags, checkFilenamePattern(f, sch)...)
 
 	// Check structure: required headings present and in order.
-	diags = append(diags, checkStructure(f, tmpl, docHeadings)...)
+	diags = append(diags, checkStructure(f, sch, docHeadings)...)
 
 	// Validate document front matter against schema-embedded CUE constraints.
-	if err := validateFrontMatterCUE(tmpl.Config.FrontMatterCUE, docFMRaw); err != nil {
+	if err := validateFrontMatterCUE(sch.Config.FrontMatterCUE, docFMRaw); err != nil {
 		diags = append(diags, makeDiag(f.Path, 1,
 			fmt.Sprintf("front matter does not satisfy schema CUE constraints: %v", err)))
 	}
 
 	// Check frontmatter-body sync using raw map for nested access.
-	diags = append(diags, checkSync(f, tmpl, docHeadings, docFMRaw)...)
+	diags = append(diags, checkSync(f, sch, docHeadings, docFMRaw)...)
 
 	return diags
 }
@@ -379,11 +379,11 @@ func parseSchema(data []byte, schemaPath string) (*parsedSchema, error) {
 		headings = extractHeadings(f)
 	}
 
-	tmplHeadings := make([]schemaHeading, len(headings))
+	schHeadings := make([]schemaHeading, len(headings))
 	syncPoints := make(map[int][]syncPoint)
 
 	for i, h := range headings {
-		tmplHeadings[i] = schemaHeading{Level: h.Level, Text: h.Text}
+		schHeadings[i] = schemaHeading{Level: h.Level, Text: h.Text}
 		for _, f := range fieldinterp.Fields(h.Text) {
 			syncPoints[i] = append(syncPoints[i], syncPoint{Field: f})
 		}
@@ -393,7 +393,7 @@ func parseSchema(data []byte, schemaPath string) (*parsedSchema, error) {
 
 	return &parsedSchema{
 		Config:     cfg,
-		Headings:   tmplHeadings,
+		Headings:   schHeadings,
 		SyncPoints: syncPoints,
 	}, nil
 }
@@ -598,14 +598,14 @@ func headingMatchesLine(h docHeading, line string) bool {
 // checkStructure verifies required headings are present and in order.
 func checkStructure(
 	f *lint.File,
-	tmpl *parsedSchema,
+	sch *parsedSchema,
 	docHeadings []docHeading,
 ) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
 	docIdx := 0
 	allowExtra := false
-	for _, req := range tmpl.Headings {
+	for _, req := range sch.Headings {
 		if isSectionWildcard(req) {
 			allowExtra = true
 			continue
@@ -743,7 +743,7 @@ func checkSyncPoint(
 // checkSync verifies frontmatter-body synchronization.
 func checkSync(
 	f *lint.File,
-	tmpl *parsedSchema,
+	sch *parsedSchema,
 	docHeadings []docHeading,
 	docFM map[string]any,
 ) []lint.Diagnostic {
@@ -754,12 +754,12 @@ func checkSync(
 	var diags []lint.Diagnostic
 	docIdx := 0
 
-	for tmplIdx, req := range tmpl.Headings {
+	for schIdx, req := range sch.Headings {
 		if isSectionWildcard(req) {
 			continue
 		}
 
-		syncs := tmpl.SyncPoints[tmplIdx]
+		syncs := sch.SyncPoints[schIdx]
 		if len(syncs) == 0 {
 			_, docIdx = advanceToMatch(req, docHeadings, docIdx)
 			continue
@@ -946,9 +946,9 @@ func formatHeading(level int, text string) string {
 // checkFilenamePattern checks that the document basename matches the
 // schema's filename glob pattern (if configured).
 func checkFilenamePattern(
-	f *lint.File, tmpl *parsedSchema,
+	f *lint.File, sch *parsedSchema,
 ) []lint.Diagnostic {
-	pattern := tmpl.Config.FilenamePattern
+	pattern := sch.Config.FilenamePattern
 	if pattern == "" {
 		return nil
 	}
