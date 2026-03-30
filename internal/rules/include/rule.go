@@ -356,12 +356,23 @@ func (r *Rule) scanForCycles(
 		r.visited[resolved] = true
 		r.chain = append(r.chain, resolved)
 		var cycleDiags []lint.Diagnostic
-		// fs.FS expects paths relative to the FS root (no leading "/").
+		// Translate the repo-relative resolved path into an FS-relative
+		// path. readFS may be RootFS (repo root) or f.FS (directory of the
+		// origin file). When FS-scoped, strip the origin directory prefix.
 		fsPath := resolved
 		if path.IsAbs(fsPath) {
 			fsPath = strings.TrimPrefix(fsPath, "/")
 		}
 		nested, readErr := fs.ReadFile(readFS, fsPath)
+		if readErr != nil {
+			originDir := path.Dir(originFile)
+			if originDir != "" && originDir != "." {
+				rel := strings.TrimPrefix(resolved, originDir+"/")
+				if rel != resolved {
+					nested, readErr = fs.ReadFile(readFS, rel)
+				}
+			}
+		}
 		if readErr == nil {
 			cycleDiags = r.scanForCycles(readFS, nested, resolved, originFile, originLine)
 		}
