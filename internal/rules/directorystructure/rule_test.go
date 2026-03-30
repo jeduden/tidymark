@@ -1,12 +1,20 @@
 package directorystructure
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// resetConfigWarned resets the package-level sync.Once so each test
+// that checks the config warning starts from a clean state.
+func resetConfigWarned() {
+	configWarned = sync.Once{}
+}
 
 func newRule(t *testing.T, allowed []string) *Rule {
 	t.Helper()
@@ -73,6 +81,7 @@ func TestCheck_Unconfigured_NoOp(t *testing.T) {
 }
 
 func TestCheck_EmptyAllowed_EmitsConfigWarningOnce(t *testing.T) {
+	resetConfigWarned()
 	r := newRule(t, []string{})
 	src := []byte("# Title\n")
 	f, err := lint.NewFile("docs/guide.md", src)
@@ -81,11 +90,37 @@ func TestCheck_EmptyAllowed_EmitsConfigWarningOnce(t *testing.T) {
 	require.Len(t, diags, 1, "expected 1 diagnostic (config warning)")
 	assert.Contains(t, diags[0].Message, "no \"allowed\" patterns configured")
 
-	// Second call should not repeat the warning.
+	// Second call on a different clone should not repeat the warning
+	// (sync.Once is package-level, not per-instance).
+	r2 := newRule(t, []string{})
 	f2, err := lint.NewFile("src/other.md", src)
 	require.NoError(t, err)
-	diags2 := r.Check(f2)
+	diags2 := r2.Check(f2)
 	assert.Empty(t, diags2, "expected 0 diagnostics (warning already emitted)")
+}
+
+func TestCheck_EmptyAllowed_ClonedRuleWarnsOnce(t *testing.T) {
+	resetConfigWarned()
+	// Simulate the engine's per-file clone path: CloneRule creates a
+	// fresh Rule via reflect.New + ApplySettings(DefaultSettings()).
+	// Without sync.Once, each clone would re-emit the config warning.
+	r := newRule(t, []string{})
+	src := []byte("# Title\n")
+
+	// First clone — should emit the warning.
+	clone1 := rule.CloneRule(r)
+	f1, err := lint.NewFile("docs/a.md", src)
+	require.NoError(t, err)
+	diags1 := clone1.Check(f1)
+	require.Len(t, diags1, 1, "first clone should emit config warning")
+	assert.Contains(t, diags1[0].Message, "no \"allowed\" patterns configured")
+
+	// Second clone — should NOT repeat the warning.
+	clone2 := rule.CloneRule(r)
+	f2, err := lint.NewFile("docs/b.md", src)
+	require.NoError(t, err)
+	diags2 := clone2.Check(f2)
+	assert.Empty(t, diags2, "second clone should not repeat the warning")
 }
 
 func TestCheck_MultiplePatterns(t *testing.T) {
@@ -167,6 +202,7 @@ func TestDefaultSettings(t *testing.T) {
 }
 
 func TestApplyDefaultSettings_EmitsConfigWarning(t *testing.T) {
+	resetConfigWarned()
 	// Simulate the CloneRule/fixture-harness flow: configure the rule,
 	// then restore defaults. After applying defaults, the rule is still
 	// configured but has no "allowed" patterns and should emit a config

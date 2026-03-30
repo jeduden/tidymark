@@ -2677,6 +2677,21 @@ func TestCheckFieldCaseMismatches_Deduplication(t *testing.T) {
 	require.Len(t, diags, 1, "should deduplicate across entries")
 }
 
+func TestCheckFieldCaseMismatches_InconsistentCasing(t *testing.T) {
+	// Some files have "Title", others "title" — template uses {Title}.
+	// The exact match exists in some entries, but different casing in others
+	// should surface an inconsistency warning.
+	entries := []fileEntry{
+		{fields: map[string]any{"filename": "a.md", "Title": "A"}},
+		{fields: map[string]any{"filename": "b.md", "title": "B"}},
+	}
+	diags := checkFieldCaseMismatches("index.md", 5, "{Title}", entries)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "inconsistent casing")
+	assert.Contains(t, diags[0].Message, `"Title"`)
+	assert.Contains(t, diags[0].Message, `"title"`)
+}
+
 func TestCheckFieldCaseMismatches_BuiltinFilename(t *testing.T) {
 	entries := []fileEntry{
 		{fields: map[string]any{"filename": "a.md"}},

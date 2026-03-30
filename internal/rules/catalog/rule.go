@@ -511,9 +511,10 @@ func extractPlaceholderFields(row string) []string {
 
 // checkFieldCaseMismatches checks whether any placeholder field referenced
 // in the row template is missing from front-matter but has a case-insensitive
-// match. Aggregates matches across all entries so that:
-//   - a single canonical casing produces "did you mean X?"
-//   - multiple casings surface the inconsistency
+// match. Aggregates all observed casings across entries (including the
+// exact template field) so that:
+//   - no entry has an exact match + single alternative → "did you mean X?"
+//   - mixed casings across files → "inconsistent casing" warning
 func checkFieldCaseMismatches(filePath string, line int, row string, entries []fileEntry) []lint.Diagnostic {
 	fields := extractPlaceholderFields(row)
 	if len(fields) == 0 {
@@ -527,41 +528,47 @@ func checkFieldCaseMismatches(filePath string, line int, row string, entries []f
 			continue
 		}
 
-		// Collect all distinct case-insensitive matches across entries
-		// that do NOT have an exact match for this field.
-		matchesSet := make(map[string]struct{})
+		// Collect all distinct casings of this field across all entries.
+		casingsSet := make(map[string]struct{})
 		for _, entry := range entries {
-			if _, ok := entry.fields[field]; ok {
-				continue
-			}
 			for key := range entry.fields {
 				if strings.EqualFold(key, field) {
-					matchesSet[key] = struct{}{}
+					casingsSet[key] = struct{}{}
 				}
 			}
 		}
 
-		if len(matchesSet) == 0 {
+		if len(casingsSet) == 0 {
+			continue
+		}
+
+		// If the only casing observed is the exact template field, no mismatch
+		// (some files may lack the field entirely — that's not a casing issue).
+		_, hasExact := casingsSet[field]
+		if hasExact && len(casingsSet) == 1 {
 			continue
 		}
 
 		// Sort for deterministic diagnostics.
-		matches := make([]string, 0, len(matchesSet))
-		for key := range matchesSet {
-			matches = append(matches, key)
+		casings := make([]string, 0, len(casingsSet))
+		for key := range casingsSet {
+			casings = append(casings, key)
 		}
-		sort.Strings(matches)
+		sort.Strings(casings)
 
 		var message string
-		if len(matches) == 1 {
-			message = fmt.Sprintf("field %q not found; did you mean %q?", field, matches[0])
-		} else {
-			quoted := make([]string, len(matches))
-			for i, m := range matches {
-				quoted[i] = fmt.Sprintf("%q", m)
+		switch {
+		case len(casings) == 1 && !hasExact:
+			// No entry has the exact field; single alternative found.
+			message = fmt.Sprintf("field %q not found; did you mean %q?", field, casings[0])
+		default:
+			// Multiple casings across files — surface the inconsistency.
+			quoted := make([]string, len(casings))
+			for i, c := range casings {
+				quoted[i] = fmt.Sprintf("%q", c)
 			}
 			message = fmt.Sprintf(
-				"field %q not found; similar fields exist with different casing: %s",
+				"field %q has inconsistent casing across matched files: %s",
 				field, strings.Join(quoted, ", "),
 			)
 		}

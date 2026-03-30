@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gobwas/glob"
 	"github.com/jeduden/mdsmith/internal/lint"
@@ -14,11 +15,15 @@ func init() {
 	rule.Register(&Rule{})
 }
 
+// configWarned guards emission of the "no allowed patterns" config
+// warning so it fires at most once per process, even when the engine
+// clones the rule per file.
+var configWarned sync.Once
+
 // Rule checks that markdown files exist only in explicitly allowed directories.
 type Rule struct {
 	Allowed    []string
 	configured bool
-	warned     bool
 	matchers   []glob.Glob
 }
 
@@ -46,21 +51,23 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return nil
 	}
 	// When configured but no allowed patterns provided, emit a config
-	// warning once (not per file) to avoid flooding output.
+	// warning once per process. sync.Once survives the per-file cloning
+	// that the engine performs (CloneRule creates a fresh struct but
+	// the package-level configWarned is shared).
 	if len(r.Allowed) == 0 {
-		if r.warned {
-			return nil
-		}
-		r.warned = true
-		return []lint.Diagnostic{{
-			File:     f.Path,
-			Line:     1,
-			Column:   1,
-			RuleID:   r.ID(),
-			RuleName: r.Name(),
-			Severity: lint.Warning,
-			Message:  "directory-structure: rule enabled but no \"allowed\" patterns configured",
-		}}
+		var diags []lint.Diagnostic
+		configWarned.Do(func() {
+			diags = []lint.Diagnostic{{
+				File:     f.Path,
+				Line:     1,
+				Column:   1,
+				RuleID:   r.ID(),
+				RuleName: r.Name(),
+				Severity: lint.Warning,
+				Message:  "directory-structure: rule enabled but no \"allowed\" patterns configured",
+			}}
+		})
+		return diags
 	}
 	if r.isAllowed(f.Path) {
 		return nil
