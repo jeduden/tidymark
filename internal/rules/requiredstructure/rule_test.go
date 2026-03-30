@@ -405,7 +405,7 @@ func TestCheck_NestedFieldInBodyMismatch(t *testing.T) {
 }
 
 func TestCheck_MissingNestedKeyEmitsDiagnostic(t *testing.T) {
-	// Template references {params.missing} but front matter has params.subtitle.
+	// Schema references {params.missing} but front matter has params.subtitle.
 	schemaPath := writeSchema(t, "# {params.missing}\n")
 	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md",
