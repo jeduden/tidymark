@@ -54,7 +54,12 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if f.FS == nil {
 		return nil
 	}
-	return r.getEngine().Check(f)
+	diags := r.getEngine().Check(f)
+	// Case-mismatch hints run a separate pass over directives. This
+	// re-reads front-matter but avoids coupling hints to the engine's
+	// fatal-diagnostic pipeline. Acceptable for typical catalog sizes.
+	diags = append(diags, r.checkCaseMismatches(f)...)
+	return diags
 }
 
 // Fix implements rule.FixableRule.
@@ -448,4 +453,129 @@ func containsDotDot(pattern string) bool {
 // placeholders.
 func parseRowTemplate(row string) error {
 	return fieldinterp.Validate(row)
+}
+
+// checkCaseMismatches scans catalog directives in the file for
+// case-mismatched front-matter field references and returns hint
+// diagnostics. Runs independently of the Generate/Fix path so
+// hints don't block content generation.
+func (r *Rule) checkCaseMismatches(f *lint.File) []lint.Diagnostic {
+	pairs, _ := gensection.FindMarkerPairs(
+		f, r.Name(), r.ID(), r.Name(),
+	)
+	var diags []lint.Diagnostic
+	for _, mp := range pairs {
+		dir, parseDiags := gensection.ParseDirective(
+			f.Path, mp, r.ID(), r.Name(),
+		)
+		if dir == nil || len(parseDiags) > 0 {
+			continue
+		}
+		row, hasRow := dir.Params["row"]
+		if !hasRow {
+			continue
+		}
+		// Skip entry building when the row only references {filename},
+		// since that's a built-in field — no front-matter to mismatch.
+		fields := extractPlaceholderFields(row)
+		hasNonBuiltin := false
+		for _, name := range fields {
+			if !strings.EqualFold(name, "filename") {
+				hasNonBuiltin = true
+				break
+			}
+		}
+		if !hasNonBuiltin {
+			continue
+		}
+		entries := buildCatalogEntries(f, dir.Params)
+		diags = append(diags, checkFieldCaseMismatches(f.Path, mp.StartLine, row, entries)...)
+	}
+	return diags
+}
+
+// extractPlaceholderFields returns the deduplicated set of field names
+// referenced by {field} placeholders in a row template string.
+func extractPlaceholderFields(row string) []string {
+	all := fieldinterp.Fields(row)
+	seen := make(map[string]bool, len(all))
+	var fields []string
+	for _, name := range all {
+		if !seen[name] {
+			seen[name] = true
+			fields = append(fields, name)
+		}
+	}
+	return fields
+}
+
+// checkFieldCaseMismatches checks whether any placeholder field referenced
+// in the row template is missing from front-matter but has a case-insensitive
+// match. Aggregates all observed casings across entries (including the
+// exact template field) so that:
+//   - no entry has an exact match + single alternative → "did you mean X?"
+//   - mixed casings across files → "inconsistent casing" warning
+func checkFieldCaseMismatches(filePath string, line int, row string, entries []fileEntry) []lint.Diagnostic {
+	fields := extractPlaceholderFields(row)
+	if len(fields) == 0 {
+		return nil
+	}
+
+	var diags []lint.Diagnostic
+
+	for _, field := range fields {
+		if strings.EqualFold(field, "filename") {
+			continue
+		}
+
+		// Collect all distinct casings of this field across all entries.
+		casingsSet := make(map[string]struct{})
+		for _, entry := range entries {
+			for key := range entry.fields {
+				if strings.EqualFold(key, field) {
+					casingsSet[key] = struct{}{}
+				}
+			}
+		}
+
+		if len(casingsSet) == 0 {
+			continue
+		}
+
+		// If the only casing observed is the exact template field, no mismatch
+		// (some files may lack the field entirely — that's not a casing issue).
+		_, hasExact := casingsSet[field]
+		if hasExact && len(casingsSet) == 1 {
+			continue
+		}
+
+		// Sort for deterministic diagnostics.
+		casings := make([]string, 0, len(casingsSet))
+		for key := range casingsSet {
+			casings = append(casings, key)
+		}
+		sort.Strings(casings)
+
+		var message string
+		switch {
+		case len(casings) == 1 && !hasExact:
+			// No entry has the exact field; single alternative found.
+			message = fmt.Sprintf("field %q not found; did you mean %q?", field, casings[0])
+		default:
+			// Multiple casings across files — surface the inconsistency.
+			quoted := make([]string, len(casings))
+			for i, c := range casings {
+				quoted[i] = fmt.Sprintf("%q", c)
+			}
+			message = fmt.Sprintf(
+				"field %q has inconsistent casing across matched files: %s",
+				field, strings.Join(quoted, ", "),
+			)
+		}
+
+		diag := makeDiag(filePath, line, message)
+		diag.Severity = lint.Warning
+		diags = append(diags, diag)
+	}
+	return diags
 }

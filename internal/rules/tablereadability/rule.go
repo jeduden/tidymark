@@ -13,27 +13,27 @@ import (
 )
 
 const (
-	defaultMaxColumns             = 8
-	defaultMaxRows                = 30
-	defaultMaxWordsPerCell        = 30
-	defaultMaxColumnWidthVariance = 60.0
+	defaultMaxColumns          = 8
+	defaultMaxRows             = 30
+	defaultMaxWordsPerCell     = 30
+	defaultMaxColumnWidthRatio = 60.0
 )
 
 func init() {
 	rule.Register(&Rule{
-		MaxColumns:             defaultMaxColumns,
-		MaxRows:                defaultMaxRows,
-		MaxWordsPerCell:        defaultMaxWordsPerCell,
-		MaxColumnWidthVariance: defaultMaxColumnWidthVariance,
+		MaxColumns:          defaultMaxColumns,
+		MaxRows:             defaultMaxRows,
+		MaxWordsPerCell:     defaultMaxWordsPerCell,
+		MaxColumnWidthRatio: defaultMaxColumnWidthRatio,
 	})
 }
 
 // Rule checks markdown tables for readability limits.
 type Rule struct {
-	MaxColumns             int
-	MaxRows                int
-	MaxWordsPerCell        int
-	MaxColumnWidthVariance float64
+	MaxColumns          int
+	MaxRows             int
+	MaxWordsPerCell     int
+	MaxColumnWidthRatio float64
 }
 
 // ID implements rule.Rule.
@@ -50,7 +50,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	maxColumns := positiveIntOrDefault(r.MaxColumns, defaultMaxColumns)
 	maxRows := positiveIntOrDefault(r.MaxRows, defaultMaxRows)
 	maxWordsPerCell := positiveIntOrDefault(r.MaxWordsPerCell, defaultMaxWordsPerCell)
-	maxVariance := positiveFloatOrDefault(r.MaxColumnWidthVariance, defaultMaxColumnWidthVariance)
+	maxRatio := positiveFloatOrDefault(r.MaxColumnWidthRatio, defaultMaxColumnWidthRatio)
 
 	codeLines := lint.CollectCodeBlockLines(f)
 	tables := findTables(f.Lines, codeLines)
@@ -84,11 +84,11 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 			))
 		}
 
-		if variance := tbl.columnWidthVariance(); variance > maxVariance {
+		if ratio := tbl.columnWidthRatio(); ratio > maxRatio {
 			diags = append(diags, makeDiag(
 				f,
 				tbl.startLine,
-				fmt.Sprintf("table has high column width variance (%.2f > %.2f)", variance, maxVariance),
+				fmt.Sprintf("table has high column width ratio (%.2f > %.2f)", ratio, maxRatio),
 			))
 		}
 	}
@@ -127,15 +127,15 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return fmt.Errorf("table-readability: max-words-per-cell must be > 0, got %d", n)
 			}
 			r.MaxWordsPerCell = n
-		case "max-column-width-variance":
+		case "max-column-width-ratio":
 			n, ok := toFloat(v)
 			if !ok {
-				return fmt.Errorf("table-readability: max-column-width-variance must be a number, got %T", v)
+				return fmt.Errorf("table-readability: max-column-width-ratio must be a number, got %T", v)
 			}
 			if n <= 0 {
-				return fmt.Errorf("table-readability: max-column-width-variance must be > 0, got %.2f", n)
+				return fmt.Errorf("table-readability: max-column-width-ratio must be > 0, got %.2f", n)
 			}
-			r.MaxColumnWidthVariance = n
+			r.MaxColumnWidthRatio = n
 		default:
 			return fmt.Errorf("table-readability: unknown setting %q", k)
 		}
@@ -146,10 +146,10 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 // DefaultSettings implements rule.Configurable.
 func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
-		"max-columns":               defaultMaxColumns,
-		"max-rows":                  defaultMaxRows,
-		"max-words-per-cell":        defaultMaxWordsPerCell,
-		"max-column-width-variance": defaultMaxColumnWidthVariance,
+		"max-columns":            defaultMaxColumns,
+		"max-rows":               defaultMaxRows,
+		"max-words-per-cell":     defaultMaxWordsPerCell,
+		"max-column-width-ratio": defaultMaxColumnWidthRatio,
 	}
 }
 
@@ -298,7 +298,7 @@ func (t table) maxCellWords() (int, int) {
 	return maxWords, maxLine
 }
 
-func (t table) columnWidthVariance() float64 {
+func (t table) columnWidthRatio() float64 {
 	columns := t.columnCount()
 	if columns == 0 {
 		return 0

@@ -10,13 +10,13 @@ This guide compares existing mdsmith rules that touch readability and length wit
 
 ## What the current rules measure
 
-| Rule                                                                                          | Measures                                                                     | Default                             | What it misses                                                  |
-|-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|-------------------------------------|-----------------------------------------------------------------|
-| [MDS023](../../internal/rules/MDS023-paragraph-readability/README.md) `paragraph-readability` | Complexity using ARI (characters per word, words per sentence)               | `max-grade: 14.0`, `min-words: 20`  | Wordiness and filler; short but dense paragraphs can be skipped |
-| [MDS024](../../internal/rules/MDS024-paragraph-structure/README.md) `paragraph-structure`     | Shape and length of paragraphs (sentences per paragraph, words per sentence) | `max-sentences: 6`, `max-words: 40` | Verbosity that fits within limits; dense but short prose        |
-| [MDS022](../../internal/rules/MDS022-max-file-length/README.md) `max-file-length`             | Lines per file                                                               | `max: 300`                          | Token load and dense paragraphs                                 |
-| [MDS028](../../internal/rules/MDS028-token-budget/README.md) `token-budget`                   | Estimated token count per file (`heuristic` or `tokenizer` mode)             | `max: 8000`, `mode: heuristic`      | Exact model token parity; tokenizer mode is still approximate   |
-| [MDS001](../../internal/rules/MDS001-line-length/README.md) `line-length`                     | Characters per line                                                          | `max: 80`                           | Verbosity and paragraph complexity                              |
+| Rule                                                                                          | Measures                                                                     | Default                                          | What it misses                                                  |
+|-----------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|--------------------------------------------------|-----------------------------------------------------------------|
+| [MDS023](../../internal/rules/MDS023-paragraph-readability/README.md) `paragraph-readability` | Complexity using ARI (characters per word, words per sentence)               | `max-grade: 14.0`, `min-words: 20`               | Wordiness and filler; short but dense paragraphs can be skipped |
+| [MDS024](../../internal/rules/MDS024-paragraph-structure/README.md) `paragraph-structure`     | Shape and length of paragraphs (sentences per paragraph, words per sentence) | `max-sentences: 6`, `max-words-per-sentence: 40` | Verbosity that fits within limits; dense but short prose        |
+| [MDS022](../../internal/rules/MDS022-max-file-length/README.md) `max-file-length`             | Lines per file                                                               | `max: 300`                                       | Token load and dense paragraphs                                 |
+| [MDS028](../../internal/rules/MDS028-token-budget/README.md) `token-budget`                   | Estimated token count per file (`heuristic` or `tokenizer` mode)             | `max: 8000`, `mode: heuristic`                   | Exact model token parity; tokenizer mode is still approximate   |
+| [MDS001](../../internal/rules/MDS001-line-length/README.md) `line-length`                     | Characters per line                                                          | `max: 80`                                        | Verbosity and paragraph complexity                              |
 
 ## Planned metrics (not implemented)
 
@@ -30,9 +30,9 @@ Conciseness scoring (plan 53) focuses on information density rather than complex
 
 ## What token budget awareness is trying to measure
 
-Token budget awareness ([MDS028](../../internal/rules/MDS028-token-budget/README.md)) focuses on file-level size in terms of tokens rather than lines or characters. It protects LLM context windows by warning when a file exceeds a configurable budget. `heuristic` mode uses word count multiplied by a ratio, which is fast but approximate. `tokenizer` mode uses tokenizer-aware splitting with a selected encoding for a closer estimate.
+Token budget awareness ([MDS028](../../internal/rules/MDS028-token-budget/README.md)) focuses on file-level size in terms of tokens rather than lines or characters. It protects LLM context windows by warning when a file exceeds a configurable budget. `heuristic` mode multiplies word count by a tokens-per-word factor, which is fast but approximate. `tokenizer` mode uses tokenizer-aware splitting with a selected encoding for a closer estimate.
 
-Tokenization happens before inference, so any LLM will read inputs as tokens. That means token budgets are only accurate when they use the same tokenizer as the target model. The trade-off is performance: exact tokenization is slower and needs vocab assets, while ratio-based estimates are fast and model-agnostic.
+Tokenization happens before inference, so any LLM will read inputs as tokens. That means token budgets are only accurate when they use the same tokenizer as the target model. The trade-off is performance: exact tokenization is slower and needs vocab assets, while heuristic estimates are fast and model-agnostic.
 
 ## Example paragraphs (paragraph-level metrics)
 
@@ -70,10 +70,10 @@ Notes: ARI values use mdsmith's current formula. [MDS023](../../internal/rules/M
 
 ## Token budget examples (file-level)
 
-These examples assume an illustrative ratio of `0.75 tokens per word` and a budget of `2,000 tokens`.
+These examples assume a `tokens-per-word` of `1.33` and a budget of `2,000 tokens`.
 
-- File F: 2,800 words -> ~2,100 tokens, flagged by token budget even if line count is below `max-file-length`.
-- File G: 1,200 words with heavy code blocks -> estimate ~900 tokens, but actual tokens could be higher; ratio tuning or code weighting may be needed.
+- File F: 2,800 words -> ~3,724 tokens, flagged by token budget even if line count is below `max-file-length`.
+- File G: 1,200 words with heavy code blocks -> estimate ~1,596 tokens, but actual tokens could be higher; `tokens-per-word` tuning or code weighting may be needed.
 
 ## Trade-offs by metric
 
@@ -89,7 +89,7 @@ These examples assume an illustrative ratio of `0.75 tokens per word` and a budg
 
 1. Start with defaults for [MDS023](../../internal/rules/MDS023-paragraph-readability/README.md) and [MDS024](../../internal/rules/MDS024-paragraph-structure/README.md) to establish baseline structure and readability.
 2. Sample a representative set of documents and collect results before tightening thresholds.
-3. For token budgets, pick a target based on your context window and allocate a safe share per document (for example, reserve 20 to 30 percent of a prompt budget for a single doc). Choose an initial word-to-token ratio and adjust for code-heavy files.
+3. For token budgets, pick a target based on your context window and allocate a safe share per document (for example, reserve 20 to 30 percent of a prompt budget for a single doc). Choose an initial `tokens-per-word` value and adjust for code-heavy files.
 4. For conciseness scoring, set an initial threshold that flags only the worst 10 to 20 percent of paragraphs, then adjust.
 5. Use path-based overrides to reflect different document types, such as onboarding guides vs architecture specs.
 6. Re-evaluate thresholds after major content changes or when onboarding new teams.

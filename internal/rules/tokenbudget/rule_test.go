@@ -17,7 +17,7 @@ func mustFile(t *testing.T, path, src string) *lint.File {
 
 func TestCheck_HeuristicBudgetExceeded(t *testing.T) {
 	f := mustFile(t, "test.md", "one two three four five six")
-	r := &Rule{Max: 3, Mode: "heuristic", Ratio: 1.0}
+	r := &Rule{Max: 3, Mode: "heuristic", TokensPerWord: 1.0}
 	diags := r.Check(f)
 
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
@@ -34,14 +34,14 @@ func TestCheck_HeuristicBudgetExceeded(t *testing.T) {
 	if d.Line != 1 || d.Column != 1 {
 		t.Errorf("expected location 1:1, got %d:%d", d.Line, d.Column)
 	}
-	if want := "token budget exceeded (6 > 3, mode=heuristic:ratio=1.00)"; d.Message != want {
+	if want := "token budget exceeded (6 > 3, mode=heuristic:tokens-per-word=1.00)"; d.Message != want {
 		t.Errorf("expected message %q, got %q", want, d.Message)
 	}
 }
 
 func TestCheck_HeuristicAtBudget_NoDiagnostic(t *testing.T) {
 	f := mustFile(t, "test.md", "one two three four")
-	r := &Rule{Max: 4, Mode: "heuristic", Ratio: 1.0}
+	r := &Rule{Max: 4, Mode: "heuristic", TokensPerWord: 1.0}
 	if diags := r.Check(f); len(diags) != 0 {
 		t.Fatalf("expected 0 diagnostics, got %d", len(diags))
 	}
@@ -64,7 +64,7 @@ func TestCheck_TokenizerBudgetExceeded(t *testing.T) {
 
 func TestCheck_PerGlobBudget_LastMatchWins(t *testing.T) {
 	f := mustFile(t, "docs/guide.md", "one two three four five six")
-	r := &Rule{Max: 100, Mode: "heuristic", Ratio: 1.0}
+	r := &Rule{Max: 100, Mode: "heuristic", TokensPerWord: 1.0}
 	if err := r.ApplySettings(map[string]any{
 		"budgets": []any{
 			map[string]any{"glob": "docs/*.md", "max": 10},
@@ -83,7 +83,7 @@ func TestCheck_PerGlobBudget_LastMatchWins(t *testing.T) {
 
 func TestCheck_PerGlobBudget_NoMatchUsesDefault(t *testing.T) {
 	f := mustFile(t, "README.md", "one two three")
-	r := &Rule{Max: 3, Mode: "heuristic", Ratio: 1.0}
+	r := &Rule{Max: 3, Mode: "heuristic", TokensPerWord: 1.0}
 	if err := r.ApplySettings(map[string]any{
 		"budgets": []any{map[string]any{"glob": "docs/*.md", "max": 1}},
 	}); err != nil {
@@ -97,11 +97,11 @@ func TestCheck_PerGlobBudget_NoMatchUsesDefault(t *testing.T) {
 func TestApplySettings_Valid(t *testing.T) {
 	r := &Rule{}
 	err := r.ApplySettings(map[string]any{
-		"max":       2048,
-		"mode":      "tokenizer",
-		"ratio":     0.9,
-		"tokenizer": "builtin",
-		"encoding":  "gpt2",
+		"max":             2048,
+		"mode":            "tokenizer",
+		"tokens-per-word": 0.9,
+		"tokenizer":       "builtin",
+		"encoding":        "gpt2",
 		"budgets": []any{
 			map[string]any{"glob": "README.md", "max": 1024},
 		},
@@ -113,8 +113,8 @@ func TestApplySettings_Valid(t *testing.T) {
 	if r.Mode != "tokenizer" {
 		t.Errorf("expected Mode=tokenizer, got %s", r.Mode)
 	}
-	if r.Ratio != 0.9 {
-		t.Errorf("expected Ratio=0.9, got %v", r.Ratio)
+	if r.TokensPerWord != 0.9 {
+		t.Errorf("expected TokensPerWord=0.9, got %v", r.TokensPerWord)
 	}
 	if r.Tokenizer != "builtin" {
 		t.Errorf("expected Tokenizer=builtin, got %s", r.Tokenizer)
@@ -130,8 +130,8 @@ func TestApplySettings_InvalidType(t *testing.T) {
 	if err := r.ApplySettings(map[string]any{"max": "many"}); err == nil {
 		t.Fatal("expected error for non-int max")
 	}
-	if err := r.ApplySettings(map[string]any{"ratio": "high"}); err == nil {
-		t.Fatal("expected error for non-number ratio")
+	if err := r.ApplySettings(map[string]any{"tokens-per-word": "high"}); err == nil {
+		t.Fatal("expected error for non-number tokens-per-word")
 	}
 	if err := r.ApplySettings(map[string]any{"mode": 123}); err == nil {
 		t.Fatal("expected error for non-string mode")
@@ -143,8 +143,8 @@ func TestApplySettings_InvalidValues(t *testing.T) {
 	if err := r.ApplySettings(map[string]any{"max": 0}); err == nil {
 		t.Fatal("expected error for non-positive max")
 	}
-	if err := r.ApplySettings(map[string]any{"ratio": -1.0}); err == nil {
-		t.Fatal("expected error for non-positive ratio")
+	if err := r.ApplySettings(map[string]any{"tokens-per-word": -1.0}); err == nil {
+		t.Fatal("expected error for non-positive tokens-per-word")
 	}
 	if err := r.ApplySettings(map[string]any{"mode": "unknown"}); err == nil {
 		t.Fatal("expected error for invalid mode")
@@ -193,8 +193,8 @@ func TestDefaultSettings(t *testing.T) {
 	if ds["mode"] != defaultMode {
 		t.Errorf("expected mode=%q, got %v", defaultMode, ds["mode"])
 	}
-	if ds["ratio"] != defaultRatio {
-		t.Errorf("expected ratio=%v, got %v", defaultRatio, ds["ratio"])
+	if ds["tokens-per-word"] != defaultTokensPerWord {
+		t.Errorf("expected tokens-per-word=%v, got %v", defaultTokensPerWord, ds["tokens-per-word"])
 	}
 	if ds["tokenizer"] != defaultTokenizer {
 		t.Errorf("expected tokenizer=%q, got %v", defaultTokenizer, ds["tokenizer"])

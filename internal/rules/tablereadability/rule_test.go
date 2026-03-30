@@ -48,18 +48,18 @@ func TestDefaultSettings(t *testing.T) {
 	if got := ds["max-words-per-cell"]; got != 30 {
 		t.Fatalf("max-words-per-cell = %v, want 30", got)
 	}
-	if got := ds["max-column-width-variance"]; got != 60.0 {
-		t.Fatalf("max-column-width-variance = %v, want 60.0", got)
+	if got := ds["max-column-width-ratio"]; got != 60.0 {
+		t.Fatalf("max-column-width-ratio = %v, want 60.0", got)
 	}
 }
 
 func TestApplySettings_Valid(t *testing.T) {
 	r := &Rule{}
 	err := r.ApplySettings(map[string]any{
-		"max-columns":               4,
-		"max-rows":                  12,
-		"max-words-per-cell":        10,
-		"max-column-width-variance": 2.25,
+		"max-columns":            4,
+		"max-rows":               12,
+		"max-words-per-cell":     10,
+		"max-column-width-ratio": 2.25,
 	})
 	require.NoError(t, err, "ApplySettings: %v", err)
 
@@ -72,8 +72,8 @@ func TestApplySettings_Valid(t *testing.T) {
 	if r.MaxWordsPerCell != 10 {
 		t.Fatalf("MaxWordsPerCell = %d, want 10", r.MaxWordsPerCell)
 	}
-	if r.MaxColumnWidthVariance != 2.25 {
-		t.Fatalf("MaxColumnWidthVariance = %v, want 2.25", r.MaxColumnWidthVariance)
+	if r.MaxColumnWidthRatio != 2.25 {
+		t.Fatalf("MaxColumnWidthRatio = %v, want 2.25", r.MaxColumnWidthRatio)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestCheck_NoDiagnosticForReadableTable(t *testing.T) {
 }
 
 func TestCheck_TooManyColumns(t *testing.T) {
-	r := &Rule{MaxColumns: 3, MaxRows: 20, MaxWordsPerCell: 50, MaxColumnWidthVariance: 10}
+	r := &Rule{MaxColumns: 3, MaxRows: 20, MaxWordsPerCell: 50, MaxColumnWidthRatio: 10}
 	src := "# Title\n\n| A | B | C | D |\n|---|---|---|---|\n| 1 | 2 | 3 | 4 |\n"
 
 	diags := r.Check(newFile(t, src))
@@ -112,7 +112,7 @@ func TestCheck_TooManyColumns(t *testing.T) {
 }
 
 func TestCheck_TooManyRows(t *testing.T) {
-	r := &Rule{MaxColumns: 6, MaxRows: 2, MaxWordsPerCell: 50, MaxColumnWidthVariance: 10}
+	r := &Rule{MaxColumns: 6, MaxRows: 2, MaxWordsPerCell: 50, MaxColumnWidthRatio: 10}
 	src := "# Title\n\n| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n"
 
 	diags := r.Check(newFile(t, src))
@@ -126,7 +126,7 @@ func TestCheck_TooManyRows(t *testing.T) {
 }
 
 func TestCheck_TooManyWordsPerCell(t *testing.T) {
-	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 4, MaxColumnWidthVariance: 10}
+	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 4, MaxColumnWidthRatio: 10}
 	src := "# Title\n\n| Name | Notes |\n|------|-------|\n| ok   | short |\n| bad  | This cell has six words total |\n"
 
 	diags := r.Check(newFile(t, src))
@@ -139,8 +139,8 @@ func TestCheck_TooManyWordsPerCell(t *testing.T) {
 	}
 }
 
-func TestCheck_HighWidthVariance(t *testing.T) {
-	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 100, MaxColumnWidthVariance: 1.50}
+func TestCheck_HighWidthRatio(t *testing.T) {
+	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 100, MaxColumnWidthRatio: 1.50}
 	src := `# Title
 
 | Key | Description |
@@ -154,11 +154,11 @@ func TestCheck_HighWidthVariance(t *testing.T) {
 	if diags[0].Line != 3 {
 		t.Fatalf("line = %d, want 3", diags[0].Line)
 	}
-	require.Contains(t, diags[0].Message, "table has high column width variance", "message = %q", diags[0].Message)
+	require.Contains(t, diags[0].Message, "table has high column width ratio", "message = %q", diags[0].Message)
 }
 
 func TestCheck_SkipsTablesInCodeBlock(t *testing.T) {
-	r := &Rule{MaxColumns: 1, MaxRows: 1, MaxWordsPerCell: 1, MaxColumnWidthVariance: 1.01}
+	r := &Rule{MaxColumns: 1, MaxRows: 1, MaxWordsPerCell: 1, MaxColumnWidthRatio: 1.01}
 	src := "# Title\n\n```markdown\n| A | B | C |\n|---|---|---|\n| one two three four | x | y |\n```\n"
 
 	diags := r.Check(newFile(t, src))
