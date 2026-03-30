@@ -174,6 +174,12 @@ func ResolvePath(data map[string]any, path []string) (string, error) {
 		current = val
 	}
 
+	// Reject composite leaf values so callers can treat them as invalid paths.
+	switch current.(type) {
+	case map[string]any, []any:
+		return "", fmt.Errorf("front-matter key %q is a composite value", strings.Join(path, "."))
+	}
+
 	return Stringify(current), nil
 }
 
@@ -213,8 +219,15 @@ func DiagnoseYAMLQuoting(paramName string, val any) string {
 		return ""
 	}
 
+	// Heuristic: only diagnose maps that look like a flow-mapping parse of
+	// a placeholder, which commonly yields keys with nil values (e.g.
+	// {title} → map["title":nil]). If any value is non-nil, this is likely
+	// a genuine map-typed value — defer to generic non-string handling.
 	var keys []string
-	for k := range m {
+	for k, v := range m {
+		if v != nil {
+			return ""
+		}
 		keys = append(keys, k)
 	}
 
