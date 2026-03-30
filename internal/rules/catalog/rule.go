@@ -480,7 +480,7 @@ func (r *Rule) checkCaseMismatches(f *lint.File) []lint.Diagnostic {
 		fields := extractPlaceholderFields(row)
 		hasNonBuiltin := false
 		for _, name := range fields {
-			if name != "filename" {
+			if !strings.EqualFold(name, "filename") {
 				hasNonBuiltin = true
 				break
 			}
@@ -524,7 +524,7 @@ func checkFieldCaseMismatches(filePath string, line int, row string, entries []f
 	var diags []lint.Diagnostic
 
 	for _, field := range fields {
-		if field == "filename" {
+		if strings.EqualFold(field, "filename") {
 			continue
 		}
 
