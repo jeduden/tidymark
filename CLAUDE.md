@@ -63,6 +63,25 @@ git push origin <branch>
 These commands are auto-approved in
 [`.claude/settings.json`](.claude/settings.json).
 
+## Plan Maintenance
+
+When implementing work tracked by a plan file in
+`plan/`:
+
+- Update the plan file **as part of the
+  implementation**, not as a separate follow-up
+- Check off each task (`- [x]`) as it is completed
+- Check off each acceptance criterion when verified
+- When all acceptance criteria are met, change the
+  front-matter `status` from `🔲` or `🔳` to `✅`
+- When work begins on a not-started plan, change
+  `status` from `🔲` to `🔳`
+- If the implementation deviates from the plan
+  (e.g. a parameter name changes), update the plan
+  text to match what was actually built
+- Run `mdsmith fix PLAN.md` after changing a plan's
+  front matter so the catalog table stays current
+
 ## Writing Guidelines
 
 When writing descriptions, state the concrete constraint:
