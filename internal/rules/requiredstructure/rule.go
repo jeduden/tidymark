@@ -410,28 +410,36 @@ func extractSchemaHeadings(
 	var headings []docHeading
 	var filenamePattern string
 
-	for n := schemaFile.AST.FirstChild(); n != nil; n = n.NextSibling() {
-		if h, ok := n.(*ast.Heading); ok {
-			text := headingText(h, schemaFile.Source)
-			line := schemaFile.LineOfOffset(h.Lines().At(0).Start)
-			headings = append(headings, docHeading{Level: h.Level, Text: text, Line: line})
-			continue
+	err := ast.Walk(schemaFile.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
 		}
 
-		pi, ok := n.(*lint.ProcessingInstruction)
-		if !ok || pi.Name != "include" {
-			continue
+		switch node := n.(type) {
+		case *ast.Heading:
+			text := headingText(node, schemaFile.Source)
+			line := schemaFile.LineOfOffset(node.Lines().At(0).Start)
+			headings = append(headings, docHeading{Level: node.Level, Text: text, Line: line})
+
+		case *lint.ProcessingInstruction:
+			if node.Name != "include" {
+				return ast.WalkContinue, nil
+			}
+			fragHeadings, fp, walkErr := expandSchemaInclude(
+				node, schemaFile.Source, schemaPath, visited, chain)
+			if walkErr != nil {
+				return ast.WalkStop, walkErr
+			}
+			if fp != "" && filenamePattern == "" {
+				filenamePattern = fp
+			}
+			headings = append(headings, fragHeadings...)
 		}
 
-		fragHeadings, fp, err := expandSchemaInclude(
-			pi, schemaFile.Source, schemaPath, visited, chain)
-		if err != nil {
-			return nil, "", err
-		}
-		if fp != "" && filenamePattern == "" {
-			filenamePattern = fp
-		}
-		headings = append(headings, fragHeadings...)
+		return ast.WalkContinue, nil
+	})
+	if err != nil {
+		return nil, "", err
 	}
 
 	return headings, filenamePattern, nil

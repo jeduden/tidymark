@@ -26,7 +26,7 @@ func newTestFile(
 func writeSchema(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
-	p := filepath.Join(dir, "tmpl.md")
+	p := filepath.Join(dir, "schema.md")
 	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -757,6 +757,8 @@ func TestCheck_RequireInNonSchemaFileWarns(t *testing.T) {
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
 		"<?require?> is only recognized in schema files; this directive has no effect here")
+	assert.Equal(t, lint.Warning, diags[0].Severity,
+		"misplaced <?require?> should be a warning, not an error")
 }
 
 func TestCheck_RequireInNonSchemaFileNoSchemaSet(t *testing.T) {
@@ -766,6 +768,8 @@ func TestCheck_RequireInNonSchemaFileNoSchemaSet(t *testing.T) {
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
 		"<?require?> is only recognized in schema files; this directive has no effect here")
+	assert.Equal(t, lint.Warning, diags[0].Severity,
+		"misplaced <?require?> should be a warning, not an error")
 }
 
 func TestCheck_RequireInSchemaFileNoWarning(t *testing.T) {
