@@ -55,6 +55,9 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return nil
 	}
 	diags := r.getEngine().Check(f)
+	// Case-mismatch hints run a separate pass over directives. This
+	// re-reads front-matter but avoids coupling hints to the engine's
+	// fatal-diagnostic pipeline. Acceptable for typical catalog sizes.
 	diags = append(diags, r.checkCaseMismatches(f)...)
 	return diags
 }
@@ -493,51 +496,66 @@ func extractPlaceholderFields(row string) []string {
 	return fields
 }
 
-// checkFieldCaseMismatches checks whether any template field referenced in
-// the row template is missing from a file's front-matter but has a
-// case-insensitive match. Returns "did you mean?" diagnostics.
+// checkFieldCaseMismatches checks whether any placeholder field referenced
+// in the row template is missing from front-matter but has a case-insensitive
+// match. Aggregates matches across all entries so that:
+//   - a single canonical casing produces "did you mean X?"
+//   - multiple casings surface the inconsistency
 func checkFieldCaseMismatches(filePath string, line int, row string, entries []fileEntry) []lint.Diagnostic {
 	fields := extractPlaceholderFields(row)
 	if len(fields) == 0 {
 		return nil
 	}
 
-	// Deduplicate warnings: emit at most one per (field, suggestion) pair.
-	type hint struct{ field, suggestion string }
-	seen := make(map[hint]bool)
 	var diags []lint.Diagnostic
 
-	for _, entry := range entries {
-		for _, field := range fields {
-			// Skip built-in fields that are always present.
-			if field == "filename" {
-				continue
-			}
-			// Exact match present — no warning needed.
+	for _, field := range fields {
+		if field == "filename" {
+			continue
+		}
+
+		// Collect all distinct case-insensitive matches across entries
+		// that do NOT have an exact match for this field.
+		matchesSet := make(map[string]struct{})
+		for _, entry := range entries {
 			if _, ok := entry.fields[field]; ok {
 				continue
 			}
-			// Look for case-insensitive matches deterministically.
-			var matches []string
 			for key := range entry.fields {
 				if strings.EqualFold(key, field) {
-					matches = append(matches, key)
+					matchesSet[key] = struct{}{}
 				}
 			}
-			if len(matches) == 0 {
-				continue
-			}
-			sort.Strings(matches)
-			suggestion := matches[0]
-			h := hint{field, suggestion}
-			if !seen[h] {
-				seen[h] = true
-				diag := makeDiag(filePath, line,
-					fmt.Sprintf("field %q not found; did you mean %q?", field, suggestion))
-				diag.Severity = lint.Warning
-				diags = append(diags, diag)
-			}
 		}
+
+		if len(matchesSet) == 0 {
+			continue
+		}
+
+		// Sort for deterministic diagnostics.
+		matches := make([]string, 0, len(matchesSet))
+		for key := range matchesSet {
+			matches = append(matches, key)
+		}
+		sort.Strings(matches)
+
+		var message string
+		if len(matches) == 1 {
+			message = fmt.Sprintf("field %q not found; did you mean %q?", field, matches[0])
+		} else {
+			quoted := make([]string, len(matches))
+			for i, m := range matches {
+				quoted[i] = fmt.Sprintf("%q", m)
+			}
+			message = fmt.Sprintf(
+				"field %q not found; similar fields exist with different casing: %s",
+				field, strings.Join(quoted, ", "),
+			)
+		}
+
+		diag := makeDiag(filePath, line, message)
+		diag.Severity = lint.Warning
+		diags = append(diags, diag)
 	}
 	return diags
 }

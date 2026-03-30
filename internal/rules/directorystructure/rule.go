@@ -132,7 +132,9 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 
 // DefaultSettings implements rule.Configurable.
 func (r *Rule) DefaultSettings() map[string]any {
-	// No default "allowed" list: by default the rule remains unconfigured/no-op
+	// No default "allowed" list. Applying these defaults marks the rule
+	// as configured (configured=true) with no patterns, so Check will
+	// emit a config warning rather than silently doing nothing.
 	return map[string]any{}
 }
 
