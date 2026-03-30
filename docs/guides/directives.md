@@ -14,12 +14,12 @@ composition, and fixability.
 
 ## Quick Reference
 
-| Directive                 | Purpose                                      | Closing tag | Fixable | Key parameters                            |
-|---------------------------|----------------------------------------------|-------------|---------|-------------------------------------------|
-| `<?catalog?>`             | List files matching a glob with front matter | yes         | yes     | `glob`, `sort`, `row`, `header`, `footer` |
-| `<?include?>`             | Embed content from another file              | yes         | yes     | `file`, `strip-frontmatter`, `wrap`       |
-| `<?require?>`             | Declare constraints in schema files          | no          | no      | `filename`                                |
-| `<?allow-empty-section?>` | Suppress empty-section diagnostic            | no          | no      | none                                      |
+| Directive                 | Purpose                                      | Closing tag | Fixable | Key parameters                                       |
+|---------------------------|----------------------------------------------|-------------|---------|------------------------------------------------------|
+| `<?catalog?>`             | List files matching a glob with front matter | yes         | yes     | `glob`, `sort`, `row`, `header`, `footer`            |
+| `<?include?>`             | Embed content from another file              | yes         | yes     | `file`, `strip-frontmatter`, `wrap`, `heading-level` |
+| `<?require?>`             | Declare constraints in schema files          | no          | no      | `filename`                                           |
+| `<?allow-empty-section?>` | Suppress empty-section diagnostic            | no          | no      | none                                                 |
 
 Two kinds of directives:
 
@@ -119,8 +119,11 @@ row: "- [{summary}]({filename})"
   does not match expected output.
 - `missing required "glob"` when glob is absent.
 - `has absolute glob path` when glob starts with `/`.
-- `fix` regenerates content between `<?catalog?>`
-  and `<?/catalog?>` from matched files.
+
+#### Catalog fix behavior
+
+Regenerates content between `<?catalog?>` and
+`<?/catalog?>` from matched files.
 
 ### `<?include?>`
 
@@ -167,8 +170,11 @@ Steps here.
 - `include file "x.md" not found` when file is
   missing.
 - `cyclic include: a.md -> b.md -> a.md` on cycles.
-- `fix` regenerates content between `<?include?>`
-  and `<?/include?>` from the referenced file.
+
+#### Include fix behavior
+
+Regenerates content between `<?include?>` and
+`<?/include?>` from the referenced file.
 
 ### `<?require?>`
 
@@ -182,7 +188,7 @@ schema. Only recognized in schema files.
 
 | Parameter  | Required | Default | Description                           |
 |------------|----------|---------|---------------------------------------|
-| `filename` | string   | --      | Glob the document basename must match |
+| `filename` | yes      | --      | Glob the document basename must match |
 
 #### Require example
 
@@ -313,7 +319,7 @@ These parameters were renamed for clarity:
 
 | Old name                    | New name                 | Rule   |
 |-----------------------------|--------------------------|--------|
-| `ratio`                     | `words-per-token`        | MDS028 |
+| `ratio`                     | `tokens-per-word`        | MDS028 |
 | `max-words`                 | `max-words-per-sentence` | MDS024 |
 | `max-column-width-variance` | `max-column-width-ratio` | MDS026 |
 
@@ -322,7 +328,7 @@ These parameters were renamed for clarity:
 All 33 rules and whether `fix` can auto-correct
 violations.
 
-### Fixable rules (MDS001-MDS016)
+### Rules MDS001-MDS016
 
 | Rule   | Name                            | Fixable |
 |--------|---------------------------------|---------|
@@ -343,7 +349,7 @@ violations.
 | MDS015 | `blank-line-around-fenced-code` | yes     |
 | MDS016 | `list-indent`                   | yes     |
 
-### Fixable rules (MDS017-MDS033)
+### Rules MDS017-MDS033
 
 | Rule   | Name                                 | Fixable |
 |--------|--------------------------------------|---------|
