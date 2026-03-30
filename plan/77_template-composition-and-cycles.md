@@ -147,60 +147,20 @@ schema files; this directive has no effect here
 
 ## Tasks
 
-1. Add visited-file tracking to MDS021 include
-   resolution in `internal/rules/include/`:
-
-  - Pass a `visited` set through `generate`
-  - On revisit, return a cycle diagnostic
-  - Add max-depth check (default 10)
-  - Add unit tests for direct and indirect
-    cycles
-
-2. Extend `parseTemplate` in
+1. ~~Add visited-file tracking to MDS021 include
+   resolution in `internal/rules/include/`.~~
+   Done.
+2. ~~Extend `parseTemplate` in
    `internal/rules/requiredstructure/rule.go`
-   to process `<?include?>` directives:
-
-  - Walk schema AST for include PIs
-  - Resolve included files relative to schema
-    directory
-  - Splice included headings into schema
-    heading list
-  - Merge `<?require?>` from fragments
-  - Ignore fragment front matter
-  - Use same visited-set cycle detection
-
-3. Add diagnostic for `<?require?>` in
-   non-schema files:
-
-  - In MDS020 `Check`, if the file being
-    linted contains `<?require?>` and is not
-    the configured schema, emit a warning
-
-4. Rename `template` to `schema` in
-   required-structure config:
-
-  - Update `ApplySettings` in
-    `requiredstructure/rule.go`
-  - Update all `.mdsmith.yml` overrides
-  - Update all rule READMEs and plan files
-    that reference `template:`
-
-5. Update fixtures:
-
-  - Add good/bad fixtures for include cycles
-  - Add good/bad fixtures for schema
-    composition with `<?include?>`
-  - Add fixture for `<?require?>` in a
-    non-schema file
-
-6. Update docs:
-
-  - `internal/rules/MDS020-required-structure/README.md`
-  - `internal/rules/MDS021-include/README.md`
-  - `docs/guides/directives.md` (plan 74)
-  - Plan 74 "coming from Hugo" section
-
-7. Run `mdsmith check .` to verify.
+   to process `<?include?>` directives.~~
+   Done.
+3. ~~Add diagnostic for `<?require?>` in
+   non-schema files.~~ Done.
+4. ~~Rename `template` to `schema` in
+   required-structure config.~~ Done.
+5. ~~Update fixtures.~~ Done.
+6. ~~Update docs.~~ Done.
+7. ~~Run `mdsmith check .` to verify.~~ Done.
 
 ## Acceptance Criteria
 

@@ -1,9 +1,9 @@
 ---
 id: 76
 title: Rename misleading parameter names
-status: "🔲"
+status: "✅"
 summary: >-
-  Rename ratio to words-per-token, max-words
+  Rename ratio to tokens-per-word, max-words
   to max-words-per-sentence, max-column-width-variance
   to max-column-width-ratio, and warn on
   directory-structure no-op.
@@ -50,7 +50,7 @@ config files and docs in a single PR.
 
 ## Tasks
 
-1. Rename `ratio` to `words-per-token` in
+1. Rename `ratio` to `tokens-per-word` in
    MDS028 (token-budget):
 
   - Update `ApplySettings` and
@@ -116,18 +116,18 @@ config files and docs in a single PR.
 
 ## Acceptance Criteria
 
-- [ ] `ratio` renamed to `words-per-token`
-- [ ] `max-words` renamed to
+- [x] `ratio` renamed to `tokens-per-word`
+- [x] `max-words` renamed to
       `max-words-per-sentence`
-- [ ] `max-column-width-variance` renamed to
+- [x] `max-column-width-variance` renamed to
       `max-column-width-ratio`
-- [ ] `directory-structure: true` without
+- [x] `directory-structure: true` without
       `allowed` emits a config warning
-- [ ] Case-mismatched front-matter key in
+- [x] Case-mismatched front-matter key in
       catalog emits "did you mean?" hint
-- [ ] `.mdsmith.yml` uses new names throughout
-- [ ] All rule READMEs use new names
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] `.mdsmith.yml` uses new names throughout
+- [x] All rule READMEs use new names
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues
-- [ ] `mdsmith check .` passes
+- [x] `mdsmith check .` passes
