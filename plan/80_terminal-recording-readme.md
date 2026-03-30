@@ -36,14 +36,22 @@ without a display server.
 A VHS tape file at the repo root that cycles through
 key mdsmith features:
 
-1. `./mdsmith check` on a sample file with lint
+1. `./mdsmith init` — generate a default config
+2. `./mdsmith check` on a sample file with lint
    errors — shows diagnostic output with source context
-2. `./mdsmith fix` on the same file — shows auto-fix
-3. `./mdsmith check` again — clean pass, exit 0
-4. `./mdsmith help rule line-length` — shows built-in
+3. `./mdsmith fix` on the same file — shows auto-fix
+4. `./mdsmith check` again — clean pass, exit 0
+5. `./mdsmith help rule line-length` — shows built-in
    rule docs
-5. `./mdsmith metrics rank --by bytes --top 5 .` —
-   shows metrics
+6. `./mdsmith help rule catalog` — shows catalog rule
+7. `./mdsmith help rule directory-structure` — shows
+   directory-structure rule
+8. `./mdsmith help rule required-structure` — shows
+   required-structure rule
+9. `./mdsmith query 'status: "✅"' plan/` — shows
+   front-matter filtering
+10. `./mdsmith metrics rank --by bytes --top 5 .` —
+    shows metrics
 
 Each step has a short pause so viewers can read the
 output. The tape targets an 80x24 terminal at a
@@ -83,7 +91,8 @@ without external hosting.
 runs on push to `main`. Steps:
 
 1. Checkout repo
-2. Build mdsmith (`go build -o mdsmith ./cmd/mdsmith`)
+2. Build mdsmith (`go build -cover -o mdsmith
+   ./cmd/mdsmith` or invoke via `go tool`)
 3. Install VHS
 4. Run `vhs demo.tape`
 5. Configure git `user.name` / `user.email` for the
@@ -103,6 +112,13 @@ runs on pull requests. Steps:
    GIF (check file header bytes `GIF89a` or `GIF87a`)
 6. Assert file size is within a reasonable range
    (> 10 KB, < 5 MB) to catch broken recordings
+7. Analyze the GIF content: extract frames, verify
+   expected command output appears (e.g. grep rendered
+   text for key strings like `MDS001`, `mdsmith check`,
+   `0 issues`). Use a frame-to-text tool or compare
+   against a set of reference screenshots to catch
+   regressions where the GIF renders but shows wrong
+   or empty output
 
 The PR job does **not** commit — it only verifies the
 pipeline succeeds and the output is sane.
@@ -130,7 +146,9 @@ pipeline succeeds and the output is sane.
 ## Acceptance Criteria
 
 - [ ] `demo.tape` exists and defines a multi-step demo
-  covering check, fix, help-rule, and metrics commands
+  covering init, check, fix, help-rule (line-length,
+  catalog, directory-structure, required-structure),
+  query, and metrics commands
 - [ ] `demo/sample.md` contains intentional lint errors
   that produce visible diagnostics
 - [ ] `README.md` embeds `assets/demo.gif` between the
@@ -139,7 +157,8 @@ pipeline succeeds and the output is sane.
   on push to `main` and commits it if changed
 - [ ] CI job in `.github/workflows/ci.yml` runs VHS on
   PRs and asserts the GIF is valid (correct header,
-  reasonable file size)
+  reasonable file size, expected content visible in
+  extracted frames)
 - [ ] `demo/` is excluded from mdsmith linting so the
   sample file does not cause CI failures
 - [ ] All tests pass: `go test ./...`
