@@ -160,7 +160,7 @@ func TestDefaultSettings(t *testing.T) {
 	assert.False(t, ok, "default settings should not include 'allowed' key (rule stays unconfigured/no-op)")
 }
 
-func TestApplyDefaultSettings_RemainsUnconfigured(t *testing.T) {
+func TestApplyDefaultSettings_EmitsConfigWarning(t *testing.T) {
 	// Simulate the CloneRule/fixture-harness flow: configure the rule,
 	// then restore defaults. The rule should return to unconfigured and
 	// emit a config warning when checked.

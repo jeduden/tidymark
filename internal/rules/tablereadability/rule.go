@@ -21,19 +21,19 @@ const (
 
 func init() {
 	rule.Register(&Rule{
-		MaxColumns:             defaultMaxColumns,
-		MaxRows:                defaultMaxRows,
-		MaxWordsPerCell:        defaultMaxWordsPerCell,
-		MaxColumnWidthVariance: defaultMaxColumnWidthRatio,
+		MaxColumns:          defaultMaxColumns,
+		MaxRows:             defaultMaxRows,
+		MaxWordsPerCell:     defaultMaxWordsPerCell,
+		MaxColumnWidthRatio: defaultMaxColumnWidthRatio,
 	})
 }
 
 // Rule checks markdown tables for readability limits.
 type Rule struct {
-	MaxColumns             int
-	MaxRows                int
-	MaxWordsPerCell        int
-	MaxColumnWidthVariance float64
+	MaxColumns          int
+	MaxRows             int
+	MaxWordsPerCell     int
+	MaxColumnWidthRatio float64
 }
 
 // ID implements rule.Rule.
@@ -50,7 +50,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	maxColumns := positiveIntOrDefault(r.MaxColumns, defaultMaxColumns)
 	maxRows := positiveIntOrDefault(r.MaxRows, defaultMaxRows)
 	maxWordsPerCell := positiveIntOrDefault(r.MaxWordsPerCell, defaultMaxWordsPerCell)
-	maxVariance := positiveFloatOrDefault(r.MaxColumnWidthVariance, defaultMaxColumnWidthRatio)
+	maxVariance := positiveFloatOrDefault(r.MaxColumnWidthRatio, defaultMaxColumnWidthRatio)
 
 	codeLines := lint.CollectCodeBlockLines(f)
 	tables := findTables(f.Lines, codeLines)
@@ -135,7 +135,7 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 			if n <= 0 {
 				return fmt.Errorf("table-readability: max-column-width-ratio must be > 0, got %.2f", n)
 			}
-			r.MaxColumnWidthVariance = n
+			r.MaxColumnWidthRatio = n
 		default:
 			return fmt.Errorf("table-readability: unknown setting %q", k)
 		}

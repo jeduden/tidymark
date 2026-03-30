@@ -72,8 +72,8 @@ func TestApplySettings_Valid(t *testing.T) {
 	if r.MaxWordsPerCell != 10 {
 		t.Fatalf("MaxWordsPerCell = %d, want 10", r.MaxWordsPerCell)
 	}
-	if r.MaxColumnWidthVariance != 2.25 {
-		t.Fatalf("MaxColumnWidthVariance = %v, want 2.25", r.MaxColumnWidthVariance)
+	if r.MaxColumnWidthRatio != 2.25 {
+		t.Fatalf("MaxColumnWidthRatio = %v, want 2.25", r.MaxColumnWidthRatio)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestCheck_NoDiagnosticForReadableTable(t *testing.T) {
 }
 
 func TestCheck_TooManyColumns(t *testing.T) {
-	r := &Rule{MaxColumns: 3, MaxRows: 20, MaxWordsPerCell: 50, MaxColumnWidthVariance: 10}
+	r := &Rule{MaxColumns: 3, MaxRows: 20, MaxWordsPerCell: 50, MaxColumnWidthRatio: 10}
 	src := "# Title\n\n| A | B | C | D |\n|---|---|---|---|\n| 1 | 2 | 3 | 4 |\n"
 
 	diags := r.Check(newFile(t, src))
@@ -112,7 +112,7 @@ func TestCheck_TooManyColumns(t *testing.T) {
 }
 
 func TestCheck_TooManyRows(t *testing.T) {
-	r := &Rule{MaxColumns: 6, MaxRows: 2, MaxWordsPerCell: 50, MaxColumnWidthVariance: 10}
+	r := &Rule{MaxColumns: 6, MaxRows: 2, MaxWordsPerCell: 50, MaxColumnWidthRatio: 10}
 	src := "# Title\n\n| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |\n"
 
 	diags := r.Check(newFile(t, src))
@@ -126,7 +126,7 @@ func TestCheck_TooManyRows(t *testing.T) {
 }
 
 func TestCheck_TooManyWordsPerCell(t *testing.T) {
-	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 4, MaxColumnWidthVariance: 10}
+	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 4, MaxColumnWidthRatio: 10}
 	src := "# Title\n\n| Name | Notes |\n|------|-------|\n| ok   | short |\n| bad  | This cell has six words total |\n"
 
 	diags := r.Check(newFile(t, src))
@@ -140,7 +140,7 @@ func TestCheck_TooManyWordsPerCell(t *testing.T) {
 }
 
 func TestCheck_HighWidthVariance(t *testing.T) {
-	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 100, MaxColumnWidthVariance: 1.50}
+	r := &Rule{MaxColumns: 6, MaxRows: 20, MaxWordsPerCell: 100, MaxColumnWidthRatio: 1.50}
 	src := `# Title
 
 | Key | Description |
@@ -158,7 +158,7 @@ func TestCheck_HighWidthVariance(t *testing.T) {
 }
 
 func TestCheck_SkipsTablesInCodeBlock(t *testing.T) {
-	r := &Rule{MaxColumns: 1, MaxRows: 1, MaxWordsPerCell: 1, MaxColumnWidthVariance: 1.01}
+	r := &Rule{MaxColumns: 1, MaxRows: 1, MaxWordsPerCell: 1, MaxColumnWidthRatio: 1.01}
 	src := "# Title\n\n```markdown\n| A | B | C |\n|---|---|---|\n| one two three four | x | y |\n```\n"
 
 	diags := r.Check(newFile(t, src))
