@@ -437,20 +437,39 @@ func extractSchemaHeadings(
 
 // expandSchemaInclude resolves a single <?include?> PI in a schema file,
 // reads the fragment, and returns its headings and any filename pattern.
+// resolveSchemaIncludePath extracts and validates the file parameter from
+// an include PI, returning the resolved filesystem path.
+func resolveSchemaIncludePath(
+	pi *lint.ProcessingInstruction, source []byte, schemaPath string,
+) (string, error) {
+	fileParam, err := extractPIFileParam(pi, source)
+	if err != nil {
+		return "", fmt.Errorf("parsing include processing instruction: %w", err)
+	}
+	if strings.TrimSpace(fileParam) == "" {
+		return "", fmt.Errorf("include processing instruction missing required 'file' attribute")
+	}
+	if filepath.IsAbs(fileParam) {
+		return "", fmt.Errorf("schema include has absolute file path %q", fileParam)
+	}
+	for _, elem := range strings.Split(filepath.ToSlash(fileParam), "/") {
+		if elem == ".." {
+			return "", fmt.Errorf(
+				"schema include file path %q contains \"..\" traversal", fileParam)
+		}
+	}
+	dir := filepath.Dir(schemaPath)
+	return filepath.Clean(filepath.Join(dir, fileParam)), nil
+}
+
 func expandSchemaInclude(
 	pi *lint.ProcessingInstruction, source []byte,
 	schemaPath string, visited map[string]bool, chain []string,
 ) ([]docHeading, string, error) {
-	fileParam, err := extractPIFileParam(pi, source)
+	includedPath, err := resolveSchemaIncludePath(pi, source, schemaPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("parsing include processing instruction: %w", err)
+		return nil, "", err
 	}
-	if strings.TrimSpace(fileParam) == "" {
-		return nil, "", fmt.Errorf("include processing instruction missing required 'file' attribute")
-	}
-
-	dir := filepath.Dir(schemaPath)
-	includedPath := filepath.Clean(filepath.Join(dir, fileParam))
 
 	if len(chain) > maxSchemaIncludeDepth {
 		return nil, "", fmt.Errorf(
@@ -467,14 +486,14 @@ func expandSchemaInclude(
 	fragData, err := os.ReadFile(includedPath)
 	if err != nil {
 		return nil, "", fmt.Errorf(
-			"schema include file %q not found: %w", fileParam, err)
+			"schema include file %q not found: %w", includedPath, err)
 	}
 
 	_, fragContent := lint.StripFrontMatter(fragData)
 	fragFile, err := lint.NewFile(includedPath, fragContent)
 	if err != nil {
 		return nil, "", fmt.Errorf(
-			"parsing schema include %q: %w", fileParam, err)
+			"parsing schema include %q: %w", includedPath, err)
 	}
 
 	fp, err := extractRequireDirective(fragFile)

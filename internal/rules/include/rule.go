@@ -201,11 +201,13 @@ func (r *Rule) generateIncludeContent(
 	if r.visited != nil {
 		r.visited[resolvedFile] = true
 		r.chain = append(r.chain, resolvedFile)
+		defer func() {
+			delete(r.visited, resolvedFile)
+			r.chain = r.chain[:len(r.chain)-1]
+		}()
 		if diags := r.scanForCycles(readFS, data, resolvedFile, filePath, line); len(diags) > 0 {
 			return "", diags
 		}
-		delete(r.visited, resolvedFile)
-		r.chain = r.chain[:len(r.chain)-1]
 	}
 
 	text := processIncludedContent(data, params, f, filePath, file, line)
@@ -353,14 +355,16 @@ func (r *Rule) scanForCycles(
 		// Recurse into nested includes.
 		r.visited[resolved] = true
 		r.chain = append(r.chain, resolved)
+		var cycleDiags []lint.Diagnostic
 		nested, readErr := fs.ReadFile(readFS, resolved)
 		if readErr == nil {
-			if diags := r.scanForCycles(readFS, nested, resolved, originFile, originLine); len(diags) > 0 {
-				return diags
-			}
+			cycleDiags = r.scanForCycles(readFS, nested, resolved, originFile, originLine)
 		}
 		delete(r.visited, resolved)
 		r.chain = r.chain[:len(r.chain)-1]
+		if len(cycleDiags) > 0 {
+			return cycleDiags
+		}
 	}
 
 	return nil

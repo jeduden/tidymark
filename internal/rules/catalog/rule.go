@@ -424,7 +424,9 @@ func scanIncludesForTarget(
 			continue
 		}
 		visited[resolved] = true
-		if scanIncludesForTarget(fsys, resolved, target, visited, depth+1) {
+		found := scanIncludesForTarget(fsys, resolved, target, visited, depth+1)
+		delete(visited, resolved)
+		if found {
 			return true
 		}
 	}
