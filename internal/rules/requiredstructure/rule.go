@@ -23,9 +23,9 @@ func init() {
 	rule.Register(&Rule{})
 }
 
-// Rule checks that a document's heading structure matches a template.
+// Rule checks that a document's heading structure matches a schema.
 type Rule struct {
-	Template string // path to template file
+	Schema string // path to schema file
 }
 
 // ID implements rule.Rule.
@@ -41,12 +41,12 @@ func (r *Rule) Category() string { return "meta" }
 func (r *Rule) ApplySettings(settings map[string]any) error {
 	for k, v := range settings {
 		switch k {
-		case "template":
+		case "schema":
 			s, ok := v.(string)
 			if !ok {
-				return fmt.Errorf("required-structure: template must be a string, got %T", v)
+				return fmt.Errorf("required-structure: schema must be a string, got %T", v)
 			}
-			r.Template = s
+			r.Schema = s
 		default:
 			return fmt.Errorf("required-structure: unknown setting %q", k)
 		}
@@ -57,52 +57,62 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 // DefaultSettings implements rule.Configurable.
 func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
-		"template": "",
+		"schema": "",
 	}
 }
 
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
-	if r.Template == "" {
-		return nil
+	var diags []lint.Diagnostic
+
+	// Warn when <?require?> appears in a non-schema file.
+	if reqLine := findRequireDirectiveLine(f); reqLine > 0 {
+		if r.Schema == "" || !isSchemaFile(f.Path, r.Schema) {
+			d := makeDiag(f.Path, reqLine,
+				"<?require?> is only recognized in schema files; this directive has no effect here")
+			d.Severity = lint.Warning
+			diags = append(diags, d)
+		}
 	}
 
-	tmplData, err := os.ReadFile(r.Template)
+	if r.Schema == "" {
+		return diags
+	}
+
+	schData, err := os.ReadFile(r.Schema)
 	if err != nil {
-		return []lint.Diagnostic{r.diag(f.Path, 1,
-			fmt.Sprintf("cannot read template %q: %v", r.Template, err))}
+		return append(diags, r.diag(f.Path, 1,
+			fmt.Sprintf("cannot read schema %q: %v", r.Schema, err)))
 	}
 
-	tmpl, err := parseTemplate(tmplData)
+	sch, err := parseSchema(schData, r.Schema)
 	if err != nil {
-		return []lint.Diagnostic{r.diag(f.Path, 1,
-			fmt.Sprintf("invalid template %q: %v", r.Template, err))}
+		return append(diags, r.diag(f.Path, 1,
+			fmt.Sprintf("invalid schema %q: %v", r.Schema, err)))
 	}
 
-	// Skip the template file itself.
-	if isTemplateTargetFile(f.Path, r.Template) {
-		return nil
+	// Skip the schema file itself.
+	if isSchemaFile(f.Path, r.Schema) {
+		return diags
 	}
 
 	docHeadings := extractHeadings(f)
 	docFMRaw := readDocFrontMatterRaw(f)
 
-	var diags []lint.Diagnostic
-
 	// Check filename pattern.
-	diags = append(diags, checkFilenamePattern(f, tmpl)...)
+	diags = append(diags, checkFilenamePattern(f, sch)...)
 
 	// Check structure: required headings present and in order.
-	diags = append(diags, checkStructure(f, tmpl, docHeadings)...)
+	diags = append(diags, checkStructure(f, sch, docHeadings)...)
 
-	// Validate document front matter against template-embedded CUE schema.
-	if err := validateFrontMatterCUE(tmpl.Config.FrontMatterCUE, docFMRaw); err != nil {
+	// Validate document front matter against schema-embedded CUE constraints.
+	if err := validateFrontMatterCUE(sch.Config.FrontMatterCUE, docFMRaw); err != nil {
 		diags = append(diags, makeDiag(f.Path, 1,
-			fmt.Sprintf("front matter does not satisfy template CUE schema: %v", err)))
+			fmt.Sprintf("front matter does not satisfy schema CUE constraints: %v", err)))
 	}
 
 	// Check frontmatter-body sync using raw map for nested access.
-	diags = append(diags, checkSync(f, tmpl, docHeadings, docFMRaw)...)
+	diags = append(diags, checkSync(f, sch, docHeadings, docFMRaw)...)
 
 	return diags
 }
@@ -121,22 +131,22 @@ func (r *Rule) diag(file string, line int, msg string) lint.Diagnostic {
 
 var _ rule.Configurable = (*Rule)(nil)
 
-// templateConfig holds the parsed template frontmatter.
-type templateConfig struct {
+// schemaConfig holds the parsed schema frontmatter.
+type schemaConfig struct {
 	FrontMatterCUE  string
 	FilenamePattern string // glob pattern the document basename must match
 }
 
-// templateHeading represents a required heading from the template.
-type templateHeading struct {
+// schemaHeading represents a required heading from the schema.
+type schemaHeading struct {
 	Level int
 	Text  string // raw text, may contain {field} or ?
 }
 
-// parsedTemplate holds the full parsed template.
-type parsedTemplate struct {
-	Config   templateConfig
-	Headings []templateHeading
+// parsedSchema holds the full parsed schema.
+type parsedSchema struct {
+	Config   schemaConfig
+	Headings []schemaHeading
 	// syncPoints maps heading index to list of (field, expected text) pairs
 	// for body sync checking.
 	SyncPoints map[int][]syncPoint
@@ -153,14 +163,14 @@ var cueIdentPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 const sectionWildcard = "..."
 
-// parseTemplateConfig extracts the template configuration from frontmatter.
-func parseTemplateConfig(prefix []byte) (templateConfig, error) {
-	cfg := templateConfig{}
+// parseSchemaFrontMatter extracts the schema configuration from frontmatter.
+func parseSchemaFrontMatter(prefix []byte) (schemaConfig, error) {
+	cfg := schemaConfig{}
 	if prefix == nil {
 		return cfg, nil
 	}
 	yamlBytes := extractYAML(prefix)
-	derivedSchema, err := deriveFrontMatterSchemaFromTemplate(yamlBytes)
+	derivedSchema, err := deriveFrontMatterCUE(yamlBytes)
 	if err != nil {
 		return cfg, err
 	}
@@ -171,7 +181,7 @@ func parseTemplateConfig(prefix []byte) (templateConfig, error) {
 	return cfg, nil
 }
 
-// extractRequireDirective walks the template AST for a <?require?> PI
+// extractRequireDirective walks the schema AST for a <?require?> PI
 // and parses its YAML body to extract constraints like filename.
 func extractRequireDirective(f *lint.File) (string, error) {
 	var filenamePattern string
@@ -218,10 +228,10 @@ func extractRequireDirective(f *lint.File) (string, error) {
 	return filenamePattern, nil
 }
 
-func deriveFrontMatterSchemaFromTemplate(yamlBytes []byte) (string, error) {
+func deriveFrontMatterCUE(yamlBytes []byte) (string, error) {
 	var raw map[string]any
 	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
-		return "", fmt.Errorf("parsing template frontmatter: %w", err)
+		return "", fmt.Errorf("parsing schema frontmatter: %w", err)
 	}
 	if len(raw) == 0 {
 		return "", nil
@@ -229,7 +239,7 @@ func deriveFrontMatterSchemaFromTemplate(yamlBytes []byte) (string, error) {
 
 	expr, err := cueExprForMap(raw)
 	if err != nil {
-		return "", fmt.Errorf("parsing template frontmatter schema: %w", err)
+		return "", fmt.Errorf("parsing schema frontmatter constraints: %w", err)
 	}
 	return "close(" + expr + ")", nil
 }
@@ -327,34 +337,55 @@ func collectBodySyncPoints(
 	}
 }
 
-// parseTemplate reads template bytes, extracts frontmatter config and
-// required headings.
-func parseTemplate(data []byte) (*parsedTemplate, error) {
+// maxSchemaIncludeDepth is the maximum nesting depth for schema includes.
+const maxSchemaIncludeDepth = 10
+
+// parseSchema reads schema bytes, extracts frontmatter config and
+// required headings. When schemaPath is non-empty, <?include?> directives
+// are expanded and their headings spliced in.
+func parseSchema(data []byte, schemaPath string) (*parsedSchema, error) {
 	prefix, content := lint.StripFrontMatter(data)
 
-	cfg, err := parseTemplateConfig(prefix)
+	cfg, err := parseSchemaFrontMatter(prefix)
 	if err != nil {
 		return nil, err
 	}
 
-	f, err := lint.NewFile("template", content)
+	f, err := lint.NewFile("schema", content)
 	if err != nil {
-		return nil, fmt.Errorf("parsing template markdown: %w", err)
+		return nil, fmt.Errorf("parsing schema markdown: %w", err)
 	}
 
-	// Extract <?require?> directive from template body.
+	// Extract <?require?> directive from schema body.
 	filenamePattern, err := extractRequireDirective(f)
 	if err != nil {
 		return nil, err
 	}
 	cfg.FilenamePattern = filenamePattern
 
-	headings := extractHeadings(f)
-	tmplHeadings := make([]templateHeading, len(headings))
+	// Extract headings, expanding <?include?> directives in the schema.
+	var headings []docHeading
+	if schemaPath != "" {
+		cleanPath := filepath.Clean(schemaPath)
+		visited := map[string]bool{cleanPath: true}
+		chain := []string{cleanPath}
+		var fp string
+		headings, fp, err = extractSchemaHeadings(f, schemaPath, visited, chain)
+		if err != nil {
+			return nil, err
+		}
+		if fp != "" && cfg.FilenamePattern == "" {
+			cfg.FilenamePattern = fp
+		}
+	} else {
+		headings = extractHeadings(f)
+	}
+
+	schHeadings := make([]schemaHeading, len(headings))
 	syncPoints := make(map[int][]syncPoint)
 
 	for i, h := range headings {
-		tmplHeadings[i] = templateHeading{Level: h.Level, Text: h.Text}
+		schHeadings[i] = schemaHeading{Level: h.Level, Text: h.Text}
 		for _, f := range fieldinterp.Fields(h.Text) {
 			syncPoints[i] = append(syncPoints[i], syncPoint{Field: f})
 		}
@@ -362,11 +393,171 @@ func parseTemplate(data []byte) (*parsedTemplate, error) {
 
 	collectBodySyncPoints(content, headings, syncPoints)
 
-	return &parsedTemplate{
+	return &parsedSchema{
 		Config:     cfg,
-		Headings:   tmplHeadings,
+		Headings:   schHeadings,
 		SyncPoints: syncPoints,
 	}, nil
+}
+
+// extractSchemaHeadings walks the schema AST, collecting headings and
+// expanding <?include?> PIs by splicing in the included file's headings.
+// It uses a visited set for cycle detection.
+func extractSchemaHeadings(
+	schemaFile *lint.File, schemaPath string,
+	visited map[string]bool, chain []string,
+) ([]docHeading, string, error) {
+	var headings []docHeading
+	var filenamePattern string
+
+	err := ast.Walk(schemaFile.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+
+		switch node := n.(type) {
+		case *ast.Heading:
+			text := headingText(node, schemaFile.Source)
+			line := schemaFile.LineOfOffset(node.Lines().At(0).Start)
+			headings = append(headings, docHeading{Level: node.Level, Text: text, Line: line})
+
+		case *lint.ProcessingInstruction:
+			if node.Name != "include" {
+				return ast.WalkContinue, nil
+			}
+			fragHeadings, fp, walkErr := expandSchemaInclude(
+				node, schemaFile.Source, schemaPath, visited, chain)
+			if walkErr != nil {
+				return ast.WalkStop, walkErr
+			}
+			if fp != "" && filenamePattern == "" {
+				filenamePattern = fp
+			}
+			headings = append(headings, fragHeadings...)
+		}
+
+		return ast.WalkContinue, nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
+	return headings, filenamePattern, nil
+}
+
+// expandSchemaInclude resolves a single <?include?> PI in a schema file,
+// reads the fragment, and returns its headings and any filename pattern.
+// resolveSchemaIncludePath extracts and validates the file parameter from
+// an include PI, returning the resolved filesystem path.
+func resolveSchemaIncludePath(
+	pi *lint.ProcessingInstruction, source []byte, schemaPath string,
+) (string, error) {
+	fileParam, err := extractPIFileParam(pi, source)
+	if err != nil {
+		return "", fmt.Errorf("parsing include processing instruction: %w", err)
+	}
+	if strings.TrimSpace(fileParam) == "" {
+		return "", fmt.Errorf("include processing instruction missing required 'file' attribute")
+	}
+	if filepath.IsAbs(fileParam) {
+		return "", fmt.Errorf("schema include has absolute file path %q", fileParam)
+	}
+	for _, elem := range strings.Split(filepath.ToSlash(fileParam), "/") {
+		if elem == ".." {
+			return "", fmt.Errorf(
+				"schema include file path %q contains \"..\" traversal", fileParam)
+		}
+	}
+	dir := filepath.Dir(schemaPath)
+	return filepath.Clean(filepath.Join(dir, fileParam)), nil
+}
+
+func expandSchemaInclude(
+	pi *lint.ProcessingInstruction, source []byte,
+	schemaPath string, visited map[string]bool, chain []string,
+) ([]docHeading, string, error) {
+	includedPath, err := resolveSchemaIncludePath(pi, source, schemaPath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if len(chain) > maxSchemaIncludeDepth {
+		return nil, "", fmt.Errorf(
+			"schema include depth exceeds maximum (%d)", maxSchemaIncludeDepth)
+	}
+	if visited[includedPath] {
+		chainCopy := make([]string, len(chain))
+		copy(chainCopy, chain)
+		chainCopy = append(chainCopy, includedPath)
+		return nil, "", fmt.Errorf(
+			"cyclic include: %s", strings.Join(chainCopy, " -> "))
+	}
+
+	fragData, err := os.ReadFile(includedPath)
+	if err != nil {
+		return nil, "", fmt.Errorf(
+			"schema include file %q not found: %w", includedPath, err)
+	}
+
+	_, fragContent := lint.StripFrontMatter(fragData)
+	fragFile, err := lint.NewFile(includedPath, fragContent)
+	if err != nil {
+		return nil, "", fmt.Errorf(
+			"parsing schema include %q: %w", includedPath, err)
+	}
+
+	fp, err := extractRequireDirective(fragFile)
+	if err != nil {
+		return nil, "", err
+	}
+
+	visited[includedPath] = true
+	chain = append(chain, includedPath)
+	fragHeadings, fp2, err := extractSchemaHeadings(
+		fragFile, includedPath, visited, chain)
+	delete(visited, includedPath)
+	if err != nil {
+		return nil, "", err
+	}
+	if fp2 != "" && fp == "" {
+		fp = fp2
+	}
+
+	return fragHeadings, fp, nil
+}
+
+// extractPIFileParam parses the YAML body of an include PI to extract
+// the "file" parameter.
+func extractPIFileParam(pi *lint.ProcessingInstruction, source []byte) (string, error) {
+	lines := pi.Lines()
+	var body string
+	if lines.Len() == 1 {
+		seg := lines.At(0)
+		raw := strings.TrimSpace(string(seg.Value(source)))
+		raw = strings.TrimPrefix(raw, "<?"+pi.Name)
+		if idx := strings.Index(raw, "?>"); idx >= 0 {
+			raw = raw[:idx]
+		}
+		body = strings.TrimSpace(raw)
+	} else {
+		var b strings.Builder
+		for i := 1; i < lines.Len(); i++ {
+			seg := lines.At(i)
+			b.Write(seg.Value(source))
+		}
+		body = b.String()
+	}
+
+	if body == "" {
+		return "", nil
+	}
+
+	var params map[string]string
+	if err := yaml.Unmarshal([]byte(body), &params); err != nil {
+		return "", fmt.Errorf("invalid include directive YAML: %w", err)
+	}
+
+	return params["file"], nil
 }
 
 // docHeading represents a heading found in the document being checked.
@@ -439,14 +630,14 @@ func headingMatchesLine(h docHeading, line string) bool {
 // checkStructure verifies required headings are present and in order.
 func checkStructure(
 	f *lint.File,
-	tmpl *parsedTemplate,
+	sch *parsedSchema,
 	docHeadings []docHeading,
 ) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
 	docIdx := 0
 	allowExtra := false
-	for _, req := range tmpl.Headings {
+	for _, req := range sch.Headings {
 		if isSectionWildcard(req) {
 			allowExtra = true
 			continue
@@ -455,7 +646,7 @@ func checkStructure(
 		found := false
 		for docIdx < len(docHeadings) {
 			dh := docHeadings[docIdx]
-			if matchesTemplate(req, dh) {
+			if matchesSchema(req, dh) {
 				// Check level.
 				if dh.Level != req.Level {
 					diags = append(diags, makeDiag(f.Path, dh.Line,
@@ -496,16 +687,16 @@ func checkStructure(
 	return diags
 }
 
-// matchesTemplate checks if a document heading matches a template heading.
-func matchesTemplate(req templateHeading, doc docHeading) bool {
+// matchesSchema checks if a document heading matches a schema heading.
+func matchesSchema(req schemaHeading, doc docHeading) bool {
 	// Wildcard heading: matches any text at any level.
 	if req.Text == "?" {
 		return true
 	}
 
-	// Check if the template text contains {field} references.
+	// Check if the schema text contains {field} references.
 	if fieldinterp.ContainsField(req.Text) {
-		// Split the template text on {field} patterns, quote-escape
+		// Split the schema text on {field} patterns, quote-escape
 		// the literal parts, and join with .+ to match any value.
 		parts := fieldinterp.SplitOnFields(req.Text)
 		var pattern strings.Builder
@@ -527,7 +718,7 @@ func matchesTemplate(req templateHeading, doc docHeading) bool {
 	return doc.Text == req.Text
 }
 
-func isSectionWildcard(req templateHeading) bool {
+func isSectionWildcard(req schemaHeading) bool {
 	return strings.TrimSpace(req.Text) == sectionWildcard
 }
 
@@ -540,10 +731,10 @@ func resolveFields(text string, docFM map[string]any) string {
 // advanceToMatch advances docIdx to the next heading matching req.
 // Returns the matched index (or -1) and the new docIdx.
 func advanceToMatch(
-	req templateHeading, docHeadings []docHeading, docIdx int,
+	req schemaHeading, docHeadings []docHeading, docIdx int,
 ) (int, int) {
 	for docIdx < len(docHeadings) {
-		if matchesTemplate(req, docHeadings[docIdx]) {
+		if matchesSchema(req, docHeadings[docIdx]) {
 			return docIdx, docIdx + 1
 		}
 		docIdx++
@@ -553,7 +744,7 @@ func advanceToMatch(
 
 // checkSyncPoint checks a single sync point against the document.
 func checkSyncPoint(
-	f *lint.File, sp syncPoint, req templateHeading,
+	f *lint.File, sp syncPoint, req schemaHeading,
 	dh docHeading, matchedDoc int, docHeadings []docHeading,
 	docFM map[string]any,
 ) []lint.Diagnostic {
@@ -584,7 +775,7 @@ func checkSyncPoint(
 // checkSync verifies frontmatter-body synchronization.
 func checkSync(
 	f *lint.File,
-	tmpl *parsedTemplate,
+	sch *parsedSchema,
 	docHeadings []docHeading,
 	docFM map[string]any,
 ) []lint.Diagnostic {
@@ -595,12 +786,12 @@ func checkSync(
 	var diags []lint.Diagnostic
 	docIdx := 0
 
-	for tmplIdx, req := range tmpl.Headings {
+	for schIdx, req := range sch.Headings {
 		if isSectionWildcard(req) {
 			continue
 		}
 
-		syncs := tmpl.SyncPoints[tmplIdx]
+		syncs := sch.SyncPoints[schIdx]
 		if len(syncs) == 0 {
 			_, docIdx = advanceToMatch(req, docHeadings, docIdx)
 			continue
@@ -680,7 +871,7 @@ func validateCUESchemaSyntax(schema string) error {
 	ctx := cuecontext.New()
 	v := ctx.CompileString(schema)
 	if err := v.Err(); err != nil {
-		return fmt.Errorf("invalid template frontmatter schema: %w", err)
+		return fmt.Errorf("invalid schema frontmatter CUE: %w", err)
 	}
 	return nil
 }
@@ -751,20 +942,32 @@ func extractYAML(fmBlock []byte) []byte {
 	return []byte(s[:idx])
 }
 
-// isTemplateTargetFile checks if the document path is the configured template.
-func isTemplateTargetFile(docPath, templatePath string) bool {
+// findRequireDirectiveLine returns the 1-based line number of the first
+// <?require?> PI in the file, or 0 if none is found.
+func findRequireDirectiveLine(f *lint.File) int {
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		pi, ok := c.(*lint.ProcessingInstruction)
+		if ok && pi.Name == "require" {
+			return f.LineOfOffset(pi.Lines().At(0).Start)
+		}
+	}
+	return 0
+}
+
+// isSchemaFile checks if the document path is the configured schema.
+func isSchemaFile(docPath, schemaPath string) bool {
 	docInfo, errDoc := os.Stat(docPath)
-	tmplInfo, errTmpl := os.Stat(templatePath)
-	if errDoc == nil && errTmpl == nil {
-		return os.SameFile(docInfo, tmplInfo)
+	schemaInfo, errSchema := os.Stat(schemaPath)
+	if errDoc == nil && errSchema == nil {
+		return os.SameFile(docInfo, schemaInfo)
 	}
 
 	docAbs, errDocAbs := filepath.Abs(docPath)
-	tmplAbs, errTmplAbs := filepath.Abs(templatePath)
-	if errDocAbs != nil || errTmplAbs != nil {
+	schemaAbs, errSchemaAbs := filepath.Abs(schemaPath)
+	if errDocAbs != nil || errSchemaAbs != nil {
 		return false
 	}
-	return filepath.Clean(docAbs) == filepath.Clean(tmplAbs)
+	return filepath.Clean(docAbs) == filepath.Clean(schemaAbs)
 }
 
 // formatHeading returns a markdown-style heading string.
@@ -773,11 +976,11 @@ func formatHeading(level int, text string) string {
 }
 
 // checkFilenamePattern checks that the document basename matches the
-// template's filename glob pattern (if configured).
+// schema's filename glob pattern (if configured).
 func checkFilenamePattern(
-	f *lint.File, tmpl *parsedTemplate,
+	f *lint.File, sch *parsedSchema,
 ) []lint.Diagnostic {
-	pattern := tmpl.Config.FilenamePattern
+	pattern := sch.Config.FilenamePattern
 	if pattern == "" {
 		return nil
 	}

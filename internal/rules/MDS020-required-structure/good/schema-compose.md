@@ -1,6 +1,6 @@
 ---
 settings:
-  schema: "../../internal/rules/MDS020-required-structure/good/data/tmpl.md"
+  schema: "../../internal/rules/MDS020-required-structure/good/data/compose-tmpl.md"
 ---
 # My Plan
 

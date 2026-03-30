@@ -1,6 +1,7 @@
 package include
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -469,6 +470,90 @@ func TestCheck_LinkAndHeadingCombined(t *testing.T) {
 	r := &Rule{}
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
+}
+
+// =====================================================================
+// Cycle detection
+// =====================================================================
+
+func TestCheck_DirectCycle(t *testing.T) {
+	// File includes itself.
+	fsys := fstest.MapFS{
+		"doc.md": {Data: []byte("# Doc\n\n<?include\nfile: doc.md\n?>\nold\n<?/include?>\n")},
+	}
+	src := "# Doc\n\n<?include\nfile: doc.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "doc.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "cyclic include: doc.md -> doc.md")
+}
+
+func TestCheck_IndirectCycle(t *testing.T) {
+	// A includes B, B includes A.
+	fsys := fstest.MapFS{
+		"b.md": {Data: []byte("# B\n\n<?include\nfile: a.md\n?>\nold\n<?/include?>\n")},
+		"a.md": {Data: []byte("dummy\n")},
+	}
+	src := "# A\n\n<?include\nfile: b.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "a.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "cyclic include: a.md -> b.md -> a.md")
+}
+
+func TestCheck_ThreeLevelCycle(t *testing.T) {
+	// A includes B, B includes C, C includes A.
+	fsys := fstest.MapFS{
+		"b.md": {Data: []byte("# B\n\n<?include\nfile: c.md\n?>\nold\n<?/include?>\n")},
+		"c.md": {Data: []byte("# C\n\n<?include\nfile: a.md\n?>\nold\n<?/include?>\n")},
+		"a.md": {Data: []byte("dummy\n")},
+	}
+	src := "# A\n\n<?include\nfile: b.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "a.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "cyclic include: a.md -> b.md -> c.md -> a.md")
+}
+
+func TestCheck_MaxDepthExceeded(t *testing.T) {
+	// Build a chain of 12 files (exceeds maxIncludeDepth=10).
+	fsys := fstest.MapFS{}
+	for i := 1; i <= 12; i++ {
+		next := fmt.Sprintf("f%d.md", i+1)
+		if i == 12 {
+			fsys[fmt.Sprintf("f%d.md", i)] = &fstest.MapFile{
+				Data: []byte("leaf\n"),
+			}
+		} else {
+			fsys[fmt.Sprintf("f%d.md", i)] = &fstest.MapFile{
+				Data: []byte(fmt.Sprintf(
+					"# F%d\n\n<?include\nfile: %s\n?>\nold\n<?/include?>\n", i, next)),
+			}
+		}
+	}
+	src := "# Root\n\n<?include\nfile: f1.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "root.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "include depth exceeds maximum (10)")
+}
+
+func TestCheck_NoCycle(t *testing.T) {
+	// A includes B, B includes C (no cycle).
+	fsys := fstest.MapFS{
+		"b.md": {Data: []byte("# B\n\n<?include\nfile: c.md\n?>\ncontent\n<?/include?>\n")},
+		"c.md": {Data: []byte("Final content\n")},
+	}
+	src := "# A\n\n<?include\nfile: b.md\n?>\n# B\n\n<?include\nfile: c.md\n?>\ncontent\n<?/include?>\n<?/include?>\n"
+	f := newTestFile(t, "a.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	// Should not report cycle errors (may have other errors).
+	for _, d := range diags {
+		if strings.Contains(d.Message, "cyclic") {
+			t.Errorf("unexpected cycle diagnostic: %s", d.Message)
+		}
+	}
 }
 
 // =====================================================================

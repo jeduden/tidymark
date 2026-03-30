@@ -77,6 +77,22 @@ The included file has `## Build` (level 2) and
 When the marker sits at document root (no preceding
 heading), no shift is applied.
 
+## Cycle Detection
+
+Include chains are tracked during check and fix.
+A diagnostic is emitted when:
+
+- A file includes itself (direct cycle).
+- A file includes B which includes A (indirect
+  cycle, detected by scanning nested includes).
+- The include chain exceeds 10 levels deep.
+
+The cycle message shows the full chain:
+
+```text
+cyclic include: a.md -> b.md -> a.md
+```
+
 ## Config
 
 ```yaml
@@ -188,3 +204,5 @@ Outdated content
 | escapes root          | include file path escapes project root                             |
 | no root for dotdot    | include file path contains ".." but project root is not configured |
 | invalid heading-level | include directive "heading-level" must be "absolute"               |
+| cyclic include        | cyclic include: a.md -> b.md -> a.md                               |
+| depth exceeded        | include depth exceeds maximum (10)                                 |
