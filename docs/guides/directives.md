@@ -62,13 +62,20 @@ glob: "docs/*.md"
 
 ## Guides
 
-- [Generating Content](generating-content.md) —
-  how to use `<?catalog?>` and `<?include?>` to build
-  indexes and embed file content
-- [Enforcing Structure](enforcing-structure.md) —
-  how to use schemas, `<?require?>`, and
-  `<?allow-empty-section?>` to validate documents
-- [Coming from Hugo](hugo-migration.md) —
-  key differences for Hugo users
-- [Rule Directory](rule-directory.md) —
-  all 33 rules with status and description
+<?catalog
+glob: "*.md"
+sort: title
+header: |
+  | Guide | Description |
+  |-------|-------------|
+row: "| [{title}]({filename}) | {summary} |"
+?>
+| Guide                                                                               | Description                                                                                             |
+|-------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| [Choosing Readability, Conciseness, and Token Budget Metrics](metrics-tradeoffs.md) | Trade-offs and threshold guidance for readability, structure, length, and token budgets.                |
+| [Coming from Hugo](hugo-migration.md)                                               | Key differences between Hugo templates and mdsmith directives for users familiar with Hugo.             |
+| [Directive Overview](directives.md)                                                 | Quick reference for all directives with placement rules and links to use-case guides.                   |
+| [Enforcing Document Structure with Schemas](enforcing-structure.md)                 | How to use schemas, require, and allow-empty-section to validate headings, front matter, and filenames. |
+| [Generating Content with Directives](generating-content.md)                         | How to use catalog and include directives to generate and embed content in Markdown files.              |
+| [Rule Directory](rule-directory.md)                                                 | Complete list of all mdsmith rules with status and description, generated from rule READMEs.            |
+<?/catalog?>
