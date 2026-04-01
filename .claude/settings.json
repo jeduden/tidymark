@@ -11,6 +11,7 @@
       "Bash(git rebase:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(git push:*)",
       "Bash(go build:*)",
       "Bash(go test:*)",
       "Bash(go vet:*)",
@@ -29,7 +30,6 @@
       "Search"
     ],
     "ask": [
-      "Bash(git push:*)"
     ]
   }
 }
