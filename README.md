@@ -171,27 +171,13 @@ Upgrades become an explicit, reviewable change.
 
 ## 📚 Guides
 
-<?catalog
-glob: "docs/guides/*.md"
-sort: title
-header: |
-  | Guide | Description |
-  |-------|-------------|
-row: "| [{title}]({filename}) | {summary} |"
-empty: |
-  | Guide         | Description                                                  |
-  |---------------|--------------------------------------------------------------|
-  | No guides yet | Add guide files under `docs/guides/` to populate this index. |
-?>
-| Guide                                                                                           | Description                                                                              |
-|-------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| [Choosing Readability, Conciseness, and Token Budget Metrics](docs/guides/metrics-tradeoffs.md) | Trade-offs and threshold guidance for readability, structure, length, and token budgets. |
-| [Guides](docs/guides/index.md)                                                                  | User guides for mdsmith directives, structure enforcement, and migration.                |
-<?/catalog?>
+See the [Guides index](docs/guides/index.md) for
+directives, structure enforcement, and migration.
 
 ## 📏 Rules
 
-See the [Rule Directory](rule-directory.md)
+See the
+[Rule Directory](internal/rules/index.md)
 for the complete list with status and description.
 
 ## 🛠️ Development

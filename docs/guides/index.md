@@ -7,9 +7,7 @@ summary: >-
 # Guides
 
 <?catalog
-glob:
-  - "*.md"
-  - "directives/*.md"
+glob: "**/*.md"
 sort: title
 header: |
   | Guide | Description |
