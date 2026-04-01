@@ -139,6 +139,9 @@ func validateCatalogDirective(
 	if diags := validateGlob(filePath, line, params); len(diags) > 0 {
 		return diags
 	}
+	if diags := validateExclude(filePath, line, params); len(diags) > 0 {
+		return diags
+	}
 
 	var diags []lint.Diagnostic
 	if sortVal, hasSort := params["sort"]; hasSort {
@@ -189,6 +192,35 @@ func validateGlob(filePath string, line int, params map[string]string) []lint.Di
 	return nil
 }
 
+// validateExclude validates the exclude parameter and returns diagnostics on failure.
+// The exclude value may be a single pattern or multiple newline-joined patterns
+// (from a YAML list).
+func validateExclude(filePath string, line int, params map[string]string) []lint.Diagnostic {
+	exclude, hasExclude := params["exclude"]
+	if !hasExclude {
+		return nil
+	}
+	for _, pattern := range splitGlobs(exclude) {
+		if pattern == "" {
+			return []lint.Diagnostic{makeDiag(filePath, line,
+				`generated section directive has empty "exclude" parameter`)}
+		}
+		if filepath.IsAbs(pattern) {
+			return []lint.Diagnostic{makeDiag(filePath, line,
+				"generated section directive has absolute exclude path")}
+		}
+		if containsDotDot(pattern) {
+			return []lint.Diagnostic{makeDiag(filePath, line,
+				`generated section directive has exclude pattern with ".." path traversal`)}
+		}
+		if !doublestar.ValidatePattern(pattern) {
+			return []lint.Diagnostic{makeDiag(filePath, line,
+				fmt.Sprintf("generated section directive has invalid exclude pattern: %s", pattern))}
+		}
+	}
+	return nil
+}
+
 // validateSort validates the sort value and returns diagnostics.
 func validateSort(filePath string, line int, sortVal string) []lint.Diagnostic {
 	if sortVal == "" {
@@ -216,6 +248,7 @@ func validateSort(filePath string, line int, sortVal string) []lint.Diagnostic {
 // buildCatalogEntries resolves glob matches, reads front matter, and
 // returns sorted file entries for the catalog directive.
 func buildCatalogEntries(f *lint.File, params map[string]string) []fileEntry {
+	excludePatterns := splitGlobs(params["exclude"])
 	seen := make(map[string]bool)
 	var files []string
 	for _, pattern := range splitGlobs(params["glob"]) {
@@ -229,6 +262,9 @@ func buildCatalogEntries(f *lint.File, params map[string]string) []fileEntry {
 			}
 			info, err := fs.Stat(f.FS, m)
 			if err != nil || info.IsDir() {
+				continue
+			}
+			if isExcluded(m, excludePatterns) {
 				continue
 			}
 			seen[m] = true
@@ -432,6 +468,20 @@ func scanIncludesForTarget(
 		found := scanIncludesForTarget(fsys, resolved, target, visited, depth+1)
 		delete(visited, resolved)
 		if found {
+			return true
+		}
+	}
+	return false
+}
+
+// isExcluded checks whether a file path matches any of the exclude patterns.
+func isExcluded(filePath string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if pattern == "" {
+			continue
+		}
+		matched, err := doublestar.Match(pattern, filePath)
+		if err == nil && matched {
 			return true
 		}
 	}

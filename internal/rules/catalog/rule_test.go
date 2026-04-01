@@ -2700,6 +2700,190 @@ func TestCheckFieldCaseMismatches_BuiltinFilename(t *testing.T) {
 	assert.Empty(t, diags, "filename is built-in and always present")
 }
 
+// =====================================================================
+// Exclude parameter
+// =====================================================================
+
+func TestSpec_ExcludeSinglePattern(t *testing.T) {
+	// Exclude filters out files matching the pattern.
+	src := `<?catalog
+glob: "docs/*.md"
+exclude: "docs/internal.md"
+?>
+- [api.md](docs/api.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/api.md":      {Data: []byte("# API\n")},
+		"docs/internal.md": {Data: []byte("# Internal\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestSpec_ExcludeMultiplePatterns(t *testing.T) {
+	// Exclude accepts a YAML list of patterns.
+	src := `<?catalog
+glob: "**/*.md"
+exclude:
+  - "docs/internal.md"
+  - "draft/*.md"
+?>
+- [api.md](docs/api.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/api.md":      {Data: []byte("# API\n")},
+		"docs/internal.md": {Data: []byte("# Internal\n")},
+		"draft/wip.md":     {Data: []byte("# WIP\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestSpec_ExcludeWithGlobWildcard(t *testing.T) {
+	// Exclude patterns support glob wildcards.
+	src := `<?catalog
+glob: "**/*.md"
+exclude: "draft/**"
+?>
+- [api.md](docs/api.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/api.md":  {Data: []byte("# API\n")},
+		"draft/wip.md": {Data: []byte("# WIP\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestSpec_ExcludeAbsolutePath(t *testing.T) {
+	// Absolute paths in exclude produce a diagnostic.
+	src := `<?catalog
+glob: "*.md"
+exclude: "/etc/passwd"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, "absolute exclude path")
+}
+
+func TestSpec_ExcludeDotDot(t *testing.T) {
+	// ".." path traversal in exclude produces a diagnostic.
+	src := `<?catalog
+glob: "*.md"
+exclude: "../secret/*.md"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, `".." path traversal`)
+}
+
+func TestSpec_ExcludeInvalidPattern(t *testing.T) {
+	// Invalid glob pattern in exclude produces a diagnostic.
+	src := `<?catalog
+glob: "*.md"
+exclude: "[invalid"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, "invalid exclude pattern")
+}
+
+func TestSpec_ExcludeEmptyValue(t *testing.T) {
+	// Empty exclude string produces a diagnostic.
+	src := `<?catalog
+glob: "*.md"
+exclude: ""
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, `empty "exclude" parameter`)
+}
+
+func TestSpec_ExcludeEmptyListElement(t *testing.T) {
+	// A list containing an empty string element produces a diagnostic.
+	src := `<?catalog
+glob: "*.md"
+exclude:
+  - "draft/*.md"
+  - ""
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, `empty "exclude" parameter`)
+}
+
+func TestSpec_ExcludeNoMatchStillWorks(t *testing.T) {
+	// Exclude pattern that matches nothing doesn't cause errors.
+	src := `<?catalog
+glob: "docs/*.md"
+exclude: "nonexistent/*.md"
+?>
+- [api.md](docs/api.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/api.md": {Data: []byte("# API\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestSpec_ExcludeWithRowTemplate(t *testing.T) {
+	// Exclude works with row templates and front matter.
+	src := `<?catalog
+glob: "docs/*.md"
+exclude: "docs/draft.md"
+row: "- [{title}]({filename})"
+?>
+- [API Reference](docs/api.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/api.md":   {Data: []byte("---\ntitle: API Reference\n---\n# API\n")},
+		"docs/draft.md": {Data: []byte("---\ntitle: Draft\n---\n# Draft\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
 func TestSpec_DidYouMeanCaseMismatch(t *testing.T) {
 	mapFS := fstest.MapFS{
 		"docs/a.md": &fstest.MapFile{Data: []byte("---\ntitle: A\n---\n# A\n")},
