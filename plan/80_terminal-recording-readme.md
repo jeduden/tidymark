@@ -98,7 +98,7 @@ runs on push to `main`. Steps:
 2. Build mdsmith (`go build -o mdsmith ./cmd/mdsmith`)
 3. Run `go tool vhs demo.tape` (VHS added as a tool
    dependency in `go.mod`)
-5. Configure git `user.name` / `user.email` for the
+4. Configure git `user.name` / `user.email` for the
    CI bot. If `assets/demo.gif` changed, commit with a
    `[skip ci]` marker and push it back to `main`. Add
    a loop guard (e.g. skip when `github.actor` is
@@ -114,11 +114,11 @@ runs on pull requests. Steps:
 1. Checkout repo
 2. Build mdsmith
 3. Run `go tool vhs demo.tape`
-5. Assert `assets/demo.gif` was produced and is a valid
+4. Assert `assets/demo.gif` was produced and is a valid
    GIF (check file header bytes `GIF89a` or `GIF87a`)
-6. Assert file size is within a reasonable range
+5. Assert file size is within a reasonable range
    (> 10 KB, < 5 MB) to catch broken recordings
-7. Analyze the GIF content: extract frames, verify
+6. Analyze the GIF content: extract frames, verify
    expected command output appears (e.g. grep rendered
    text for key strings like `MDS001`, `./mdsmith check`,
    `0 issues found`). Use a frame-to-text tool or compare
@@ -144,11 +144,13 @@ pipeline succeeds and the output is sane.
    pushes to `main`
 6. Add a `demo` job to `.github/workflows/ci.yml` that
    runs VHS and validates the output GIF on PRs
-7. Add `demo/` to the ignore list in `.mdsmith.yml` so
+7. Add `demo/` to the ignore list in `.mdsmith.yml`
+   (requires explicit user consent per CLAUDE.md) so
    the intentionally broken sample file does not fail
    `./mdsmith check .`
-8. Test the full pipeline locally: run `vhs demo.tape`,
-   verify the GIF renders correctly
+8. Test the full pipeline locally: run
+   `go tool vhs demo.tape`, verify the GIF renders
+   correctly
 
 ## Acceptance Criteria
 
