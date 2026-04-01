@@ -2871,6 +2871,72 @@ glob:
 	expectDiags(t, diags, 0)
 }
 
+func TestSpec_ExcludeIncludeExcludeOrdering(t *testing.T) {
+	// Pattern: include, exclude, include — the second include does NOT
+	// re-add the file because includes and excludes are collected into
+	// separate lists; a file matching any exclude pattern is excluded
+	// regardless of ordering.
+	src := `<?catalog
+glob:
+  - "docs/*.md"
+  - "!docs/a.md"
+  - "docs/a.md"
+?>
+- [b.md](docs/b.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/a.md": {Data: []byte("# A\n")},
+		"docs/b.md": {Data: []byte("# B\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestSpec_ExcludeBeforeInclude(t *testing.T) {
+	// Pattern: exclude, include — the exclude still filters the include
+	// because pattern order does not affect semantics.
+	src := `<?catalog
+glob:
+  - "!docs/a.md"
+  - "docs/*.md"
+?>
+- [b.md](docs/b.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/a.md": {Data: []byte("# A\n")},
+		"docs/b.md": {Data: []byte("# B\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestSpec_IncludeThenExclude(t *testing.T) {
+	// Pattern: include, exclude — the standard case; file matching the
+	// exclude pattern is filtered out.
+	src := `<?catalog
+glob:
+  - "docs/*.md"
+  - "!docs/a.md"
+?>
+- [b.md](docs/b.md)
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/a.md": {Data: []byte("# A\n")},
+		"docs/b.md": {Data: []byte("# B\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
 func TestSpec_ExcludeWithRowTemplate(t *testing.T) {
 	// Exclusion works with row templates and front matter.
 	src := `<?catalog
