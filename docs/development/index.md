@@ -104,7 +104,7 @@ file in the matching directory:
 | Type       | Directory          | Purpose                              | Example                             |
 |------------|--------------------|--------------------------------------|-------------------------------------|
 | Guide      | `docs/guides/`     | Task-oriented: how to achieve a goal | "How to enforce document structure" |
-| Reference  | project root       | Lookup-oriented: complete specs      | `rule-directory.md`                 |
+| Reference  | `internal/rules/`  | Lookup-oriented: complete specs      | `internal/rules/index.md`           |
 | Tutorial   | `docs/tutorials/`  | Learning-oriented: step-by-step      | "Your first schema"                 |
 | Background | `docs/background/` | Understanding-oriented: context      | Comparison with other linters       |
 
