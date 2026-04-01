@@ -62,10 +62,12 @@ func (r *Runner) Run(paths []string) *Result {
 		}
 		dir := filepath.Dir(path)
 		f.FS = os.DirFS(dir)
-		f.Gitignore = r.cachedGitignore(dir)
+		gitignoreDir := dir
 		if r.RootDir != "" {
 			f.RootFS = os.DirFS(r.RootDir)
+			gitignoreDir = r.RootDir
 		}
+		f.Gitignore = r.cachedGitignore(gitignoreDir)
 
 		effective := r.effectiveWithCategories(path)
 
@@ -131,15 +133,21 @@ func (r *Runner) effectiveWithCategories(path string) map[string]config.RuleCfg 
 
 // cachedGitignore returns a GitignoreMatcher for the given directory,
 // creating and caching it on first use to avoid re-walking the filesystem.
+// The cache key is normalized to an absolute path so equivalent paths
+// (e.g. "sub" vs "./sub") share the same entry.
 func (r *Runner) cachedGitignore(dir string) *lint.GitignoreMatcher {
 	if r.gitignoreCache == nil {
 		r.gitignoreCache = make(map[string]*lint.GitignoreMatcher)
 	}
-	if m, ok := r.gitignoreCache[dir]; ok {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		absDir = filepath.Clean(dir)
+	}
+	if m, ok := r.gitignoreCache[absDir]; ok {
 		return m
 	}
-	m := lint.NewGitignoreMatcher(dir)
-	r.gitignoreCache[dir] = m
+	m := lint.NewGitignoreMatcher(absDir)
+	r.gitignoreCache[absDir] = m
 	return m
 }
 
