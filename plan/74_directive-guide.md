@@ -1,7 +1,7 @@
 ---
 id: 74
 title: Directive guide
-status: "🔲"
+status: "✅"
 summary: >-
   Central guide for all directives and rules
   with examples, fixability table, placement
@@ -84,94 +84,56 @@ markers is visible.
 
 ## Tasks
 
-1. Create `docs/guides/directives.md` with:
+1. Create use-case guides split by topic:
 
-  - Quick-reference table: name, purpose,
-    closing tag (yes/no), fixable (yes/no),
-    parameters
-  - Two kinds of markers: closing tag means
-    `fix` regenerates body; no closing tag means
-    `check` validates a condition
-  - Placement rules: PIs are only recognized at
-    document root (parent must be Document node),
-    max 3-space indent. Not recognized inside
-    list items, blockquotes, tables, fenced code,
-    or HTML blocks
-  - Explicit warning: 4+ leading spaces at
-    document root turns directive into a code
-    block with no error; inside other block
-    constructs directives are never recognized
-  - Each directive section: purpose, all
-    parameters, good example, bad example, what
-    `check` reports, what `fix` does
-  - Nesting: same-type nesting is prohibited
-    (emits "nested generated section markers
-    are not allowed"). Cross-type directives
-    between markers may appear but can be
-    overwritten by the outer generator on fix.
-    Generated output is not re-parsed for
-    further directives
-  - Placeholder syntax section: `{field}` is
-    the only syntax, works in both catalog rows
-    and schema headings (plan 75). CUE paths
-    for nested access (plan 79)
-  - Schema vs normal file section: explain
-    that `<?require?>` only works in schema
-    files (plan 77 adds a warning for misuse),
-    that `<?allow-empty-section?>` does not
-    propagate from schema to document, and
-    that schemas enforce headings and front
-    matter only (not directives)
-  - Schema composition: `<?include?>` in
-    schema files splices headings (plan 77);
-    cycle detection with max depth 10
-  - Fixability summary table for all 33 rules
-  - Renamed parameters: `words-per-token`,
-    `max-words-per-sentence`,
-    `max-column-width-ratio` (plan 76)
-  - "Coming from Hugo" section covering:
-    `{title}` not `{{ .Title }}` (case-
-    sensitive, no Go templates) with "did you
-    mean?" hint (plan 76), `schema` is a
-    validation contract not a rendering
-    template (plan 77), generated content is
-    committed to git (not gitignored), schema
-    files compose via `<?include?>` (plan 77),
-    no nesting in normal files, `{field}` uses
-    CUE paths not Go template syntax, directive
-    params are YAML strings
-    (per [#73](https://github.com/jeduden/mdsmith/issues/73))
+  - `docs/guides/index.md`: guides index with
+    generated catalog of all guide pages
+  - `docs/guides/directives/generating-content.md`:
+    catalog and include use cases with examples,
+    placeholder syntax, nesting, and placement
+    rules
+  - `docs/guides/directives/enforcing-structure.md`:
+    schema, require, allow-empty-section use cases
+    with composition, schema-vs-normal-file, and
+    optional fields
+  - `docs/guides/directives/hugo-migration.md`:
+    standalone Hugo migration guide with
+    placeholder syntax and schema differences
+  - `rule-directory.md`: generated catalog of all
+    rules from rule READMEs (project root)
 
 2. Add a "see the directive guide" link from
    each rule README that uses a directive
    (MDS019, MDS020, MDS021, MDS030).
-3. Run `mdsmith fix docs/guides/directives.md`
-   to regenerate any catalog/include sections.
-4. Run `mdsmith check docs/guides/` to verify.
+3. Replace embedded rules table in README.md with
+   a link to the rule directory.
+4. Run `mdsmith fix` and `mdsmith check .` to
+   verify.
 
 ## Acceptance Criteria
 
-- [ ] `docs/guides/directives.md` exists
-- [ ] Guide covers all four directives with
+- [x] `docs/guides/index.md` exists with generated
+      catalog of guides
+- [x] Guide covers all four directives with
       examples
-- [ ] Guide has fixability table for all 33
-      rules
-- [ ] Guide documents 4-space indent footgun
-- [ ] Guide states nesting is not supported
-- [ ] Guide documents unified `{field}` syntax
-- [ ] Guide has schema-vs-normal-file section
-- [ ] Guide states `<?require?>` is
+- [x] Rule directory generated from rule READMEs
+      (replaces manual fixability table per review)
+- [x] Guide documents 4-space indent footgun
+- [x] Guide states nesting is not supported
+- [x] Guide documents unified `{field}` syntax
+- [x] Guide has schema-vs-normal-file section
+- [x] Guide states `<?require?>` is
       schema-only
-- [ ] Guide states schema directives do not
+- [x] Guide states schema directives do not
       propagate to documents
-- [ ] Guide documents schema composition via
+- [x] Guide documents schema composition via
       `<?include?>`
-- [ ] Guide documents renamed parameters
-- [ ] Guide has "coming from Hugo" section
-- [ ] Guide uses `schema` not `template`
+- [x] Guide documents renamed parameters
+- [x] Guide has "coming from Hugo" section
+- [x] Guide uses `schema` not `template`
       throughout
-- [ ] Guide passes `mdsmith check docs/guides/`
-- [ ] Rule READMEs link to the guide
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] Guide passes `mdsmith check docs/guides/`
+- [x] Rule READMEs link to the guide
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues

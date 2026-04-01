@@ -28,6 +28,10 @@ row: "- [{summary}](../{filename})"
 - [CLI commands, flags, exit codes, and output format.](../docs/design/cli.md)
 - [Build commands, project layout, code style, test fixtures, and merge conflicts.](../docs/development/index.md)
 - [PR fixup workflow for rebase, CI monitoring, review comment resolution, and gh CLI setup.](../docs/development/pr-fixup-workflow.md)
+- [How to use schemas, require, and allow-empty-section to validate headings, front matter, and filenames.](../docs/guides/directives/enforcing-structure.md)
+- [How to use catalog and include directives to generate and embed content in Markdown files.](../docs/guides/directives/generating-content.md)
+- [Key differences between Hugo templates and mdsmith directives for users familiar with Hugo.](../docs/guides/directives/hugo-migration.md)
+- [User guides for mdsmith directives, structure enforcement, and migration.](../docs/guides/index.md)
 - [Trade-offs and threshold guidance for readability, structure, length, and token budgets.](../docs/guides/metrics-tradeoffs.md)
 <?/catalog?>
 

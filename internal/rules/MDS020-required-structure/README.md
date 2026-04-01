@@ -15,6 +15,8 @@ schema.
 - **Default**: enabled
 - **Fixable**: no
 - **Implementation**: [source](./)
+- **Guide**:
+  [directive guide](../../../docs/guides/directives/enforcing-structure.md)
 - **Category**: meta
 
 ## Settings

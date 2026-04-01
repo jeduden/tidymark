@@ -109,6 +109,10 @@ overrides:
     rules:
       first-line-heading: false
       heading-increment: false
+  - files: ["internal/rules/index.md"]
+    rules:
+      table-readability:
+        max-rows: 40
   - files: ["README.md"]
     rules:
       line-length:
