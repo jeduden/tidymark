@@ -23,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install zizmor
-        run: cargo install zizmor --locked --version 1.6.0
+        run: pip install zizmor==1.6.0
       - name: Run zizmor
         run: zizmor --format sarif . > results.sarif
       - name: Upload SARIF
@@ -74,18 +74,8 @@ jobs:
           sudo install /tmp/ttyd /usr/local/bin/ttyd
       - name: Install VHS
         run: go install github.com/charmbracelet/vhs@v0.10.0
-      - name: Record demo in isolated directory
-        run: |
-          iso="$(mktemp -d)"
-          cp mdsmith demo.tape "$iso/"
-          cp -r demo "$iso/demo"
-          mkdir -p "$iso/plan"
-          cp plan/*.md "$iso/plan/"
-          mkdir -p "$iso/assets"
-          sed -i "s|^Output assets/demo.gif|Output $iso/assets/demo.gif|" "$iso/demo.tape"
-          (cd "$iso" && vhs demo.tape)
-          cp "$iso/assets/demo.gif" assets/demo.gif
-          rm -rf "$iso"
+      - name: Record demo
+        run: vhs demo.tape
       - name: Validate GIF
         run: |
           file="assets/demo.gif"
