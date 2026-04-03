@@ -10,8 +10,9 @@
 #   - Hidden setup runs set +e, adds mdsmith to PATH,
 #     and prepares temp dirs so visible commands match
 #     what a developer would actually type.
-#   - demo/sample.md is ignored by .mdsmith.yml; copy
-#     it to /tmp for check/fix to bypass the ignore.
+#   - demo/sample.md is ignored by .mdsmith.yml; the
+#     hidden setup copies it to a temp dir and runs
+#     check/fix there as sample.md.
 #   - Keep Sleep durations short (1-2s per step) to
 #     avoid long VHS render times in CI.
 
