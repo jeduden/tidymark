@@ -5,7 +5,7 @@ and AI-generated content. Checks style, readability, and structure.
 Written in Go.
 
 <!-- Rendered by .github/workflows/demo.yml on push to main -->
-![mdsmith demo](assets/demo.gif)
+![mdsmith demo](https://raw.githubusercontent.com/jeduden/mdsmith/assets/assets/demo.gif)
 
 ## ✨ Why mdsmith
 

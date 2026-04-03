@@ -49,43 +49,37 @@ jobs:
           # sees the same config and file layout as in the repo.
           tar --exclude='.git' -cf - . | (cd "$iso" && tar -xf -)
 
-          # Rewrite Output path to the isolated assets dir
           sed -i "s|^Output assets/demo.gif|Output $iso/assets/demo.gif|" "$iso/demo.tape"
-
           (cd "$iso" && vhs demo.tape)
 
-          # Copy only the GIF back
-          cp "$iso/assets/demo.gif" assets/demo.gif
+          cp "$iso/assets/demo.gif" /tmp/demo.gif
           rm -rf "$iso"
 
-      - name: Reset working tree except demo GIF
+      - name: Push GIF to assets branch
         run: |
-          # Save the generated GIF, reset the tree to undo
-          # any changes from build/VHS/go install (go.mod, etc.),
-          # then restore only the GIF.
-          cp assets/demo.gif /tmp/demo.gif
-          git checkout -- .
-          git clean -fd
-          cp /tmp/demo.gif assets/demo.gif
-
-      - name: Verify only demo.gif is staged
-        run: |
-          git add assets/demo.gif
-          staged=$(git diff --staged --name-only)
-          unexpected=$(echo "$staged" | grep -v '^assets/demo\.gif$' | grep -v '^$' || true)
-          if [ -n "$unexpected" ]; then
-            echo "ERROR: unexpected files staged:" >&2
-            echo "$unexpected" >&2
-            exit 1
-          fi
-
-      - name: Commit and push updated GIF
-        run: |
-          if [ -z "$(git diff --staged --name-only)" ]; then
-            echo "assets/demo.gif unchanged — nothing to commit"
-            exit 0
-          fi
+          # Create or update the orphan assets branch with only
+          # the demo GIF. This avoids pushing to main entirely —
+          # no branch protection bypass needed.
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: update demo GIF"
-          git push
+
+          # Check if assets branch exists on remote
+          if git ls-remote --exit-code origin refs/heads/assets >/dev/null 2>&1; then
+            git fetch origin assets
+            git checkout assets
+          else
+            git checkout --orphan assets
+            git rm -rf .
+          fi
+
+          mkdir -p assets
+          cp /tmp/demo.gif assets/demo.gif
+
+          # Only push if the GIF actually changed
+          git add assets/demo.gif
+          if git diff --staged --quiet; then
+            echo "assets/demo.gif unchanged — nothing to push"
+          else
+            git commit -m "chore: update demo GIF"
+            git push -u origin assets
+          fi
