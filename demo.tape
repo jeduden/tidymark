@@ -43,15 +43,15 @@ Type "cp .mdsmith.yml $DEMO_DIR/"
 Enter
 Type "CAT_DIR=$(mktemp -d)"
 Enter
-Type "cp -a demo/catalog/. $CAT_DIR/"
+Type "cp -R demo/catalog/. $CAT_DIR/"
 Enter
 Type "STRUCT_DIR=$(mktemp -d)"
 Enter
-Type "cp -a demo/structure/. $STRUCT_DIR/"
+Type "cp -R demo/structure/. $STRUCT_DIR/"
 Enter
 Type "DIR_DIR=$(mktemp -d)"
 Enter
-Type "cp -a demo/dirstructure/. $DIR_DIR/"
+Type "cp -R demo/dirstructure/. $DIR_DIR/"
 Enter
 Type "clear"
 Enter
