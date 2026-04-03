@@ -48,7 +48,7 @@ jobs:
             apt-ffmpeg-chromium-${{ runner.os }}-${{ runner.arch }}-ubuntu-${{ steps.ubuntu-release.outputs.version_id }}-
       - name: Install VHS runtime dependencies
         run: |
-          if [ "${{ steps.apt-cache.outputs.cache-hit }}" = 'true' ] && [ -d ~/apt-cache ]; then
+          if [ -d ~/apt-cache ] && ls ~/apt-cache/*.deb >/dev/null 2>&1; then
             sudo cp ~/apt-cache/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           fi
           sudo apt-get update -qq
