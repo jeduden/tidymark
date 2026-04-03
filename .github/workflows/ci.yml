@@ -72,15 +72,22 @@ jobs:
           path: |
             ~/vhs-bin
           key: vhs-0.10.0-ttyd-1.7.7-${{ runner.os }}-${{ runner.arch }}
+      - name: Detect Ubuntu release
+        id: ubuntu-release
+        run: |
+          . /etc/os-release
+          echo "version_id=$VERSION_ID" >> "$GITHUB_OUTPUT"
       - name: Cache apt packages
         id: apt-cache
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/apt-cache
-          key: apt-ffmpeg-chromium-${{ runner.os }}-${{ runner.arch }}
+          key: apt-ffmpeg-chromium-${{ runner.os }}-${{ runner.arch }}-ubuntu-${{ steps.ubuntu-release.outputs.version_id }}-${{ github.run_id }}
+          restore-keys: |
+            apt-ffmpeg-chromium-${{ runner.os }}-${{ runner.arch }}-ubuntu-${{ steps.ubuntu-release.outputs.version_id }}-
       - name: Install VHS runtime dependencies
         run: |
-          if [ -d ~/apt-cache ]; then
+          if [ "${{ steps.apt-cache.outputs.cache-hit }}" = 'true' ] && [ -d ~/apt-cache ]; then
             sudo cp ~/apt-cache/*.deb /var/cache/apt/archives/ 2>/dev/null || true
           fi
           sudo apt-get update -qq
