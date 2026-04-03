@@ -7,8 +7,8 @@
 #       Type `./cmd 'status: "✅"' args`
 #   - Do NOT use escaped quotes inside double-quoted
 #     Type strings — VHS crashes on parse.
-#   - Every shell command should end with ; true (or
-#     || true) so non-zero exits don't abort the tape.
+#   - The first command is set +e so non-zero exits
+#     don't abort the tape (no need for ; true).
 #   - demo/sample.md is ignored by .mdsmith.yml; copy
 #     it to /tmp for check/fix to bypass the ignore.
 #   - Keep Sleep durations short (1-2s per step) to
@@ -21,12 +21,22 @@ Set FontSize 14
 Set Width 960
 Set Height 540
 
+# Disable exit-on-error so commands can fail without
+# aborting the tape, then clear the screen.
+Hide
+Type "set +e"
+Enter
+Type "clear"
+Enter
+Sleep 1s
+Show
+
 # --- Use case 1: Initialize a project ---
 
 Type "# Initialize mdsmith in a new directory"
 Enter
 Sleep 1s
-Type "dir=$(mktemp -d); cp ./mdsmith $dir/; cd $dir; true"
+Type "dir=$(mktemp -d) && cp ./mdsmith $dir/ && cd $dir"
 Sleep 1s
 Enter
 Sleep 1s
@@ -34,12 +44,12 @@ Sleep 1s
 Type "# Generate the default config"
 Enter
 Sleep 1s
-Type "./mdsmith init; true"
+Type "./mdsmith init"
 Sleep 1s
 Enter
 Sleep 1s
 
-Type "head -20 .mdsmith.yml; true"
+Type "head -20 .mdsmith.yml"
 Sleep 1s
 Enter
 Sleep 1s
@@ -47,7 +57,7 @@ Sleep 1s
 Type "# Config created — go back to the repo"
 Enter
 Sleep 1s
-Type "cd -; true"
+Type "cd -"
 Sleep 1s
 Enter
 Sleep 1s
@@ -61,12 +71,12 @@ Sleep 1s
 Type "# Copy a sample file and check it for lint issues"
 Enter
 Sleep 1s
-Type "cp demo/sample.md /tmp/s.md; true"
+Type "cp demo/sample.md /tmp/s.md"
 Sleep 1s
 Enter
 Sleep 1s
 
-Type "./mdsmith check /tmp/s.md; true"
+Type "./mdsmith check /tmp/s.md"
 Sleep 1s
 Enter
 Sleep 1s
@@ -74,7 +84,7 @@ Sleep 1s
 Type "# Lint issues found — auto-fix them"
 Enter
 Sleep 1s
-Type "./mdsmith fix /tmp/s.md; true"
+Type "./mdsmith fix /tmp/s.md"
 Sleep 1s
 Enter
 Sleep 1s
@@ -82,7 +92,7 @@ Sleep 1s
 Type "# Verify the file is now clean"
 Enter
 Sleep 1s
-Type "./mdsmith check /tmp/s.md; true"
+Type "./mdsmith check /tmp/s.md"
 Sleep 1s
 Enter
 Sleep 1s
@@ -100,7 +110,7 @@ Sleep 1s
 Type "# Look up a specific lint rule"
 Enter
 Sleep 1s
-Type "./mdsmith help rule line-length | head -20; true"
+Type "./mdsmith help rule line-length | head -20"
 Sleep 1s
 Enter
 Sleep 2s
@@ -118,7 +128,7 @@ Sleep 1s
 Type "# Find plans with status ✅"
 Enter
 Sleep 1s
-Type `./mdsmith query 'status: "✅"' plan/; true`
+Type `./mdsmith query 'status: "✅"' plan/`
 Sleep 1s
 Enter
 Sleep 1s
@@ -136,7 +146,7 @@ Sleep 1s
 Type "# Rank the largest files by size"
 Enter
 Sleep 1s
-Type "./mdsmith metrics rank --by bytes --top 5 .; true"
+Type "./mdsmith metrics rank --by bytes --top 5 ."
 Sleep 1s
 Enter
 Sleep 1s
