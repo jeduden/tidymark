@@ -67,6 +67,7 @@ jobs:
           if git ls-remote --exit-code origin refs/heads/assets >/dev/null 2>&1; then
             git fetch origin assets
             git checkout assets
+            git rm -rf .
           else
             git checkout --orphan assets
             git rm -rf .
