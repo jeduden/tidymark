@@ -7,8 +7,9 @@
 #       Type `./cmd 'status: "✅"' args`
 #   - Do NOT use escaped quotes inside double-quoted
 #     Type strings — VHS crashes on parse.
-#   - The first command is set +e so non-zero exits
-#     don't abort the tape (no need for ; true).
+#   - Hidden setup runs set +e, adds mdsmith to PATH,
+#     and prepares temp dirs so visible commands match
+#     what a developer would actually type.
 #   - demo/sample.md is ignored by .mdsmith.yml; copy
 #     it to /tmp for check/fix to bypass the ignore.
 #   - Keep Sleep durations short (1-2s per step) to
@@ -21,10 +22,23 @@ Set FontSize 14
 Set Width 960
 Set Height 540
 
-# Disable exit-on-error so commands can fail without
-# aborting the tape, then clear the screen.
+# --- Hidden setup ---
+# Add mdsmith to PATH, create temp dirs for init and
+# check/fix demos, copy sample file and config.
 Hide
 Type "set +e"
+Enter
+Type "export PATH=$PWD:$PATH"
+Enter
+Type "REPO=$PWD"
+Enter
+Type "INIT_DIR=$(mktemp -d)"
+Enter
+Type "DEMO_DIR=$(mktemp -d)"
+Enter
+Type "cp demo/sample.md $DEMO_DIR/sample.md"
+Enter
+Type "cp .mdsmith.yml $DEMO_DIR/"
 Enter
 Type "clear"
 Enter
@@ -33,18 +47,16 @@ Show
 
 # --- Use case 1: Initialize a project ---
 
-Type "# Initialize mdsmith in a new directory"
+Hide
+Type "cd $INIT_DIR && clear"
 Enter
 Sleep 1s
-Type "dir=$(mktemp -d) && cp ./mdsmith $dir/ && cd $dir"
-Sleep 1s
-Enter
-Sleep 1s
+Show
 
-Type "# Generate the default config"
+Type "# Initialize mdsmith in a new project"
 Enter
 Sleep 1s
-Type "./mdsmith init"
+Type "mdsmith init"
 Sleep 1s
 Enter
 Sleep 1s
@@ -54,29 +66,22 @@ Sleep 1s
 Enter
 Sleep 1s
 
-Type "# Config created — go back to the repo"
-Enter
-Sleep 1s
-Type "cd -"
-Sleep 1s
-Enter
-Sleep 1s
-
-Type "clear"
+Type "# Config created with default rules"
 Enter
 Sleep 1s
 
 # --- Use case 2: Lint and fix a file ---
 
-Type "# Copy a sample file and check it for lint issues"
+Hide
+Type "cd $DEMO_DIR && clear"
 Enter
 Sleep 1s
-Type "cp demo/sample.md /tmp/s.md"
-Sleep 1s
-Enter
-Sleep 1s
+Show
 
-Type "./mdsmith check /tmp/s.md"
+Type "# Check a file for lint issues"
+Enter
+Sleep 1s
+Type "mdsmith check sample.md"
 Sleep 1s
 Enter
 Sleep 1s
@@ -84,15 +89,15 @@ Sleep 1s
 Type "# Lint issues found — auto-fix them"
 Enter
 Sleep 1s
-Type "./mdsmith fix /tmp/s.md"
+Type "mdsmith fix sample.md"
 Sleep 1s
 Enter
 Sleep 1s
 
-Type "# Verify the file is now clean"
+Type "# Verify the fix"
 Enter
 Sleep 1s
-Type "./mdsmith check /tmp/s.md"
+Type "mdsmith check sample.md"
 Sleep 1s
 Enter
 Sleep 1s
@@ -101,34 +106,38 @@ Type "# All issues resolved"
 Enter
 Sleep 1s
 
-Type "clear"
+# --- Use case 3: Explore rules ---
+
+Hide
+Type "cd $REPO && clear"
 Enter
 Sleep 1s
-
-# --- Use case 3: Explore rules ---
+Show
 
 Type "# Look up a specific lint rule"
 Enter
 Sleep 1s
-Type "./mdsmith help rule line-length | head -20"
+Type "mdsmith help rule line-length | head -20"
 Sleep 1s
 Enter
 Sleep 2s
 
-Type "# Rules include severity, description, and examples"
-Enter
-Sleep 1s
-
-Type "clear"
+Type "# Shows rule description, severity, and config"
 Enter
 Sleep 1s
 
 # --- Use case 4: Query front matter ---
 
+Hide
+Type "clear"
+Enter
+Sleep 1s
+Show
+
 Type "# Find plans with status ✅"
 Enter
 Sleep 1s
-Type `./mdsmith query 'status: "✅"' plan/`
+Type `mdsmith query 'status: "✅"' plan/`
 Sleep 1s
 Enter
 Sleep 1s
@@ -137,16 +146,18 @@ Type "# Matched files listed"
 Enter
 Sleep 1s
 
+# --- Use case 5: Metrics ---
+
+Hide
 Type "clear"
 Enter
 Sleep 1s
+Show
 
-# --- Use case 5: Metrics ---
-
-Type "# Rank the largest files by size"
+Type "# Rank files by size"
 Enter
 Sleep 1s
-Type "./mdsmith metrics rank --by bytes --top 5 ."
+Type "mdsmith metrics rank --by bytes --top 5 ."
 Sleep 1s
 Enter
 Sleep 1s
