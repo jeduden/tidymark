@@ -100,12 +100,14 @@ records a terminal demo GIF. When editing this file:
 - `demo/sample.md` is in the `.mdsmith.yml` ignore
   list; the hidden setup copies it to a temp dir
   for check/fix steps
-- Recording speed: TypingSpeed and Sleep durations are
-  halved; PlaybackSpeed 0.5 restores normal apparent
-  speed in the output GIF — this cuts recording time
-  roughly in half
-- Keep Sleep durations short (250–500 ms) so VHS
-  renders quickly in CI
+- Recording speed: TypingSpeed (0.005), Sleep (100 ms),
+  and Framerate (120) are tuned for ~10x faster recording;
+  PlaybackSpeed 0.1 restores normal apparent speed in the
+  output GIF (~30 s recording → ~5 min GIF)
+- Hidden blocks use TypingSpeed 0 since that typing is
+  never visible in the output
+- Keep Sleep durations short (50–100 ms) so VHS renders
+  quickly in CI
 - Only use fixable lint rules in `demo/sample.md`
   (e.g. trailing spaces, long lines, bare URLs) so
   the "fix then clean check" flow works
