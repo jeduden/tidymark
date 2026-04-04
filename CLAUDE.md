@@ -101,8 +101,7 @@ records a terminal demo GIF. When editing this file:
   list; the hidden setup copies it to a temp dir
   for check/fix steps
 - Keep Sleep durations short (50–100 ms) so VHS
-  renders quickly in CI; `PlaybackSpeed 0.1` restores
-  normal playback speed in the output GIF
+  renders quickly in CI
 - Only use fixable lint rules in `demo/sample.md`
   (e.g. trailing spaces, long lines, bare URLs) so
   the "fix then clean check" flow works
