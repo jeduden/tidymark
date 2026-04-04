@@ -25,7 +25,8 @@ func ListDocs() ([]DocInfo, error) {
 	return listDocsFromFS(docsFS)
 }
 
-// LookupDoc finds a metric doc by ID (e.g. MET001) or name (e.g. bytes).
+// LookupDoc finds a metric doc by ID (e.g. MET001) or name (e.g. bytes)
+// and returns its README content with front matter stripped.
 func LookupDoc(query string) (string, error) {
 	return lookupDocFromFS(docsFS, query)
 }

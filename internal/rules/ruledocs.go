@@ -27,7 +27,7 @@ func ListRules() ([]RuleInfo, error) {
 }
 
 // LookupRule finds a rule by ID (e.g. "MDS001") or name (e.g. "line-length")
-// and returns its full README content.
+// and returns its README content with front matter stripped.
 func LookupRule(query string) (string, error) {
 	return lookupRuleFromFS(rulesFS, query)
 }
