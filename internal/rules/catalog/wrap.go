@@ -13,16 +13,6 @@ type columnConfig struct {
 	wrap     string // "truncate" (default) or "br"
 }
 
-// runeSlice returns the first n runes of s as a string.
-func runeSlice(s string, n int) string {
-	i := 0
-	for j := 0; j < n && i < len(s); j++ {
-		_, size := utf8.DecodeRuneInString(s[i:])
-		i += size
-	}
-	return s[:i]
-}
-
 // runeLen returns the number of runes in s.
 func runeLen(s string) int {
 	return utf8.RuneCountInString(s)
@@ -35,30 +25,28 @@ func truncateCell(text string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
 	}
-	if runeLen(text) <= maxWidth {
+	runes := []rune(text)
+	if len(runes) <= maxWidth {
 		return text
 	}
 
-	spans := parseMarkdownSpans(text)
+	spans := parseMarkdownSpansRunes(runes)
 
 	if maxWidth < 3 {
-		// Not enough room for full ellipsis, return dots up to maxWidth
-		return runeSlice("...", maxWidth)
+		return string([]rune("...")[:maxWidth])
 	}
 
 	// Find a good truncation point that respects markdown spans.
 	// We need room for "..." (3 chars).
 	targetWidth := maxWidth - 3
 
-	// Find the best break point that doesn't split a markdown span.
-	breakPos := findBreakPoint(text, spans, targetWidth)
+	breakPos := findBreakPointRunes(runes, spans, targetWidth)
 
 	if breakPos <= 0 {
-		// Can't fit anything meaningful, hard truncate
-		return runeSlice(text, targetWidth) + "..."
+		return string(runes[:targetWidth]) + "..."
 	}
 
-	return strings.TrimRight(runeSlice(text, breakPos), " ") + "..."
+	return strings.TrimRight(string(runes[:breakPos]), " ") + "..."
 }
 
 // wrapCellBr wraps text at word boundaries using <br> to fit within
@@ -107,12 +95,6 @@ func wrapCellBr(text string, maxWidth int) string {
 type markdownSpan struct {
 	start int // inclusive
 	end   int // exclusive
-}
-
-// parseMarkdownSpans finds markdown links [text](url) and inline code `code`
-// spans in the text and returns their rune-based positions.
-func parseMarkdownSpans(text string) []markdownSpan {
-	return parseMarkdownSpansRunes([]rune(text))
 }
 
 // parseMarkdownSpansRunes is like parseMarkdownSpans but operates on a
@@ -191,15 +173,9 @@ func findClosingParenRunes(runes []rune, pos int) int {
 	return -1
 }
 
-// findBreakPoint finds the best rune position to break text at or before targetWidth,
-// respecting markdown spans (not breaking inside them). It prefers word boundaries
-// (spaces) but will break before a markdown span if the span exceeds the width.
-func findBreakPoint(text string, spans []markdownSpan, targetWidth int) int {
-	return findBreakPointRunes([]rune(text), spans, targetWidth)
-}
-
-// findBreakPointRunes is like findBreakPoint but operates on a pre-converted
-// rune slice to avoid repeated string↔rune conversions in hot loops.
+// findBreakPointRunes finds the best rune position to break text at or before
+// targetWidth, respecting markdown spans (not breaking inside them). It prefers
+// word boundaries (spaces) but will break before a span that exceeds the width.
 func findBreakPointRunes(runes []rune, spans []markdownSpan, targetWidth int) int {
 	if targetWidth >= len(runes) {
 		return len(runes)
