@@ -73,7 +73,7 @@ func wrapCellBr(text string, maxWidth int) string {
 		return text
 	}
 
-	spans := parseMarkdownSpans(text)
+	spans := parseMarkdownSpansRunes(runes)
 	var lines []string
 	offset := 0 // current rune offset into original text
 
@@ -112,8 +112,13 @@ type markdownSpan struct {
 // parseMarkdownSpans finds markdown links [text](url) and inline code `code`
 // spans in the text and returns their rune-based positions.
 func parseMarkdownSpans(text string) []markdownSpan {
+	return parseMarkdownSpansRunes([]rune(text))
+}
+
+// parseMarkdownSpansRunes is like parseMarkdownSpans but operates on a
+// pre-converted rune slice to avoid redundant string→rune conversions.
+func parseMarkdownSpansRunes(runes []rune) []markdownSpan {
 	var spans []markdownSpan
-	runes := []rune(text)
 
 	i := 0
 	for i < len(runes) {
