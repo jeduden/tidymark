@@ -68,31 +68,36 @@ func wrapCellBr(text string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return ""
 	}
-	if runeLen(text) <= maxWidth {
+	runes := []rune(text)
+	if len(runes) <= maxWidth {
 		return text
 	}
 
 	spans := parseMarkdownSpans(text)
 	var lines []string
-	remaining := text
+	offset := 0 // current rune offset into original text
 
-	for runeLen(remaining) > maxWidth {
-		offset := runeLen(text) - runeLen(remaining)
-		breakPos := findBreakPoint(remaining, spansInRange(spans, offset, offset+runeLen(remaining)), maxWidth)
+	for len(runes)-offset > maxWidth {
+		remLen := len(runes) - offset
+		adjustedSpans := spansInRange(spans, offset, offset+remLen)
+		breakPos := findBreakPointRunes(runes[offset:], adjustedSpans, maxWidth)
 
 		if breakPos <= 0 {
-			// Hard break at maxWidth
 			breakPos = maxWidth
 		}
 
-		line := strings.TrimRight(runeSlice(remaining, breakPos), " ")
+		line := strings.TrimRight(string(runes[offset:offset+breakPos]), " ")
 		lines = append(lines, line)
-		sliced := runeSlice(remaining, breakPos)
-		remaining = strings.TrimLeft(remaining[len(sliced):], " ")
+
+		// Advance past the break and any leading spaces.
+		offset += breakPos
+		for offset < len(runes) && runes[offset] == ' ' {
+			offset++
+		}
 	}
 
-	if remaining != "" {
-		lines = append(lines, remaining)
+	if offset < len(runes) {
+		lines = append(lines, string(runes[offset:]))
 	}
 
 	return strings.Join(lines, "<br>")
@@ -185,9 +190,14 @@ func findClosingParenRunes(runes []rune, pos int) int {
 // respecting markdown spans (not breaking inside them). It prefers word boundaries
 // (spaces) but will break before a markdown span if the span exceeds the width.
 func findBreakPoint(text string, spans []markdownSpan, targetWidth int) int {
-	textRuneLen := runeLen(text)
-	if targetWidth >= textRuneLen {
-		return textRuneLen
+	return findBreakPointRunes([]rune(text), spans, targetWidth)
+}
+
+// findBreakPointRunes is like findBreakPoint but operates on a pre-converted
+// rune slice to avoid repeated string↔rune conversions in hot loops.
+func findBreakPointRunes(runes []rune, spans []markdownSpan, targetWidth int) int {
+	if targetWidth >= len(runes) {
+		return len(runes)
 	}
 
 	// Check if targetWidth falls inside a markdown span
@@ -196,7 +206,7 @@ func findBreakPoint(text string, spans []markdownSpan, targetWidth int) int {
 			// We're inside a span. Try to break before the span.
 			if s.start > 0 {
 				// Find a word boundary before this span
-				breakBefore := lastSpaceBeforeRune(text, s.start)
+				breakBefore := lastSpaceInRunes(runes, s.start)
 				if breakBefore > 0 {
 					return breakBefore
 				}
@@ -208,13 +218,27 @@ func findBreakPoint(text string, spans []markdownSpan, targetWidth int) int {
 	}
 
 	// Not inside a span. Find the last word boundary at or before targetWidth.
-	breakPos := lastSpaceBeforeRune(text, targetWidth+1)
+	breakPos := lastSpaceInRunes(runes, targetWidth+1)
 	if breakPos > 0 {
 		return breakPos
 	}
 
 	// No word boundary found, use targetWidth as hard break
 	return targetWidth
+}
+
+// lastSpaceInRunes returns the index of the last space in runes before index pos.
+// Returns -1 if no space is found.
+func lastSpaceInRunes(runes []rune, pos int) int {
+	if pos > len(runes) {
+		pos = len(runes)
+	}
+	for i := pos - 1; i >= 0; i-- {
+		if runes[i] == ' ' {
+			return i
+		}
+	}
+	return -1
 }
 
 // lastSpaceBeforeRune returns the rune position of the last space in text
