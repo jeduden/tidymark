@@ -1,7 +1,7 @@
 ---
 id: 'int & >=1'
 title: 'string & != ""'
-status: '"🔲" | "🔳" | "✅"'
+status: '"🔲" | "🔳" | "✅" | "⛔"'
 summary: 'string | *""'
 ---
 <?require
