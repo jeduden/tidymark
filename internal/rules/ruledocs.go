@@ -27,7 +27,7 @@ func ListRules() ([]RuleInfo, error) {
 }
 
 // LookupRule finds a rule by ID (e.g. "MDS001") or name (e.g. "line-length")
-// and returns its full README content.
+// and returns its README content with front matter stripped.
 func LookupRule(query string) (string, error) {
 	return lookupRuleFromFS(rulesFS, query)
 }
@@ -72,7 +72,7 @@ func lookupRuleFromFS(fsys fs.FS, query string) (string, error) {
 	q := strings.ToUpper(query)
 	for _, r := range rules {
 		if strings.ToUpper(r.ID) == q || r.Name == query {
-			return r.Content, nil
+			return stripFrontMatter(r.Content), nil
 		}
 	}
 
@@ -116,6 +116,20 @@ func parseFrontMatter(content string) (RuleInfo, error) {
 	}
 
 	return info, nil
+}
+
+// stripFrontMatter removes the leading YAML front matter block (--- ... ---)
+// and any immediately following blank line from content.
+func stripFrontMatter(content string) string {
+	if !strings.HasPrefix(content, "---\n") {
+		return content
+	}
+	end := strings.Index(content[4:], "\n---\n")
+	if end < 0 {
+		return content
+	}
+	body := content[4+end+5:]
+	return strings.TrimLeft(body, "\n")
 }
 
 // parseYAMLLine parses a simple "key: value" line.
