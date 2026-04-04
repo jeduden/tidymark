@@ -93,6 +93,21 @@ func TestTruncateCell_LinkTooLongForWidth(t *testing.T) {
 	}
 }
 
+func TestTruncateCell_MultiByte_CountsRunesNotBytes(t *testing.T) {
+	// "café résumé" is 11 runes but 14 bytes (é = 2 bytes each, 3 of them).
+	// With maxWidth=11, it should fit without truncation.
+	got := truncateCell("café résumé", 11)
+	assert.Equal(t, "café résumé", got)
+}
+
+func TestTruncateCell_MultiByte_TruncatesCorrectly(t *testing.T) {
+	// "ñoño mundo" is 10 runes, 12 bytes (ñ = 2 bytes each).
+	// With maxWidth=7, truncate to 4 runes + "..." = "ñoño...".
+	// Byte-based code would slice at byte 4, corrupting the second ñ.
+	got := truncateCell("ñoño mundo", 7)
+	assert.Equal(t, "ñoño...", got)
+}
+
 // =====================================================================
 // wrapCellBr
 // =====================================================================
