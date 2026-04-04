@@ -1,8 +1,10 @@
 package catalog
 
 import (
+	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -164,6 +166,22 @@ func TestWrapCellBr_MultipleWraps(t *testing.T) {
 func TestWrapCellBr_ExactWidthNoWrap(t *testing.T) {
 	got := wrapCellBr("12345", 5)
 	assert.Equal(t, "12345", got, "expected %q, got %q", "12345", got)
+}
+
+func TestWrapCellBr_LargeInput_LinearTime(t *testing.T) {
+	// Build a ~100 000-rune string of multi-byte words.
+	// Each "café " is 5 runes / 6 bytes; repeated 20 000 times = 100k runes.
+	// With maxWidth=20, this forces ~5 000 wrap iterations.
+	// O(n²) RuneCountInString re-scanning makes this measurably slow on
+	// multi-byte input; O(n) incremental tracking finishes fast.
+	word := strings.Repeat("café ", 20000) // 100 000 runes
+	start := time.Now()
+	_ = wrapCellBr(word, 20)
+	elapsed := time.Since(start)
+	// 500 ms is generous for O(n) but catches O(n²) on 100k multi-byte input.
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("wrapCellBr took %v on 100k-rune input; expected < 500ms (possible O(n²))", elapsed)
+	}
 }
 
 // =====================================================================
