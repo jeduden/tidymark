@@ -1,5 +1,9 @@
 # 🔨 mdsmith
 
+[![Build](https://github.com/jeduden/mdsmith/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jeduden/mdsmith/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jeduden/mdsmith)](https://goreportcard.com/report/github.com/jeduden/mdsmith)
+[![codecov](https://codecov.io/gh/jeduden/mdsmith/branch/main/graph/badge.svg)](https://codecov.io/gh/jeduden/mdsmith)
+
 A fast, auto-fixing Markdown linter and formatter for docs, READMEs,
 and AI-generated content. Checks style, readability, and structure.
 Written in Go.
