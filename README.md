@@ -1,8 +1,8 @@
 # 🔨 mdsmith
 
-[![Build](https://github.com/jeduden/mdsmith/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jeduden/mdsmith/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jeduden/mdsmith)](https://goreportcard.com/report/github.com/jeduden/mdsmith)
-[![codecov](https://codecov.io/gh/jeduden/mdsmith/branch/main/graph/badge.svg)](https://codecov.io/gh/jeduden/mdsmith)
+[![Build][ci-badge]][ci-link]
+[![Quality][grc-badge]][grc-link]
+[![Coverage][cov-badge]][cov-link]
 
 A fast, auto-fixing Markdown linter and formatter for docs, READMEs,
 and AI-generated content. Checks style, readability, and structure.
@@ -205,3 +205,12 @@ workflow, code style, and PR conventions).
 ## 📄 License
 
 [MIT](LICENSE)
+
+<!-- badges -->
+
+[ci-badge]: https://github.com/jeduden/mdsmith/actions/workflows/ci.yml/badge.svg?branch=main
+[ci-link]: https://github.com/jeduden/mdsmith/actions/workflows/ci.yml?query=branch%3Amain
+[grc-badge]: https://goreportcard.com/badge/github.com/jeduden/mdsmith
+[grc-link]: https://goreportcard.com/report/github.com/jeduden/mdsmith
+[cov-badge]: https://codecov.io/gh/jeduden/mdsmith/branch/main/graph/badge.svg
+[cov-link]: https://codecov.io/gh/jeduden/mdsmith/branch/main
