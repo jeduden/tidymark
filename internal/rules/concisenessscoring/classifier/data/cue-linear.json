@@ -2,7 +2,7 @@
   "model_id": "cue-linear-v2",
   "version": "2026-04-05",
   "threshold": 0.20,
-  "intercept": -0.85,
+  "intercept": -1.40,
   "lexicon": {
     "filler_words": [
       "actually", "basically", "clearly", "definitely", "essentially",
@@ -53,7 +53,7 @@
     "modal_rate": 5.20,
     "vague_rate": 4.60,
     "verbose_phrase_rate": 8.80,
-    "compression_ratio": -1.50,
+    "compression_ratio": 2.00,
     "type_token_ratio": -2.00,
     "nominal_density": 4.00,
     "sent_len_variance": 1.20,

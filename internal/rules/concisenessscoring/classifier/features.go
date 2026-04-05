@@ -1,8 +1,6 @@
 package classifier
 
 import (
-	"bytes"
-	"compress/flate"
 	"math"
 	"regexp"
 	"strings"
@@ -29,26 +27,27 @@ var nominalizationSuffixes = []string{
 	"tion", "ment", "ness", "ity", "ance", "ence",
 }
 
-// CompressionRatio compresses text with flate BestSpeed and returns
-// float64(len(compressed)) / float64(len(original)). A lower ratio means
-// more compressible (more redundant) text. Returns 0.0 for empty text or
-// text shorter than 2 bytes.
+// CompressionRatio estimates text redundancy using bigram repetition.
+// It returns the fraction of repeated token bigrams. Higher values
+// indicate more repetitive (redundant) text. Returns 0.0 if the
+// text has fewer than 2 tokens.
 func CompressionRatio(text string) float64 {
-	if len(text) < 2 {
+	tokens := wordPattern.FindAllString(strings.ToLower(text), -1)
+	if len(tokens) < 2 {
 		return 0.0
 	}
-	var buf bytes.Buffer
-	w, err := flate.NewWriter(&buf, flate.BestSpeed)
-	if err != nil {
-		return 0.0
+	total := len(tokens) - 1
+	seen := make(map[string]struct{}, total)
+	repeated := 0
+	for i := 0; i < total; i++ {
+		bigram := tokens[i] + " " + tokens[i+1]
+		if _, ok := seen[bigram]; ok {
+			repeated++
+		} else {
+			seen[bigram] = struct{}{}
+		}
 	}
-	if _, err := w.Write([]byte(text)); err != nil {
-		return 0.0
-	}
-	if err := w.Close(); err != nil {
-		return 0.0
-	}
-	return float64(buf.Len()) / float64(len(text))
+	return float64(repeated) / float64(total)
 }
 
 // TypeTokenRatio returns the ratio of unique tokens to total tokens.

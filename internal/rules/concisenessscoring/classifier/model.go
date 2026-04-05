@@ -15,7 +15,7 @@ import (
 // Embedded artifact metadata used for checksum and loading validation.
 const (
 	EmbeddedArtifactPath   = "data/cue-linear.json"
-	EmbeddedArtifactSHA256 = "45b7d8aada8d3066faf3d0aace391cdc761543c315ceb9437c85fd82c4b93c63"
+	EmbeddedArtifactSHA256 = "0e54d9f4199aa3b7a46c7c7feed7e5e2d3ebe78b98421b9502e1ba670b78608c"
 
 	minFillerWords    = 12
 	minModalWords     = 10
