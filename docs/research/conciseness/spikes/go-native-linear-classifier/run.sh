@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/../../../.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/.tmp/spikes/go-native-linear-classifier}"
 ROUNDS="${ROUNDS:-4000}"
 DETERMINISM_RUNS="${DETERMINISM_RUNS:-5}"

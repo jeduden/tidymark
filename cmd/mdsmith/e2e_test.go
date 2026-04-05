@@ -57,8 +57,20 @@ func TestMain(m *testing.M) {
 		_ = os.RemoveAll(coverDir)
 		os.Exit(1)
 	}
-	_ = os.MkdirAll(filepath.Join(isolatedCWD, ".git"), 0o755)
-	_ = os.WriteFile(filepath.Join(isolatedCWD, ".mdsmith.yml"), []byte("rules: {}\n"), 0o644)
+	if err := os.MkdirAll(filepath.Join(isolatedCWD, ".git"), 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create isolated .git marker: %v\n", err)
+		_ = os.RemoveAll(isolatedCWD)
+		_ = os.RemoveAll(tmp)
+		_ = os.RemoveAll(coverDir)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(filepath.Join(isolatedCWD, ".mdsmith.yml"), []byte("rules: {}\n"), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to write isolated .mdsmith.yml: %v\n", err)
+		_ = os.RemoveAll(isolatedCWD)
+		_ = os.RemoveAll(tmp)
+		_ = os.RemoveAll(coverDir)
+		os.Exit(1)
+	}
 
 	code := m.Run()
 	_ = os.RemoveAll(isolatedCWD)
