@@ -14,8 +14,8 @@ import (
 
 // Embedded artifact metadata used for checksum and loading validation.
 const (
-	EmbeddedArtifactPath   = "data/cue-linear-v1.json"
-	EmbeddedArtifactSHA256 = "98c9d8c6c43ad03b8ac4ff63ebcdcec4cdb4a17634dac9bd4f622a302f37d146"
+	EmbeddedArtifactPath   = "data/cue-linear.json"
+	EmbeddedArtifactSHA256 = "45b7d8aada8d3066faf3d0aace391cdc761543c315ceb9437c85fd82c4b93c63"
 
 	minFillerWords    = 12
 	minModalWords     = 10
@@ -26,7 +26,7 @@ const (
 	minVerbosePhrases = 8
 )
 
-//go:embed data/cue-linear-v1.json
+//go:embed data/cue-linear.json
 var embeddedArtifact []byte
 
 var (
@@ -43,6 +43,14 @@ var featureOrder = []string{
 	"action_rate",
 	"content_ratio",
 	"log_word_count",
+	// New features (plan 66)
+	"compression_ratio",
+	"type_token_ratio",
+	"nominal_density",
+	"sent_len_variance",
+	"func_word_ratio",
+	"avg_word_length",
+	"ly_adverb_density",
 }
 
 type artifact struct {
@@ -349,6 +357,13 @@ func extractFeatures(
 		"action_rate":         0,
 		"content_ratio":       0,
 		"log_word_count":      0,
+		"compression_ratio":   0,
+		"type_token_ratio":    0,
+		"nominal_density":     0,
+		"sent_len_variance":   0,
+		"func_word_ratio":     0,
+		"avg_word_length":     0,
+		"ly_adverb_density":   0,
 	}
 	if wordCount == 0 {
 		return features, []string{}
@@ -374,6 +389,13 @@ func extractFeatures(
 	features["action_rate"] = float64(actionCount) / wordCount
 	features["content_ratio"] = float64(contentCount) / wordCount
 	features["log_word_count"] = math.Log1p(wordCount)
+	features["compression_ratio"] = CompressionRatio(text)
+	features["type_token_ratio"] = TypeTokenRatio(tokens)
+	features["nominal_density"] = NominalDensity(tokens)
+	features["sent_len_variance"] = SentLenVariance(text)
+	features["func_word_ratio"] = FuncWordRatio(tokens)
+	features["avg_word_length"] = AvgWordLength(tokens)
+	features["ly_adverb_density"] = LyAdverbDensity(tokens)
 
 	cues := make([]string, 0, 12)
 	cues = append(cues, fillerCues...)
