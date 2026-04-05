@@ -34,9 +34,10 @@ func TestCheck_HeuristicBudgetExceeded(t *testing.T) {
 	if d.Line != 1 || d.Column != 1 {
 		t.Errorf("expected location 1:1, got %d:%d", d.Line, d.Column)
 	}
-	if want := "token budget exceeded (6 > 3, mode=heuristic:tokens-per-word=1.00)"; d.Message != want {
-		t.Errorf("expected message %q, got %q", want, d.Message)
-	}
+	require.Contains(t, d.Message, "token budget exceeded (6 > 3, mode=heuristic:tokens-per-word=1.00)",
+		"message missing base info, got: %s", d.Message)
+	require.Contains(t, d.Message, "~3 words over budget",
+		"message should include words-over-budget estimate, got: %s", d.Message)
 }
 
 func TestCheck_HeuristicAtBudget_NoDiagnostic(t *testing.T) {
@@ -60,6 +61,17 @@ func TestCheck_TokenizerBudgetExceeded(t *testing.T) {
 	} else if !strings.Contains(diags[0].Message, "mode=tokenizer:builtin/cl100k_base") {
 		t.Fatalf("expected tokenizer mode in diagnostic, got %q", diags[0].Message)
 	}
+}
+
+func TestCheck_WordsOverBudget_NeverZero(t *testing.T) {
+	// 4 words × tpw 3.0 = 12 tokens. Budget 11 → overage 1 token.
+	// 1 / 3.0 = 0.33 → math.Ceil rounds up, and the implementation enforces a minimum of 1.
+	f := mustFile(t, "test.md", "one two three four")
+	r := &Rule{Max: 11, Mode: "heuristic", TokensPerWord: 3.0}
+	diags := r.Check(f)
+	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
+	require.Contains(t, diags[0].Message, "~1 word over budget",
+		"words-over-budget should be at least 1, got: %s", diags[0].Message)
 }
 
 func TestCheck_PerGlobBudget_LastMatchWins(t *testing.T) {
