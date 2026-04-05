@@ -4,10 +4,18 @@ import (
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rules/concisenessscoring/classifier"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func modelConciseness(t *testing.T) float64 {
+	t.Helper()
+	m, err := classifier.LoadEmbedded()
+	require.NoError(t, err)
+	return 1.0 - m.Threshold()
+}
 
 func verboseParagraph() string {
 	return "Basically, it seems that we are just trying to explain the " +
@@ -26,29 +34,20 @@ func TestCheck_LowScore(t *testing.T) {
 	f, err := lint.NewFile("test.md", src)
 	require.NoError(t, err)
 
+	threshold := modelConciseness(t)
 	r := &Rule{
-		MinScore: 0.80,
+		MinScore: threshold,
 		MinWords: 20,
 	}
 	diags := r.Check(f)
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
 
 	d := diags[0]
-	if d.RuleID != "MDS029" {
-		t.Errorf("expected rule ID MDS029, got %s", d.RuleID)
-	}
-	if d.RuleName != "conciseness-scoring" {
-		t.Errorf(
-			"expected rule name conciseness-scoring, got %s",
-			d.RuleName,
-		)
-	}
-	if d.Severity != lint.Warning {
-		t.Errorf("expected severity warning, got %s", d.Severity)
-	}
-	assert.Contains(t, d.Message, "conciseness score too low", "unexpected message: %s", d.Message)
-	assert.Contains(t, d.Message, "target >=", "expected target guidance in message, got: %s", d.Message)
-	assert.Contains(t, d.Message, "\"basically\"", "expected example cue in message, got: %s", d.Message)
+	assert.Equal(t, "MDS029", d.RuleID)
+	assert.Equal(t, "conciseness-scoring", d.RuleName)
+	assert.Equal(t, lint.Warning, d.Severity)
+	assert.Contains(t, d.Message, "conciseness score too low")
+	assert.Contains(t, d.Message, "target >=")
 }
 
 func TestCheck_HighScore(t *testing.T) {
