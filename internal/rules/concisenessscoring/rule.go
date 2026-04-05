@@ -18,9 +18,10 @@ const (
 )
 
 var (
-	scorerOnce   sync.Once
-	globalScorer *Scorer
-	scorerErr    error
+	scorerOnce      sync.Once
+	globalScorer    *Scorer
+	scorerErr       error
+	errReportedOnce sync.Once
 )
 
 func loadScorer() (*Scorer, error) {
@@ -59,15 +60,7 @@ func (r *Rule) EnabledByDefault() bool { return false }
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	scorer, err := loadScorer()
 	if err != nil {
-		return []lint.Diagnostic{{
-			File:     f.Path,
-			Line:     1,
-			Column:   1,
-			RuleID:   r.ID(),
-			RuleName: r.Name(),
-			Severity: lint.Error,
-			Message:  fmt.Sprintf("classifier load failed: %v", err),
-		}}
+		return r.loadErrorDiag(f, err)
 	}
 
 	var diags []lint.Diagnostic
@@ -114,6 +107,26 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return ast.WalkContinue, nil
 	})
 	return diags
+}
+
+func (r *Rule) loadErrorDiag(
+	f *lint.File, err error,
+) []lint.Diagnostic {
+	var diag []lint.Diagnostic
+	errReportedOnce.Do(func() {
+		diag = []lint.Diagnostic{{
+			File:     f.Path,
+			Line:     1,
+			Column:   1,
+			RuleID:   r.ID(),
+			RuleName: r.Name(),
+			Severity: lint.Error,
+			Message: fmt.Sprintf(
+				"classifier load failed: %v", err,
+			),
+		}}
+	})
+	return diag
 }
 
 func formatExamples(examples []string) string {
