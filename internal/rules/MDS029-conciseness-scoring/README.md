@@ -27,7 +27,10 @@ Paragraph conciseness score must not fall below a threshold.
 The score is produced by a pure-Go linear classifier with 15
 features. The classifier outputs a risk score via sigmoid; the
 conciseness score is `1 - risk_score`, so 1.0 = maximally
-concise. Markdown tables are skipped.
+concise. The `min-score` threshold is in conciseness space:
+paragraphs scoring below this value are flagged. The default
+0.20 is intentionally conservative, catching only highly
+verbose paragraphs. Markdown tables are skipped.
 
 ## Config
 
