@@ -1,10 +1,13 @@
 package concisenessscoring
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/jeduden/mdsmith/internal/rules/concisenessscoring/classifier"
 )
+
+var wordPattern = regexp.MustCompile(`[a-z0-9']+`)
 
 // Scorer wraps the classifier model to produce conciseness scores.
 type Scorer struct {
