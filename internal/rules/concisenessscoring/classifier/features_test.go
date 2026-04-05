@@ -11,7 +11,7 @@ func floatEq(a, b float64) bool {
 	return math.Abs(a-b) < tol
 }
 
-// --- CompressionRatio ---
+// --- CompressionRatio (bigram repetition) ---
 
 func TestCompressionRatio_Empty(t *testing.T) {
 	if got := CompressionRatio(""); got != 0.0 {
@@ -19,39 +19,37 @@ func TestCompressionRatio_Empty(t *testing.T) {
 	}
 }
 
-func TestCompressionRatio_ShortText(t *testing.T) {
-	// single byte — less than 2 bytes
-	if got := CompressionRatio("a"); got != 0.0 {
-		t.Fatalf("expected 0.0 for single-byte string, got %v", got)
+func TestCompressionRatio_SingleWord(t *testing.T) {
+	if got := CompressionRatio("hello"); got != 0.0 {
+		t.Fatalf("expected 0.0 for single word, got %v", got)
 	}
 }
 
 func TestCompressionRatio_RedundantVsVaried(t *testing.T) {
-	// Redundant text compresses more tightly → lower ratio.
-	redundant := "the the the the the the the the the the the the the the the the"
-	varied := "the quick brown fox jumps over a lazy dog near some tall old oak"
+	redundant := "the the the the the the the the"
+	varied := "the quick brown fox jumps over lazy dogs"
 
 	ratioRedundant := CompressionRatio(redundant)
 	ratioVaried := CompressionRatio(varied)
 
-	if ratioRedundant == 0.0 {
-		t.Fatal("CompressionRatio returned 0.0 for non-empty redundant text")
+	if ratioRedundant <= 0.5 {
+		t.Fatalf("expected redundant ratio > 0.5, got %.4f", ratioRedundant)
 	}
-	if ratioVaried == 0.0 {
-		t.Fatal("CompressionRatio returned 0.0 for non-empty varied text")
+	if ratioVaried != 0.0 {
+		t.Fatalf("expected varied ratio = 0, got %.4f", ratioVaried)
 	}
-	if ratioRedundant >= ratioVaried {
+	if ratioRedundant <= ratioVaried {
 		t.Fatalf(
-			"expected redundant ratio < varied ratio, got redundant=%.4f varied=%.4f",
+			"expected redundant > varied, got %.4f <= %.4f",
 			ratioRedundant, ratioVaried,
 		)
 	}
 }
 
-func TestCompressionRatio_PositiveForNonEmpty(t *testing.T) {
+func TestCompressionRatio_NoRepetition(t *testing.T) {
 	r := CompressionRatio("hello world this is a test")
-	if r <= 0.0 {
-		t.Fatalf("expected positive ratio, got %v", r)
+	if r != 0.0 {
+		t.Fatalf("expected 0.0 for no repeated bigrams, got %v", r)
 	}
 }
 
