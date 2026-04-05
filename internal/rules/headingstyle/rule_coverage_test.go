@@ -124,8 +124,8 @@ func TestFirstTextSegment_Found(t *testing.T) {
 		}
 		if h, ok := n.(*ast.Heading); ok {
 			seg := firstTextSegment(h)
-			// Should find text within the heading
-			assert.True(t, seg.Start < seg.Stop || seg.Start > 0, "expected a non-zero segment")
+			// Should find a non-empty text segment within the heading.
+			assert.Less(t, seg.Start, seg.Stop, "expected a non-empty segment")
 			return ast.WalkStop, nil
 		}
 		return ast.WalkContinue, nil
@@ -335,7 +335,7 @@ func TestFix_SetextLevel2ToATX(t *testing.T) {
 	require.NoError(t, err)
 	r := &Rule{Style: "atx"}
 	result := r.Fix(f)
-	assert.Equal(t, "## Section", string(bytes.TrimSpace(result)))
+	assert.Equal(t, "## Section\n", string(result))
 }
 
 // --- buildStyleReplacement: setext empty heading ---

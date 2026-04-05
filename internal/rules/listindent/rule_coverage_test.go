@@ -25,7 +25,7 @@ func TestFirstLineOfChild_TextNode(t *testing.T) {
 				for c := li.FirstChild(); c != nil; c = c.NextSibling() {
 					line := firstLineOfChild(f, c)
 					if line > 0 {
-						assert.Greater(t, line, 0)
+						assert.Equal(t, 1, line, "expected first child on line 1")
 						return ast.WalkStop, nil
 					}
 				}
