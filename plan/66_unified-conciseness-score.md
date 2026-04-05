@@ -140,7 +140,7 @@ internal/rules/concisenessscoring/
 │   ├── features.go        # NEW: 7 features
 │   ├── features_test.go   # NEW
 │   └── data/
-│       └── cue-linear-v2.json  # NEW: weights
+│       └── cue-linear.json     # NEW: weights
 ├── scorer.go              # NEW: interface
 ├── scorer_test.go         # NEW
 ├── rule.go                # NEW: MDS029 rule
@@ -156,7 +156,7 @@ After adding the new features, retrain the model:
 1. Use the corpus from PR #35 (plan 62).
 2. Extract all 15 features from each labeled paragraph.
 3. Fit logistic regression (`sklearn.linear_model`).
-4. Export weights and bias to `cue-linear-v2.json`.
+4. Export weights and bias to `cue-linear.json`.
 5. Generate SHA-256 checksum for `go:embed` verification.
 6. Validate determinism: assert `unique_hashes=1`.
 
