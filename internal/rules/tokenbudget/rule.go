@@ -81,7 +81,10 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if tpw <= 0 {
 		tpw = defaultTokensPerWord
 	}
-	wordsOver := int(math.Round(float64(overage) / tpw))
+	wordsOver := int(math.Ceil(float64(overage) / tpw))
+	if wordsOver < 1 {
+		wordsOver = 1
+	}
 
 	return []lint.Diagnostic{{
 		File:     f.Path,
