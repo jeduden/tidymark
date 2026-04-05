@@ -34,57 +34,129 @@ var nominalizationSuffixes = []string{
 // more compressible (more redundant) text. Returns 0.0 for empty text or
 // text shorter than 2 bytes.
 func CompressionRatio(text string) float64 {
-	// stub
-	_ = bytes.Buffer{}
-	_ = flate.BestCompression
-	return 0.0
+	if len(text) < 2 {
+		return 0.0
+	}
+	var buf bytes.Buffer
+	w, err := flate.NewWriter(&buf, flate.BestCompression)
+	if err != nil {
+		return 0.0
+	}
+	if _, err := w.Write([]byte(text)); err != nil {
+		return 0.0
+	}
+	if err := w.Close(); err != nil {
+		return 0.0
+	}
+	return float64(buf.Len()) / float64(len(text))
 }
 
 // TypeTokenRatio returns the ratio of unique tokens to total tokens.
 // Higher values indicate more varied vocabulary. Returns 0.0 for an empty
 // slice.
 func TypeTokenRatio(tokens []string) float64 {
-	// stub
-	return 0.0
+	if len(tokens) == 0 {
+		return 0.0
+	}
+	seen := make(map[string]struct{}, len(tokens))
+	for _, t := range tokens {
+		seen[t] = struct{}{}
+	}
+	return float64(len(seen)) / float64(len(tokens))
 }
 
 // NominalDensity returns the fraction of tokens ending in common
 // nominalization suffixes (-tion, -ment, -ness, -ity, -ance, -ence).
 // Returns 0.0 for an empty slice.
 func NominalDensity(tokens []string) float64 {
-	// stub
-	return 0.0
+	if len(tokens) == 0 {
+		return 0.0
+	}
+	count := 0
+	for _, t := range tokens {
+		for _, suf := range nominalizationSuffixes {
+			if strings.HasSuffix(t, suf) {
+				count++
+				break
+			}
+		}
+	}
+	return float64(count) / float64(len(tokens))
 }
 
 // SentLenVariance splits text into sentences on `.`, `!`, `?` and returns
 // the coefficient of variation (stddev / mean) of sentence word counts.
 // Returns 0.0 when fewer than 2 sentences are found.
 func SentLenVariance(text string) float64 {
-	// stub
-	_ = math.Sqrt(0)
-	_ = strings.ToLower
-	_ = sentPattern
-	return 0.0
+	parts := sentPattern.Split(text, -1)
+	// Collect non-empty sentences.
+	var lengths []float64
+	for _, p := range parts {
+		words := wordPattern.FindAllString(strings.ToLower(p), -1)
+		if len(words) > 0 {
+			lengths = append(lengths, float64(len(words)))
+		}
+	}
+	if len(lengths) < 2 {
+		return 0.0
+	}
+	var sum float64
+	for _, l := range lengths {
+		sum += l
+	}
+	mean := sum / float64(len(lengths))
+	if mean == 0 {
+		return 0.0
+	}
+	var variance float64
+	for _, l := range lengths {
+		d := l - mean
+		variance += d * d
+	}
+	variance /= float64(len(lengths))
+	return math.Sqrt(variance) / mean
 }
 
 // FuncWordRatio returns the fraction of tokens that are function words
 // (determiners, prepositions, conjunctions, pronouns). Returns 0.0 for an
 // empty slice.
 func FuncWordRatio(tokens []string) float64 {
-	// stub
-	return 0.0
+	if len(tokens) == 0 {
+		return 0.0
+	}
+	count := 0
+	for _, t := range tokens {
+		if _, ok := funcWords[t]; ok {
+			count++
+		}
+	}
+	return float64(count) / float64(len(tokens))
 }
 
 // AvgWordLength returns the mean character length of tokens. Returns 0.0 for
 // an empty slice.
 func AvgWordLength(tokens []string) float64 {
-	// stub
-	return 0.0
+	if len(tokens) == 0 {
+		return 0.0
+	}
+	total := 0
+	for _, t := range tokens {
+		total += len(t)
+	}
+	return float64(total) / float64(len(tokens))
 }
 
 // LyAdverbDensity returns the fraction of tokens ending in "ly" with length
 // >= 4 (to exclude short words like "fly"). Returns 0.0 for an empty slice.
 func LyAdverbDensity(tokens []string) float64 {
-	// stub
-	return 0.0
+	if len(tokens) == 0 {
+		return 0.0
+	}
+	count := 0
+	for _, t := range tokens {
+		if len(t) >= 4 && strings.HasSuffix(t, "ly") {
+			count++
+		}
+	}
+	return float64(count) / float64(len(tokens))
 }
