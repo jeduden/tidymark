@@ -14,7 +14,7 @@ cd "$ROOT_DIR"
 
 echo "[1/4] build go-native spike harness binary"
 go build -o "$OUT_DIR/go-native-spike" \
-  ./eval/conciseness/spikes/go-native-linear-classifier
+  ./docs/research/conciseness/spikes/go-native-linear-classifier
 
 echo "[2/4] determinism check across process restarts"
 HASHES_FILE="$OUT_DIR/determinism-hashes.txt"
