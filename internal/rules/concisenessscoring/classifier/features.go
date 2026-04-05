@@ -27,6 +27,8 @@ var nominalizationSuffixes = []string{
 	"tion", "ment", "ness", "ity", "ance", "ence",
 }
 
+type bigramKey struct{ a, b int }
+
 // CompressionRatio estimates text redundancy using bigram repetition.
 // It returns the fraction of repeated token bigrams. Higher values
 // indicate more repetitive (redundant) text. Returns 0.0 if
@@ -35,15 +37,24 @@ func CompressionRatio(tokens []string) float64 {
 	if len(tokens) < 2 {
 		return 0.0
 	}
+	intern := make(map[string]int, len(tokens))
+	id := func(s string) int {
+		if v, ok := intern[s]; ok {
+			return v
+		}
+		v := len(intern)
+		intern[s] = v
+		return v
+	}
 	total := len(tokens) - 1
-	seen := make(map[string]struct{}, total)
+	seen := make(map[bigramKey]struct{}, total)
 	repeated := 0
 	for i := 0; i < total; i++ {
-		bigram := tokens[i] + " " + tokens[i+1]
-		if _, ok := seen[bigram]; ok {
+		key := bigramKey{id(tokens[i]), id(tokens[i+1])}
+		if _, ok := seen[key]; ok {
 			repeated++
 		} else {
-			seen[bigram] = struct{}{}
+			seen[key] = struct{}{}
 		}
 	}
 	return float64(repeated) / float64(total)
