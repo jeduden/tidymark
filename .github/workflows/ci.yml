@@ -181,7 +181,11 @@ jobs:
             echo '</details>'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage to Codecov
+        if: >-
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+          && secrets.CODECOV_TOKEN != ''
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: merged.cov
           fail_ci_if_error: false
