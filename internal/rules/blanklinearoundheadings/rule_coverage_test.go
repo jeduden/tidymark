@@ -205,9 +205,8 @@ func TestIsSetextHeading_NoLines(t *testing.T) {
 
 // --- Check with setext heading ---
 
-func TestCheck_SetextHeading_BlankLineRequired(t *testing.T) {
-	// Setext heading needs blank line before to parse as heading.
-	// Test the "after" case: heading parsed but no blank after.
+func TestCheck_Heading_BlankLineAfterRequired(t *testing.T) {
+	// Test the "after" case: ATX heading parsed but no blank line after.
 	src := []byte("# ATX heading\nmore text\n")
 	f, err := lint.NewFile("test.md", src)
 	require.NoError(t, err)

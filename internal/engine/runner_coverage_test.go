@@ -43,19 +43,7 @@ func TestCachedGitignore_CacheHit(t *testing.T) {
 	assert.Same(t, m1, m2, "expected same matcher from cache")
 }
 
-func TestCachedGitignore_EquivalentPaths(t *testing.T) {
-	dir := t.TempDir()
-
-	runner := &Runner{
-		Config: &config.Config{},
-		Rules:  nil,
-	}
-
-	// Use "." relative and absolute to verify normalization.
-	m1 := runner.cachedGitignore(dir)
-	m2 := runner.cachedGitignore(filepath.Join(dir, "."))
-	assert.Same(t, m1, m2, "equivalent paths should share cache entry")
-}
+// (dead test removed — filepath.Join(dir, ".") normalizes to dir, so both args are identical)
 
 func TestCachedGitignore_InitializesNilCache(t *testing.T) {
 	runner := &Runner{

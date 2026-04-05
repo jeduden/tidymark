@@ -72,14 +72,7 @@ func TestE2E_Check_BadConfig_ExitsTwo(t *testing.T) {
 		"expected error in stderr for bad config, got: %s", stderr)
 }
 
-// checkFiles: nonexistent file triggers resolve error
-func TestE2E_Check_NonexistentFile_ExitsTwo(t *testing.T) {
-	dir := t.TempDir()
-	isolateDir(t, dir)
-	_, stderr, exitCode := runBinaryInDir(t, dir, "", "check", "--no-color", "no-such-file.md")
-	assert.Equal(t, 2, exitCode,
-		"expected exit code 2 for nonexistent file, got %d; stderr: %s", exitCode, stderr)
-}
+// (duplicate of TestE2E_Check_NonExistentFile_ExitsTwo removed)
 
 // =============================================================
 // 6. fixFiles — bad config via --config
@@ -96,14 +89,7 @@ func TestE2E_Fix_BadConfig_ExitsTwo(t *testing.T) {
 		"expected error in stderr for bad config, got: %s", stderr)
 }
 
-// fixFiles: nonexistent file triggers resolve error
-func TestE2E_Fix_NonexistentFile_ExitsTwo(t *testing.T) {
-	dir := t.TempDir()
-	isolateDir(t, dir)
-	_, stderr, exitCode := runBinaryInDir(t, dir, "", "fix", "--no-color", "no-such-file.md")
-	assert.Equal(t, 2, exitCode,
-		"expected exit code 2 for nonexistent file, got %d; stderr: %s", exitCode, stderr)
-}
+// (duplicate of TestE2E_Fix_NonExistentFile_ExitsTwo removed)
 
 // =============================================================
 // 7. checkStdin — bad config path
@@ -208,17 +194,7 @@ func TestE2E_Check_NoCfgPath_UsesWorkingDir(t *testing.T) {
 // 11. loadConfig — --config pointing at bad YAML
 // =============================================================
 
-func TestE2E_Check_InvalidYAMLConfig_ExitsTwo(t *testing.T) {
-	dir := t.TempDir()
-	writeFixture(t, dir, "test.md", "# Title\n\nContent here.\n")
-	badConfig := writeFixture(t, dir, "invalid.yml", "rules:\n  - [bad\n")
-
-	_, stderr, exitCode := runBinary(t, "", "check", "--config", badConfig, filepath.Join(dir, "test.md"))
-	assert.Equal(t, 2, exitCode,
-		"expected exit code 2 for invalid YAML config, got %d", exitCode)
-	assert.Contains(t, stderr, "mdsmith:",
-		"expected error in stderr, got: %s", stderr)
-}
+// (duplicate of TestE2E_Check_BadConfig_ExitsTwo removed)
 
 // =============================================================
 // 14. runMetrics — no args prints usage; unknown subcommand
@@ -527,16 +503,7 @@ func TestE2E_Check_Discovered_NoFollowSymlinks(t *testing.T) {
 // Additional: check --format json with --quiet
 // =============================================================
 
-func TestE2E_Check_Quiet_JSONFormat(t *testing.T) {
-	dir := t.TempDir()
-	path := writeFixture(t, dir, "dirty.md", "# Title\n\nHello   \n")
-
-	_, stderr, exitCode := runBinary(t, "", "check", "--quiet", "--format", "json", path)
-	assert.Equal(t, 1, exitCode, "expected exit 1, got %d", exitCode)
-	// --quiet suppresses diagnostics; stderr should be empty or minimal.
-	assert.NotContains(t, stderr, "MDS006",
-		"expected no JSON diagnostics with --quiet, got: %s", stderr)
-}
+// (duplicate quiet test removed — same behavior tested in TestE2E_Check_Quiet_SuppressesDiagnosticOutput)
 
 // =============================================================
 // Additional: fix --format json
@@ -549,16 +516,16 @@ func TestE2E_Fix_JSONFormat_WithUnfixable(t *testing.T) {
 	_, stderr, exitCode := runBinary(t, "", "fix", "--no-color", "--format", "json", path)
 	assert.Equal(t, 1, exitCode, "expected exit 1, got %d", exitCode)
 
-	// Find JSON array in stderr.
+	// Verify JSON array present in stderr.
 	jsonStart := strings.Index(stderr, "[")
 	jsonEnd := strings.LastIndex(stderr, "]")
-	if jsonStart >= 0 && jsonEnd >= 0 {
-		jsonPart := stderr[jsonStart : jsonEnd+1]
-		var diagnostics []map[string]any
-		require.NoError(t, json.Unmarshal([]byte(jsonPart), &diagnostics),
-			"JSON portion of stderr is not valid JSON: %s", jsonPart)
-		require.NotEmpty(t, diagnostics, "expected at least one diagnostic")
-	}
+	require.GreaterOrEqual(t, jsonStart, 0, "expected JSON array in stderr, got: %s", stderr)
+	require.GreaterOrEqual(t, jsonEnd, jsonStart, "expected JSON array close in stderr, got: %s", stderr)
+	jsonPart := stderr[jsonStart : jsonEnd+1]
+	var diagnostics []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(jsonPart), &diagnostics),
+		"JSON portion of stderr is not valid JSON: %s", jsonPart)
+	require.NotEmpty(t, diagnostics, "expected at least one diagnostic")
 }
 
 // =============================================================
@@ -589,8 +556,10 @@ func TestE2E_MetricsRank_EmptyDir(t *testing.T) {
 		"metrics", "rank", "--by", "bytes", ".")
 	assert.Equal(t, 0, exitCode,
 		"expected exit 0 for empty dir, got %d; stderr: %s", exitCode, stderr)
-	// Output should just have header or be empty.
-	_ = stdout
+	// Output should contain only the header line (no data rows).
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	assert.LessOrEqual(t, len(lines), 1,
+		"expected at most 1 line (header) for empty dir, got: %s", stdout)
 }
 
 // =============================================================

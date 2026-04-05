@@ -229,8 +229,8 @@ func TestCheck_NegativePad_DefaultsTo1(t *testing.T) {
 	r := &Rule{Pad: -1}
 	f := newTestFile(t, src)
 	diags := r.Check(f)
-	// Should produce diagnostics since table isn't formatted with pad=1
-	require.True(t, len(diags) > 0 || true, "negative pad should default to 1")
+	// Negative pad defaults to 1; the table needs reformatting to match pad=1.
+	assert.NotEmpty(t, diags, "negative pad should default to 1 and produce diagnostics")
 }
 
 // --- FormatString integration with blockquote ---

@@ -211,9 +211,9 @@ func TestDiscover_NoFollowSymlinksSkipsSymlinkedFile(t *testing.T) {
 		NoFollowSymlinks: []string{"link.md"},
 	})
 	require.NoError(t, err)
-	// filepath.Walk follows symlinks, so isNoFollow won't trigger for file symlinks.
-	// Both files should still appear.
-	assert.GreaterOrEqual(t, len(files), 1)
+	// NoFollowSymlinks skips the symlinked file, only real.md remains.
+	assert.Len(t, files, 1, "expected only real.md (link.md skipped)")
+	assert.Contains(t, files[0], "real.md")
 }
 
 // fakeFileInfo implements os.FileInfo for testing.

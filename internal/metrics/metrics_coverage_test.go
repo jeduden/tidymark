@@ -228,14 +228,7 @@ func TestPlainText_Basic(t *testing.T) {
 	assert.Contains(t, text, "world")
 }
 
-func TestPlainText_Caching(t *testing.T) {
-	doc := NewDocument("test.md", []byte("# Hello\n"))
-	t1, err := doc.PlainText()
-	require.NoError(t, err)
-	t2, err := doc.PlainText()
-	require.NoError(t, err)
-	assert.Equal(t, t1, t2)
-}
+// (dead caching test removed — Equal on strings can't detect broken cache)
 
 // --- WordCount tests ---
 
@@ -246,14 +239,7 @@ func TestWordCount_Basic(t *testing.T) {
 	assert.True(t, count > 0)
 }
 
-func TestWordCount_Caching(t *testing.T) {
-	doc := NewDocument("test.md", []byte("# Hello\n"))
-	c1, err := doc.WordCount()
-	require.NoError(t, err)
-	c2, err := doc.WordCount()
-	require.NoError(t, err)
-	assert.Equal(t, c1, c2)
-}
+// (dead caching test removed — Equal on ints can't detect broken cache)
 
 // --- HeadingCount tests ---
 
@@ -271,14 +257,7 @@ func TestHeadingCount_NoHeadings(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
-func TestHeadingCount_Caching(t *testing.T) {
-	doc := NewDocument("test.md", []byte("# H1\n"))
-	c1, err := doc.HeadingCount()
-	require.NoError(t, err)
-	c2, err := doc.HeadingCount()
-	require.NoError(t, err)
-	assert.Equal(t, c1, c2)
-}
+// (dead caching test removed — Equal on ints can't detect broken cache)
 
 // --- stripFrontMatter tests ---
 
