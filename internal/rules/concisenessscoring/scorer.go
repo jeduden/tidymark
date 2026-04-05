@@ -1,13 +1,8 @@
 package concisenessscoring
 
 import (
-	"regexp"
-	"strings"
-
 	"github.com/jeduden/mdsmith/internal/rules/concisenessscoring/classifier"
 )
-
-var wordPattern = regexp.MustCompile(`[a-z0-9']+`)
 
 // Scorer wraps the classifier model to produce conciseness scores.
 type Scorer struct {
@@ -38,10 +33,9 @@ func NewScorer() (*Scorer, error) {
 // Conciseness is 1 - RiskScore, so high = concise.
 func (s *Scorer) Score(text string) ScoreResult {
 	r := s.model.Classify(text)
-	tokens := wordPattern.FindAllString(strings.ToLower(text), -1)
 	return ScoreResult{
 		Conciseness: 1.0 - r.RiskScore,
-		WordCount:   len(tokens),
+		WordCount:   r.WordCount,
 		Cues:        r.TriggeredCues,
 	}
 }

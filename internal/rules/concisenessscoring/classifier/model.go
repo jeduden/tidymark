@@ -109,6 +109,7 @@ type Result struct {
 	Version        string
 	TriggeredCues  []string
 	FeatureSummary map[string]float64
+	WordCount      int
 }
 
 // EmbeddedArtifactBytes returns the embedded artifact size in bytes.
@@ -173,7 +174,7 @@ func (m *Model) LexiconCounts() LexiconCounts {
 
 // Classify computes a deterministic risk score and binary label.
 func (m *Model) Classify(text string) Result {
-	features, cues := extractFeatures(text, m.lexicon)
+	features, cues, wordCount := extractFeatures(text, m.lexicon)
 	score := m.artifact.Intercept
 	for _, name := range featureOrder {
 		value := features[name]
@@ -196,6 +197,7 @@ func (m *Model) Classify(text string) Result {
 		Version:        m.artifact.Version,
 		TriggeredCues:  cues,
 		FeatureSummary: features,
+		WordCount:      wordCount,
 	}
 }
 
@@ -344,7 +346,7 @@ func normalizeCueList(
 
 func extractFeatures(
 	text string, lexicon compiledLexicon,
-) (map[string]float64, []string) {
+) (map[string]float64, []string, int) {
 	tokens := wordPattern.FindAllString(strings.ToLower(text), -1)
 	wordCount := float64(len(tokens))
 
@@ -353,7 +355,7 @@ func extractFeatures(
 		features[name] = 0
 	}
 	if wordCount == 0 {
-		return features, []string{}
+		return features, []string{}, 0
 	}
 
 	cues := extractLexiconFeatures(
@@ -361,7 +363,7 @@ func extractFeatures(
 	)
 	extractDerivedFeatures(text, tokens, features)
 
-	return features, dedupeSorted(cues)
+	return features, dedupeSorted(cues), len(tokens)
 }
 
 func extractLexiconFeatures(
@@ -371,7 +373,7 @@ func extractLexiconFeatures(
 	fillerCount, fillerCues := countTokenMatches(tokens, lexicon.fillerWords)
 	modalCount, modalCues := countTokenMatches(tokens, lexicon.modalWords)
 	vagueCount, vagueCues := countTokenMatches(tokens, lexicon.vagueWords)
-	actionCount, actionCues := countTokenMatches(tokens, lexicon.actionWords)
+	actionCount, _ := countTokenMatches(tokens, lexicon.actionWords)
 	contentCount := countContentTokens(tokens, lexicon.stopWords)
 
 	hedgeCount, hedgeCues := countPhraseMatches(text, lexicon.hedgePhrases)
@@ -392,7 +394,6 @@ func extractLexiconFeatures(
 	cues = append(cues, fillerCues...)
 	cues = append(cues, modalCues...)
 	cues = append(cues, vagueCues...)
-	cues = append(cues, actionCues...)
 	cues = append(cues, hedgeCues...)
 	cues = append(cues, verboseCues...)
 	return cues

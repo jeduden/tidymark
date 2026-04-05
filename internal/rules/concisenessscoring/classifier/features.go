@@ -29,7 +29,7 @@ var nominalizationSuffixes = []string{
 	"tion", "ment", "ness", "ity", "ance", "ence",
 }
 
-// CompressionRatio compresses text with flate BestCompression and returns
+// CompressionRatio compresses text with flate BestSpeed and returns
 // float64(len(compressed)) / float64(len(original)). A lower ratio means
 // more compressible (more redundant) text. Returns 0.0 for empty text or
 // text shorter than 2 bytes.
@@ -38,7 +38,7 @@ func CompressionRatio(text string) float64 {
 		return 0.0
 	}
 	var buf bytes.Buffer
-	w, err := flate.NewWriter(&buf, flate.BestCompression)
+	w, err := flate.NewWriter(&buf, flate.BestSpeed)
 	if err != nil {
 		return 0.0
 	}

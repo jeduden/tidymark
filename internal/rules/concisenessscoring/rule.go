@@ -59,7 +59,15 @@ func (r *Rule) EnabledByDefault() bool { return false }
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	scorer, err := loadScorer()
 	if err != nil {
-		return nil // silently skip if classifier fails to load
+		return []lint.Diagnostic{{
+			File:     f.Path,
+			Line:     1,
+			Column:   1,
+			RuleID:   r.ID(),
+			RuleName: r.Name(),
+			Severity: lint.Error,
+			Message:  fmt.Sprintf("classifier load failed: %v", err),
+		}}
 	}
 
 	var diags []lint.Diagnostic
