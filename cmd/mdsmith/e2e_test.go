@@ -18,6 +18,7 @@ import (
 
 var binaryPath string
 var coverDir string
+var isolatedCWD string
 
 func TestMain(m *testing.M) {
 	// Build the binary once for all e2e tests.
@@ -47,7 +48,20 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// Create an isolated working directory with a .git marker and minimal
+	// config to prevent runBinary from inheriting the repo root's config.
+	isolatedCWD, err = os.MkdirTemp("", "mdsmith-e2e-cwd-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create isolated CWD: %v\n", err)
+		_ = os.RemoveAll(tmp)
+		_ = os.RemoveAll(coverDir)
+		os.Exit(1)
+	}
+	_ = os.MkdirAll(filepath.Join(isolatedCWD, ".git"), 0o755)
+	_ = os.WriteFile(filepath.Join(isolatedCWD, ".mdsmith.yml"), []byte("rules: {}\n"), 0o644)
+
 	code := m.Run()
+	_ = os.RemoveAll(isolatedCWD)
 
 	// Merge e2e coverage data into a text profile if E2E_COVERDIR is
 	// set by the caller, so it can be combined with unit-test coverage.
@@ -77,6 +91,7 @@ func runBinary(t *testing.T, stdin string, args ...string) (stdout, stderr strin
 	t.Helper()
 
 	cmd := exec.Command(binaryPath, args...)
+	cmd.Dir = isolatedCWD
 	cmd.Env = envWithCoverDir(coverDir)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
@@ -137,6 +152,21 @@ func envWithCoverDir(dir string) []string {
 		}
 	}
 	return append(env, "GOCOVERDIR="+dir)
+}
+
+// isolateDir creates a .git marker and a minimal .mdsmith.yml in dir
+// to prevent config discovery from walking up to the repo root.
+// Call this in e2e tests that pass explicit file paths to the binary
+// without a --config flag.
+func isolateDir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatalf("creating .git marker in %s: %v", dir, err)
+	}
+	cfg := filepath.Join(dir, ".mdsmith.yml")
+	if err := os.WriteFile(cfg, []byte("rules: {}\n"), 0o644); err != nil {
+		t.Fatalf("writing config in %s: %v", dir, err)
+	}
 }
 
 // writeFixture creates a file with the given content in the given directory.
@@ -247,17 +277,19 @@ func TestE2E_LegacyFixFlag_ExitsTwo(t *testing.T) {
 
 func TestE2E_Check_CleanFile_ExitsZero(t *testing.T) {
 	dir := t.TempDir()
-	path := writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
+	isolateDir(t, dir)
+	writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
 
-	_, _, exitCode := runBinary(t, "", "check", "--no-color", path)
+	_, _, exitCode := runBinaryInDir(t, dir, "", "check", "--no-color", "clean.md")
 	assert.Equal(t, 0, exitCode, "expected exit code 0 for clean file, got %d", exitCode)
 }
 
 func TestE2E_Check_PrintsStats(t *testing.T) {
 	dir := t.TempDir()
-	path := writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
+	isolateDir(t, dir)
+	writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
 
-	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", path)
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "check", "--no-color", "clean.md")
 	require.Equal(t, 0, exitCode, "expected exit code 0, got %d; stderr: %s", exitCode, stderr)
 
 	checked, fixed, failures, unfixed := parseStats(t, stderr)
@@ -347,6 +379,7 @@ func TestE2E_Check_CustomConfig(t *testing.T) {
 
 func TestE2E_Check_Gitignore_SkipsIgnoredDirectory(t *testing.T) {
 	dir := t.TempDir()
+	isolateDir(t, dir)
 	ignoredDir := filepath.Join(dir, "ignored")
 	require.NoError(t, os.MkdirAll(ignoredDir, 0o755))
 
@@ -358,7 +391,7 @@ func TestE2E_Check_Gitignore_SkipsIgnoredDirectory(t *testing.T) {
 	writeFixture(t, dir, ".gitignore", "ignored/\n")
 
 	// Run mdsmith on the directory -- the ignored file should be skipped.
-	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", dir)
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "check", "--no-color", ".")
 	assert.Equal(t, 0, exitCode, "expected exit code 0 (ignored file skipped), got %d; stderr: %s", exitCode, stderr)
 }
 
@@ -386,10 +419,11 @@ func TestE2E_Check_NoGitignore_IncludesIgnoredDirectory(t *testing.T) {
 
 func TestE2E_Fix_FixableFile(t *testing.T) {
 	dir := t.TempDir()
+	isolateDir(t, dir)
 	path := writeFixture(t, dir, "fixme.md", "# Title\n\nHello   \n")
 
 	// Run fix subcommand.
-	_, _, exitCode := runBinary(t, "", "fix", "--no-color", path)
+	_, _, exitCode := runBinaryInDir(t, dir, "", "fix", "--no-color", "fixme.md")
 	assert.Equal(t, 0, exitCode, "expected exit code 0 after fix, got %d", exitCode)
 
 	// Read the file back and check that trailing spaces are removed.
@@ -405,11 +439,12 @@ func TestE2E_Fix_FixableFile(t *testing.T) {
 
 func TestE2E_Fix_PreservesFrontMatter(t *testing.T) {
 	dir := t.TempDir()
+	isolateDir(t, dir)
 	content := "---\ntitle: hello\n---\n# Title\n\nHello   \n"
 	path := writeFixture(t, dir, "fm.md", content)
 
 	// Run fix subcommand.
-	_, _, exitCode := runBinary(t, "", "fix", "--no-color", path)
+	_, _, exitCode := runBinaryInDir(t, dir, "", "fix", "--no-color", "fm.md")
 	assert.Equal(t, 0, exitCode, "expected exit code 0 after fix, got %d", exitCode)
 
 	// Read the file back.
@@ -761,9 +796,10 @@ func TestE2E_Check_Verbose_ShowsConfigAndFile(t *testing.T) {
 
 func TestE2E_Check_Verbose_ShortFlag(t *testing.T) {
 	dir := t.TempDir()
-	path := writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
+	isolateDir(t, dir)
+	writeFixture(t, dir, "clean.md", "# Title\n\nSome content here.\n")
 
-	_, stderr, exitCode := runBinary(t, "", "check", "-v", "--no-color", path)
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "check", "-v", "--no-color", "clean.md")
 	assert.Equal(t, 0, exitCode, "expected exit code 0, got %d; stderr: %s", exitCode, stderr)
 	assert.Contains(t, stderr, "file: ", "expected 'file: ' in verbose stderr with -v, got: %s", stderr)
 }
@@ -815,9 +851,10 @@ func TestE2E_Check_Verbose_JSONStdoutClean(t *testing.T) {
 
 func TestE2E_Fix_Verbose_ShowsFixPasses(t *testing.T) {
 	dir := t.TempDir()
-	path := writeFixture(t, dir, "fixme.md", "# Title\n\nHello   \n")
+	isolateDir(t, dir)
+	writeFixture(t, dir, "fixme.md", "# Title\n\nHello   \n")
 
-	_, stderr, exitCode := runBinary(t, "", "fix", "--verbose", "--no-color", path)
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "fix", "--verbose", "--no-color", "fixme.md")
 	assert.Equal(t, 0, exitCode, "expected exit code 0 after fix, got %d; stderr: %s", exitCode, stderr)
 	assert.Contains(t, stderr, "file: ", "expected 'file: ' in verbose stderr, got: %s", stderr)
 	assert.Contains(t, stderr, "fix: pass", "expected 'fix: pass' in verbose stderr, got: %s", stderr)
