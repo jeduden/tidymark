@@ -258,9 +258,26 @@ func TestCheck_MisalignedTable_OneDiagnostic(t *testing.T) {
 	if diags[0].Line != 1 {
 		t.Errorf("diagnostic line = %d, want 1", diags[0].Line)
 	}
-	if diags[0].Message != "table is not formatted" {
-		t.Errorf("message = %q, want %q", diags[0].Message, "table is not formatted")
-	}
+	assert.Contains(t, diags[0].Message, "table is not formatted",
+		"message should contain base description")
+	assert.Contains(t, diags[0].Message, "| Name   | Description               |",
+		"message should show expected first differing row")
+}
+
+func TestCheck_DiagnosticShowsFirstDifferingRow(t *testing.T) {
+	// Header row is already correct width, but separator is too short.
+	src := "| Name | Desc |\n" +
+		"|---|---|\n" +
+		"| foo  | bar  |\n"
+	r := &Rule{Pad: 1}
+	f := newTestFile(t, src)
+	diags := r.Check(f)
+	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
+	// The first differing row is the separator (row 2).
+	assert.Contains(t, diags[0].Message, "row 2",
+		"message should reference the first differing row")
+	assert.Contains(t, diags[0].Message, "|------|------|",
+		"message should show expected separator")
 }
 
 func TestCheck_ShortSeparator_Flagged(t *testing.T) {

@@ -74,6 +74,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	for _, tbl := range tables {
 		formatted := formatTable(tbl, pad)
 		if !tableEqual(tbl, formatted) {
+			msg := tableDiffMessage(tbl, formatted)
 			diags = append(diags, lint.Diagnostic{
 				File:     f.Path,
 				Line:     tbl.startLine,
@@ -81,7 +82,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 				RuleID:   r.ID(),
 				RuleName: r.Name(),
 				Severity: lint.Warning,
-				Message:  "table is not formatted",
+				Message:  msg,
 			})
 		}
 	}
@@ -510,6 +511,24 @@ func writeDataRow(line *strings.Builder, r row, colWidths []int, numCols int, pa
 		line.WriteString(padding)
 		line.WriteByte('|')
 	}
+}
+
+// tableDiffMessage builds a diagnostic message that includes the first
+// row that differs between the original and formatted table, so the user
+// can see what the expected formatting looks like.
+func tableDiffMessage(original, formatted table) string {
+	for i := range original.rawLines {
+		if i >= len(formatted.rawLines) {
+			break
+		}
+		if !bytes.Equal(original.rawLines[i], formatted.rawLines[i]) {
+			return fmt.Sprintf(
+				"table is not formatted; row %d: expected %q",
+				i+1, string(formatted.rawLines[i]),
+			)
+		}
+	}
+	return "table is not formatted"
 }
 
 // tableEqual compares two tables line by line.
