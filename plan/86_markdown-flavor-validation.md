@@ -63,20 +63,58 @@ enabled by default.
 
 ### Detection approach
 
-mdsmith already parses with Goldmark. The strategy is:
+mdsmith's main parser (`internal/lint/file.go`)
+uses only default CommonMark block/inline parsers
+plus the custom PI parser. No goldmark extensions
+are enabled -- not even tables or strikethrough.
+This means the current AST represents pure CommonMark;
+extension syntax (tables, footnotes, etc.) appears
+as plain paragraph text.
 
-1. **AST-based detection**: Parse with all extensions
-   enabled. Walk the AST and flag node types that the
-   target flavor does not support (tables, task lists,
-   strikethrough).
-2. **Regex-based detection**: Some features (footnote
-   references, definition lists, math delimiters,
-   heading IDs, abbreviations) may not produce AST
-   nodes if the extension is not loaded. Detect these
-   via line-level regex patterns on the raw source.
-3. **Combined**: Use AST when the extension is loaded,
-   fall back to regex for extensions Goldmark does not
-   support.
+Three approaches were evaluated:
+
+**A. Enable all extensions in the main parser.**
+Precise AST detection, but changes the parse tree
+for every rule. A pipe-table that currently parses
+as a paragraph would become a `Table` node, risking
+breakage in MDS001-MDS033. Rejected.
+
+**B. Regex-only on raw source.** Zero parser impact,
+but produces false positives inside fenced code
+blocks, inline code spans, and HTML comments. Would
+need to re-implement code-block-awareness. Fragile
+for ambiguous syntax like `:` (definition lists) and
+`$` (math). Rejected as primary approach.
+
+**C. Dual parser (chosen).** MDS034 creates a second
+goldmark parser with all available extensions enabled
+and re-parses the source. The main parse tree used by
+other rules is untouched. This gives precise AST
+detection without risk to existing rules. Regex
+fallback is used only for the few features without a
+goldmark extension (math, abbreviations,
+superscript/subscript).
+
+Goldmark built-in extensions cover most features with
+zero third-party dependencies:
+
+| Feature | Goldmark built-in | Detection |
+|---|---|---|
+| Tables | `extension.Table` | AST |
+| Strikethrough | `extension.Strikethrough` | AST |
+| Task lists | `extension.TaskList` | AST |
+| Footnotes | `extension.Footnote` | AST |
+| Definition lists | `extension.DefinitionList` | AST |
+| Heading IDs | `parser.WithAttribute()` | AST |
+| Autolinks | `extension.Linkify` | AST |
+| Math | none built-in | regex |
+| Abbreviations | none built-in | regex |
+| Superscript | none built-in | regex |
+| Subscript | none built-in | regex |
+
+The dual-parser cost is one extra parse per file, only
+when MDS034 is enabled. Since MDS034 is opt-in and
+disabled by default, most users pay zero cost.
 
 ### Scoping: which flavors to support initially
 
@@ -144,27 +182,66 @@ Each flavor is a set of booleans. Checking is: walk
 the document, identify which features are used, report
 any feature where `flavor.Features[f] == false`.
 
-#### Detection methods
+#### Dual parser setup
 
-Each feature needs a detector. Two kinds:
+MDS034 builds a second goldmark parser in its
+`Check()` method:
 
-1. **AST detector**: Walks parsed AST nodes.
-   - Tables: `ast.KindTable` (from goldmark extension)
-   - Task lists: check `ast.ListItem` with
-     `HasChildren` of type checkbox
-   - Strikethrough: `extension.KindStrikethrough`
+```go
+p := goldmark.New(
+    goldmark.WithExtensions(
+        extension.Table,
+        extension.Strikethrough,
+        extension.TaskList,
+        extension.Footnote,
+        extension.DefinitionList,
+        extension.Linkify,
+    ),
+    goldmark.WithParserOptions(
+        parser.WithAttribute(),
+    ),
+)
+```
 
-2. **Regex detector**: Scans raw source lines.
-   - Footnotes: `^\[\^[^\]]+\]:` (definition) and
-     `\[\^[^\]]+\]` (reference)
-   - Definition lists: line starting with `:` after
-     a term line
-   - Math: `\$[^$]+\$` (inline), `^\$\$$` (block)
-   - Heading IDs: `\{#[\w-]+\}` at end of heading
-   - Abbreviations: `^\*\[[^\]]+\]:`
-   - Superscript: `\^[^^]+\^`
-   - Subscript: `~[^~]+~` (careful not to conflict
-     with strikethrough `~~`)
+This parser is created once per rule instance (not
+per file) and reused across calls.
+
+#### AST detectors (7 features)
+
+Walk the extension-aware AST and collect node
+locations:
+
+- Tables: `ast.KindTable`
+- Strikethrough: `extast.KindStrikethrough`
+- Task lists: `extast.KindTaskCheckBox`
+- Footnotes: `extast.KindFootnote` and
+  `extast.KindFootnoteBacklink`
+- Definition lists: `extast.KindDefinitionList`
+- Heading attributes: heading nodes with non-empty
+  `Attribute()` list
+- Autolinks: `extast.KindLinkify` (bare URL nodes
+  created by the linkify extension)
+
+Each detector returns `(line, column)` pairs from
+the node segment positions.
+
+#### Regex detectors (4 features)
+
+For features without a goldmark extension, scan raw
+source lines. Skip lines inside fenced code blocks
+and inline code spans to avoid false positives:
+
+- Math inline: `\$[^$\n]+\$` not preceded/followed
+  by `$`
+- Math block: `^\$\$$` as opening/closing fence
+- Abbreviations: `^\*\[[^\]]+\]:`
+- Superscript: `\^[^^]+\^` (not inside code)
+- Subscript: `(?<![~])~(?!~)[^~\n]+~(?!~)` to avoid
+  matching strikethrough `~~`
+
+The code-fence skip logic reuses the fenced-code-block
+line ranges from the AST (which the main parser
+already identifies correctly as CommonMark).
 
 #### Error messages
 
@@ -226,27 +303,34 @@ subset. Non-fixable features produce diagnostics only.
 
 1. Add feature enum and flavor registry in
    `internal/rules/markdownflavor/features.go`
-2. Add AST-based detectors for tables, task lists,
-   strikethrough, autolinks
-3. Add regex-based detectors for footnotes, definition
-   lists, math, heading IDs, abbreviations,
-   superscript, subscript
-4. Implement `rule.go` with `Check()` that runs
-   detectors and reports unsupported features
-5. Implement `Fix()` for fixable features (autolinks,
+2. Build dual parser: create a second goldmark parser
+   with `extension.Table`, `extension.Strikethrough`,
+   `extension.TaskList`, `extension.Footnote`,
+   `extension.DefinitionList`, `extension.Linkify`,
+   and `parser.WithAttribute()` enabled
+3. Add AST-based detectors for tables, task lists,
+   strikethrough, autolinks, footnotes, definition
+   lists, heading attributes (7 features via AST)
+4. Add regex-based detectors for math, abbreviations,
+   superscript, subscript (4 features via regex) with
+   fenced-code-block skip logic
+5. Implement `rule.go` with `Check()` that re-parses
+   with the dual parser, runs all detectors, and
+   reports unsupported features
+6. Implement `Fix()` for fixable features (autolinks,
    strikethrough, heading IDs, task lists)
-6. Add `Configurable` interface: `ApplySettings` for
+7. Add `Configurable` interface: `ApplySettings` for
    `flavor` string, validate against known flavors
-7. Register rule as MDS034 `markdown-flavor` in
+8. Register rule as MDS034 `markdown-flavor` in
    category `meta`
-8. Add test fixtures:
+9. Add test fixtures:
    `internal/rules/MDS034-markdown-flavor/bad/` with
    files using each unsupported feature per flavor,
    `good/` with files using only supported features,
    `fixed/` with expected auto-fix output
-9. Add rule README following
-   `internal/rules/proto.md` schema
-10. Document the rule in `docs/reference/cli.md` and
+10. Add rule README following
+    `internal/rules/proto.md` schema
+11. Document the rule in `docs/reference/cli.md` and
     add a note to
     `docs/guides/directives/enforcing-structure.md`
     about flavor enforcement
