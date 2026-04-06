@@ -54,7 +54,7 @@ custom detection-only extensions (~1250 LOC total with
 tests) cover the rest. All 12 features detected via
 AST -- no regex fallback. Each custom extension
 follows the PI block parser pattern
-(`internal/lint/pi.go`).
+([internal/lint/pi.go](../internal/lint/pi.go)).
 
 ## Design
 
@@ -91,12 +91,16 @@ p := goldmark.New(
 )
 ```
 
-Created once per rule instance, reused across files.
+Because mdsmith clones configurable rules per file
+([internal/rule/clone.go](../internal/rule/clone.go)),
+MDS034 should cache the parser via `sync.Once` or a
+flavor-keyed cache rather than storing it on the rule
+struct directly.
 
 ### Custom extensions
 
 Five extensions in
-`internal/rules/markdownflavor/ext/`:
+[internal/rules/markdownflavor/ext/](../internal/rules/markdownflavor/ext/):
 
 - **SuperscriptExt**: inline `^text^`, ~150 LOC
 - **SubscriptExt**: inline `~text~`, distinguishes
@@ -145,7 +149,8 @@ footnotes, definition lists, math, abbreviations.
 8. Build dual parser with built-in + custom extensions
 9. Add AST-based detectors for all 12 features
 10. Implement `rule.go` with `Check()` and `Fix()`
-11. Add `Configurable` interface for `flavor` setting
+11. Implement `rule.Configurable` for MDS034: add
+    `ApplySettings` and `DefaultSettings` for `flavor`
 12. Register as MDS034 in category `meta`
 13. Add test fixtures in
     `internal/rules/MDS034-markdown-flavor/`
