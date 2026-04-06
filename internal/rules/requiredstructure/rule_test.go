@@ -824,20 +824,9 @@ func TestExtractRequireDirective_AnchorRejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
 }
 
-func TestExtractPIFileParam_AnchorRejected(t *testing.T) {
-	src := "<?include\nbase: &base\n  file: other.md\n?>\ncontent\n<?/include?>\n"
-	f := newTestFile(t, "doc.md", src)
-	for _, pi := range f.PIs {
-		if pi.Name == "include" {
-			result, err := extractPIFileParam(&pi, f.Source)
-			if err != nil {
-				assert.Contains(t, err.Error(),
-					"anchors/aliases are not permitted")
-			} else {
-				assert.Empty(t, result)
-			}
-			return
-		}
-	}
-	t.Skip("no include PI found")
+func TestParseSchemaFrontMatter_AnchorRejected(t *testing.T) {
+	prefix := []byte("---\nbase: &base\n  id: 1\n---\n")
+	_, err := parseSchemaFrontMatter(prefix)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
 }
