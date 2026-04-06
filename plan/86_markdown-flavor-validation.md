@@ -21,16 +21,18 @@ files move between tools.
 
 ### Flavors and syntax differences
 
-Nine common flavors exist: CommonMark (strict
-baseline), GFM (tables, task lists, strikethrough,
-autolinks), Goldmark (GFM-like + optional footnotes,
-heading IDs, math), PHP Markdown Extra (footnotes,
-abbreviations, definition lists, heading IDs), Pandoc
-(footnotes, definition lists, math, citations,
-superscript, subscript, heading IDs), MyST
-(directives, roles, math), MultiMarkdown (metadata,
-footnotes, citations, math), GitLab (GFM + math,
-diagrams, footnotes), and R Markdown (Pandoc-based).
+Nine common flavors exist. CommonMark is the strict
+baseline. GFM adds tables, task lists, strikethrough,
+and autolinks. Goldmark supports GFM-like features
+plus optional footnotes, heading IDs, and math.
+PHP Markdown Extra adds footnotes, abbreviations,
+definition lists, and heading IDs. Pandoc extends
+CommonMark with footnotes, definition lists, math,
+citations, superscript, subscript, and heading IDs.
+MyST adds directives, roles, and math. MultiMarkdown
+supports metadata, footnotes, citations, and math.
+GitLab extends GFM with math, diagrams, and
+footnotes. R Markdown builds on Pandoc.
 
 Twelve syntax features differ across flavors: tables,
 task lists, strikethrough, autolinks, footnotes,
@@ -54,7 +56,8 @@ custom detection-only extensions (~1250 LOC total with
 tests) cover the rest. All 12 features detected via
 AST -- no regex fallback. Each custom extension
 follows the PI block parser pattern
-([internal/lint/pi.go](../internal/lint/pi.go)).
+([internal/lint/pi_parser.go](../internal/lint/pi_parser.go),
+[internal/lint/pi.go](../internal/lint/pi.go)).
 
 ## Design
 
@@ -91,11 +94,13 @@ p := goldmark.New(
 )
 ```
 
-Because mdsmith clones configurable rules per file
+MDS034 should not store the parser on the rule struct
+directly: mdsmith clones configurable rules per file
 ([internal/rule/clone.go](../internal/rule/clone.go)),
-MDS034 should cache the parser via `sync.Once` or a
-flavor-keyed cache rather than storing it on the rule
-struct directly.
+so each clone would rebuild the parser. Cache the
+parser in package-level shared state instead, such as
+a `sync.Once` singleton or a flavor-keyed map guarded
+by a mutex.
 
 ### Custom extensions
 
