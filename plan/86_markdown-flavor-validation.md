@@ -23,9 +23,11 @@ when files move between tools.
 
 Nine common flavors exist. CommonMark is the strict
 baseline. GFM adds tables, task lists, strikethrough,
-and bare-URL autolinks. Goldmark supports GFM-like
-features
-plus optional footnotes, heading IDs, and math.
+and bare-URL autolinks. For MDS034, `goldmark` means
+the default Goldmark configuration: GFM-like tables,
+task lists, strikethrough, bare-URL autolinks, and
+heading IDs, but not optional footnote,
+definition-list, or math extensions.
 
 Other flavors add more features. PHP Markdown Extra
 has footnotes, heading IDs, and more. Pandoc adds
