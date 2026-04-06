@@ -139,9 +139,10 @@ func TestE2E_Query_AnchorFrontMatterSkipped(t *testing.T) {
 	writeFixture(t, dir, "anchor.md",
 		"---\nbase: &base\n  status: ok\n---\n# Title\n\nContent here.\n")
 
-	_, stderr, exitCode := runBinaryInDir(
-		t, dir, "", "query", `status: "ok"`, dir)
+	stdout, stderr, exitCode := runBinaryInDir(
+		t, dir, "", "query", "--verbose", `status: "ok"`, dir)
 	// File with anchor front matter must not match.
 	assert.NotEqual(t, 0, exitCode, "anchor file should not match")
+	assert.NotContains(t, stdout, "anchor.md")
 	assert.Contains(t, stderr, "anchors/aliases are not permitted")
 }
