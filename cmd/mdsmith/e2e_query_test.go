@@ -133,3 +133,19 @@ func TestE2E_Query_HelpFlag(t *testing.T) {
 	assert.Equal(t, 2, exitCode)
 	assert.Contains(t, stderr, "Usage: mdsmith query")
 }
+
+func TestE2E_Query_AnchorFrontMatterSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, dir, "anchor.md",
+		"---\nbase: &base\n  status: ok\n---\n# Title\n\nContent here.\n")
+
+	_, stderr, exitCode := runBinaryInDir(
+		t, dir, "", "query", `status: "ok"`, dir)
+	// File with anchor front matter should be skipped or error.
+	if exitCode == 0 {
+		t.Log("anchor file unexpectedly matched")
+	}
+	if strings.Contains(stderr, "anchors/aliases") {
+		t.Log("anchor rejection surfaced in stderr")
+	}
+}

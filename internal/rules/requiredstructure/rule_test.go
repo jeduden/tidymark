@@ -799,3 +799,40 @@ func TestCheck_SkipsSchemaFiles(t *testing.T) {
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
+
+func TestCheck_FrontMatterAnchorRejected(t *testing.T) {
+	schemaPath := writeSchema(t, "---\nid: 'int'\n---\n# ?\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\nbase: &base\n  id: 1\n---\n# Title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "anchors/aliases are not permitted")
+}
+
+func TestDeriveFrontMatterCUE_AnchorRejected(t *testing.T) {
+	yml := []byte("base: &base\n  id: 1\n")
+	_, err := deriveFrontMatterCUE(yml)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
+}
+
+func TestExtractRequireFilename_AnchorRejected(t *testing.T) {
+	src := "<?require\nbase: &base\n  filename: \"*.md\"\n?>\n# Title\n"
+	f := newTestFile(t, "schema.md", src)
+	_, err := extractRequireFilename(f)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
+}
+
+func TestExtractIncludeFile_AnchorRejected(t *testing.T) {
+	src := "<?include\nbase: &base\n  file: other.md\n?>\ncontent\n<?/include?>\n"
+	f := newTestFile(t, "doc.md", src)
+	result, err := extractIncludeFile(f)
+	// Anchor in include directive should cause an error or empty result.
+	if err != nil {
+		assert.Contains(t, err.Error(),
+			"anchors/aliases are not permitted")
+	} else {
+		assert.Empty(t, result)
+	}
+}

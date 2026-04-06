@@ -147,3 +147,44 @@ func writeFile(t *testing.T, path string, content string) {
 		t.Fatalf("write file %s: %v", path, err)
 	}
 }
+
+func TestLoadConfig_RejectsYAMLAnchor(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yml")
+	writeFile(t, path, "base: &base\n  min_words: 30\nsources: *base\n")
+
+	_, err := LoadConfig(path)
+	if err == nil {
+		t.Fatal("expected error for YAML anchor, got nil")
+	}
+	if !strings.Contains(err.Error(), "anchors/aliases are not permitted") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestMergeLocalOverrides_RejectsAnchor(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	cfgPath := filepath.Join(dir, "config.yml")
+	writeFile(t, cfgPath, `
+collected_at: 2026-02-16
+license_allowlist:
+  - MIT
+sources:
+  - name: seed
+    url: https://example.com/seed.git
+`)
+
+	localPath := filepath.Join(dir, "config.local.yml")
+	writeFile(t, localPath, "base: &base\n  name: evil\nsources:\n  - <<: *base\n")
+
+	_, err := LoadConfig(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for local override anchor")
+	}
+	if !strings.Contains(err.Error(), "anchors/aliases are not permitted") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

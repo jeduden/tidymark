@@ -30,6 +30,8 @@ var yamlAliasTests = []struct {
 	{"comment with asterisk", "key: val # *alias\n", false},
 	{"escaped quote in double string", "key: \"she said \\\"&hello\\\"\"\n", false},
 	{"doubled single quote", "key: 'it''s &here'\n", false},
+	{"syntax error ignored", "key: [unclosed\n", false},
+	{"multi-document clean", "title: a\n---\ntitle: b\n", false},
 }
 
 func TestRejectYAMLAliases(t *testing.T) {

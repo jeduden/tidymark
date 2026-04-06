@@ -1281,3 +1281,19 @@ func TestDumpDefaultsHasFiles(t *testing.T) {
 		t.Errorf("expected **/*.markdown, got %s", cfg.Files[1])
 	}
 }
+
+func TestLoadRejectsYAMLAnchor(t *testing.T) {
+	yml := "base: &base\n  enabled: true\nrules:\n  <<: *base\n"
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yml), 0o644))
+
+	_, err := Load(cfgPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
+}
+
+func TestYamlHasKeyRejectsAnchor(t *testing.T) {
+	yml := []byte("base: &base\n  enabled: true\n")
+	assert.False(t, yamlHasKey(yml, "base"))
+}
