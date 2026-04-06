@@ -76,17 +76,6 @@ When adding or changing a rule feature, add both:
    are discovered automatically by the integration test
    runner in `internal/integration/rules_test.go`.
 
-## Test Coverage
-
-- `go test -coverprofile=cover.out ./...` — generate
-  coverage profile
-- `go tool cover -html=cover.out` — view in browser
-- `go tool cover -func=cover.out` — print per-function
-  summary
-
-Use coverage to confirm Red/Green TDD cycles exercise
-all code paths.
-
 ## Coverage Gate
 
 Codecov blocks PRs that decrease per-file statement
@@ -119,7 +108,7 @@ E2E_COVERDIR=e2e-cover \
   -coverprofile=unit.cov ./...
 head -1 unit.cov > merged.cov
 tail -n +2 unit.cov \
-  | grep -v 'cmd/mdsmith/' >> merged.cov
+  | grep -v 'cmd/mdsmith/' >> merged.cov || true
 tail -n +2 e2e-cover/e2e_coverage.txt \
   | grep 'cmd/mdsmith/' >> merged.cov
 go tool cover -func=merged.cov
@@ -220,29 +209,4 @@ If a file does not match any of these, it does not
 belong in the repo as a standalone Markdown file.
 Consider whether it should be a section in an existing
 document instead.
-
-## Documentation Types
-
-mdsmith documentation follows four types. Place each
-file in the matching directory:
-
-| Type       | Directory                                 | Purpose                              | Example                             |
-|------------|-------------------------------------------|--------------------------------------|-------------------------------------|
-| Guide      | `docs/guides/`                            | Task-oriented: how to achieve a goal | "How to enforce document structure" |
-| Reference  | `docs/reference/`, `internal/rules/MDS*/` | Lookup-oriented: complete specs      | CLI flags, rule README              |
-| Tutorial   | `docs/tutorials/`                         | Learning-oriented: step-by-step      | "Your first schema"                 |
-| Background | `docs/background/`                        | Understanding-oriented: context      | Comparison with other linters       |
-
-When writing documentation:
-
-- **Guides** answer "how do I...?" — start with a
-  use case, show examples, link to reference for
-  full details
-- **References** answer "what is...?" — complete,
-  accurate, generated where possible (use catalog
-  directives)
-- **Tutorials** answer "teach me..." — sequential
-  steps, minimal prerequisites, concrete outcome
-- **Background** answers "why...?" — context,
-  trade-offs, comparisons, design rationale
 <?/include?>
