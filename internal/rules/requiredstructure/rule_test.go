@@ -853,11 +853,11 @@ func TestCheck_IncludeWithAnchorInSchema(t *testing.T) {
 	// Should produce a diagnostic about the anchor in the include directive.
 	found := false
 	for _, d := range diags {
-		if strings.Contains(d.Message, "anchors/aliases") ||
-			strings.Contains(d.Message, "include") {
+		if strings.Contains(d.Message, "anchors/aliases are not permitted") {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "expected diagnostic about anchor or include, got: %v", diags)
+	assert.True(t, found,
+		"expected diagnostic rejecting anchors/aliases, got: %v", diags)
 }
