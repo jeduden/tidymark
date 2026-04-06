@@ -92,8 +92,8 @@ and re-parses the source. The main parse tree used by
 other rules is untouched. This gives precise AST
 detection without risk to existing rules.
 
-For the four features without a goldmark built-in
-extension, three approaches were compared:
+For the five features without a goldmark built-in
+extension, two approaches were compared:
 
 1. **Third-party extensions.** Existing packages
    (`litao91/goldmark-mathjax`, `bowman2001/
@@ -104,7 +104,7 @@ extension, three approaches were compared:
    rendering pipeline. None are suitable as
    dependencies.
 
-2. **Custom goldmark extensions (chosen for 4).**
+2. **Custom goldmark extensions (chosen for all 5).**
    Based on the existing PI block parser (~160 LOC),
    the cost per extension is:
    - Inline delimiter (`^sup^`, `~sub~`): ~200 LOC
@@ -114,27 +114,32 @@ extension, three approaches were compared:
      ~250 LOC with tests (Pandoc-style: `$` must be
      preceded by whitespace/start-of-line and not
      followed by whitespace)
-   - Block def + inline (`*[abbr]: ...`): ~400 LOC
-     with tests
+   - Block def + inline text matching
+     (`*[abbr]: ...`): ~400 LOC with tests
 
-3. **Regex on raw source (chosen for 1).**
-   Abbreviation definitions (`*[abbr]: ...`) are
-   unambiguous at line-start. We only need to detect
-   the definition line to flag "you're using
-   abbreviation syntax" -- not every inline occurrence.
-   A full abbreviation extension (~400 LOC) would need
-   block-level definitions plus inline text
-   replacement, which is disproportionate for
-   detection-only.
+All five need parser extensions because diagnostics
+must report every occurrence of unsupported syntax
+with precise line/column. Regex cannot reliably find
+inline uses of abbreviations, math delimiters, or
+super/subscript inside code spans, link URLs, or
+other raw contexts.
 
-Math-inline cannot use regex: `$` is common in prose
-(`costs $5`), environment variables (`$PATH`), and
-code. A regex cannot distinguish `$x+y$` from
-`costs $5 and $10` without delimiter-state tracking.
-A parser extension with Pandoc-style flanking rules
-solves this correctly.
+Abbreviations are the most complex: the extension
+must parse `*[abbr]: Full Text` definitions at block
+level, then scan paragraph text nodes for every
+occurrence of the abbreviated term. Each occurrence
+produces a diagnostic -- without this, a user would
+see one warning on the definition but have no idea
+how much of their document depends on abbreviation
+expansion.
 
-Final detection strategy per feature:
+Math-inline also requires a parser extension: `$` is
+common in prose (`costs $5`), environment variables
+(`$PATH`), and code. Pandoc-style flanking rules
+(opening `$` preceded by whitespace and not followed
+by whitespace) disambiguate correctly.
+
+Final detection strategy -- all features via AST:
 
 | Feature | Goldmark built-in | Detection |
 |---|---|---|
@@ -149,15 +154,11 @@ Final detection strategy per feature:
 | Subscript | custom inline ext | AST |
 | Math block | custom block ext | AST |
 | Math inline | custom inline ext | AST |
-| Abbreviations | none | regex |
+| Abbreviations | custom block+inline ext | AST |
 
-Custom extensions for superscript, subscript,
-math-block, and math-inline (4 total, ~850 LOC with
-tests). Regex only for abbreviation definitions --
-the definition syntax `*[abbr]:` is unambiguous at
-block level, and detecting usage sites would require
-full abbreviation expansion (not needed for
-flavor-checking).
+Custom extensions: 5 total, ~1250 LOC with tests.
+All 12 features detected via AST -- no regex
+fallback.
 
 The dual-parser cost is one extra parse per file, only
 when MDS034 is enabled. Since MDS034 is opt-in and
@@ -233,7 +234,7 @@ any feature where `flavor.Features[f] == false`.
 
 MDS034 builds a second goldmark parser in its
 `Check()` method with all built-in extensions plus
-four custom detection-only extensions:
+five custom detection-only extensions:
 
 ```go
 p := goldmark.New(
@@ -250,6 +251,7 @@ p := goldmark.New(
         &SubscriptExt{},
         &MathBlockExt{},
         &MathInlineExt{},
+        &AbbreviationExt{},
     ),
     goldmark.WithParserOptions(
         parser.WithAttribute(),
@@ -260,10 +262,10 @@ p := goldmark.New(
 This parser is created once per rule instance (not
 per file) and reused across calls.
 
-#### Custom goldmark extensions (4)
+#### Custom goldmark extensions (5)
 
-Four small detection-only extensions, ~850 LOC total
-with tests. They live in
+Five detection-only extensions, ~1250 LOC total with
+tests. They live in
 `internal/rules/markdownflavor/ext/` and follow
 the same pattern as the existing PI block parser
 (`internal/lint/pi.go`):
@@ -295,11 +297,23 @@ start-of-line, or punctuation. This disambiguates
 `$x+y$` (math) from `costs $5` (currency).
 ~150 LOC parser + ~50 LOC node definition.
 
+**AbbreviationExt** -- block parser for `*[abbr]: ...`
+definitions plus a paragraph transformer that finds
+inline occurrences. Two components:
+- Block parser: detects `*[term]: expansion` at line
+  start, produces `KindAbbreviationDef` nodes, stores
+  the term string.
+- Paragraph transformer: after block parsing, walks
+  paragraph text segments and marks occurrences of
+  each defined term as `KindAbbreviationUse` nodes.
+~250 LOC parser + ~100 LOC node definitions + ~50
+LOC transformer. The most complex custom extension.
+
 These extensions only need to parse (produce AST
 nodes with source positions). They do not need to
 render -- mdsmith never renders HTML.
 
-#### AST detectors (11 features)
+#### AST detectors (12 features -- all via AST)
 
 Walk the extension-aware AST and collect node
 locations:
@@ -318,27 +332,14 @@ locations:
 - Subscript: custom `KindSubscript`
 - Math block: custom `KindMathBlock`
 - Math inline: custom `KindMathInline`
+- Abbreviation definitions: custom `KindAbbreviationDef`
+- Abbreviation uses: custom `KindAbbreviationUse`
 
 Each detector returns `(line, column)` pairs from
-the node segment positions.
-
-#### Regex detector (1 feature)
-
-Only abbreviation definitions use regex:
-
-- **Abbreviations** (`*[abbr]: ...`):
-  `^\*\[[^\]]+\]:` at line start. The definition
-  syntax is unambiguous at block level. A full
-  abbreviation extension (~400 LOC) would need block
-  definitions plus inline text replacement --
-  disproportionate when we only need to detect "this
-  file uses abbreviation syntax." We do not attempt
-  to detect inline *usage* of abbreviations (every
-  occurrence of the abbreviated text) since flagging
-  the definition is sufficient.
-
-The code-fence skip logic reuses the fenced-code-block
-line ranges from the main AST.
+the node segment positions. Abbreviation uses flag
+every occurrence of the abbreviated term in paragraph
+text so the user sees the full scope of the
+dependency.
 
 #### Error messages
 
@@ -417,40 +418,44 @@ subset. Non-fixable features produce diagnostics only.
    by whitespace, closing `$` not preceded by
    whitespace, opening preceded by whitespace or
    punctuation or start-of-line)
-6. Add tests for the four custom extensions in
+6. Write custom `AbbreviationExt` block parser,
+   paragraph transformer, `KindAbbreviationDef` and
+   `KindAbbreviationUse` AST nodes in
+   `internal/rules/markdownflavor/ext/abbreviation.go`
+7. Add tests for the five custom extensions in
    `internal/rules/markdownflavor/ext/*_test.go`;
    math-inline tests must cover `$x+y$` (math) vs
-   `costs $5` (currency) vs `$PATH` (env var)
-7. Build dual parser: create a second goldmark parser
+   `costs $5` (currency) vs `$PATH` (env var);
+   abbreviation tests must verify that every inline
+   occurrence of a defined term is flagged
+8. Build dual parser: create a second goldmark parser
    with built-in extensions (`Table`, `Strikethrough`,
    `TaskList`, `Footnote`, `DefinitionList`,
-   `Linkify`, `WithAttribute`) plus the four custom
+   `Linkify`, `WithAttribute`) plus the five custom
    extensions
-8. Add AST-based detectors for 11 features (tables,
-   task lists, strikethrough, autolinks, footnotes,
-   definition lists, heading attributes, superscript,
-   subscript, math block, math inline)
-9. Add regex-based detector for abbreviation
-   definitions (1 feature) with fenced-code-block
-   skip logic
-9. Implement `rule.go` with `Check()` that re-parses
-   with the dual parser, runs all detectors, and
-   reports unsupported features
-10. Implement `Fix()` for fixable features (autolinks,
+9. Add AST-based detectors for all 12 features
+   (tables, task lists, strikethrough, autolinks,
+   footnotes, definition lists, heading attributes,
+   superscript, subscript, math block, math inline,
+   abbreviations)
+10. Implement `rule.go` with `Check()` that re-parses
+    with the dual parser, runs all detectors, and
+    reports unsupported features
+11. Implement `Fix()` for fixable features (autolinks,
     strikethrough, heading IDs, task lists,
     superscript, subscript)
-11. Add `Configurable` interface: `ApplySettings` for
+12. Add `Configurable` interface: `ApplySettings` for
     `flavor` string, validate against known flavors
-12. Register rule as MDS034 `markdown-flavor` in
+13. Register rule as MDS034 `markdown-flavor` in
     category `meta`
-13. Add test fixtures:
+14. Add test fixtures:
     `internal/rules/MDS034-markdown-flavor/bad/` with
     files using each unsupported feature per flavor,
     `good/` with files using only supported features,
     `fixed/` with expected auto-fix output
-14. Add rule README following
+15. Add rule README following
     `internal/rules/proto.md` schema
-15. Document the rule in `docs/reference/cli.md` and
+16. Document the rule in `docs/reference/cli.md` and
     add a note to
     `docs/guides/directives/enforcing-structure.md`
     about flavor enforcement
