@@ -80,9 +80,9 @@ all code paths.
 
 ## Coverage Gate
 
-Codecov enforces that pull requests do not decrease
-per-file statement coverage. Three status checks run
-on every PR:
+Codecov blocks PRs that decrease per-file statement
+coverage. Fork PRs skip the upload and are not gated.
+Three status checks run on same-repo PRs:
 
 - **project** — overall coverage must not drop below
   the base commit.
@@ -107,6 +107,11 @@ To check coverage locally before pushing:
 go test -coverprofile=cover.out ./...
 go tool cover -func=cover.out
 ```
+
+This gives a quick per-function summary. CI produces
+a more complete profile by merging unit and e2e
+coverage (see the `test` job in `ci.yml` for the
+exact commands).
 
 ## Generated Sections
 
