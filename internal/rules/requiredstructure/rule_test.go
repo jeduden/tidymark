@@ -816,23 +816,28 @@ func TestDeriveFrontMatterCUE_AnchorRejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
 }
 
-func TestExtractRequireFilename_AnchorRejected(t *testing.T) {
+func TestExtractRequireDirective_AnchorRejected(t *testing.T) {
 	src := "<?require\nbase: &base\n  filename: \"*.md\"\n?>\n# Title\n"
 	f := newTestFile(t, "schema.md", src)
-	_, err := extractRequireFilename(f)
+	_, err := extractRequireDirective(f)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
 }
 
-func TestExtractIncludeFile_AnchorRejected(t *testing.T) {
+func TestExtractPIFileParam_AnchorRejected(t *testing.T) {
 	src := "<?include\nbase: &base\n  file: other.md\n?>\ncontent\n<?/include?>\n"
 	f := newTestFile(t, "doc.md", src)
-	result, err := extractIncludeFile(f)
-	// Anchor in include directive should cause an error or empty result.
-	if err != nil {
-		assert.Contains(t, err.Error(),
-			"anchors/aliases are not permitted")
-	} else {
-		assert.Empty(t, result)
+	for _, pi := range f.PIs {
+		if pi.Name == "include" {
+			result, err := extractPIFileParam(&pi, f.Source)
+			if err != nil {
+				assert.Contains(t, err.Error(),
+					"anchors/aliases are not permitted")
+			} else {
+				assert.Empty(t, result)
+			}
+			return
+		}
 	}
+	t.Skip("no include PI found")
 }
