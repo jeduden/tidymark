@@ -170,14 +170,20 @@ math, abbreviations.
 ## Acceptance Criteria
 
 - [ ] `flavor: commonmark` flags tables, task lists,
-      strikethrough, and bare-URL autolinks
-- [ ] `flavor: gfm` accepts GFM features, flags
-      footnotes, definition lists, math
-- [ ] `flavor: goldmark` accepts tables, task lists,
-      strikethrough, and bare-URL autolinks; flags
-      footnotes, definition lists, superscript,
+      strikethrough, bare-URL autolinks, footnotes,
+      definition lists, heading IDs, superscript,
       subscript, math blocks, math inline, and
       abbreviations
+- [ ] `flavor: gfm` accepts tables, task lists,
+      strikethrough, and bare-URL autolinks; flags
+      footnotes, definition lists, heading IDs,
+      superscript, subscript, math blocks, math
+      inline, and abbreviations
+- [ ] `flavor: goldmark` accepts tables, task lists,
+      strikethrough, bare-URL autolinks, and heading
+      IDs; flags footnotes, definition lists,
+      superscript, subscript, math blocks, math
+      inline, and abbreviations
 - [ ] Error messages name the unsupported feature and
       the configured flavor
 - [ ] `mdsmith fix` auto-fixes fixable features
