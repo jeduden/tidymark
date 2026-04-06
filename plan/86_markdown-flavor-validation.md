@@ -23,7 +23,8 @@ when files move between tools.
 
 Nine common flavors exist. CommonMark is the strict
 baseline. GFM adds tables, task lists, strikethrough,
-and autolinks. Goldmark supports GFM-like features
+and bare-URL autolinks. Goldmark supports GFM-like
+features
 plus optional footnotes, heading IDs, and math.
 
 Other flavors add more features. PHP Markdown Extra
@@ -32,7 +33,8 @@ math, citations, and sub/superscript. MyST targets
 Sphinx with roles and directives.
 
 Twelve features vary across flavors: tables, task
-lists, strikethrough, autolinks, footnotes, heading
+lists, strikethrough, bare-URL autolinks, footnotes,
+heading
 IDs, math, and five others.
 
 ### Detection approach
@@ -124,7 +126,8 @@ brackets"). Severity: `warning`.
 
 ### Auto-fix
 
-Fixable: autolinks (wrap in `<url>`), heading IDs
+Fixable: bare-URL autolinks (wrap in `<url>`), heading
+IDs
 (remove `{#id}`), strikethrough (remove `~~`), task
 lists (`- [ ]` to `- `), superscript (remove `^`),
 subscript (remove `~`). Non-fixable: tables,
@@ -159,7 +162,7 @@ footnotes, definition lists, math, abbreviations.
 ## Acceptance Criteria
 
 - [ ] `flavor: commonmark` flags tables, task lists,
-      strikethrough, and autolinks
+      strikethrough, and bare-URL autolinks
 - [ ] `flavor: gfm` accepts GFM features, flags
       footnotes, definition lists, math
 - [ ] `flavor: goldmark` accepts Goldmark defaults,
