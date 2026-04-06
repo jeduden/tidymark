@@ -1,37 +1,57 @@
 package lint
 
 import (
+	"bytes"
 	"fmt"
-	"regexp"
+	"io"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
-// anchorRe matches a YAML anchor definition: & followed by an identifier,
-// where & is preceded by whitespace or is at line start (structural position).
-var anchorRe = regexp.MustCompile(`(?m)(^|[ \t])&\w`)
-
-// aliasRe matches a YAML alias reference: * followed by an identifier,
-// where * is preceded by whitespace, line start, or [ (structural position).
-var aliasRe = regexp.MustCompile(`(?m)(^|[ \t[,])(\*\w)`)
-
-// quotedStringRe matches single- or double-quoted strings.
-var quotedStringRe = regexp.MustCompile(`"[^"]*"|'[^']*'`)
-
-// RejectYAMLAliases scans raw YAML bytes for anchor (&name) or alias (*name)
-// syntax and returns an error if found. This prevents exponential memory
-// expansion (billion laughs) during yaml.Unmarshal.
-//
-// Characters & and * inside quoted string values or mid-word in plain
-// scalars are ignored to avoid false positives on content like "Q&A".
+// RejectYAMLAliases parses YAML into a node tree and returns an error if any
+// anchor or alias is found. Decoding into yaml.Node does not expand aliases,
+// so this is safe even for billion-laughs payloads. This check should be
+// called before yaml.Unmarshal on user-supplied content.
 func RejectYAMLAliases(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
 
-	// Remove quoted strings so we don't match & or * inside them.
-	stripped := quotedStringRe.ReplaceAll(data, nil)
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	for {
+		var doc yaml.Node
+		err := dec.Decode(&doc)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			// An undefined alias causes a parse error containing "unknown anchor".
+			// Reject this as evidence of alias usage.
+			if strings.Contains(err.Error(), "unknown anchor") {
+				return fmt.Errorf("yaml anchors/aliases are not permitted")
+			}
+			// Other syntax errors are handled by the caller's yaml.Unmarshal.
+			return nil
+		}
 
-	if anchorRe.Match(stripped) || aliasRe.Match(stripped) {
-		return fmt.Errorf("YAML anchors/aliases are not permitted")
+		if hasYAMLAnchorOrAlias(&doc) {
+			return fmt.Errorf("yaml anchors/aliases are not permitted")
+		}
 	}
-	return nil
+}
+
+func hasYAMLAnchorOrAlias(node *yaml.Node) bool {
+	if node == nil {
+		return false
+	}
+	if node.Anchor != "" || node.Kind == yaml.AliasNode {
+		return true
+	}
+	for _, child := range node.Content {
+		if hasYAMLAnchorOrAlias(child) {
+			return true
+		}
+	}
+	return false
 }

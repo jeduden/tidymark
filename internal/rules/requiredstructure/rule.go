@@ -97,7 +97,8 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	}
 
 	docHeadings := extractHeadings(f)
-	docFMRaw := readDocFrontMatterRaw(f)
+	docFMRaw, fmDiags := readDocFrontMatterRaw(f)
+	diags = append(diags, fmDiags...)
 
 	// Check filename pattern.
 	diags = append(diags, checkFilenamePattern(f, sch)...)
@@ -919,24 +920,25 @@ func validateFrontMatterCUE(schema string, fm map[string]any) error {
 }
 
 // readDocFrontMatterRaw reads YAML frontmatter from the document.
-func readDocFrontMatterRaw(f *lint.File) map[string]any {
+func readDocFrontMatterRaw(f *lint.File) (map[string]any, []lint.Diagnostic) {
 	if len(f.FrontMatter) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	yamlBytes := extractYAML(f.FrontMatter)
 	if yamlBytes == nil {
-		return nil
+		return nil, nil
 	}
 
 	if err := lint.RejectYAMLAliases(yamlBytes); err != nil {
-		return nil
+		return nil, []lint.Diagnostic{makeDiag(f.Path, 1,
+			fmt.Sprintf("front matter: %v", err))}
 	}
 	var raw map[string]any
 	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
-		return nil
+		return nil, nil
 	}
-	return raw
+	return raw, nil
 }
 
 // extractYAML extracts the YAML content between --- delimiters.

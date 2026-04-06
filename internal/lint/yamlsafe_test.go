@@ -24,6 +24,12 @@ var yamlAliasTests = []struct {
 	{"asterisk not followed by identifier", "note: 5 * 3 = 15\n", false},
 	{"anchor at start of line", "&anchor value\n", true},
 	{"alias at start of value", "key: *alias\n", true},
+	{"block scalar with ampersand", "key: |\n  &name in block\n", false},
+	{"block scalar with asterisk", "key: >\n  *name in folded\n", false},
+	{"comment with ampersand", "key: val # &anchor\n", false},
+	{"comment with asterisk", "key: val # *alias\n", false},
+	{"escaped quote in double string", "key: \"she said \\\"&hello\\\"\"\n", false},
+	{"doubled single quote", "key: 'it''s &here'\n", false},
 }
 
 func TestRejectYAMLAliases(t *testing.T) {

@@ -116,5 +116,5 @@ positives.
 - [x] All 11 `yaml.Unmarshal` sites are guarded
 - [x] Error message clearly states anchors/aliases
       are not permitted
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
