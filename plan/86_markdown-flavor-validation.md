@@ -126,12 +126,20 @@ brackets"). Severity: `warning`.
 
 ### Auto-fix
 
-Fixable: bare-URL autolinks (wrap in `<url>`), heading
-IDs
-(remove `{#id}`), strikethrough (remove `~~`), task
-lists (`- [ ]` to `- `), superscript (remove `^`),
-subscript (remove `~`). Non-fixable: tables,
-footnotes, definition lists, math, abbreviations.
+Fixable features and their fixes:
+
+- bare-URL autolinks with a scheme: wrap in `<url>`.
+  `www.`-only URLs become `[url](http://url)` since
+  `<www.example.com>` is not a valid CommonMark
+  autolink
+- heading IDs: remove `{#id}`
+- strikethrough: remove `~~`
+- task lists: `- [ ]` to `- `
+- superscript: remove `^`
+- subscript: remove `~`
+
+Non-fixable: tables, footnotes, definition lists,
+math, abbreviations.
 
 ## Tasks
 
@@ -165,14 +173,25 @@ footnotes, definition lists, math, abbreviations.
       strikethrough, and bare-URL autolinks
 - [ ] `flavor: gfm` accepts GFM features, flags
       footnotes, definition lists, math
-- [ ] `flavor: goldmark` accepts Goldmark defaults,
-      flags Pandoc-only features
+- [ ] `flavor: goldmark` accepts tables, task lists,
+      strikethrough, and bare-URL autolinks; flags
+      footnotes, definition lists, superscript,
+      subscript, math blocks, math inline, and
+      abbreviations
 - [ ] Error messages name the unsupported feature and
       the configured flavor
 - [ ] `mdsmith fix` auto-fixes fixable features
 - [ ] Non-fixable features produce diagnostics only
 - [ ] Invalid flavor name produces a config error
 - [ ] Rule is disabled by default (opt-in)
-- [ ] Rule does not conflict with MDS012
+- [ ] With `flavor: commonmark`, MDS034 reports bare
+      URLs as unsupported autolinks
+- [ ] With `flavor: gfm` or `flavor: goldmark`,
+      MDS034 treats bare URLs as supported syntax and
+      does not emit a flavor diagnostic for them
+- [ ] MDS034 does not emit a duplicate bare-URL
+      diagnostic when the configured flavor supports
+      bare URLs, even if MDS012 still enforces its
+      own bare-URL style rule
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no issues
