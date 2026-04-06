@@ -100,7 +100,7 @@ struct directly.
 ### Custom extensions
 
 Five extensions in
-[internal/rules/markdownflavor/ext/](../internal/rules/markdownflavor/ext/):
+`internal/rules/markdownflavor/ext/`:
 
 - **SuperscriptExt**: inline `^text^`, ~150 LOC
 - **SubscriptExt**: inline `~text~`, distinguishes
