@@ -45,7 +45,8 @@ func TestCollect_MultipleFiles(t *testing.T) {
 
 func TestCollect_NonexistentFile(t *testing.T) {
 	defs := Defaults(ScopeFile)
-	_, err := Collect([]string{"/nonexistent/file.md"}, defs)
+	missing := filepath.Join(t.TempDir(), "does-not-exist.md")
+	_, err := Collect([]string{missing}, defs)
 	assert.Error(t, err)
 }
 

@@ -44,14 +44,16 @@ func TestE2E_Init_ExtraArgs_ExitsTwo(t *testing.T) {
 // =============================================================
 
 func TestE2E_Check_NonExistentFile_ExitsTwo(t *testing.T) {
-	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", "/no/such/file.md")
+	missing := filepath.Join(t.TempDir(), "does-not-exist.md")
+	_, stderr, exitCode := runBinary(t, "", "check", "--no-color", missing)
 	assert.Equal(t, 2, exitCode, "expected exit code 2 for non-existent file, got %d", exitCode)
 	assert.Contains(t, stderr, "mdsmith:",
 		"expected error message in stderr, got: %s", stderr)
 }
 
 func TestE2E_Fix_NonExistentFile_ExitsTwo(t *testing.T) {
-	_, stderr, exitCode := runBinary(t, "", "fix", "--no-color", "/no/such/file.md")
+	missing := filepath.Join(t.TempDir(), "does-not-exist.md")
+	_, stderr, exitCode := runBinary(t, "", "fix", "--no-color", missing)
 	assert.Equal(t, 2, exitCode, "expected exit code 2 for non-existent file, got %d", exitCode)
 	assert.Contains(t, stderr, "mdsmith:",
 		"expected error message in stderr, got: %s", stderr)

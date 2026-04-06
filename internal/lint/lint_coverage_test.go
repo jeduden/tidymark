@@ -106,7 +106,8 @@ func TestResolveGlob_InvalidPattern(t *testing.T) {
 
 func TestResolveGlob_NoMatches(t *testing.T) {
 	var files []string
-	err := resolveGlob("/nonexistent-pattern-xyz-*.md", DefaultResolveOpts(), func(f string) {
+	pattern := filepath.Join(t.TempDir(), "no-match-*.md")
+	err := resolveGlob(pattern, DefaultResolveOpts(), func(f string) {
 		files = append(files, f)
 	})
 	require.NoError(t, err)
@@ -405,7 +406,7 @@ func TestParseGitignoreFile_SlashInMiddle(t *testing.T) {
 }
 
 func TestParseGitignoreFile_Nonexistent(t *testing.T) {
-	_, err := parseGitignoreFile("/nonexistent/.gitignore")
+	_, err := parseGitignoreFile(filepath.Join(t.TempDir(), "no-such/.gitignore"))
 	assert.Error(t, err)
 }
 
@@ -474,7 +475,7 @@ func TestExtractPINameBytes_EmptyAfterPI(t *testing.T) {
 // --- Additional walk coverage ---
 
 func TestWalkDir_NonexistentDir(t *testing.T) {
-	_, err := walkDir("/nonexistent-dir-xyz", false, nil)
+	_, err := walkDir(filepath.Join(t.TempDir(), "no-such-dir"), false, nil)
 	assert.Error(t, err)
 }
 
