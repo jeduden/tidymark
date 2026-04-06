@@ -13,7 +13,6 @@ mdsmith — a Markdown linter written in Go.
 
 ### Docs
 
-- [Build commands, project layout, code style, test fixtures, and merge conflicts](../docs/development/index.md)
 - [Plan template; see PLAN.md for status, plans live in plan/](../plan/proto.md)
 
 <?catalog
