@@ -132,6 +132,8 @@ func TestEngine_Check_OrphanedEndMarker(t *testing.T) {
 }
 
 func TestEngine_Check_NestedMarkers(t *testing.T) {
+	// Unbalanced nesting: inner start marker has no matching end → outer
+	// pair is unclosed.
 	src := "<?mock\nkey: a\n?>\n<?mock\nkey: b\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{content: ""}
@@ -139,11 +141,36 @@ func TestEngine_Check_NestedMarkers(t *testing.T) {
 	diags := e.Check(f)
 	found := false
 	for _, d := range diags {
-		if strings.Contains(d.Message, "nested") {
+		if strings.Contains(d.Message, "no closing marker") {
 			found = true
 		}
 	}
-	assert.True(t, found, "expected nested marker diagnostic")
+	assert.True(t, found, "expected 'no closing marker' diagnostic for unbalanced nesting")
+}
+
+func TestEngine_Check_BalancedNestedMarkers(t *testing.T) {
+	// Balanced nesting: inner pair has matching start/end markers.
+	// The outer pair should be found; inner markers are skipped.
+	src := "<?mock\nkey: a\n?>\nprefix\n<?mock\nkey: b\n?>\ninner\n<?/mock?>\nsuffix\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{content: "prefix\n<?mock\nkey: b\n?>\ninner\n<?/mock?>\nsuffix\n"}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	assert.Len(t, diags, 0,
+		"expected 0 diagnostics for balanced nested markers, got %d: %v", len(diags), diags)
+}
+
+func TestEngine_Fix_BalancedNestedMarkers(t *testing.T) {
+	// Fix should replace only the outermost pair's content, preserving
+	// inner markers as literal content.
+	src := "<?mock\nkey: a\n?>\nold outer\n<?mock\nkey: b\n?>\nold inner\n<?/mock?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{content: "new content with <?mock\nkey: nested\n?>\nnested body\n<?/mock?>\n"}
+	e := NewEngine(d)
+	result := string(e.Fix(f))
+	assert.Contains(t, result, "new content with <?mock")
+	assert.Contains(t, result, "<?/mock?>")
+	assert.NotContains(t, result, "old outer")
 }
 
 func TestEngine_Check_InvalidYAML(t *testing.T) {

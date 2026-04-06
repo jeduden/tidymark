@@ -47,6 +47,7 @@ func FindMarkerPairs(
 	var pairs []MarkerPair
 	var diags []lint.Diagnostic
 	var current *MarkerPair
+	depth := 0 // tracks nested markers of the same directive type
 
 	endName := "/" + directiveName
 
@@ -58,9 +59,19 @@ func FindMarkerPairs(
 
 		switch pi.Name {
 		case directiveName:
-			current, diags = handleStartMarker(f, pi, current, diags, ruleID, ruleName)
+			if current != nil {
+				// Nested start marker — skip it and track depth.
+				depth++
+			} else {
+				current, diags = handleStartMarker(f, pi, current, diags, ruleID, ruleName)
+			}
 		case endName:
-			current, pairs, diags = handleEndMarker(f, pi, current, pairs, diags, ruleID, ruleName)
+			if current != nil && depth > 0 {
+				// Nested end marker — reduce depth.
+				depth--
+			} else {
+				current, pairs, diags = handleEndMarker(f, pi, current, pairs, diags, ruleID, ruleName)
+			}
 		}
 	}
 
