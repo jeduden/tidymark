@@ -1,6 +1,6 @@
 ---
 title: Development
-summary: Build commands, project layout, code style, test fixtures, and merge conflicts.
+summary: Build commands, project layout, code style, test fixtures, coverage gate, and merge conflicts.
 ---
 
 Build and test reference for mdsmith contributors.

@@ -28,7 +28,7 @@ row: "- [{summary}](../{filename})"
 - [How generated sections work — markers, directives, and fix behavior.](../docs/background/archetypes/generated-section/README.md)
 - [Shared patterns (archetypes) reused across multiple linting rules.](../docs/background/archetypes/README.md)
 - [Comparison of mdsmith with other Markdown linters and formatters.](../docs/background/markdown-linters.md)
-- [Build commands, project layout, code style, test fixtures, and merge conflicts.](../docs/development/index.md)
+- [Build commands, project layout, code style, test fixtures, coverage gate, and merge conflicts.](../docs/development/index.md)
 - [PR fixup workflow for rebase, CI monitoring, review comment resolution, and gh CLI setup.](../docs/development/pr-fixup-workflow.md)
 - [How to use schemas, require, and allow-empty-section to validate headings, front matter, and filenames.](../docs/guides/directives/enforcing-structure.md)
 - [How to use catalog and include directives to generate and embed content in Markdown files.](../docs/guides/directives/generating-content.md)
