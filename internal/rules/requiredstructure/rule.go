@@ -97,7 +97,8 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	}
 
 	docHeadings := extractHeadings(f)
-	docFMRaw := readDocFrontMatterRaw(f)
+	docFMRaw, fmDiags := readDocFrontMatterRaw(f)
+	diags = append(diags, fmDiags...)
 
 	// Check filename pattern.
 	diags = append(diags, checkFilenamePattern(f, sch)...)
@@ -216,6 +217,9 @@ func extractRequireDirective(f *lint.File) (string, error) {
 				body = append(body, seg.Value(f.Source)...)
 			}
 		}
+		if err := lint.RejectYAMLAliases(body); err != nil {
+			return "", fmt.Errorf("invalid <?require?> directive: %w", err)
+		}
 		var params map[string]string
 		if err := yaml.Unmarshal(body, &params); err != nil {
 			return "", fmt.Errorf("invalid <?require?> directive: %w", err)
@@ -229,6 +233,9 @@ func extractRequireDirective(f *lint.File) (string, error) {
 }
 
 func deriveFrontMatterCUE(yamlBytes []byte) (string, error) {
+	if err := lint.RejectYAMLAliases(yamlBytes); err != nil {
+		return "", fmt.Errorf("parsing schema frontmatter: %w", err)
+	}
 	var raw map[string]any
 	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
 		return "", fmt.Errorf("parsing schema frontmatter: %w", err)
@@ -552,6 +559,9 @@ func extractPIFileParam(pi *lint.ProcessingInstruction, source []byte) (string, 
 		return "", nil
 	}
 
+	if err := lint.RejectYAMLAliases([]byte(body)); err != nil {
+		return "", fmt.Errorf("invalid include directive YAML: %w", err)
+	}
 	var params map[string]string
 	if err := yaml.Unmarshal([]byte(body), &params); err != nil {
 		return "", fmt.Errorf("invalid include directive YAML: %w", err)
@@ -910,21 +920,26 @@ func validateFrontMatterCUE(schema string, fm map[string]any) error {
 }
 
 // readDocFrontMatterRaw reads YAML frontmatter from the document.
-func readDocFrontMatterRaw(f *lint.File) map[string]any {
+func readDocFrontMatterRaw(f *lint.File) (map[string]any, []lint.Diagnostic) {
 	if len(f.FrontMatter) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	yamlBytes := extractYAML(f.FrontMatter)
 	if yamlBytes == nil {
-		return nil
+		return nil, nil
 	}
 
+	if err := lint.RejectYAMLAliases(yamlBytes); err != nil {
+		return nil, []lint.Diagnostic{makeDiag(f.Path, 1,
+			fmt.Sprintf("front matter: %v", err))}
+	}
 	var raw map[string]any
 	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
-		return nil
+		return nil, []lint.Diagnostic{makeDiag(f.Path, 1,
+			fmt.Sprintf("front matter: invalid YAML: %v", err))}
 	}
-	return raw
+	return raw, nil
 }
 
 // extractYAML extracts the YAML content between --- delimiters.

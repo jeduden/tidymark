@@ -799,3 +799,65 @@ func TestCheck_SkipsSchemaFiles(t *testing.T) {
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
+
+func TestCheck_FrontMatterAnchorRejected(t *testing.T) {
+	schemaPath := writeSchema(t, "---\nid: 'int'\n---\n# ?\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\nbase: &base\n  id: 1\n---\n# Title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "anchors/aliases are not permitted")
+}
+
+func TestDeriveFrontMatterCUE_AnchorRejected(t *testing.T) {
+	yml := []byte("base: &base\n  id: 1\n")
+	_, err := deriveFrontMatterCUE(yml)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
+}
+
+func TestExtractRequireDirective_AnchorRejected(t *testing.T) {
+	src := "<?require\nbase: &base\n  filename: \"*.md\"\n?>\n# Title\n"
+	f := newTestFile(t, "schema.md", src)
+	_, err := extractRequireDirective(f)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
+}
+
+func TestParseSchemaFrontMatter_AnchorRejected(t *testing.T) {
+	prefix := []byte("---\nbase: &base\n  id: 1\n---\n")
+	_, err := parseSchemaFrontMatter(prefix)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
+}
+
+func TestCheck_InvalidYAMLFrontMatterDiagnostic(t *testing.T) {
+	schemaPath := writeSchema(t, "---\nid: 'int'\n---\n# ?\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\n: invalid: yaml: [unclosed\n---\n# Title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "front matter: invalid YAML")
+}
+
+func TestCheck_IncludeWithAnchorInSchema(t *testing.T) {
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(
+		"# ?\n\n<?include\nbase: &base\n  file: fragment.md\n?>\n<?/include?>\n",
+	), 0o644))
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: 1\n---\n# Title\n")
+	diags := r.Check(f)
+	// Should produce a diagnostic about the anchor in the include directive.
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "anchors/aliases are not permitted") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found,
+		"expected diagnostic rejecting anchors/aliases, got: %v", diags)
+}

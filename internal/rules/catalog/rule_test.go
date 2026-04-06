@@ -3120,3 +3120,12 @@ func TestSpec_DidYouMeanCaseMismatch(t *testing.T) {
 	}
 	assert.True(t, found, "expected 'did you mean' diagnostic, got: %v", diags)
 }
+
+func TestReadFrontMatter_AnchorReturnsNil(t *testing.T) {
+	mapFS := fstest.MapFS{
+		"doc.md": {Data: []byte(
+			"---\nbase: &base\n  id: 1\n---\n# Title\n")},
+	}
+	result := readFrontMatter(mapFS, "doc.md")
+	assert.Nil(t, result)
+}
