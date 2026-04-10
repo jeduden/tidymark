@@ -52,8 +52,9 @@ for details.
 ## No nesting in normal files
 
 Directives are flat. There is no equivalent of Hugo's
-nested `block`/`define`. Same-type nesting is
-prohibited.
+nested `block`/`define`. Same-type nesting is allowed
+(inner markers are treated as literal content of the
+outer directive), but there is no recursive expansion.
 
 ## CUE paths, not Go template syntax
 
