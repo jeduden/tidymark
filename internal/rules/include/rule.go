@@ -207,6 +207,16 @@ func (r *Rule) generateIncludeContent(
 		}()
 		expanded, expandDiags := r.expandNestedIncludes(readFS, data, resolvedFile)
 		if len(expandDiags) > 0 {
+			// Remap diagnostics to this include directive so the
+			// lint pipeline uses the correct file for context.
+			for i := range expandDiags {
+				d := &expandDiags[i]
+				d.Message = fmt.Sprintf(
+					"%s:%d: %s", d.File, d.Line, d.Message)
+				d.File = filePath
+				d.Line = line
+				d.Column = 1
+			}
 			return "", expandDiags
 		}
 		data = expanded

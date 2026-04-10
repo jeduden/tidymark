@@ -49,7 +49,7 @@ See
 [Schema composition](enforcing-structure.md#schema-composition)
 for details.
 
-## No nesting in normal files
+## No block/define nesting
 
 Directives are flat. There is no equivalent of Hugo's
 nested `block`/`define`. Same-type nesting is allowed
