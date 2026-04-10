@@ -55,40 +55,6 @@ Batch branches live under `merge-queue/`:
 All batch branches are ephemeral. They are deleted
 after merge or failure.
 
-### Core algorithm
-
-```text
-1. List PRs labeled queue or queue:pending
-   (oldest first).
-2. Relabel all as queue:active.
-3. Create batch branch from main.
-4. Merge each PR into batch branch.
-   Conflict → eject PR (label queue:failed).
-5. Run CI on batch branch tip.
-6. CI passes → fast-forward main, close PRs.
-7. CI fails, batch = 1 → label queue:failed.
-8. CI fails, batch > 1 → binary bisect.
-9. Check for newly queued PRs. Re-trigger if any.
-```
-
-### Binary bisection
-
-When a batch of N PRs fails CI:
-
-```text
-1. Split into L (first half) and R (rest).
-2. Test L on a bisect branch from main.
-3. L passes → failure is in R.
-   Merge L to main. Re-queue R for bisect.
-4. L fails → failure is in L.
-   Park R as queue:pending. Re-queue L.
-5. Recurse until batch = 1 isolates the
-   failing PR.
-```
-
-Worst case: `ceil(log2(N)) + 1` CI runs. A batch
-of 8 needs at most 4 runs to find the failure.
-
 ### Workflow files
 
 #### ci-reusable.yml
@@ -142,37 +108,74 @@ Jobs:
 ### Authentication
 
 The workflow needs `contents: write` and
-`pull-requests: write`. Use `GITHUB_TOKEN` if branch
-protection allows Actions to push. Otherwise use a
-fine-grained PAT stored as a repo secret.
+`pull-requests: write`. Use `GITHUB_TOKEN` if
+branch protection allows it. Otherwise store a
+fine-grained PAT as a repo secret.
 
 ## Phases
 
+All three phases use the same `merge-queue.yml`.
+They differ in batch size and the fail path in the
+merge-or-bisect job.
+
 ### Phase 1 — Serial queue (MVP)
 
-One PR at a time. No batching, no bisection.
+Batch size fixed to 1. No bisection needed.
 
-- Scan for oldest `queue`-labeled PR
-- Create batch branch with single PR, run CI
-- Pass → merge to main. Fail → label `queue:failed`
-- Re-trigger for next queued PR
+**prepare:** `gh pr list --label queue` sorted by
+number. Pick the oldest PR. Relabel it
+`queue:active`. Output PR number and head branch.
 
-Validates the state machine, branch management, CI
-reuse, and merge mechanics.
+**batch:** Create `merge-queue/batch-<run_id>` from
+main. Run `git merge --no-ff origin/<pr-branch>`.
+On conflict: label `queue:failed`, comment, exit.
+
+**verify:** Call `ci-reusable.yml` with the batch
+branch ref.
+
+**merge-or-bisect:** Pass → fast-forward main,
+close PR. Fail → label `queue:failed`, comment
+with CI run link.
+
+**cleanup:** Delete batch branch. If more PRs
+carry the `queue` label, fire `gh workflow run`
+to self-trigger.
 
 ### Phase 2 — Batch merging
 
-Combine up to N queued PRs (default 5) into one
-batch branch. Run CI once on the tip.
+**prepare:** Take up to N PRs (default 5) instead
+of 1. Relabel all `queue:active`. Output JSON
+array of PR numbers and branches.
 
-- Pass → fast-forward main, close all PRs
-- Fail → proceed to phase 3
+**batch:** Merge each PR sequentially. If one
+conflicts, eject it alone and continue with the
+rest. Output the final merged-PR list.
+
+**merge-or-bisect:** Pass → fast-forward main,
+close all. Fail with batch > 1 → proceed to
+phase 3.
 
 ### Phase 3 — Binary bisection
 
-On batch failure, self-invoke via `workflow_dispatch`
-with `bisect: true` and `batch_prs` JSON input.
-Recursively split until the failing PR is isolated.
+**merge-or-bisect (fail, batch > 1):** Split PR
+list in half. Fire `gh workflow run` with
+`-f batch_prs='[1,2]' -f bisect=true`.
+
+The new run's **prepare** skips label scan. It
+uses the `batch_prs` input directly. Each
+recursion is a separate dispatch serialized by
+the concurrency group:
+
+- Left passes → merge those PRs to main.
+  Dispatch right half with `bisect=true`.
+- Left fails, size > 1 → dispatch left half
+  split again.
+- Left fails, size = 1 → that PR is the culprit.
+  Label `queue:failed`. Relabel right half as
+  `queue:pending`.
+
+Worst case: `ceil(log2(N)) + 1` CI runs. A batch
+of 8 needs at most 4 runs to isolate the failure.
 
 ## Escalation: when you need a Bors server
 
@@ -233,6 +236,27 @@ or Gas Town Refinery) when any trigger fires.
 | Cross-repo deps   | no support    | required    |
 | Stacked PRs       | no support    | required    |
 
+## Testing
+
+Extract bisect splitting and PR sorting into
+`internal/mergequeue/` as pure Go functions on
+JSON arrays. These are unit-testable with
+`go test` — no GitHub API needed.
+
+Add a `dry_run` boolean input to the workflow.
+In dry-run mode every mutating step (push, merge,
+label, comment) logs intent but skips execution.
+
+End-to-end scenarios (on this repo or a test repo
+with fast CI):
+
+1. Single green PR → merged to main
+2. Single red PR → `queue:failed` + comment
+3. Merge conflict → ejected before CI
+4. Batch of 3 green → all merged in one run
+5. Batch of 3 (1 red) → bisect isolates failure
+6. Serial re-trigger → second PR after first
+
 ## Tasks
 
 1. Create labels (`queue`, `queue:pending`,
@@ -240,16 +264,17 @@ or Gas Town Refinery) when any trigger fires.
 2. Extract `ci-reusable.yml` from `ci.yml` with
    `ref` input parameter
 3. Update `ci.yml` to call `ci-reusable.yml`
-4. Implement phase 1 serial queue workflow
-5. Test phase 1: enqueue PR, verify CI runs on
-   batch branch, confirm merge to main
-6. Test phase 1 failure: verify `queue:failed`
-   label and comment on CI failure
+4. Extract bisect/prepare logic into
+   `internal/mergequeue/` with unit tests
+5. Implement phase 1 serial queue workflow with
+   `dry_run` input
+6. E2E test phase 1: green PR merges, red PR
+   gets `queue:failed`, conflict ejected
 7. Implement phase 2 batch merging
 8. Implement phase 3 binary bisection via
    `workflow_dispatch` self-invocation
-9. Test phase 3: enqueue 4 PRs (one fails),
-   verify bisection isolates the failure
+9. E2E test phase 3: batch of 4 (1 red), verify
+   bisection isolates the failure
 10. Add `/queue` comment trigger via
     `issue_comment` event
 11. Document usage in `docs/development/`
@@ -268,6 +293,10 @@ or Gas Town Refinery) when any trigger fires.
       batch branch is ejected immediately
 - [ ] Re-trigger: workflow checks for new queued
       PRs after each run and self-triggers
+- [ ] Dry-run mode: workflow logs intent without
+      mutating when `dry_run` is true
+- [ ] Bisect/prepare logic has Go unit tests in
+      `internal/mergequeue/`
 - [ ] Existing CI unchanged: `push`/`pull_request`
       triggers work as before
 - [ ] Escalation triggers documented
