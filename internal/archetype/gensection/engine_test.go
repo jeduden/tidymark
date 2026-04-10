@@ -173,6 +173,42 @@ func TestEngine_Fix_BalancedNestedMarkers(t *testing.T) {
 	assert.NotContains(t, result, "old outer")
 }
 
+func TestEngine_Check_MalformedNestedStartMarker(t *testing.T) {
+	// A malformed nested start marker (missing ?>) should emit a
+	// diagnostic without affecting depth tracking.
+	src := "<?mock\nkey: a\n?>\n<?mock\nkey: b\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{content: ""}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "<?mock is missing closing ?>") {
+			found = true
+		}
+	}
+	assert.True(t, found,
+		"expected malformed nested start marker diagnostic, got %v", diags)
+}
+
+func TestEngine_Check_MalformedNestedEndMarker(t *testing.T) {
+	// A malformed nested end marker (missing ?>) inside balanced
+	// nesting should emit a diagnostic without decrementing depth.
+	src := "<?mock\nkey: a\n?>\n<?mock\nkey: b\n?>\ninner\n<?/mock\n<?/mock?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{content: ""}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "<?/mock is missing closing ?>") {
+			found = true
+		}
+	}
+	assert.True(t, found,
+		"expected malformed nested end marker diagnostic, got %v", diags)
+}
+
 func TestEngine_Check_InvalidYAML(t *testing.T) {
 	src := "<?mock\n: invalid : yaml ::: [\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
