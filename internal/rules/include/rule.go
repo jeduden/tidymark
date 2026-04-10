@@ -197,7 +197,7 @@ func (r *Rule) generateIncludeContent(
 			fmt.Sprintf("include file %q not found: %v", file, err))}
 	}
 
-	// Track this file and scan for nested include cycles.
+	// Track this file and recursively expand nested includes.
 	if r.visited != nil {
 		r.visited[resolvedFile] = true
 		r.chain = append(r.chain, resolvedFile)
@@ -205,9 +205,11 @@ func (r *Rule) generateIncludeContent(
 			delete(r.visited, resolvedFile)
 			r.chain = r.chain[:len(r.chain)-1]
 		}()
-		if diags := r.scanForCycles(readFS, data, resolvedFile, filePath, line); len(diags) > 0 {
-			return "", diags
+		expanded, expandDiags := r.expandNestedIncludes(readFS, data, resolvedFile)
+		if len(expandDiags) > 0 {
+			return "", expandDiags
 		}
+		data = expanded
 	}
 
 	text := processIncludedContent(data, params, f, filePath, file, line)
@@ -312,81 +314,49 @@ func containsDotDotElement(p string) bool {
 	return false
 }
 
-// readFSFile reads a file from readFS, falling back to stripping the
-// origin directory prefix when readFS is directory-scoped.
-func readFSFile(readFS fs.FS, resolved, originFile string) ([]byte, bool) {
-	fsPath := resolved
-	if path.IsAbs(fsPath) {
-		fsPath = strings.TrimPrefix(fsPath, "/")
-	}
-	data, err := fs.ReadFile(readFS, fsPath)
+// expandNestedIncludes parses the included file for nested include
+// directives and recursively expands them, so that a single fix pass
+// produces the fully flattened output regardless of file order.
+func (r *Rule) expandNestedIncludes(
+	readFS fs.FS, data []byte, resolvedFile string,
+) ([]byte, []lint.Diagnostic) {
+	fm, content := lint.StripFrontMatter(data)
+	f, err := lint.NewFile(resolvedFile, content)
 	if err != nil {
-		originDir := path.Dir(originFile)
-		if originDir != "" && originDir != "." {
-			rel := strings.TrimPrefix(resolved, originDir+"/")
-			if rel != resolved {
-				data, err = fs.ReadFile(readFS, rel)
-			}
-		}
+		return data, nil
 	}
-	return data, err == nil
-}
-
-// scanForCycles parses the included file for nested include directives and
-// checks for cycles in the include chain. It uses already-read data to
-// avoid double reads for the first level.
-func (r *Rule) scanForCycles(
-	readFS fs.FS, data []byte, currentPath, originFile string, originLine int,
-) []lint.Diagnostic {
-	_, content := lint.StripFrontMatter(data)
-	f, err := lint.NewFile(currentPath, content)
-	if err != nil {
-		return nil
-	}
+	f.FS = readFS
+	f.RootFS = readFS
 
 	pairs, _ := gensection.FindMarkerPairs(f, "include", "MDS021", "include")
-	for _, mp := range pairs {
-		dir, diags := gensection.ParseDirective(currentPath, mp, "MDS021", "include")
-		if dir == nil || len(diags) > 0 {
-			continue
-		}
-		file := dir.Params["file"]
-		if file == "" {
-			continue
-		}
-
-		resolved := path.Clean(path.Join(path.Dir(currentPath), file))
-
-		// Check depth.
-		if len(r.chain) > maxIncludeDepth {
-			return []lint.Diagnostic{makeDiag(originFile, originLine,
-				fmt.Sprintf("include depth exceeds maximum (%d)", maxIncludeDepth))}
-		}
-
-		// Check cycle.
-		if r.visited[resolved] {
-			chain := make([]string, len(r.chain))
-			copy(chain, r.chain)
-			chain = append(chain, resolved)
-			return []lint.Diagnostic{makeDiag(originFile, originLine,
-				fmt.Sprintf("cyclic include: %s", strings.Join(chain, " -> ")))}
-		}
-
-		// Recurse into nested includes.
-		r.visited[resolved] = true
-		r.chain = append(r.chain, resolved)
-		var cycleDiags []lint.Diagnostic
-		if nested, ok := readFSFile(readFS, resolved, originFile); ok {
-			cycleDiags = r.scanForCycles(readFS, nested, resolved, originFile, originLine)
-		}
-		delete(r.visited, resolved)
-		r.chain = r.chain[:len(r.chain)-1]
-		if len(cycleDiags) > 0 {
-			return cycleDiags
-		}
+	if len(pairs) == 0 {
+		return data, nil
 	}
 
-	return nil
+	// Work backwards to preserve line numbers.
+	for i := len(pairs) - 1; i >= 0; i-- {
+		mp := pairs[i]
+		dir, pdiags := gensection.ParseDirective(resolvedFile, mp, "MDS021", "include")
+		if dir == nil || len(pdiags) > 0 {
+			continue
+		}
+
+		generated, genDiags := r.generateIncludeContent(
+			f, resolvedFile, mp.StartLine, dir.Params,
+		)
+		if len(genDiags) > 0 {
+			return nil, genDiags
+		}
+
+		f.Source = gensection.ReplaceContent(f, mp, generated)
+		f.Lines = gensection.SplitLines(f.Source)
+	}
+
+	// Reconstruct with frontmatter if present.
+	if len(fm) > 0 {
+		return append(fm, f.Source...), nil
+	}
+	return f.Source, nil
 }
 
 var _ rule.FixableRule = (*Rule)(nil)
