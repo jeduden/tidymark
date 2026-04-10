@@ -320,8 +320,11 @@ func containsDotDotElement(p string) bool {
 func (r *Rule) expandNestedIncludes(
 	readFS fs.FS, data []byte, resolvedFile string,
 ) ([]byte, []lint.Diagnostic) {
-	fm, content := lint.StripFrontMatter(data)
-	f, err := lint.NewFile(resolvedFile, content)
+	// Parse the full data including frontmatter so that marker pair
+	// line numbers match the real file. Goldmark treats frontmatter
+	// delimiters as thematic breaks, which FindMarkerPairs skips.
+	// processIncludedContent handles frontmatter stripping later.
+	f, err := lint.NewFile(resolvedFile, data)
 	if err != nil {
 		return data, nil
 	}
@@ -358,10 +361,6 @@ func (r *Rule) expandNestedIncludes(
 		f.Lines = gensection.SplitLines(f.Source)
 	}
 
-	// Reconstruct with frontmatter if present.
-	if len(fm) > 0 {
-		return append(fm, f.Source...), nil
-	}
 	return f.Source, nil
 }
 
