@@ -60,15 +60,27 @@ func FindMarkerPairs(
 		switch pi.Name {
 		case directiveName:
 			if current != nil {
-				// Nested start marker — skip it and track depth.
-				depth++
+				if !pi.HasClosure() {
+					piLine := f.LineOfOffset(pi.Lines().At(0).Start)
+					diags = append(diags, MakeDiag(ruleID, ruleName, f.Path, piLine,
+						fmt.Sprintf("generated section start marker <?%s is missing closing ?>", pi.Name)))
+				} else {
+					// Well-formed nested start marker — skip it and track depth.
+					depth++
+				}
 			} else {
 				current, diags = handleStartMarker(f, pi, current, diags, ruleID, ruleName)
 			}
 		case endName:
 			if current != nil && depth > 0 {
-				// Nested end marker — reduce depth.
-				depth--
+				if !pi.HasClosure() {
+					piLine := f.LineOfOffset(pi.Lines().At(0).Start)
+					diags = append(diags, MakeDiag(ruleID, ruleName, f.Path, piLine,
+						fmt.Sprintf("generated section end marker <?%s is missing closing ?>", pi.Name)))
+				} else {
+					// Well-formed nested end marker — reduce depth.
+					depth--
+				}
 			} else {
 				current, pairs, diags = handleEndMarker(f, pi, current, pairs, diags, ruleID, ruleName)
 			}

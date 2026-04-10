@@ -54,7 +54,9 @@ for details.
 Directives are flat. There is no equivalent of Hugo's
 nested `block`/`define`. Same-type nesting is allowed
 (inner markers are treated as literal content of the
-outer directive), but there is no recursive expansion.
+outer directive). Include directives are recursively
+expanded during `fix`, but catalog and other directives
+are not.
 
 ## CUE paths, not Go template syntax
 

@@ -326,6 +326,12 @@ func (r *Rule) expandNestedIncludes(
 		return data, nil
 	}
 	f.FS = readFS
+	// RootFS must be set so resolveIncludePath uses root-relative
+	// readPath. Without it, readPath is the raw file parameter,
+	// which only works when FS is scoped to the including file's
+	// own directory — not the case here since readFS is scoped to
+	// the project root. The ".." escape check still applies because
+	// resolvedFile is computed via path.Join before the prefix test.
 	f.RootFS = readFS
 
 	pairs, _ := gensection.FindMarkerPairs(f, "include", "MDS021", "include")
