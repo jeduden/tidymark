@@ -1,0 +1,41 @@
+name: Merge Queue
+
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      batch_prs:
+        type: string
+        required: false
+      bisect:
+        type: boolean
+        default: false
+
+concurrency:
+  group: merge-queue
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  queue:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.label.name == 'queue' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      issues: write
+    steps:
+      - uses: jeduden/merge-queue-action@5e81e8d3023229ed0b2bfc9f7f764a701b362d9c # v0.2.0
+        with:
+          token: ${{ secrets.MERGE_QUEUE_TOKEN }}
+          ci_workflow: .github/workflows/ci.yml
+          batch_size: "5"
+          bisect: ${{ github.event.inputs.bisect || false }}
+          batch_prs: ${{ github.event.inputs.batch_prs || '' }}
