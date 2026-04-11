@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: jeduden/merge-queue-action@52c1f24b19880bf2f68a422d7d53551f19ffe4d0 # v0.1.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.MERGE_QUEUE_TOKEN }}
           ci_workflow: .github/workflows/ci.yml
           batch_size: "5"
           bisect: ${{ github.event.inputs.bisect || false }}
