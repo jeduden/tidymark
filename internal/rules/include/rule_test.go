@@ -749,6 +749,50 @@ func TestFix_InjectsSourceDirForRootInclude(t *testing.T) {
 	assert.Contains(t, result, `source-dir: "."`)
 }
 
+func TestFix_SkipsSourceDirForSingleLinePI(t *testing.T) {
+	// Single-line PIs like <?foo?> should not get source-dir injected.
+	fsys := fstest.MapFS{
+		"sub/content.md": {Data: []byte(
+			"<?foo?>\nSome text\n",
+		)},
+	}
+	src := "<?include\nfile: sub/content.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "root.md", src, fsys)
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	assert.NotContains(t, result, "source-dir:")
+}
+
+func TestFix_SkipsSourceDirIfAlreadyPresent(t *testing.T) {
+	// If a PI already has source-dir, don't inject a second one.
+	fsys := fstest.MapFS{
+		"sub/content.md": {Data: []byte(
+			"<?catalog\nsource-dir: \"other\"\nglob: \"*.md\"\n?>\n<?/catalog?>\n",
+		)},
+	}
+	src := "<?include\nfile: sub/content.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "root.md", src, fsys)
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	// Should keep the existing source-dir, not add another.
+	assert.Equal(t, 1, strings.Count(result, "source-dir:"))
+}
+
+func TestFix_NoSourceDirForPlainText(t *testing.T) {
+	// Included content with no PIs should not get source-dir.
+	fsys := fstest.MapFS{
+		"sub/plain.md": {Data: []byte("# Plain\n\nJust text.\n")},
+	}
+	src := "<?include\nfile: sub/plain.md\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "root.md", src, fsys)
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	assert.NotContains(t, result, "source-dir:")
+}
+
 // =====================================================================
 // No FS
 // =====================================================================

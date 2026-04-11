@@ -3307,3 +3307,64 @@ source-dir: "docs/dev"
 	assert.Contains(t, result, "dev/api.md")
 	assert.NotContains(t, result, "docs/dev/api.md")
 }
+
+func TestCatalog_SourceDirRootFromRootFile(t *testing.T) {
+	// source-dir: "." with file at root → relPrefix is ".", so no prefix.
+	src := `<?catalog
+glob: "*.md"
+source-dir: "."
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"alpha.md": {Data: []byte("# A\n")},
+		"beta.md":  {Data: []byte("# B\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	f.RootFS = mapFS
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	// File is at root, source-dir is root → no prefix needed.
+	assert.Contains(t, result, "[alpha.md](alpha.md)")
+	assert.Contains(t, result, "[beta.md](beta.md)")
+}
+
+func TestCatalog_SourceDirSameAsFileDir(t *testing.T) {
+	// source-dir matches the file's own directory → relPrefix is ".".
+	src := `<?catalog
+glob: "*.md"
+source-dir: "docs"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/one.md": {Data: []byte("# One\n")},
+	}
+	f := newTestFile(t, "docs/index.md", src, mapFS)
+	f.RootFS = mapFS
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	// No prefix needed since source-dir == file dir.
+	assert.Contains(t, result, "[one.md](one.md)")
+}
+
+func TestCatalog_SourceDirNoRootFS(t *testing.T) {
+	// Without RootFS, source-dir is ignored and globs use f.FS.
+	src := `<?catalog
+glob: "*.md"
+source-dir: "sub"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"top.md": {Data: []byte("# Top\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	// Deliberately not setting f.RootFS.
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	assert.Contains(t, result, "top.md")
+}
