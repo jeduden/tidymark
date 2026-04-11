@@ -3368,3 +3368,46 @@ source-dir: "sub"
 
 	assert.Contains(t, result, "top.md")
 }
+
+func TestCatalog_SourceDirRelPrefixError(t *testing.T) {
+	// filepath.Rel fails when one path is absolute and the other
+	// relative. resolveGlobFS should fall back to f.FS.
+	src := `<?catalog
+glob: "*.md"
+source-dir: "sub"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"top.md":   {Data: []byte("# Top\n")},
+		"sub/a.md": {Data: []byte("# A\n")},
+	}
+	f := newTestFile(t, "/absolute/path/index.md", src, mapFS)
+	f.RootFS = mapFS
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	// Falls back to f.FS since Rel fails.
+	assert.Contains(t, result, "top.md")
+}
+
+func TestCatalog_SourceDirInvalidSubFS(t *testing.T) {
+	// fs.Sub rejects paths starting with "/". When both file path
+	// and source-dir are absolute, filepath.Rel succeeds but fs.Sub
+	// fails. resolveGlobFS should fall back to f.FS.
+	src := `<?catalog
+glob: "*.md"
+source-dir: "/proj/sub"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"fallback.md": {Data: []byte("# Fallback\n")},
+	}
+	f := newTestFile(t, "/proj/index.md", src, mapFS)
+	f.RootFS = mapFS
+	r := &Rule{}
+	result := string(r.Fix(f))
+
+	assert.Contains(t, result, "fallback.md")
+}
