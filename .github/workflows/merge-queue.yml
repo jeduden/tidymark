@@ -16,15 +16,17 @@ concurrency:
   group: merge-queue
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  pull-requests: write
-  actions: write
-  issues: write
+permissions: {}
 
 jobs:
   queue:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'queue'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      issues: write
     steps:
       - uses: jeduden/merge-queue-action@52c1f24b19880bf2f68a422d7d53551f19ffe4d0 # v0.1.0
         with:
