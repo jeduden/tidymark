@@ -363,7 +363,10 @@ func resolveGitignore(f *lint.File, params map[string]string) (*lint.GitignoreMa
 	}
 	baseDir := filepath.Dir(f.Path)
 	if sd := params["source-dir"]; sd != "" && f.RootDir != "" {
-		baseDir = filepath.Join(f.RootDir, sd)
+		sd = path.Clean(sd)
+		if !filepath.IsAbs(sd) && !containsDotDot(sd) {
+			baseDir = filepath.Join(f.RootDir, sd)
+		}
 	}
 	base, err := filepath.Abs(baseDir)
 	if err != nil {

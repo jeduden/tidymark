@@ -3411,3 +3411,24 @@ source-dir: "/proj/sub"
 
 	assert.Contains(t, result, "fallback.md")
 }
+
+func TestCatalog_SourceDirTraversalIgnored(t *testing.T) {
+	// source-dir with ".." should not escape the project root for
+	// gitignore resolution. resolveGlobFS rejects it via fs.Sub;
+	// resolveGitignore must also reject it.
+	src := `<?catalog
+glob: "*.md"
+source-dir: ".."
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"top.md": {Data: []byte("# Top\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	f.RootFS = mapFS
+	r := &Rule{}
+	// Should not panic or escape; falls back to f.FS.
+	result := string(r.Fix(f))
+	assert.Contains(t, result, "top.md")
+}
