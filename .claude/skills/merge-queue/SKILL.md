@@ -28,8 +28,11 @@ Note the number as `$PR`.
 
 ### 2. Verify readiness
 
-Confirm CI is green and no review threads are
-unresolved before enqueuing:
+Confirm CI is green, no review threads are
+unresolved, and the latest commit has a Copilot
+review before enqueuing.
+
+Check CI:
 
 ```bash
 gh pr checks "$PR" --json name,state
@@ -38,6 +41,32 @@ gh pr checks "$PR" --json name,state
 All checks must show `SUCCESS`. If any are
 `FAILURE` or `PENDING`, stop and report the
 blockers instead of enqueuing.
+
+Check that Copilot reviewed the latest commit:
+
+```bash
+gh api "repos/{owner}/{repo}/pulls/$PR/reviews" \
+  -q '[.[] | select(.user.login ==
+  "copilot-pull-request-reviewer[bot]")]
+  | last | .commit_id'
+```
+
+Compare the returned commit SHA with the PR head:
+
+```bash
+gh pr view "$PR" --json commits \
+  -q '.commits[-1].oid'
+```
+
+If the two SHAs do not match, Copilot has not
+reviewed the latest push. Request a review and
+wait before enqueuing:
+
+```bash
+gh api --method POST \
+  "repos/{owner}/{repo}/pulls/$PR/requested_reviewers" \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+```
 
 ### 3. Add the `queue` label
 
