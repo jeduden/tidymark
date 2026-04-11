@@ -34,8 +34,8 @@ If missing, install from
 brew install gh
 ```
 
-If `brew` is unavailable, download the release tarball
-from the [GitHub releases page](https://github.com/cli/cli/releases).
+If `brew` is unavailable, download from the
+[GitHub releases page](https://github.com/cli/cli/releases).
 If not authenticated, run `gh auth login` or set
 `GITHUB_TOKEN`.
 
@@ -96,9 +96,8 @@ go run ./cmd/mdsmith check .
 go tool golangci-lint run --fix ./...
 ```
 
-The `--fix` flag auto-corrects formatting issues
-(goimports, gofmt). If it produces changes, stage and
-include them in the next commit.
+The `--fix` flag auto-corrects formatting issues.
+Stage any changes in the next commit.
 
 ### 4. Push changes
 
@@ -147,14 +146,12 @@ loop iteration.
 
 ### 6. On CI failure — diagnose and fix
 
-Fetch the failed job log:
+List failed checks, then get the run ID:
 
 ```bash
 gh pr checks "$PR" --json name,state,conclusion \
   -q '.[] | select(.conclusion == "FAILURE")'
 ```
-
-Get the run ID of the most recent failure:
 
 ```bash
 gh run list --branch "$BRANCH" \
@@ -162,7 +159,7 @@ gh run list --branch "$BRANCH" \
   --json databaseId -q '.[0].databaseId'
 ```
 
-Note the run ID as `$RUN_ID`. Then download the log:
+Note the run ID as `$RUN_ID`. Then view the log:
 
 ```bash
 gh run view "$RUN_ID" --log-failed
@@ -292,23 +289,45 @@ gh pr checks "$PR"
 
 Re-run the step 7 query and filter for unresolved
 threads. If the count is 0 and CI is green, cancel
-the recurring loop and report that the PR is ready
-for merge.
+the recurring loop and proceed to step 11.
+
+### 11. Enqueue the PR for merge
+
+Add the `queue` label to enter the merge queue
+(`jeduden/merge-queue-action`):
+
+```bash
+gh pr edit "$PR" --add-label queue
+```
+
+The action batches labeled PRs (oldest first) into
+a temporary branch and runs CI against it. If CI
+passes, `main` fast-forwards automatically.
+
+Labels track progress: `queue` → `queue:active`
+(in batch) → merged. On failure the action applies
+`queue:failed` and posts a comment with the cause.
+Fix the issue (return to step 6), push, then swap
+labels to re-enter:
+
+```bash
+gh pr edit "$PR" --remove-label queue:failed
+```
+
+```bash
+gh pr edit "$PR" --add-label queue
+```
 
 ## Notes
 
-- This workflow works in both local environments and
-  Claude Code web sandbox. Step 1 installs `gh` if
-  missing.
-- Always run `mdsmith check .` and
-  `golangci-lint run --fix ./...` before committing to
-  catch linting and formatting issues early.
-- Keep fix commits small and focused — one commit per
-  CI fix, one commit per batch of related review
-  comments.
-- Use `--force-with-lease` only after rebase (step 3).
-  After that, append fix commits with regular pushes so
-  reviewers can see incremental progress.
+- Works in both local and Claude Code web
+  environments. Step 1 installs `gh` if missing.
+- Run `mdsmith check .` and
+  `golangci-lint run --fix` before committing.
+- Keep fix commits small — one per CI fix, one per
+  batch of related review comments.
+- Use `--force-with-lease` only after rebase
+  (step 3). Regular pushes after that show
+  incremental progress.
 
-Once the unresolved count is 0 and CI is green, the PR
-is ready for merge.
+The PR is merged once the queue batch passes CI.
