@@ -114,7 +114,7 @@ threads.
 Check that Copilot reviewed the latest commit:
 
 ```bash
-gh api "repos/$OWNER/$REPO/pulls/$PR/reviews" \
+gh api --paginate "repos/$OWNER/$REPO/pulls/$PR/reviews" \
   -q '[.[] | select(.user.login ==
   "copilot-pull-request-reviewer[bot]")]
   | last | .commit_id'
