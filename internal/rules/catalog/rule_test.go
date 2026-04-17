@@ -3184,6 +3184,7 @@ func TestCatalogInjection_BothNewlineAndLink(t *testing.T) {
 }
 
 // =====================================================================
+<<<<<<< HEAD
 // source-dir: glob resolution from included file's directory (#133)
 // =====================================================================
 
@@ -3431,4 +3432,54 @@ source-dir: ".."
 	// Should not panic or escape; falls back to f.FS.
 	result := string(r.Fix(f))
 	assert.Contains(t, result, "top.md")
+}
+
+// =====================================================================
+// buildCatalogEntries error diagnostics (file-size limit)
+// =====================================================================
+
+func TestBuildCatalogEntries_SizeLimit_EmitsDiagnostic(t *testing.T) {
+	bigContent := strings.Repeat("x", 100)
+	fsys := fstest.MapFS{
+		"big.md": &fstest.MapFile{
+			Data: []byte("---\ntitle: Big\n---\n" + bigContent),
+		},
+	}
+	f := &lint.File{
+		Path:          "index.md",
+		FS:            fsys,
+		MaxInputBytes: 20,
+	}
+	params := map[string]string{
+		"glob": "big.md",
+		"row":  "- [{title}](big.md)",
+	}
+
+	entries, diags := buildCatalogEntries(f, params, "index.md", 1)
+	assert.Empty(t, entries, "entry skipped due to read failure")
+	require.Len(t, diags, 1, "expected one diagnostic")
+	assert.Contains(t, diags[0].Message, "cannot read front matter")
+	assert.Contains(t, diags[0].Message, "file too large")
+}
+
+func TestBuildCatalogEntries_Normal_NoDiagnostics(t *testing.T) {
+	fsys := fstest.MapFS{
+		"a.md": &fstest.MapFile{
+			Data: []byte("---\ntitle: A\n---\n# A\n"),
+		},
+	}
+	f := &lint.File{
+		Path:          "index.md",
+		FS:            fsys,
+		MaxInputBytes: 1000,
+	}
+	params := map[string]string{
+		"glob": "a.md",
+		"row":  "- [{title}](a.md)",
+	}
+
+	entries, diags := buildCatalogEntries(f, params, "index.md", 1)
+	assert.Len(t, entries, 1, "entry should be kept")
+	assert.Empty(t, diags)
+	assert.Equal(t, "A", entries[0].fields["title"])
 }
