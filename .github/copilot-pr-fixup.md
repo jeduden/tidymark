@@ -137,13 +137,13 @@ let the next loop iteration verify the result.
 Check CI status:
 
 ```bash
-gh pr checks "$PR" --json name,state
+gh pr checks "$PR" --json name,state,bucket
 ```
 
-If all checks show `SUCCESS`, proceed to step 7. If
-any show `FAILURE`, proceed to step 6. If checks are
-still `IN_PROGRESS` or `PENDING`, wait for the next
-loop iteration.
+If every check has `bucket = pass`, proceed to
+step 7. If any show `bucket = fail`, proceed to
+step 6. If any show `bucket = pending`, wait for
+the next loop iteration.
 
 ### 6. On CI failure — diagnose and fix
 
