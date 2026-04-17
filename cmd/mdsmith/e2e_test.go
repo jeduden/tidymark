@@ -1475,3 +1475,51 @@ func TestCheck_MaxInputSize_ConfigOverride(t *testing.T) {
 		"check", "--max-input-size", "0", "small.md")
 	assert.Equal(t, 0, exitCode2, "expected exit code 0 with CLI override to unlimited")
 }
+
+func TestCheck_MaxInputSize_InvalidValue(t *testing.T) {
+	dir := t.TempDir()
+	isolateDir(t, dir)
+	writeFixture(t, dir, "a.md", "# Hello\n")
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "",
+		"check", "--max-input-size", "not-a-size", "a.md")
+	assert.Equal(t, 2, exitCode, "expected exit code 2 for invalid size")
+	assert.Contains(t, stderr, "invalid max-input-size")
+}
+
+func TestFix_MaxInputSize_InvalidValue(t *testing.T) {
+	dir := t.TempDir()
+	isolateDir(t, dir)
+	writeFixture(t, dir, "a.md", "# Hello\n")
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "",
+		"fix", "--max-input-size", "1TB", "a.md")
+	assert.Equal(t, 2, exitCode, "expected exit code 2 for unrecognized unit")
+	assert.Contains(t, stderr, "invalid max-input-size")
+}
+
+func TestCheckStdin_MaxInputSize_ExceedingLimit(t *testing.T) {
+	dir := t.TempDir()
+	isolateDir(t, dir)
+
+	bigContent := make([]byte, 200)
+	for i := range bigContent {
+		bigContent[i] = 'x'
+	}
+	bigContent[0] = '#'
+	bigContent[1] = ' '
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, string(bigContent),
+		"check", "--max-input-size", "50", "-")
+	assert.Equal(t, 2, exitCode, "expected exit code 2 for oversized stdin")
+	assert.Contains(t, stderr, "file too large")
+}
+
+func TestCheckStdin_MaxInputSize_Unlimited(t *testing.T) {
+	dir := t.TempDir()
+	isolateDir(t, dir)
+
+	_, _, exitCode := runBinaryInDir(t, dir, "# Hello\n",
+		"check", "--max-input-size", "0", "-")
+	assert.Equal(t, 0, exitCode, "expected exit code 0 with unlimited stdin")
+}
