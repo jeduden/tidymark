@@ -672,7 +672,7 @@ func TestFix_RecursiveExpansionSubdir(t *testing.T) {
 	r := &Rule{}
 	got := string(r.Fix(f))
 	want := "# A\n\n<?include\nfile: sub/b.md\n?>\n" +
-		"# B\n\n<?include\nfile: c.md\n?>\n" +
+		"# B\n\n<?include\nsource-dir: \"sub\"\nfile: c.md\n?>\n" +
 		"Fresh from C\n<?/include?>\n<?/include?>\n"
 	assert.Equal(t, want, got,
 		"Fix output mismatch\ngot:\n%s\nwant:\n%s", got, want)

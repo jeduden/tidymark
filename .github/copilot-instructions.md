@@ -129,6 +129,7 @@ reflect) without saying what is checked against what.
 ### Development Reference
 
 <?include
+source-dir: "."
 file: docs/development/index.md
 strip-frontmatter: "true"
 heading-level: "absolute"
