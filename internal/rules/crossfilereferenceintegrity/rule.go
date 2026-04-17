@@ -139,7 +139,7 @@ func (r *Rule) checkLink(
 
 	targetAnchors, err := anchorsForFile(targetFile, anchorCache)
 	if err != nil {
-		return []lint.Diagnostic{brokenFileDiag(f.Path, line, col, r, target.Raw)}
+		return []lint.Diagnostic{unreadableTargetDiag(f.Path, line, col, r, target.Raw, err)}
 	}
 	if targetAnchors[normalizeAnchor(target.Anchor)] {
 		return nil
@@ -573,6 +573,22 @@ func brokenFileDiag(path string, line, col int, r *Rule, target string) lint.Dia
 		RuleName: r.Name(),
 		Severity: lint.Warning,
 		Message:  fmt.Sprintf("broken link target %q not found", target),
+	}
+}
+
+// unreadableTargetDiag reports a link whose target exists on the
+// filesystem but cannot be read (e.g. exceeds the configured
+// max-input-size). The underlying error is surfaced so users can
+// distinguish these from genuinely missing targets.
+func unreadableTargetDiag(path string, line, col int, r *Rule, target string, err error) lint.Diagnostic {
+	return lint.Diagnostic{
+		File:     path,
+		Line:     line,
+		Column:   col,
+		RuleID:   r.ID(),
+		RuleName: r.Name(),
+		Severity: lint.Warning,
+		Message:  fmt.Sprintf("cannot read link target %q: %v", target, err),
 	}
 }
 

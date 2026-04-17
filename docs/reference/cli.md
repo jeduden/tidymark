@@ -45,11 +45,14 @@ match, exits 0.
 
 `--max-input-size` sets the byte-size cap for any file
 read during linting. Files exceeding the limit are skipped
-with an error (exit code 2). Accepts `KB`, `MB`, `GB`
-suffixes (binary: 1 MB = 1,048,576 bytes), bare integers
-(bytes), or `0` to disable the limit. Default: `2MB`.
-The CLI flag overrides the `max-input-size` key in
-`.mdsmith.yml`.
+and reported as runtime errors on stderr. Exit code follows
+the usual precedence: `1` when lint diagnostics are found
+(even if some files were skipped), `2` when only runtime
+errors occur. An invalid `--max-input-size` value always
+exits `2`. Accepts `KB`, `MB`, `GB` suffixes (binary:
+1 MB = 1,048,576 bytes), bare integers (bytes), or `0`
+to disable the limit. Default: `2MB`. The CLI flag
+overrides the `max-input-size` key in `.mdsmith.yml`.
 
 ## Global Flags
 

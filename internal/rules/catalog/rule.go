@@ -85,6 +85,9 @@ func (r *Rule) Generate(f *lint.File, filePath string, line int,
 	params map[string]string, columns map[string]gensection.ColumnConfig,
 ) (string, []lint.Diagnostic) {
 	cols := fromGensectionColumns(columns)
+	// Read errors (e.g. "file too large") are fatal for generation:
+	// a partially-rendered catalog would silently hide missing rows,
+	// which is worse than failing loudly with a clear diagnostic.
 	entries, entryDiags := buildCatalogEntries(f, params, filePath, line)
 	if len(entryDiags) > 0 {
 		return "", entryDiags

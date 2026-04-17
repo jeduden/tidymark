@@ -1922,8 +1922,9 @@ func TestReadFrontMatter_NonStringValue(t *testing.T) {
 
 func TestReadFrontMatter_UnreadableFile(t *testing.T) {
 	fs := fstest.MapFS{}
-	fm, _ := readFrontMatter(fs, "missing.md", 0)
+	fm, err := readFrontMatter(fs, "missing.md", 0)
 	assert.Nil(t, fm, "expected nil for missing file, got %v", fm)
+	assert.Error(t, err, "expected error for missing file")
 }
 
 func TestReadFrontMatter_EmptyFile(t *testing.T) {

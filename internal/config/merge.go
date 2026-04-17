@@ -61,19 +61,30 @@ func Merge(defaults, loaded *Config) *Config {
 	}
 }
 
-// copyConfig returns a shallow copy of a Config with copied slices and maps.
+// copyConfig returns a shallow copy of a Config with copied slices and
+// maps. Scalar fields and struct slices (Overrides) are shared by
+// reference — the defaults case does not carry Ignore/Overrides data,
+// but copying every field keeps the helper safe for any caller.
 func copyConfig(cfg *Config) *Config {
 	rules := make(map[string]RuleCfg, len(cfg.Rules))
 	for k, v := range cfg.Rules {
 		rules[k] = v
 	}
+	explicit := make(map[string]bool, len(cfg.ExplicitRules))
+	for k, v := range cfg.ExplicitRules {
+		explicit[k] = v
+	}
 	return &Config{
 		Rules:            rules,
+		Ignore:           copyStrings(cfg.Ignore),
+		Overrides:        cfg.Overrides,
 		FrontMatter:      cfg.FrontMatter,
 		Categories:       copyCategories(cfg.Categories),
 		Files:            copyStrings(cfg.Files),
 		NoFollowSymlinks: copyStrings(cfg.NoFollowSymlinks),
 		MaxInputSize:     cfg.MaxInputSize,
+		ExplicitRules:    explicit,
+		FilesExplicit:    cfg.FilesExplicit,
 	}
 }
 
