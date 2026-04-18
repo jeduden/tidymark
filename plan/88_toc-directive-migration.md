@@ -5,8 +5,9 @@ status: "🔲"
 summary: >-
   New rule MDS035 that flags renderer-specific
   table-of-contents directives (`[TOC]`,
-  `[[_TOC_]]`, `[[toc]]`, `${toc}`) that render
-  as empty text on CommonMark / goldmark. The
+  `[[_TOC_]]`, `[[toc]]`, `${toc}`) which render
+  as literal text on CommonMark / goldmark
+  instead of expanding into a TOC. The
   diagnostic points authors at mdsmith's
   `<?catalog?>` directive for the file-index use
   case; heading-level TOCs have no direct
@@ -17,9 +18,10 @@ summary: >-
 ## Goal
 
 Catch renderer-specific TOC directives that do
-not render on CommonMark or goldmark. The
-diagnostic tells authors which use case has a
-mdsmith equivalent and which does not.
+not expand into a TOC on CommonMark or
+goldmark. The diagnostic tells authors which
+use case has a mdsmith equivalent and which
+does not.
 
 ## Context
 
@@ -34,12 +36,26 @@ Four TOC directive variants appear in the wild:
 - `${toc}` — some VitePress configurations
 
 None are part of CommonMark, GFM, or goldmark.
-On goldmark, `[TOC]` parses as a link reference
-with no matching definition (renders as literal
-text or an empty link). `[[_TOC_]]` and `[[toc]]`
-parse as plain text in a paragraph. The
-directive simply disappears from the rendered
-output, which is a silent failure.
+On those renderers the directive does not
+expand into a TOC; it renders as literal text.
+The exact output depends on the pattern:
+
+- `[TOC]` without a matching link reference
+  definition renders as the literal string
+  `[TOC]` (goldmark emits a "no matching link
+  reference" fallback, which is verbatim text)
+- `[[_TOC_]]` renders as `[[_TOC_]]` inside a
+  paragraph
+- `[[toc]]` renders as `[[toc]]` inside a
+  paragraph
+- `${toc}` renders as `${toc}` inside a
+  paragraph
+
+The author intended a generated table of
+contents; the reader sees the directive token
+instead. This is a visible failure, not a
+silent one, but it is still a failure worth
+catching at lint time.
 
 ### Heading TOC vs file index
 
@@ -138,12 +154,16 @@ opt-in posture. No settings.
 ### Error message
 
 ```text
-[TOC] does not render on CommonMark or goldmark; mdsmith has no heading TOC equivalent; use <?catalog?> for file indexes (MDS019)
+unsupported TOC directive `[TOC]`; mdsmith has no heading TOC equivalent; use <?catalog?> for file indexes (MDS019)
 ```
 
-Severity: `warning`. Lowercase start, no trailing
-punctuation — consistent with the mdsmith error
+The leading word is lowercase and there is no
+trailing punctuation, per the mdsmith error
 message convention in [CLAUDE.md](../CLAUDE.md).
+The literal directive token is backticked so it
+is quoted, not capitalized prose.
+
+Severity: `warning`.
 
 ### No auto-fix
 
