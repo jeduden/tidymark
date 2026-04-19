@@ -38,6 +38,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/paragraphreadability"
 	_ "github.com/jeduden/mdsmith/internal/rules/paragraphstructure"
 	_ "github.com/jeduden/mdsmith/internal/rules/requiredstructure"
+	_ "github.com/jeduden/mdsmith/internal/rules/sectionsizelimits"
 	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"
 	_ "github.com/jeduden/mdsmith/internal/rules/tableformat"
 	_ "github.com/jeduden/mdsmith/internal/rules/tablereadability"

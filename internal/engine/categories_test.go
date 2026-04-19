@@ -33,6 +33,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/nomultipleblanks"
 	_ "github.com/jeduden/mdsmith/internal/rules/notrailingpunctuation"
 	_ "github.com/jeduden/mdsmith/internal/rules/notrailingspaces"
+	_ "github.com/jeduden/mdsmith/internal/rules/sectionsizelimits"
 	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"
 	_ "github.com/jeduden/mdsmith/internal/rules/tokenbudget"
 )
