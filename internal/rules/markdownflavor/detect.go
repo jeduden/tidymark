@@ -67,12 +67,27 @@ func detectFromDual(f *lint.File, doc ast.Node) []Finding {
 			findings = append(findings, blockFinding(f, n, FeatureTables))
 			return ast.WalkSkipChildren, nil
 		case *extast.TaskCheckBox:
-			findings = append(findings, inlineFinding(f, n, FeatureTaskLists))
+			// TaskCheckBox has no text children, so pull position from
+			// the enclosing ListItem block.
+			findings = append(findings, taskCheckBoxFinding(f, n))
 		case *extast.Strikethrough:
-			findings = append(findings, inlineFinding(f, n, FeatureStrikethrough))
-		case *extast.FootnoteLink, *extast.Footnote, *extast.FootnoteList:
+			// Strikethrough's first text child starts after the
+			// opening "~~"; back up two bytes to point at the marker.
+			fin := inlineFinding(f, n, FeatureStrikethrough)
+			if fin.Start >= 2 && f.Source[fin.Start-1] == '~' && f.Source[fin.Start-2] == '~' {
+				fin.Start -= 2
+				fin.Column -= 2
+			}
+			findings = append(findings, fin)
+		case *extast.FootnoteLink:
+			findings = append(findings, inlineExtFinding(f, n, FeatureFootnotes))
+		case *extast.Footnote:
 			findings = append(findings, blockFinding(f, n, FeatureFootnotes))
 			return ast.WalkSkipChildren, nil
+		case *extast.FootnoteList:
+			// Walk children so Footnote definitions report their own
+			// locations; skip emitting a wrapper finding.
+			return ast.WalkContinue, nil
 		case *extast.DefinitionList:
 			findings = append(findings, blockFinding(f, n, FeatureDefinitionLists))
 			return ast.WalkSkipChildren, nil
@@ -93,6 +108,61 @@ func blockFinding(f *lint.File, n ast.Node, feat Feature) Finding {
 	lineStart := lineStartOf(f.Source, start)
 	line, _ := lineCol(f.Source, lineStart)
 	return Finding{Feature: feat, Line: line, Column: 1, Start: lineStart, End: end}
+}
+
+// taskCheckBoxFinding synthesises a Finding for a TaskCheckBox by
+// walking up to the nearest block ancestor with line info (TextBlock
+// inside the containing ListItem). TaskCheckBox has no source segment
+// of its own.
+func taskCheckBoxFinding(f *lint.File, n ast.Node) Finding {
+	if p := nearestBlockAncestor(n, ast.NodeKind(0)); p != nil {
+		return findingFromBlock(f, p, FeatureTaskLists)
+	}
+	return Finding{Feature: FeatureTaskLists, Line: 1, Column: 1}
+}
+
+// inlineExtFinding covers inline extension nodes that expose no
+// segment (e.g. FootnoteLink). It uses the first ancestor block's
+// first-line position instead of firstTextStart, which would return
+// zero for a childless inline.
+func inlineExtFinding(f *lint.File, n ast.Node, feat Feature) Finding {
+	if p := nearestBlockAncestor(n, ast.NodeKind(0)); p != nil {
+		return findingFromBlock(f, p, feat)
+	}
+	return Finding{Feature: feat, Line: 1, Column: 1}
+}
+
+// nearestBlockAncestor walks up from n and returns the first ancestor
+// whose kind matches want; when want is 0 the first block-typed
+// ancestor with Lines() is returned.
+func nearestBlockAncestor(n ast.Node, want ast.NodeKind) ast.Node {
+	for p := n.Parent(); p != nil; p = p.Parent() {
+		if want != 0 {
+			if p.Kind() == want {
+				return p
+			}
+			continue
+		}
+		if p.Type() != ast.TypeBlock {
+			continue
+		}
+		if lines := p.Lines(); lines != nil && lines.Len() > 0 {
+			return p
+		}
+	}
+	return nil
+}
+
+// findingFromBlock builds an inline-style finding (exact line/col of
+// the block's first line) for features emitted from a block ancestor.
+func findingFromBlock(f *lint.File, block ast.Node, feat Feature) Finding {
+	lines := block.Lines()
+	if lines == nil || lines.Len() == 0 {
+		return Finding{Feature: feat, Line: 1, Column: 1}
+	}
+	start := lines.At(0).Start
+	line, col := lineCol(f.Source, start)
+	return Finding{Feature: feat, Line: line, Column: col, Start: start, End: start}
 }
 
 // inlineFinding reports an inline feature at its exact source column.

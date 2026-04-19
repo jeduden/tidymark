@@ -22,7 +22,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/catalog"
 	_ "github.com/jeduden/mdsmith/internal/rules/concisenessscoring"
 	_ "github.com/jeduden/mdsmith/internal/rules/crossfilereferenceintegrity"
-	_ "github.com/jeduden/mdsmith/internal/rules/directorystructure"
+	"github.com/jeduden/mdsmith/internal/rules/directorystructure"
 	_ "github.com/jeduden/mdsmith/internal/rules/emptysectionbody"
 	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodelanguage"
 	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodestyle"
@@ -32,6 +32,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/include"
 	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
 	_ "github.com/jeduden/mdsmith/internal/rules/listindent"
+	_ "github.com/jeduden/mdsmith/internal/rules/markdownflavor"
 	_ "github.com/jeduden/mdsmith/internal/rules/maxfilelength"
 	_ "github.com/jeduden/mdsmith/internal/rules/maxsectionlength"
 	_ "github.com/jeduden/mdsmith/internal/rules/nobareurls"
@@ -142,6 +143,14 @@ func applySettingsToRule(
 func TestRuleFixtures(t *testing.T) {
 	primeDirectoryStructureWarnOnce(t)
 	dirs := discoverFixtureDirs(t)
+
+	// MDS033's "no allowed patterns" warning is gated by a
+	// process-level sync.Once. After MDS033's own fixtures run, the
+	// rule is left in configured=true / allowed=[] state by the
+	// defaults-based cleanup. That would fire the warning on the
+	// first checkAllRules walk in any later rule's tests. Consume
+	// the guard up front so the leak cannot surface.
+	directorystructure.SilenceConfigWarningForTesting()
 
 	for _, dir := range dirs {
 		base := filepath.Base(dir)

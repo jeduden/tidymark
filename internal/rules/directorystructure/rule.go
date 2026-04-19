@@ -20,6 +20,15 @@ func init() {
 // clones the rule per file.
 var configWarned sync.Once
 
+// SilenceConfigWarningForTesting consumes the package-level once-guard
+// without emitting the config warning, so later checks will not fire
+// it. Intended for tests that share a process and cannot tolerate a
+// misconfigured-state leak from a previous rule's cleanup.
+func SilenceConfigWarningForTesting() {
+	configWarned = sync.Once{}
+	configWarned.Do(func() {})
+}
+
 // Rule checks that markdown files exist only in explicitly allowed directories.
 type Rule struct {
 	Allowed    []string

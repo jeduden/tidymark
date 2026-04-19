@@ -81,6 +81,18 @@ func AllFeatures() []Feature {
 	}
 }
 
+// Verb returns "is" or "are" so diagnostic messages read naturally
+// for both singular (strikethrough, inline math) and plural
+// (tables, task lists) feature names.
+func (f Feature) Verb() string {
+	switch f {
+	case FeatureStrikethrough, FeatureSuperscript, FeatureSubscript,
+		FeatureMathInline:
+		return "is"
+	}
+	return "are"
+}
+
 // Name returns the human-readable feature name used in diagnostics.
 func (f Feature) Name() string {
 	switch f {
