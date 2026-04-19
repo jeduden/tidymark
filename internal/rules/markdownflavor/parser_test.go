@@ -51,13 +51,6 @@ func TestParserDetectsDefinitionList(t *testing.T) {
 		"expected definition-list node in dual-parser AST")
 }
 
-func TestParserDetectsLinkifiedAutolink(t *testing.T) {
-	src := []byte("See https://example.com for details.\n")
-	doc := parseSource(t, src)
-	assert.True(t, containsKind(doc, ast.KindAutoLink),
-		"expected auto-link node for bare URL in dual-parser AST")
-}
-
 func TestParserDetectsHeadingAttribute(t *testing.T) {
 	src := []byte("# Heading {#custom-id}\n")
 	doc := parseSource(t, src)

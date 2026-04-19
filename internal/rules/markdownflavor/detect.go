@@ -39,10 +39,12 @@ type HeadingIDExtra struct {
 
 // bareURLPattern mirrors goldmark's linkify http/https/ftp URL regex
 // closely enough to catch bare URLs in text. Anchors removed so it can
-// match anywhere inside a Text segment.
+// match anywhere inside a Text segment. The TLD class accepts both
+// upper- and lowercase ASCII so URLs like https://example.COM are
+// flagged the same way as their lowercase form.
 var bareURLPattern = regexp.MustCompile(
 	`(?:http|https|ftp)://[-a-zA-Z0-9@:%._+~#=]{1,256}` +
-		`\.[a-z]+(?::\d+)?(?:[/#?][-a-zA-Z0-9@:%_+.~#$!?&/=();,'">^{}\[\]` +
+		`\.[a-zA-Z]+(?::\d+)?(?:[/#?][-a-zA-Z0-9@:%_+.~#$!?&/=();,'">^{}\[\]` +
 		"`" + `]*)?`,
 )
 

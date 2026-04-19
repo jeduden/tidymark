@@ -51,8 +51,17 @@ rules:
 ## Detected features
 
 MDS034 tracks seven syntax features in this
-increment. Each one is detected via the goldmark
-AST with a built-in extension enabled:
+increment.
+
+Six are detected from the goldmark AST. Each
+relies on its built-in extension: table,
+strikethrough, task list, footnote, definition
+list, and the heading-ID attribute parser.
+
+Bare-URL autolinks are detected separately. The
+detector scans text nodes from the main parse for
+URL-shaped text. It skips links, autolinks, code
+spans, and code blocks.
 
 | Feature            | commonmark | gfm | goldmark |
 |--------------------|------------|-----|----------|

@@ -14,9 +14,14 @@ var (
 )
 
 // Parser returns the shared goldmark parser used for dual parsing.
-// It enables every built-in goldmark extension relevant to MDS034
-// feature detection (table, strikethrough, task list, footnote,
-// definition list, linkify) and the heading-ID attribute parser.
+// It enables every built-in goldmark extension MDS034 actually needs
+// for AST-based feature detection (table, strikethrough, task list,
+// footnote, definition list) and the heading-ID attribute parser.
+//
+// Linkify is intentionally not enabled here: bare-URL autolinks are
+// detected separately in detectBareURLs by scanning Text nodes from
+// the main CommonMark parse, so adding Linkify would only duplicate
+// work without changing the result.
 //
 // The parser is detection-only: we never render its output. Storing
 // it as a package-level singleton avoids rebuilding the parser on
@@ -30,7 +35,6 @@ func Parser() goldmark.Markdown {
 				extension.TaskList,
 				extension.Footnote,
 				extension.DefinitionList,
-				extension.Linkify,
 			),
 			goldmark.WithParserOptions(
 				parser.WithAttribute(),

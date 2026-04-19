@@ -67,6 +67,20 @@ func TestDetectBareURLAutolink(t *testing.T) {
 	require.True(t, hasFeature(fs, FeatureBareURLAutolinks))
 }
 
+// TestDetectBareURLAutolinkUppercaseTLD guards the regex character
+// class for the TLD: matches must be case-insensitive so SHOUTY
+// domains and mixed-case TLDs are still flagged.
+func TestDetectBareURLAutolinkUppercaseTLD(t *testing.T) {
+	for _, src := range []string{
+		"See https://example.COM for details.\n",
+		"See https://EXAMPLE.CoM for details.\n",
+	} {
+		fs := findings(t, src)
+		assert.True(t, hasFeature(fs, FeatureBareURLAutolinks),
+			"uppercase TLD should be flagged: %q", src)
+	}
+}
+
 func TestDetectIgnoresBracketedAutolink(t *testing.T) {
 	fs := findings(t, "See <https://example.com> for details.\n")
 	assert.False(t, hasFeature(fs, FeatureBareURLAutolinks),
