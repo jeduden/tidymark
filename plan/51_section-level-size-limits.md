@@ -14,7 +14,7 @@ to prevent oversized headings from hiding in otherwise compliant files.
 
 1. [x] Define section boundary detection rules for heading levels.
 2. [x] Add configuration for per-heading or per-pattern limits.
-3. [x] Implement rule to count section length by lines or tokens.
+3. [x] Implement rule to count section length by lines.
 4. [x] Document configuration and examples.
 
 ## Acceptance Criteria
