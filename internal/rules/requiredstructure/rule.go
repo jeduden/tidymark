@@ -660,8 +660,8 @@ func checkStructure(
 				// Check level.
 				if dh.Level != req.Level {
 					diags = append(diags, makeDiag(f.Path, dh.Line,
-						fmt.Sprintf("heading level mismatch: expected h%d, got h%d",
-							req.Level, dh.Level)))
+						fmt.Sprintf("heading level mismatch for %q: expected h%d, got h%d",
+							dh.Text, req.Level, dh.Level)))
 				}
 				docIdx++
 				found = true
@@ -670,8 +670,9 @@ func checkStructure(
 			}
 			if !allowExtra {
 				diags = append(diags, makeDiag(f.Path, dh.Line,
-					fmt.Sprintf("unexpected section %q",
-						formatHeading(dh.Level, dh.Text))))
+					fmt.Sprintf("unexpected section %q (expected %q)",
+						formatHeading(dh.Level, dh.Text),
+						formatHeading(req.Level, req.Text))))
 			}
 			docIdx++
 		}
