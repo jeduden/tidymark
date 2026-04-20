@@ -8,9 +8,11 @@
 // with consistent behavior and a single set of tests.
 package settings
 
+import "math"
+
 // ToInt coerces v to an int when v is int, int64, or float64.
-// Float inputs are truncated toward zero. Other types (string, bool,
-// nil, slices) are rejected.
+// Float inputs are truncated toward zero. NaN, +/-Inf, and float
+// values outside the int range are rejected (ok=false).
 func ToInt(v any) (int, bool) {
 	switch n := v.(type) {
 	case int:
@@ -18,16 +20,25 @@ func ToInt(v any) (int, bool) {
 	case int64:
 		return int(n), true
 	case float64:
+		if math.IsNaN(n) || math.IsInf(n, 0) {
+			return 0, false
+		}
+		if n < math.MinInt || n > math.MaxInt {
+			return 0, false
+		}
 		return int(n), true
 	}
 	return 0, false
 }
 
 // ToFloat coerces v to a float64 when v is float64, int, or int64.
-// Other types are rejected.
+// NaN and +/-Inf are rejected. Other types are rejected.
 func ToFloat(v any) (float64, bool) {
 	switch n := v.(type) {
 	case float64:
+		if math.IsNaN(n) || math.IsInf(n, 0) {
+			return 0, false
+		}
 		return n, true
 	case int:
 		return float64(n), true

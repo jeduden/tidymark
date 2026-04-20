@@ -115,7 +115,7 @@ func (r *Rule) applyStern(v any) error {
 }
 
 func (r *Rule) applyExclude(v any) error {
-	list, ok := toStringSlice(v)
+	list, ok := settings.ToStringSlice(v)
 	if !ok {
 		return fmt.Errorf("line-length: exclude must be a list of strings, got %T", v)
 	}
@@ -314,26 +314,6 @@ func headingLineNum(h *ast.Heading, f *lint.File) int {
 		}
 	}
 	return 0
-}
-
-// toStringSlice converts a value to []string. YAML decodes sequences as
-// []any with string elements.
-func toStringSlice(v any) ([]string, bool) {
-	switch s := v.(type) {
-	case []string:
-		return s, true
-	case []any:
-		result := make([]string, 0, len(s))
-		for _, item := range s {
-			str, ok := item.(string)
-			if !ok {
-				return nil, false
-			}
-			result = append(result, str)
-		}
-		return result, true
-	}
-	return nil, false
 }
 
 func isValidExclude(s string) bool {

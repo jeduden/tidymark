@@ -1,6 +1,7 @@
 package settings_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/rules/settings"
@@ -21,6 +22,11 @@ func TestToInt(t *testing.T) {
 		{"float64-whole", 5.0, 5, true},
 		{"float64-truncates", 3.9, 3, true},
 		{"float64-negative-truncates", -2.7, -2, true},
+		{"float64-nan-rejected", math.NaN(), 0, false},
+		{"float64-posinf-rejected", math.Inf(1), 0, false},
+		{"float64-neginf-rejected", math.Inf(-1), 0, false},
+		{"float64-overflow-rejected", 1e20, 0, false},
+		{"float64-underflow-rejected", -1e20, 0, false},
 		{"string-rejected", "5", 0, false},
 		{"bool-rejected", true, 0, false},
 		{"nil-rejected", nil, 0, false},
@@ -46,6 +52,9 @@ func TestToFloat(t *testing.T) {
 		{"float64-zero", 0.0, 0.0, true},
 		{"int", 4, 4.0, true},
 		{"int64", int64(9), 9.0, true},
+		{"float64-nan-rejected", math.NaN(), 0, false},
+		{"float64-posinf-rejected", math.Inf(1), 0, false},
+		{"float64-neginf-rejected", math.Inf(-1), 0, false},
 		{"string-rejected", "1.5", 0, false},
 		{"bool-rejected", false, 0, false},
 		{"nil-rejected", nil, 0, false},
