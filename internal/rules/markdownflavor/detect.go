@@ -18,7 +18,14 @@ import (
 // any front-matter LineOffset later, so detectors and Rule.Check
 // must report body-relative positions only.
 //
-// Start and End bound the feature in f.Source and are used by Fix.
+// Start and End are best-effort byte anchors in f.Source. They cover
+// the feature span precisely only for features whose Fix needs an
+// exact range (currently heading IDs via Extra, and bare URLs).
+// Other findings use convenience anchors: block features widen Start
+// to the start of the containing line, and inline extension nodes
+// without a source segment emit a zero-length anchor (End == Start).
+// Any future Fix implementation that needs a precise span must
+// recompute it from f.Source rather than trusting End - Start.
 type Finding struct {
 	Feature Feature
 	Line    int

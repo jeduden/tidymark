@@ -153,15 +153,18 @@ func TestDetectPlainCommonMark(t *testing.T) {
 	assert.Empty(t, fs)
 }
 
-// TestDetectFilteredSkipsBareURLs asserts that DetectFiltered skips
-// the bare-URL regex scan when the caller marks FeatureBareURLAutolinks
-// as accepted — which is what Rule.Check does for flavor: gfm or
-// flavor: goldmark. Without the skip the scan would run on every file
-// even though its findings would be discarded.
+// TestDetectFilteredSkipsBareURLs exercises the skip path for the
+// bare-URL regex scan: when the caller rejects
+// FeatureBareURLAutolinks, detectBareURLs must not run even though
+// other features (here strikethrough) are still accepted. The scenario
+// is narrower than any specific flavor; Rule.Check under flavor: gfm or
+// goldmark passes a different predicate (!flavor.Supports) that would
+// also reject the strikethrough branch.
 func TestDetectFilteredSkipsBareURLs(t *testing.T) {
 	src := "See https://example.com for details.\n\n~~old~~\n"
-	// Accept every feature except bare-URL autolinks — mirrors
-	// Rule.Check under flavor: gfm or flavor: goldmark.
+	// Reject bare-URL autolinks; keep every other feature so the
+	// strikethrough assertion can verify the non-bare-URL path
+	// still runs.
 	accept := func(feat Feature) bool {
 		return feat != FeatureBareURLAutolinks
 	}
