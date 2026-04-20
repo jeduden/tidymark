@@ -203,30 +203,44 @@ math, abbreviations.
       definition lists, heading IDs, superscript,
       subscript, math blocks, math inline, and
       abbreviations
+      <!-- Partial: first seven flagged. Superscript,
+      subscript, math blocks, math inline, and
+      abbreviations remain pending (custom
+      extensions). -->
 - [ ] `flavor: gfm` accepts tables, task lists,
       strikethrough, and bare-URL autolinks; flags
       footnotes, definition lists, heading IDs,
       superscript, subscript, math blocks, math
       inline, and abbreviations
+      <!-- Partial: acceptance verified; flagging
+      verified for footnotes, definition lists, and
+      heading IDs. The five custom-extension features
+      remain pending. -->
 - [ ] `flavor: goldmark` accepts tables, task lists,
       strikethrough, bare-URL autolinks, and heading
       IDs; flags footnotes, definition lists,
       superscript, subscript, math blocks, math
       inline, and abbreviations
-- [ ] Error messages name the unsupported feature and
+      <!-- Partial: acceptance verified; flagging
+      verified for footnotes and definition lists.
+      The five custom-extension features remain
+      pending. -->
+- [x] Error messages name the unsupported feature and
       the configured flavor
 - [ ] `mdsmith fix` auto-fixes fixable features
-- [ ] Non-fixable features produce diagnostics only
-- [ ] Invalid flavor name produces a config error
-- [ ] Rule is disabled by default (opt-in)
-- [ ] With `flavor: commonmark`, MDS034 reports bare
+      <!-- Fix pipeline not implemented in this
+      slice. -->
+- [x] Non-fixable features produce diagnostics only
+- [x] Invalid flavor name produces a config error
+- [x] Rule is disabled by default (opt-in)
+- [x] With `flavor: commonmark`, MDS034 reports bare
       URLs as unsupported autolinks
-- [ ] With `flavor: gfm` or `flavor: goldmark`,
+- [x] With `flavor: gfm` or `flavor: goldmark`,
       MDS034 treats bare URLs as supported syntax and
       does not emit a flavor diagnostic for them
-- [ ] MDS034 does not emit a duplicate bare-URL
+- [x] MDS034 does not emit a duplicate bare-URL
       diagnostic when the configured flavor supports
       bare URLs, even if MDS012 still enforces its
       own bare-URL style rule
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
