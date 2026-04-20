@@ -42,7 +42,7 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return fmt.Errorf("markdown-flavor: flavor must be a string, got %T", v)
 			}
 			if s == "" {
-				r.Flavor = 0
+				r.Flavor = flavorInvalid
 				continue
 			}
 			fl, ok := ParseFlavor(s)
@@ -70,7 +70,7 @@ func (r *Rule) DefaultSettings() map[string]any {
 
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
-	if r.Flavor == 0 {
+	if r.Flavor == flavorInvalid {
 		return nil
 	}
 	// Only ask detectors about features this flavor rejects. Detectors
@@ -100,7 +100,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 // If the marker is the only line in the blockquote, the whole blockquote is
 // removed.
 func (r *Rule) Fix(f *lint.File) []byte {
-	if r.Flavor == 0 || r.Flavor.Supports(FeatureGitHubAlerts) {
+	if r.Flavor == flavorInvalid || r.Flavor.Supports(FeatureGitHubAlerts) {
 		return f.Source
 	}
 
