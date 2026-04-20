@@ -261,6 +261,85 @@ func TestCheck_ConfigDiagOnBadExcludeGlob(t *testing.T) {
 	assert.Equal(t, lint.Error, diags[0].Severity)
 }
 
+func TestCheck_RootFSWithRelativeFilePath(t *testing.T) {
+	// Mirrors a normal CLI run: RootDir is absolute (from config
+	// discovery) while f.Path is the relative path returned by
+	// ResolveFiles (e.g. "./docs/a.md"). resolveCorpus must use the
+	// RootFS walk rather than silently falling back to the file's
+	// own directory and missing duplicates elsewhere in the tree.
+	dir := t.TempDir()
+	docs := filepath.Join(dir, "docs")
+	guides := filepath.Join(dir, "guides")
+	require.NoError(t, os.MkdirAll(docs, 0o755))
+	require.NoError(t, os.MkdirAll(guides, 0o755))
+
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+	writeFile(t, filepath.Join(docs, "a.md"), "# A\n\n"+p+"\n")
+	writeFile(t, filepath.Join(guides, "b.md"), "# B\n\n"+p+"\n")
+
+	data, err := os.ReadFile(filepath.Join(docs, "a.md"))
+	require.NoError(t, err)
+	// Relative path, as ResolveFiles would return.
+	relPath := filepath.Join("docs", "a.md")
+	f, err := lint.NewFile(relPath, data)
+	require.NoError(t, err)
+	f.FS = os.DirFS(docs)
+	f.SetRootDir(dir)
+
+	diags := (&Rule{}).Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "guides/b.md",
+		"RootFS walk should have found the duplicate in a different directory")
+}
+
+func TestCheck_RootFSRejectsPathEscapingRoot(t *testing.T) {
+	// A file whose Path sits outside RootDir (via "../" traversal) must
+	// not scan the entire RootFS; resolveCorpus falls through to FS so
+	// the walk stays local.
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	outside := filepath.Join(dir, "outside")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+	require.NoError(t, os.MkdirAll(outside, 0o755))
+
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+	// File under a nested RootDir, but its recorded path escapes via
+	// "../outside/dup.md" — which filepath.Rel would also flag.
+	writeFile(t, filepath.Join(outside, "dup.md"), "# Dup\n\n"+p+"\n")
+	writeFile(t, filepath.Join(sub, "peer.md"), "# Peer\n\n"+p+"\n")
+
+	data, err := os.ReadFile(filepath.Join(outside, "dup.md"))
+	require.NoError(t, err)
+	// Relative escape path: "../outside/dup.md" against RootDir=sub.
+	f, err := lint.NewFile(filepath.Join("..", "outside", "dup.md"), data)
+	require.NoError(t, err)
+	f.FS = os.DirFS(outside)
+	f.SetRootDir(sub)
+
+	diags := (&Rule{}).Check(f)
+	// peer.md is under sub/ which is no longer in scope; FS (=outside)
+	// only holds dup.md itself. No duplicates reported.
+	assert.Empty(t, diags)
+}
+
+func TestCheck_BasenameExcludePatternMatchesAcrossDirs(t *testing.T) {
+	// Consistent with MDS027: a basename pattern ("draft.md") excludes
+	// the file regardless of which directory the walker finds it in.
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "nested")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+	writeFile(t, filepath.Join(dir, "a.md"), "# A\n\n"+p+"\n")
+	writeFile(t, filepath.Join(sub, "draft.md"), "# Draft\n\n"+p+"\n")
+
+	f := newLintFileWithRoot(t, filepath.Join(dir, "a.md"), dir)
+	r := &Rule{Exclude: []string{"draft.md"}}
+	diags := r.Check(f)
+	assert.Empty(t, diags,
+		"basename-only exclude pattern should hide nested/draft.md")
+}
+
 func TestCheck_FallsBackToFSWhenRootFSMissing(t *testing.T) {
 	dir := t.TempDir()
 	p := longParagraph("the quick brown fox jumps over the lazy dog")

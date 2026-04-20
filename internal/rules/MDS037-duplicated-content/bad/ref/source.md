@@ -1,7 +1,8 @@
 # Source Fixture
 
-This fixture deliberately repeats a distinctive paragraph that also
-appears in ref/source.md, so MDS037 must report a diagnostic pointing
-back at the other file. The wording must cross the default two-hundred
-character threshold and stay unique relative to other rule fixtures so
-nothing else matches by accident.
+A distinctive paragraph appears in this file and in a sibling
+fixture, so MDS037 must flag the match and point at the other
+location. The wording stays above the default two-hundred character
+threshold after normalization. It stays unique relative to the
+other rule fixtures so nothing matches by accident across the test
+suite.

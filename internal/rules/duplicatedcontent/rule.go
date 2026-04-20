@@ -206,17 +206,46 @@ func runeLen(s string) int {
 // file within it. RootFS (the project root) is preferred; otherwise the
 // file's own directory is used. The returned selfName is forward-slash,
 // fs.FS-style so it can be compared to fs.WalkDir's path argument.
+//
+// f.Path may be absolute (CLI runs with a discovered root) or relative
+// to the project root (ResolveFiles returns things like "./docs/a.md").
+// Absolute paths go through filepath.Rel; relative paths are cleaned
+// and slashed in place. Either way, a self-path that escapes RootDir
+// (starts with "..") falls through to the FS scope rather than
+// walking the whole project root behind the user's back.
 func resolveCorpus(f *lint.File) (fs.FS, string) {
 	if f.RootFS != nil && f.RootDir != "" {
-		rel, err := filepath.Rel(f.RootDir, f.Path)
-		if err == nil && !strings.HasPrefix(rel, "..") {
-			return f.RootFS, filepath.ToSlash(rel)
+		if selfName, ok := rootRelative(f.RootDir, f.Path); ok {
+			return f.RootFS, selfName
 		}
 	}
 	if f.FS != nil {
 		return f.FS, filepath.Base(f.Path)
 	}
 	return nil, ""
+}
+
+// rootRelative returns path expressed relative to rootDir using forward
+// slashes, or ok=false when path escapes rootDir. Already-relative paths
+// are assumed to be rooted at rootDir and only cleaned; absolute paths
+// go through filepath.Rel.
+func rootRelative(rootDir, path string) (string, bool) {
+	var rel string
+	if filepath.IsAbs(path) {
+		r, err := filepath.Rel(rootDir, path)
+		if err != nil {
+			return "", false
+		}
+		rel = r
+	} else {
+		rel = filepath.Clean(path)
+	}
+	slash := filepath.ToSlash(rel)
+	slash = strings.TrimPrefix(slash, "./")
+	if slash == ".." || strings.HasPrefix(slash, "../") {
+		return "", false
+	}
+	return slash, true
 }
 
 // buildCorpusIndex walks corpus for .md files (excluding selfName) and
@@ -282,9 +311,16 @@ func isMarkdownPath(p string) bool {
 	return strings.HasSuffix(strings.ToLower(p), ".md")
 }
 
+// matchesFilters reports whether path is allowed by include/exclude.
+// To stay consistent with MDS027 cross-file-reference-integrity,
+// patterns are matched against both the full forward-slash path and
+// the basename, so `"draft.md"` excludes a file regardless of which
+// directory it sits in.
 func matchesFilters(path string, include, exclude []glob.Glob) bool {
+	slashPath := filepath.ToSlash(path)
+	base := filepath.Base(path)
 	for _, g := range exclude {
-		if g.Match(path) {
+		if g.Match(slashPath) || g.Match(base) {
 			return false
 		}
 	}
@@ -292,7 +328,7 @@ func matchesFilters(path string, include, exclude []glob.Glob) bool {
 		return true
 	}
 	for _, g := range include {
-		if g.Match(path) {
+		if g.Match(slashPath) || g.Match(base) {
 			return true
 		}
 	}
