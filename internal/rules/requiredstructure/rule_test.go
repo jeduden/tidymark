@@ -138,6 +138,129 @@ func TestDefaultSettings(t *testing.T) {
 			"expected schema=\"\", got %v", ds["schema"],
 		)
 	}
+	if ds["archetype"] != "" {
+		t.Errorf(
+			"expected archetype=\"\", got %v", ds["archetype"],
+		)
+	}
+}
+
+func TestApplySettings_ValidArchetype(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{"archetype": "story-file"})
+	require.NoError(t, err)
+	assert.Equal(t, "story-file", r.Archetype)
+}
+
+func TestApplySettings_InvalidArchetypeType(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{"archetype": 42})
+	require.Error(t, err)
+}
+
+func TestApplySettings_SchemaAndArchetypeMutuallyExclusive(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"schema":    "foo.md",
+		"archetype": "story-file",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mutually exclusive")
+}
+
+func TestCheck_ArchetypeUnknown(t *testing.T) {
+	r := &Rule{Archetype: "not-a-real-archetype"}
+	f := newTestFile(t, "doc.md", "# Title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "unknown archetype")
+}
+
+func TestCheck_ArchetypeStoryFile_Good(t *testing.T) {
+	r := &Rule{Archetype: "story-file"}
+	src := `---
+as: developer
+i-want: to write stories
+so-that: I ship features
+---
+# Ship a feature
+
+## Background
+
+Some background.
+
+## Acceptance Criteria
+
+- [ ] Done
+`
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_ArchetypeStoryFile_MissingFrontMatter(t *testing.T) {
+	r := &Rule{Archetype: "story-file"}
+	src := `# Ship a feature
+
+## Background
+
+## Acceptance Criteria
+`
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "front matter does not satisfy schema CUE constraints")
+}
+
+func TestCheck_ArchetypePRD_Good(t *testing.T) {
+	r := &Rule{Archetype: "prd"}
+	src := `---
+title: New Thing
+status: draft
+---
+# New Thing
+
+## Problem
+
+## Goals
+
+## Non-Goals
+
+## Requirements
+`
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_ArchetypeAgentDefinition_Good(t *testing.T) {
+	r := &Rule{Archetype: "agent-definition"}
+	src := `---
+name: reviewer
+description: reviews pull requests
+---
+# Reviewer
+
+## Purpose
+
+## Inputs
+
+## Outputs
+`
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_ArchetypeClaudeMd_Good(t *testing.T) {
+	r := &Rule{Archetype: "claude-md"}
+	src := `# My Project
+
+## Project
+
+some description.
+`
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
 }
 
 // =====================================================================

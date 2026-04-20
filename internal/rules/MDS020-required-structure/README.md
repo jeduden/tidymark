@@ -21,14 +21,35 @@ schema.
 
 ## Settings
 
-| Setting  | Type   | Default | Description         |
-|----------|--------|---------|---------------------|
-| `schema` | string | `""`    | Path to schema file |
+| Setting     | Type   | Default | Description                         |
+|-------------|--------|---------|-------------------------------------|
+| `schema`    | string | `""`    | Path to schema file                 |
+| `archetype` | string | `""`    | Name of a built-in schema archetype |
 
-When `schema` is empty the rule skips structure and
-front matter validation, but still warns on misplaced
-`<?require?>` directives. Use overrides to apply
-schemas to specific file groups.
+When both `schema` and `archetype` are empty the rule
+skips structure and front matter validation, but still
+warns on misplaced `<?require?>` directives. Use
+overrides to apply schemas to specific file groups.
+
+`schema` and `archetype` are mutually exclusive; set
+only one.
+
+### Archetypes
+
+Built-in archetype schemas ship ready-to-use for
+common agentic Markdown patterns:
+
+| Name               | Use case                              |
+|--------------------|---------------------------------------|
+| `story-file`       | Agile user story                      |
+| `prd`              | Product Requirements Document         |
+| `agent-definition` | AI agent / persona definition         |
+| `claude-md`        | `CLAUDE.md` project instructions file |
+
+Built-in archetypes cannot reference on-disk
+`<?include?>` fragments. For schemas that compose
+across files, ship a local schema file and use
+`schema:` instead.
 
 Schema front matter may embed a CUE schema that
 validates document front matter:
@@ -104,6 +125,16 @@ overrides:
     rules:
       required-structure:
         schema: internal/rules/proto.md
+```
+
+Apply a built-in archetype to all story files:
+
+```yaml
+overrides:
+  - files: ["stories/**/*.md"]
+    rules:
+      required-structure:
+        archetype: story-file
 ```
 
 Disable:

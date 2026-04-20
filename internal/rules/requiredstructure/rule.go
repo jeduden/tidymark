@@ -12,6 +12,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/jeduden/mdsmith/internal/archetypes"
 	"github.com/jeduden/mdsmith/internal/fieldinterp"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
@@ -25,7 +26,8 @@ func init() {
 
 // Rule checks that a document's heading structure matches a schema.
 type Rule struct {
-	Schema string // path to schema file
+	Schema    string // path to schema file
+	Archetype string // name of a built-in archetype schema
 }
 
 // ID implements rule.Rule.
@@ -47,9 +49,19 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return fmt.Errorf("required-structure: schema must be a string, got %T", v)
 			}
 			r.Schema = s
+		case "archetype":
+			s, ok := v.(string)
+			if !ok {
+				return fmt.Errorf("required-structure: archetype must be a string, got %T", v)
+			}
+			r.Archetype = s
 		default:
 			return fmt.Errorf("required-structure: unknown setting %q", k)
 		}
+	}
+	if r.Schema != "" && r.Archetype != "" {
+		return fmt.Errorf(
+			"required-structure: schema and archetype are mutually exclusive")
 	}
 	return nil
 }
@@ -57,7 +69,8 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 // DefaultSettings implements rule.Configurable.
 func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
-		"schema": "",
+		"schema":    "",
+		"archetype": "",
 	}
 }
 
@@ -75,24 +88,27 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		}
 	}
 
-	if r.Schema == "" {
+	if r.Schema == "" && r.Archetype == "" {
 		return diags
 	}
 
-	schData, err := readSchemaFile(f, r.Schema)
+	schData, schPath, err := r.loadSchema(f)
 	if err != nil {
-		return append(diags, r.diag(f.Path, 1,
-			fmt.Sprintf("cannot read schema %q: %v", r.Schema, err)))
+		return append(diags, r.diag(f.Path, 1, err.Error()))
 	}
 
-	sch, err := parseSchema(schData, r.Schema, f.MaxInputBytes)
+	sch, err := parseSchema(schData, schPath, f.MaxInputBytes)
 	if err != nil {
+		source := r.Schema
+		if r.Archetype != "" {
+			source = "archetype:" + r.Archetype
+		}
 		return append(diags, r.diag(f.Path, 1,
-			fmt.Sprintf("invalid schema %q: %v", r.Schema, err)))
+			fmt.Sprintf("invalid schema %q: %v", source, err)))
 	}
 
-	// Skip the schema file itself.
-	if isSchemaFile(f.Path, r.Schema) {
+	// Skip the schema file itself when schemas come from disk.
+	if r.Schema != "" && isSchemaFile(f.Path, r.Schema) {
 		return diags
 	}
 
@@ -116,6 +132,24 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	diags = append(diags, checkSync(f, sch, docHeadings, docFMRaw)...)
 
 	return diags
+}
+
+// loadSchema returns the schema bytes and resolution path. When the rule
+// selects a built-in archetype, the returned path is empty because such
+// schemas cannot reference on-disk include fragments.
+func (r *Rule) loadSchema(f *lint.File) ([]byte, string, error) {
+	if r.Archetype != "" {
+		data, err := archetypes.Lookup(r.Archetype)
+		if err != nil {
+			return nil, "", err
+		}
+		return data, "", nil
+	}
+	data, err := readSchemaFile(f, r.Schema)
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot read schema %q: %v", r.Schema, err)
+	}
+	return data, r.Schema, nil
 }
 
 func (r *Rule) diag(file string, line int, msg string) lint.Diagnostic {

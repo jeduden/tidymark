@@ -70,6 +70,7 @@ rules:
       - "demo/**"
       - "internal/rules/**"
       - "internal/metrics/**"
+      - "internal/archetypes/**"
       - ".claude/**"
       - ".github/**"
   catalog: true
@@ -245,3 +246,4 @@ ignore:
   - "plan/proto.md"
   - "internal/rules/proto.md"
   - "docs/security/proto.md"
+  - "internal/archetypes/*.md"

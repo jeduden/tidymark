@@ -90,6 +90,26 @@ directive has no effect`.
 For full reference, see
 [MDS020 required-structure](../../../internal/rules/MDS020-required-structure/README.md).
 
+## Built-in archetypes
+
+Instead of authoring a schema, select one of the
+built-in archetype schemas for common agentic document
+types:
+
+```yaml
+overrides:
+  - files: ["stories/**/*.md"]
+    rules:
+      required-structure:
+        archetype: story-file
+```
+
+Available archetypes: `story-file`, `prd`,
+`agent-definition`, `claude-md`. Archetypes are
+mutually exclusive with `schema`. Built-in archetypes
+cannot reference on-disk `<?include?>` fragments; for
+composition, ship a local schema file instead.
+
 ## Allowing intentional empty sections
 
 Some sections are intentionally left empty (for
