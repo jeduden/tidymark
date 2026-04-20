@@ -175,6 +175,13 @@ func TestCheck_ArchetypeUnknown(t *testing.T) {
 	expectDiagMsg(t, diags, "unknown archetype")
 }
 
+func TestSchemaSource(t *testing.T) {
+	assert.Equal(t, "foo.md", (&Rule{Schema: "foo.md"}).schemaSource())
+	assert.Equal(t, "archetype:story-file",
+		(&Rule{Archetype: "story-file"}).schemaSource())
+	assert.Equal(t, "", (&Rule{}).schemaSource())
+}
+
 func TestCheck_ArchetypeStoryFile_Good(t *testing.T) {
 	r := &Rule{Archetype: "story-file"}
 	src := `---

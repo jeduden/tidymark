@@ -99,12 +99,8 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 	sch, err := parseSchema(schData, schPath, f.MaxInputBytes)
 	if err != nil {
-		source := r.Schema
-		if r.Archetype != "" {
-			source = "archetype:" + r.Archetype
-		}
 		return append(diags, r.diag(f.Path, 1,
-			fmt.Sprintf("invalid schema %q: %v", source, err)))
+			fmt.Sprintf("invalid schema %q: %v", r.schemaSource(), err)))
 	}
 
 	// Skip the schema file itself when schemas come from disk.
@@ -150,6 +146,15 @@ func (r *Rule) loadSchema(f *lint.File) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("cannot read schema %q: %v", r.Schema, err)
 	}
 	return data, r.Schema, nil
+}
+
+// schemaSource returns the user-facing identifier of the configured
+// schema, either the file path or "archetype:<name>".
+func (r *Rule) schemaSource() string {
+	if r.Archetype != "" {
+		return "archetype:" + r.Archetype
+	}
+	return r.Schema
 }
 
 func (r *Rule) diag(file string, line int, msg string) lint.Diagnostic {

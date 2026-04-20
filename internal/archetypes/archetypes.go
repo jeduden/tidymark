@@ -5,7 +5,6 @@ package archetypes
 import (
 	"embed"
 	"fmt"
-	"io/fs"
 	"sort"
 	"strings"
 )
@@ -32,20 +31,10 @@ func Lookup(name string) ([]byte, error) {
 
 // List returns the names of all built-in archetypes, sorted.
 func List() []string {
-	entries, err := fs.ReadDir(files, ".")
-	if err != nil {
-		return nil
-	}
-	var names []string
+	entries, _ := files.ReadDir(".")
+	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		n := e.Name()
-		if !strings.HasSuffix(n, ".md") {
-			continue
-		}
-		names = append(names, strings.TrimSuffix(n, ".md"))
+		names = append(names, strings.TrimSuffix(e.Name(), ".md"))
 	}
 	sort.Strings(names)
 	return names
