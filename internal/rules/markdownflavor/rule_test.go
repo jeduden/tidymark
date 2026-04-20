@@ -218,3 +218,66 @@ func TestRuleDefinitionListsDiagnostic(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, "definition lists are not supported by gfm", diags[0].Message)
 }
+
+func TestRuleCheckGFMAcceptsAlerts(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "gfm"}))
+	f := mkFile(t, "> [!NOTE]\n> Something.\n")
+	diags := r.Check(f)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "github alerts")
+	}
+}
+
+func TestRuleCheckCommonMarkRejectsAlerts(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "commonmark"}))
+	f := mkFile(t, "> [!NOTE]\n> Something.\n")
+	diags := r.Check(f)
+	found := false
+	for _, d := range diags {
+		if d.Message == "github alerts are not supported by commonmark" {
+			found = true
+		}
+	}
+	assert.True(t, found)
+}
+
+func TestRuleCheckGoldmarkRejectsAlerts(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "goldmark"}))
+	f := mkFile(t, "> [!NOTE]\n> Something.\n")
+	diags := r.Check(f)
+	found := false
+	for _, d := range diags {
+		if d.Message == "github alerts are not supported by goldmark" {
+			found = true
+		}
+	}
+	assert.True(t, found)
+}
+
+func TestRuleFixGitHubAlertsRemovesMarkerLine(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "commonmark"}))
+	f := mkFile(t, "> [!NOTE]\n> Something to remember.\n")
+	got := r.Fix(f)
+	assert.Equal(t, "> Something to remember.\n", string(got))
+}
+
+func TestRuleFixGitHubAlertsOnlyLine(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "commonmark"}))
+	f := mkFile(t, "> [!WARNING]\n")
+	got := r.Fix(f)
+	assert.Equal(t, "", string(got))
+}
+
+func TestRuleFixGitHubAlertsGFMNoChange(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "gfm"}))
+	src := "> [!NOTE]\n> Something.\n"
+	f := mkFile(t, src)
+	got := r.Fix(f)
+	assert.Equal(t, src, string(got))
+}
