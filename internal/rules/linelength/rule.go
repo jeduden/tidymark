@@ -8,6 +8,7 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/jeduden/mdsmith/internal/rules/settings"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -55,8 +56,8 @@ func (r *Rule) isExcluded(category string) bool {
 }
 
 // ApplySettings implements rule.Configurable.
-func (r *Rule) ApplySettings(settings map[string]any) error {
-	for k, v := range settings {
+func (r *Rule) ApplySettings(s map[string]any) error {
+	for k, v := range s {
 		if err := r.applySetting(k, v); err != nil {
 			return err
 		}
@@ -84,7 +85,7 @@ func (r *Rule) applySetting(k string, v any) error {
 }
 
 func (r *Rule) applyMax(v any) error {
-	n, ok := toInt(v)
+	n, ok := settings.ToInt(v)
 	if !ok {
 		return fmt.Errorf("line-length: max must be an integer, got %T", v)
 	}
@@ -93,7 +94,7 @@ func (r *Rule) applyMax(v any) error {
 }
 
 func (r *Rule) applyPositiveIntPtr(v any, name string, target **int) error {
-	n, ok := toInt(v)
+	n, ok := settings.ToInt(v)
 	if !ok {
 		return fmt.Errorf("line-length: %s must be an integer, got %T", name, v)
 	}
@@ -313,20 +314,6 @@ func headingLineNum(h *ast.Heading, f *lint.File) int {
 		}
 	}
 	return 0
-}
-
-// toInt converts a value to int. Supports int and float64 (YAML decodes
-// numbers as int or float64 depending on context).
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case float64:
-		return int(n), true
-	case int64:
-		return int(n), true
-	}
-	return 0, false
 }
 
 // toStringSlice converts a value to []string. YAML decodes sequences as
