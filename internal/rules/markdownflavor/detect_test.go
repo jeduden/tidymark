@@ -134,6 +134,43 @@ func TestDetectPlainCommonMark(t *testing.T) {
 	assert.Empty(t, fs)
 }
 
+// TestDetectFilteredSkipsBareURLs asserts that DetectFiltered skips
+// the bare-URL regex scan when the caller marks FeatureBareURLAutolinks
+// as accepted — which is what Rule.Check does for flavor: gfm or
+// flavor: goldmark. Without the skip the scan would run on every file
+// even though its findings would be discarded.
+func TestDetectFilteredSkipsBareURLs(t *testing.T) {
+	src := "See https://example.com for details.\n\n~~old~~\n"
+	// Accept every feature except bare-URL autolinks — mirrors
+	// Rule.Check under flavor: gfm or flavor: goldmark.
+	accept := func(feat Feature) bool {
+		return feat != FeatureBareURLAutolinks
+	}
+	fs := DetectFiltered(mkFile(t, src), accept)
+	for _, f := range fs {
+		assert.NotEqual(t, FeatureBareURLAutolinks, f.Feature,
+			"bare-URL findings must be suppressed when caller skips them")
+	}
+	assert.True(t, hasFeature(fs, FeatureStrikethrough),
+		"accepted features are still returned")
+}
+
+// TestDetectFilteredSkipsDualParseWhenAllSupported verifies that
+// DetectFiltered avoids the goldmark re-parse entirely when every
+// feature the dual pass could emit is accepted by the caller.
+func TestDetectFilteredSkipsDualParseWhenAllSupported(t *testing.T) {
+	src := "# Title {#id}\n\n| a |\n| - |\n| 1 |\n\n~~x~~ and [^1]\n\n[^1]: note\n"
+	// Accept every dual-parser feature; ask only for bare URLs.
+	accept := func(feat Feature) bool {
+		return feat == FeatureBareURLAutolinks
+	}
+	fs := DetectFiltered(mkFile(t, src), accept)
+	for _, f := range fs {
+		assert.Equal(t, FeatureBareURLAutolinks, f.Feature,
+			"dual-parser features must be suppressed when all are accepted")
+	}
+}
+
 // TestDetectFindingsAreSortedByStart guards the merge ordering
 // between detectFromDual and detectBareURLs: a bare URL in line 1
 // must sort before a footnote definition further down the file.

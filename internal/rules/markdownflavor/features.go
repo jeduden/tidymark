@@ -47,7 +47,8 @@ func ParseFlavor(s string) (Flavor, bool) {
 // across flavors.
 type Feature int
 
-// Feature constants. Keep in sync with AllFeatures and featureNames.
+// Feature constants. Keep in sync with AllFeatures, Feature.Name,
+// and Feature.Verb.
 const (
 	FeatureTables Feature = iota
 	FeatureTaskLists

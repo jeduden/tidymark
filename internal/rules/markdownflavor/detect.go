@@ -48,22 +48,62 @@ var bareURLPattern = regexp.MustCompile(
 		"`" + `]*)?`,
 )
 
-// Detect runs every enabled feature detector against f and returns
-// findings in document order. The dual-parser and bare-URL passes
-// each emit in document order on their own, but the two streams must
-// be merged: a bare URL on line 3 should sort before a footnote
-// definition on line 5 even though detectFromDual runs first.
+// Detect runs every feature detector against f and returns findings
+// in document order. Use DetectFiltered to skip detectors for
+// features the caller is not interested in.
 func Detect(f *lint.File) []Finding {
-	var out []Finding
-	dualDoc := Parser().Parser().Parse(text.NewReader(f.Source))
+	return DetectFiltered(f, nil)
+}
 
-	out = append(out, detectFromDual(f, dualDoc)...)
-	out = append(out, detectBareURLs(f)...)
+// DetectFiltered is Detect with an optional accept predicate. When
+// accept is non-nil, only features for which accept(feat) returns
+// true are detected; whole-file scans are skipped when none of their
+// features are accepted. Passing nil accepts every feature.
+//
+// The dual-parser and bare-URL passes each emit in document order
+// on their own, but the two streams must be merged: a bare URL on
+// line 3 should sort before a footnote definition on line 5 even
+// though detectFromDual runs first.
+func DetectFiltered(f *lint.File, accept func(Feature) bool) []Finding {
+	keep := func(feat Feature) bool {
+		return accept == nil || accept(feat)
+	}
+
+	var out []Finding
+
+	if anyDualFeatureAccepted(keep) {
+		dualDoc := Parser().Parser().Parse(text.NewReader(f.Source))
+		for _, fin := range detectFromDual(f, dualDoc) {
+			if keep(fin.Feature) {
+				out = append(out, fin)
+			}
+		}
+	}
+
+	if keep(FeatureBareURLAutolinks) {
+		out = append(out, detectBareURLs(f)...)
+	}
 
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].Start < out[j].Start
 	})
 	return out
+}
+
+// anyDualFeatureAccepted reports whether any feature detected by the
+// dual-parser pass is wanted. Lets DetectFiltered skip the goldmark
+// re-parse when every feature it would detect is already supported
+// by the target flavor.
+func anyDualFeatureAccepted(keep func(Feature) bool) bool {
+	for _, feat := range []Feature{
+		FeatureTables, FeatureTaskLists, FeatureStrikethrough,
+		FeatureFootnotes, FeatureDefinitionLists, FeatureHeadingIDs,
+	} {
+		if keep(feat) {
+			return true
+		}
+	}
+	return false
 }
 
 // detectFromDual walks the dual-parser tree for all extension-based

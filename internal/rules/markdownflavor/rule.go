@@ -69,11 +69,14 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if r.Flavor == 0 {
 		return nil
 	}
+	// Only ask detectors about features this flavor rejects. Detectors
+	// like the bare-URL regex scan then skip large files entirely when
+	// the flavor (gfm, goldmark) accepts them.
+	unsupported := func(feat Feature) bool {
+		return !r.Flavor.Supports(feat)
+	}
 	var diags []lint.Diagnostic
-	for _, found := range Detect(f) {
-		if r.Flavor.Supports(found.Feature) {
-			continue
-		}
+	for _, found := range DetectFiltered(f, unsupported) {
 		diags = append(diags, lint.Diagnostic{
 			File:     f.Path,
 			Line:     found.Line,
