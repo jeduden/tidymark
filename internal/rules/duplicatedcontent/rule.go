@@ -267,38 +267,12 @@ func buildCorpusIndex(
 			return nil
 		}
 		if d.IsDir() {
-			// Prune excluded subtrees so a walk that would otherwise
-			// recurse into `.git/`, `node_modules/`, or any user-
-			// configured `exclude` entry bails out at the directory
-			// boundary instead of scanning every file inside it.
-			if path != "." && shouldSkipDir(path, exclude) {
-				return fs.SkipDir
-			}
-			return nil
+			return walkDirDecision(path, exclude)
 		}
-		if !isMarkdownPath(path) {
-			return nil
-		}
-		if path == selfName {
-			return nil
-		}
-		if !matchesFilters(path, include, exclude) {
-			return nil
-		}
-		data, err := lint.ReadFSFileLimited(corpus, path, maxBytes)
-		if err != nil {
-			return nil
-		}
-		other, err := lint.NewFileFromSource(path, data, true)
-		if err != nil {
-			return nil
-		}
-		for _, p := range extractParagraphs(other, minChars) {
-			index[p.fingerprint] = append(index[p.fingerprint], externalMatch{
-				path: path,
-				line: p.line + other.LineOffset,
-			})
-		}
+		indexFileIfEligible(
+			index, corpus, path, selfName,
+			maxBytes, minChars, include, exclude,
+		)
 		return nil
 	})
 
@@ -313,6 +287,58 @@ func buildCorpusIndex(
 		index[fp] = matches
 	}
 	return index
+}
+
+// walkDirDecision returns the fs.WalkDirFunc verdict for a directory:
+// descend normally, or SkipDir for known-heavy subtrees (`.git`,
+// `node_modules`) and user-configured excludes.
+func walkDirDecision(path string, exclude []glob.Glob) error {
+	if path == "." {
+		return nil
+	}
+	switch filepath.Base(path) {
+	case ".git", "node_modules":
+		return fs.SkipDir
+	}
+	if shouldSkipDir(path, exclude) {
+		return fs.SkipDir
+	}
+	return nil
+}
+
+// indexFileIfEligible parses a sibling Markdown file and appends every
+// paragraph fingerprint it contains into index. Files that are not
+// Markdown, match the current file, fail include/exclude, are
+// unreadable, or unparseable are silently dropped — this rule is
+// advisory and must not fail a run because of a sibling.
+func indexFileIfEligible(
+	index map[string][]externalMatch,
+	corpus fs.FS,
+	path, selfName string,
+	maxBytes int64,
+	minChars int,
+	include, exclude []glob.Glob,
+) {
+	if !isMarkdownPath(path) || path == selfName {
+		return
+	}
+	if !matchesFilters(path, include, exclude) {
+		return
+	}
+	data, err := lint.ReadFSFileLimited(corpus, path, maxBytes)
+	if err != nil {
+		return
+	}
+	other, err := lint.NewFileFromSource(path, data, true)
+	if err != nil {
+		return
+	}
+	for _, p := range extractParagraphs(other, minChars) {
+		index[p.fingerprint] = append(index[p.fingerprint], externalMatch{
+			path: path,
+			line: p.line + other.LineOffset,
+		})
+	}
 }
 
 func isMarkdownPath(p string) bool {
@@ -367,10 +393,14 @@ func matchesFilters(path string, include, exclude []glob.Glob) bool {
 	return false
 }
 
+// compileMatchers compiles user-supplied glob patterns without a path
+// separator, matching the rest of the project (MDS027, config ignore
+// matching, etc.) so that a pattern like `*` behaves consistently
+// across rules.
 func compileMatchers(patterns []string) ([]glob.Glob, error) {
 	out := make([]glob.Glob, 0, len(patterns))
 	for _, pat := range patterns {
-		g, err := glob.Compile(pat, '/')
+		g, err := glob.Compile(pat)
 		if err != nil {
 			return nil, fmt.Errorf("invalid glob pattern %q: %w", pat, err)
 		}

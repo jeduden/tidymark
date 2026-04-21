@@ -337,6 +337,24 @@ func TestCheck_DetectsDuplicatesInDotMarkdownFiles(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "b.markdown")
 }
 
+func TestCheck_PrunesGitAndNodeModulesUnconditionally(t *testing.T) {
+	// .git and node_modules hold no relevant Markdown and blow up the
+	// walk; the rule must skip them without any exclude config.
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755))
+
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+	writeFile(t, filepath.Join(dir, "a.md"), "# A\n\n"+p+"\n")
+	writeFile(t, filepath.Join(dir, ".git", "HEAD.md"), "# Git\n\n"+p+"\n")
+	writeFile(t, filepath.Join(dir, "node_modules", "dup.md"), "# Mod\n\n"+p+"\n")
+
+	f := newLintFileWithRoot(t, filepath.Join(dir, "a.md"), dir)
+	diags := (&Rule{}).Check(f)
+	assert.Empty(t, diags,
+		"duplicates under .git/ and node_modules/ must be pruned by default")
+}
+
 func TestCheck_ExcludeDirectoryPattern_PrunesWalk(t *testing.T) {
 	// Exclude patterns that match a directory must prune the walk
 	// with fs.SkipDir so large trees like .git/ or vendor/ are not
