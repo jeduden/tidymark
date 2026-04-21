@@ -252,8 +252,11 @@ func TestValidateRoot(t *testing.T) {
 		root    string
 		wantErr bool
 	}{
+		{"", true},
+		{"   ", true},
 		{"archetypes", false},
 		{"./archetypes", false},
+		{".", false},
 		{"internal/archetypes", false},
 		{"/abs", true},
 		{"..", true},

@@ -414,6 +414,17 @@ func TestCheck_ArchetypeRootFileSuppressesRequireWarning(t *testing.T) {
 	}
 }
 
+func TestCheck_DotArchetypeRootFileSuppressesRequireWarning(t *testing.T) {
+	root := t.TempDir()
+	f := newFileInRoot(t, root, "story.md",
+		"<?require\nfilename: \"story-*.md\"\n?>\n# ?\n")
+	r := &Rule{ArchetypeRoots: []string{"."}}
+	diags := r.Check(f)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "<?require?>")
+	}
+}
+
 func TestCheck_ArchetypeEarlierRootShadowsLater(t *testing.T) {
 	root := t.TempDir()
 	writeArchetype(t, filepath.Join(root, "custom"), "story",

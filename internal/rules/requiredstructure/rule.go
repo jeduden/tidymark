@@ -252,10 +252,16 @@ func (r *Rule) isSchemaOrArchetypeFile(f *lint.File) bool {
 		}
 	}
 	for _, root := range roots {
-		cleanRoot := filepath.ToSlash(filepath.Clean(root)) + "/"
+		cleanRoot := filepath.ToSlash(filepath.Clean(root))
+		if cleanRoot == "." {
+			cleanRoot = ""
+		} else {
+			cleanRoot += "/"
+		}
 		for _, c := range candidates {
-			if strings.HasPrefix(c, cleanRoot) &&
-				strings.HasSuffix(c, ".md") {
+			if strings.HasSuffix(c, ".md") &&
+				(cleanRoot == "" ||
+					strings.HasPrefix(c, cleanRoot)) {
 				return true
 			}
 		}

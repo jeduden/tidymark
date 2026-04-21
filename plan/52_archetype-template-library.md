@@ -42,8 +42,10 @@ against those roots.
    config file).
 5. Add `mdsmith archetypes list` to print each
    discovered archetype as `<name>\t<path>`, one per
-   line, sorted by name. Exit non-zero if no roots
-   are configured.
+   line, sorted by name. When `archetypes.roots` is
+   omitted, search the default `./archetypes`
+   directory. Exit non-zero if no archetypes are
+   discovered.
 6. Add `mdsmith archetypes show <name>` to print the
    archetype source (including front matter) to
    stdout. Exit non-zero with a clear error when the

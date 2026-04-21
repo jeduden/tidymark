@@ -40,10 +40,14 @@ type Resolver struct {
 // configured. It is applied when Resolver.Roots is empty.
 const DefaultRoot = "archetypes"
 
-// ValidateRoot returns an error when root is an absolute path or a
+// ValidateRoot returns an error when root is empty, absolute, or a
 // parent-traversal path. Archetype roots are expected to be
 // relative to the project root so they cannot reach outside it.
 func ValidateRoot(root string) error {
+	if strings.TrimSpace(root) == "" {
+		return fmt.Errorf(
+			"archetype root %q must not be empty", root)
+	}
 	if filepath.IsAbs(root) {
 		return fmt.Errorf(
 			"archetype root %q must be a relative path", root)
