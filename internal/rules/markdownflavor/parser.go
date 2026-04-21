@@ -17,11 +17,13 @@ var (
 )
 
 // Parser returns the shared goldmark parser used for dual parsing.
-// It enables the built-in goldmark extensions for the seven
-// AST-detected core features (table, strikethrough, task list,
-// footnote, definition list) plus the heading-ID attribute parser,
+// It enables five built-in goldmark extensions (table, strikethrough,
+// task list, footnote, and definition list) plus the heading-ID
+// attribute parser — together covering six AST-detected features —
 // and the five custom MDS034 extensions that cover superscript,
-// subscript, math block, math inline, and abbreviations.
+// subscript, math block, inline math, and abbreviations. The seventh
+// feature that the rule tracks from the AST, bare-URL autolinks, is
+// detected on the main CommonMark parse (see detectBareURLs).
 //
 // To keep MDS034 aligned with the rest of mdsmith, the dual parser
 // also registers lint.PIBlockParserPrioritized so a
