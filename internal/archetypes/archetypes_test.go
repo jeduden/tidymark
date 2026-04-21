@@ -247,6 +247,38 @@ func TestEffectiveRoots_DefaultsAndRootDirJoin(t *testing.T) {
 	assert.Equal(t, []string{"/proj/a", "/proj/b"}, r4.EffectiveRoots())
 }
 
+func TestValidateRoot(t *testing.T) {
+	for _, tc := range []struct {
+		root    string
+		wantErr bool
+	}{
+		{"archetypes", false},
+		{"./archetypes", false},
+		{"internal/archetypes", false},
+		{"/abs", true},
+		{"..", true},
+		{"../foo", true},
+		{"./../foo", true},
+	} {
+		err := ValidateRoot(tc.root)
+		if tc.wantErr {
+			assert.Errorf(t, err, "root=%q", tc.root)
+		} else {
+			assert.NoErrorf(t, err, "root=%q", tc.root)
+		}
+	}
+}
+
+func TestValidateRoots_StopsAtFirstError(t *testing.T) {
+	err := ValidateRoots([]string{"ok", "../bad", "alsoOk"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "../bad")
+}
+
+func TestValidateRoots_EmptySliceOK(t *testing.T) {
+	assert.NoError(t, ValidateRoots(nil))
+}
+
 func TestResolver_LookupSkipsDirectoryMatch(t *testing.T) {
 	// A directory named "story.md" under the root must not be treated
 	// as the archetype file.

@@ -40,6 +40,34 @@ type Resolver struct {
 // configured. It is applied when Resolver.Roots is empty.
 const DefaultRoot = "archetypes"
 
+// ValidateRoot returns an error when root is an absolute path or a
+// parent-traversal path. Archetype roots are expected to be
+// relative to the project root so they cannot reach outside it.
+func ValidateRoot(root string) error {
+	if filepath.IsAbs(root) {
+		return fmt.Errorf(
+			"archetype root %q must be a relative path", root)
+	}
+	clean := filepath.ToSlash(filepath.Clean(root))
+	clean = strings.TrimPrefix(clean, "./")
+	if clean == ".." || strings.HasPrefix(clean, "../") {
+		return fmt.Errorf(
+			"archetype root %q escapes the project root", root)
+	}
+	return nil
+}
+
+// ValidateRoots applies ValidateRoot to every entry in roots. It
+// returns the first error encountered, or nil.
+func ValidateRoots(roots []string) error {
+	for _, r := range roots {
+		if err := ValidateRoot(r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // roots returns the effective roots list, substituting the default
 // when none are configured.
 func (r *Resolver) roots() []string {

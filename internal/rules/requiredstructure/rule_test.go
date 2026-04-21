@@ -291,28 +291,6 @@ func TestCheck_ArchetypeRootAbsolute(t *testing.T) {
 	expectDiagMsg(t, diags, "must be a relative path")
 }
 
-func TestValidateArchetypeRoot(t *testing.T) {
-	for _, tc := range []struct {
-		root    string
-		wantErr bool
-	}{
-		{"archetypes", false},
-		{"./archetypes", false},
-		{"internal/archetypes", false},
-		{"/abs", true},
-		{"..", true},
-		{"../foo", true},
-		{"./../foo", true},
-	} {
-		err := validateArchetypeRoot(tc.root)
-		if tc.wantErr {
-			assert.Errorf(t, err, "root=%q", tc.root)
-		} else {
-			assert.NoErrorf(t, err, "root=%q", tc.root)
-		}
-	}
-}
-
 func TestCheck_ArchetypeResolvesWithoutRootFS(t *testing.T) {
 	root := t.TempDir()
 	writeArchetype(t, filepath.Join(root, "archetypes"), "story",

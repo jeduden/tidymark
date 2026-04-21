@@ -256,6 +256,28 @@ func TestArchetypes_ShowFailsOnBadConfig(t *testing.T) {
 	assert.Contains(t, stderr, "mdsmith:")
 }
 
+func TestArchetypes_ListRejectsEscapingRoot(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	cfg := "archetypes:\n  roots:\n    - ../outside\nrules: {}\n"
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, ".mdsmith.yml"), []byte(cfg), 0o644))
+	_, stderr, code := runBinaryInDir(t, dir, "", "archetypes", "list")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "escapes the project root")
+}
+
+func TestArchetypes_ListRejectsAbsoluteRoot(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	cfg := "archetypes:\n  roots:\n    - /etc\nrules: {}\n"
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, ".mdsmith.yml"), []byte(cfg), 0o644))
+	_, stderr, code := runBinaryInDir(t, dir, "", "archetypes", "list")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "must be a relative path")
+}
+
 func TestArchetypes_PathFailsOnBadConfig(t *testing.T) {
 	dir := badConfigDir(t)
 	_, stderr, code := runBinaryInDir(t, dir, "", "archetypes", "path", "x")

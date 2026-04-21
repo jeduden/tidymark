@@ -57,8 +57,12 @@ func runArchetypes(args []string) int {
 	}
 }
 
-// archetypesResolver builds a resolver rooted at the current working
-// directory using configured roots (or the default).
+// archetypesResolver builds a resolver constrained to the project
+// root. When cfg carries archetypes.roots it validates that each
+// entry is relative and does not escape the project root; when a
+// rootDir is known it sets FS = os.DirFS(rootDir) so reads cannot
+// reach outside it, matching required-structure's RootFS-backed
+// schema resolution.
 func archetypesResolver(configPath string) (*archetypes.Resolver, *config.Config, string, error) {
 	cfg, cfgPath, err := loadConfig(configPath)
 	if err != nil {
@@ -66,10 +70,17 @@ func archetypesResolver(configPath string) (*archetypes.Resolver, *config.Config
 	}
 	rootDir := rootDirFromConfig(cfgPath)
 	roots := cfg.Archetypes.Roots
-	return &archetypes.Resolver{
+	if err := archetypes.ValidateRoots(roots); err != nil {
+		return nil, nil, "", err
+	}
+	resolver := &archetypes.Resolver{
 		Roots:   roots,
 		RootDir: rootDir,
-	}, cfg, rootDir, nil
+	}
+	if rootDir != "" {
+		resolver.FS = os.DirFS(rootDir)
+	}
+	return resolver, cfg, rootDir, nil
 }
 
 const archetypesInitExample = `---

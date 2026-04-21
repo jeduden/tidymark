@@ -199,10 +199,8 @@ func (r *Rule) loadSchema(f *lint.File) ([]byte, string, error) {
 // schemas.
 func (r *Rule) loadArchetype(f *lint.File) ([]byte, string, error) {
 	if f.RootFS != nil {
-		for _, root := range r.archetypeRoots() {
-			if err := validateArchetypeRoot(root); err != nil {
-				return nil, "", err
-			}
+		if err := archetypes.ValidateRoots(r.archetypeRoots()); err != nil {
+			return nil, "", err
 		}
 	}
 	resolver := r.archetypeResolver(f)
@@ -282,26 +280,6 @@ func (r *Rule) archetypeResolver(f *lint.File) *archetypes.Resolver {
 		RootDir: f.RootDir,
 		FS:      f.RootFS,
 	}
-}
-
-// validateArchetypeRoot rejects roots that escape the project root.
-// Only applied when RootFS is set, because in that mode archetype
-// resolution goes through os.DirFS(RootDir) which already rejects
-// such paths; surfacing a clear error here keeps the diagnostic
-// aligned with how `readSchemaFile` validates disk-based schema
-// paths.
-func validateArchetypeRoot(root string) error {
-	if filepath.IsAbs(root) {
-		return fmt.Errorf(
-			"archetype root %q must be a relative path", root)
-	}
-	clean := filepath.ToSlash(filepath.Clean(root))
-	clean = strings.TrimPrefix(clean, "./")
-	if clean == ".." || strings.HasPrefix(clean, "../") {
-		return fmt.Errorf(
-			"archetype root %q escapes the project root", root)
-	}
-	return nil
 }
 
 // schemaSource returns the user-facing identifier of the configured
