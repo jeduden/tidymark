@@ -183,6 +183,70 @@ func TestDefaultRoot(t *testing.T) {
 	require.Len(t, entries, 1)
 }
 
+func TestResolver_ListFiltersReservedNames(t *testing.T) {
+	r := &Resolver{FS: fsWith(map[string]string{
+		"archetypes/README.md":       "docs",
+		"archetypes/License.md":      "text",
+		"archetypes/CONTRIBUTING.md": "text",
+		"archetypes/_scratch.md":     "x",
+		"archetypes/.hidden.md":      "x",
+		"archetypes/story.md":        "# ?",
+		"archetypes/prd.md":          "# ?",
+	})}
+	entries := r.List()
+	require.Len(t, entries, 2)
+	assert.Equal(t, "prd", entries[0].Name)
+	assert.Equal(t, "story", entries[1].Name)
+}
+
+func TestResolver_LookupRejectsReservedNames(t *testing.T) {
+	r := &Resolver{FS: fsWith(map[string]string{
+		"archetypes/README.md": "docs",
+		"archetypes/story.md":  "# ?",
+	})}
+	for _, name := range []string{"README", "readme", "_draft", ".hidden"} {
+		_, err := r.Lookup(name)
+		require.Errorf(t, err, "expected error for %q", name)
+		assert.Contains(t, err.Error(), "unknown archetype")
+	}
+}
+
+func TestIsArchetypeName(t *testing.T) {
+	cases := map[string]bool{
+		"story":        true,
+		"prd":          true,
+		"agent-def":    true,
+		"Story":        true,
+		"":             false,
+		"_draft":       false,
+		".hidden":      false,
+		"README":       false,
+		"readme":       false,
+		"ReadMe":       false,
+		"License":      false,
+		"CONTRIBUTING": false,
+		"codeowners":   false,
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, isArchetypeName(in),
+			"isArchetypeName(%q)", in)
+	}
+}
+
+func TestEffectiveRoots_DefaultsAndRootDirJoin(t *testing.T) {
+	r := &Resolver{}
+	assert.Equal(t, []string{"archetypes"}, r.EffectiveRoots())
+
+	r2 := &Resolver{Roots: []string{"a", "b"}}
+	assert.Equal(t, []string{"a", "b"}, r2.EffectiveRoots())
+
+	r3 := &Resolver{RootDir: "/proj"}
+	assert.Equal(t, []string{"/proj/archetypes"}, r3.EffectiveRoots())
+
+	r4 := &Resolver{RootDir: "/proj", Roots: []string{"a", "b"}}
+	assert.Equal(t, []string{"/proj/a", "/proj/b"}, r4.EffectiveRoots())
+}
+
 func TestResolver_LookupSkipsDirectoryMatch(t *testing.T) {
 	// A directory named "story.md" under the root must not be treated
 	// as the archetype file.

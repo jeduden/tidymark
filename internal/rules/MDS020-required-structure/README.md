@@ -62,6 +62,17 @@ archetype schemas self-contained. Otherwise, run
 `mdsmith` from the project root so includes resolve
 correctly.
 
+### Reserved filenames
+
+Discovery skips repository metadata files so they
+stay in the archetype directory without leaking into
+the archetype namespace:
+
+- `README.md`, `LICENSE.md`, `CONTRIBUTING.md`,
+  `CODEOWNERS.md` (case-insensitive)
+- Any filename beginning with `_` (scratch) or `.`
+  (hidden)
+
 Schema front matter may embed a CUE schema that
 validates document front matter:
 

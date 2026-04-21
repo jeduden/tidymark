@@ -65,27 +65,51 @@ func (r *Resolver) EffectiveRoots() []string {
 	return out
 }
 
-func (r *Resolver) fs() fs.FS {
+// readDir lists a root directory. When r.FS is explicitly set it is
+// used directly. Otherwise Resolver falls back to raw os-level
+// operations joined with r.RootDir, which permits ".." segments that
+// os.DirFS rejects. This matches how schema files are resolved in
+// the required-structure rule.
+func (r *Resolver) readDir(root string) ([]fs.DirEntry, error) {
 	if r.FS != nil {
-		return r.FS
+		return fs.ReadDir(r.FS, root)
 	}
-	dir := r.RootDir
-	if dir == "" {
-		dir = "."
+	return os.ReadDir(r.osJoin(root))
+}
+
+func (r *Resolver) stat(path string) (fs.FileInfo, error) {
+	if r.FS != nil {
+		return fs.Stat(r.FS, path)
 	}
-	return os.DirFS(dir)
+	return os.Stat(r.osJoin(path))
+}
+
+func (r *Resolver) readFile(path string) ([]byte, error) {
+	if r.FS != nil {
+		return fs.ReadFile(r.FS, path)
+	}
+	return os.ReadFile(r.osJoin(path))
+}
+
+func (r *Resolver) osJoin(p string) string {
+	if r.RootDir == "" {
+		return p
+	}
+	return filepath.Join(r.RootDir, p)
 }
 
 // List returns every discovered archetype, sorted by name. When two
 // roots contain an archetype with the same name, only the entry from
-// the earlier root is returned.
+// the earlier root is returned. Files whose names do not qualify as
+// archetype names (see isArchetypeName) are skipped — this keeps
+// README.md, dotfiles, and underscore-prefixed scratch files out of
+// the archetype namespace.
 func (r *Resolver) List() []Entry {
 	seen := map[string]bool{}
 	var out []Entry
-	fsys := r.fs()
 	for _, root := range r.roots() {
 		cleanRoot := filepath.ToSlash(filepath.Clean(root))
-		entries, err := fs.ReadDir(fsys, cleanRoot)
+		entries, err := r.readDir(cleanRoot)
 		if err != nil {
 			continue
 		}
@@ -98,6 +122,9 @@ func (r *Resolver) List() []Entry {
 				continue
 			}
 			base := strings.TrimSuffix(name, ".md")
+			if !isArchetypeName(base) {
+				continue
+			}
 			if seen[base] {
 				continue
 			}
@@ -113,17 +140,42 @@ func (r *Resolver) List() []Entry {
 	return out
 }
 
+// isArchetypeName reports whether basename (without the ".md"
+// extension) is a valid user-facing archetype name. Names starting
+// with "_" or "." are reserved for scratch and hidden files. The
+// case-insensitive names "readme", "license", and "contributing" are
+// reserved for repository metadata so that files conventionally
+// written into project directories do not accidentally surface as
+// archetypes.
+func isArchetypeName(base string) bool {
+	if base == "" {
+		return false
+	}
+	if strings.HasPrefix(base, "_") || strings.HasPrefix(base, ".") {
+		return false
+	}
+	switch strings.ToLower(base) {
+	case "readme", "license", "contributing", "codeowners":
+		return false
+	}
+	return true
+}
+
 // Lookup returns the archetype with the given name. Missing names
-// produce an error whose message names the searched roots.
+// produce an error whose message names the searched roots. Reserved
+// names (see isArchetypeName) produce an "unknown archetype" error
+// even if the file exists on disk.
 func (r *Resolver) Lookup(name string) (Entry, error) {
 	if name == "" {
 		return Entry{}, fmt.Errorf("archetype name must not be empty")
 	}
-	fsys := r.fs()
+	if !isArchetypeName(name) {
+		return Entry{}, notFoundError(name, r.EffectiveRoots(), r.List())
+	}
 	for _, root := range r.roots() {
 		cleanRoot := filepath.ToSlash(filepath.Clean(root))
 		candidate := filepath.ToSlash(filepath.Join(cleanRoot, name+".md"))
-		info, err := fs.Stat(fsys, candidate)
+		info, err := r.stat(candidate)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
@@ -136,7 +188,7 @@ func (r *Resolver) Lookup(name string) (Entry, error) {
 		}
 		return Entry{Name: name, Path: candidate, Root: cleanRoot}, nil
 	}
-	return Entry{}, notFoundError(name, r.roots(), r.List())
+	return Entry{}, notFoundError(name, r.EffectiveRoots(), r.List())
 }
 
 // Content returns the raw bytes of the named archetype schema.
@@ -145,7 +197,7 @@ func (r *Resolver) Content(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fs.ReadFile(r.fs(), entry.Path)
+	return r.readFile(entry.Path)
 }
 
 // AbsPath returns the filesystem path of the named archetype,

@@ -99,6 +99,16 @@ rules:
 
 Use ` + "`mdsmith archetypes list`" + ` to see what is available and
 ` + "`mdsmith archetypes show <name>`" + ` to print one.
+
+## Reserved filenames
+
+These files are **not** treated as archetypes by discovery, so
+they are safe to keep in this directory as metadata:
+
+- ` + "`README.md`" + `, ` + "`LICENSE.md`" + `,
+  ` + "`CONTRIBUTING.md`" + `, ` + "`CODEOWNERS.md`" + `
+  (case-insensitive)
+- Any filename beginning with ` + "`_`" + ` or ` + "`.`" + `
 `
 
 // runArchetypesInit scaffolds an archetype directory with an example

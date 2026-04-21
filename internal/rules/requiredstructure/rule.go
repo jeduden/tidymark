@@ -203,7 +203,17 @@ func (r *Rule) loadArchetype(f *lint.File) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	data, err := lint.ReadFSFileLimited(resolver.FS, entry.Path, f.MaxInputBytes)
+	var data []byte
+	if resolver.FS != nil {
+		data, err = lint.ReadFSFileLimited(
+			resolver.FS, entry.Path, f.MaxInputBytes)
+	} else {
+		path := entry.Path
+		if resolver.RootDir != "" {
+			path = filepath.Join(resolver.RootDir, entry.Path)
+		}
+		data, err = lint.ReadFileLimited(path, f.MaxInputBytes)
+	}
 	if err != nil {
 		return nil, "", fmt.Errorf(
 			"reading archetype %q: %w", r.Archetype, err)
