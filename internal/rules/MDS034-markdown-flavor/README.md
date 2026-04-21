@@ -22,14 +22,37 @@ flavor does not render.
 
 ## Settings
 
-| Key    | Type   | Description                                       |
-|--------|--------|---------------------------------------------------|
-| flavor | string | Target flavor: `commonmark`, `gfm`, or `goldmark` |
+| Key    | Type   | Description                     |
+|--------|--------|---------------------------------|
+| flavor | string | Target flavor; see table below. |
 
-The flavor name is case-sensitive. The `goldmark`
-profile is mdsmith-defined. It accepts GFM features
-plus heading IDs. It does not accept optional
-footnote, definition-list, or math extensions.
+The flavor name is case-sensitive. Supported
+values:
+
+- `commonmark` — strict CommonMark; rejects every
+  tracked feature.
+- `gfm` — GitHub Flavored Markdown; adds tables,
+  task lists, strikethrough, and bare-URL
+  autolinks.
+- `goldmark` — mdsmith-defined profile; GFM plus
+  heading IDs.
+- `pandoc` — Pandoc's default markdown; GFM plus
+  footnotes, definition lists, heading IDs,
+  superscript, subscript, math block, and inline
+  math. Rejects abbreviations (non-default
+  extension).
+- `phpextra` — PHP Markdown Extra; tables,
+  footnotes, definition lists, heading IDs, and
+  abbreviations. Rejects GFM features and math.
+- `multimarkdown` — MultiMarkdown; PHP Extra plus
+  math block and inline math.
+- `myst` — MyST (Sphinx documentation flavor);
+  tables, strikethrough, footnotes, definition
+  lists, heading IDs, math block, and inline math.
+- `any` — accepts every tracked feature. Use when
+  the target renderer is unknown or permissive and
+  you want to silence flavor diagnostics without
+  disabling the rule.
 
 ## Config
 
@@ -66,20 +89,23 @@ detector scans text nodes from the main parse for
 URL-shaped text. It skips links, autolinks, code
 spans, and code blocks.
 
-| Feature            | commonmark | gfm | goldmark |
-|--------------------|------------|-----|----------|
-| tables             | no         | yes | yes      |
-| task lists         | no         | yes | yes      |
-| strikethrough      | no         | yes | yes      |
-| bare-URL autolinks | no         | yes | yes      |
-| footnotes          | no         | no  | no       |
-| definition lists   | no         | no  | no       |
-| heading IDs        | no         | no  | yes      |
-| superscript        | no         | no  | no       |
-| subscript          | no         | no  | no       |
-| math blocks        | no         | no  | no       |
-| inline math        | no         | no  | no       |
-| abbreviations      | no         | no  | no       |
+`flavor: any` accepts every feature and is omitted
+from the table below.
+
+| Feature            | commonmark | gfm | goldmark | pandoc | phpextra | multimarkdown | myst |
+|--------------------|------------|-----|----------|--------|----------|---------------|------|
+| tables             | no         | yes | yes      | yes    | yes      | yes           | yes  |
+| task lists         | no         | yes | yes      | yes    | no       | no            | no   |
+| strikethrough      | no         | yes | yes      | yes    | no       | no            | yes  |
+| bare-URL autolinks | no         | yes | yes      | yes    | no       | no            | no   |
+| footnotes          | no         | no  | no       | yes    | yes      | yes           | yes  |
+| definition lists   | no         | no  | no       | yes    | yes      | yes           | yes  |
+| heading IDs        | no         | no  | yes      | yes    | yes      | yes           | yes  |
+| superscript        | no         | no  | no       | yes    | no       | no            | no   |
+| subscript          | no         | no  | no       | yes    | no       | no            | no   |
+| math blocks        | no         | no  | no       | yes    | no       | yes           | yes  |
+| inline math        | no         | no  | no       | yes    | no       | yes           | yes  |
+| abbreviations      | no         | no  | no       | no     | yes      | yes           | no   |
 
 ## Examples
 

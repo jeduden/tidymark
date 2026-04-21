@@ -16,6 +16,11 @@ func TestParseFlavor(t *testing.T) {
 		{"commonmark", FlavorCommonMark, true},
 		{"gfm", FlavorGFM, true},
 		{"goldmark", FlavorGoldmark, true},
+		{"any", FlavorAny, true},
+		{"pandoc", FlavorPandoc, true},
+		{"phpextra", FlavorPHPExtra, true},
+		{"multimarkdown", FlavorMultiMarkdown, true},
+		{"myst", FlavorMyST, true},
 		{"GFM", 0, false},
 		{"", 0, false},
 		{"markdown", 0, false},
@@ -35,39 +40,75 @@ func TestFlavorString(t *testing.T) {
 	assert.Equal(t, "commonmark", FlavorCommonMark.String())
 	assert.Equal(t, "gfm", FlavorGFM.String())
 	assert.Equal(t, "goldmark", FlavorGoldmark.String())
+	assert.Equal(t, "any", FlavorAny.String())
+	assert.Equal(t, "pandoc", FlavorPandoc.String())
+	assert.Equal(t, "phpextra", FlavorPHPExtra.String())
+	assert.Equal(t, "multimarkdown", FlavorMultiMarkdown.String())
+	assert.Equal(t, "myst", FlavorMyST.String())
 }
 
-func TestFeatureSupport(t *testing.T) {
-	// CommonMark rejects every feature MDS034 tracks.
-	for _, f := range AllFeatures() {
-		assert.False(t, FlavorCommonMark.Supports(f),
-			"CommonMark must reject %s", f.Name())
+// assertSupports checks every feature in the supported set is
+// accepted by flavor and every feature not in that set is rejected.
+func assertSupports(t *testing.T, f Flavor, supported ...Feature) {
+	t.Helper()
+	want := map[Feature]bool{}
+	for _, feat := range supported {
+		want[feat] = true
 	}
+	for _, feat := range AllFeatures() {
+		got := f.Supports(feat)
+		assert.Equal(t, want[feat], got,
+			"flavor %s feature %s: want=%v got=%v",
+			f.String(), feat.Name(), want[feat], got)
+	}
+}
 
-	// GFM supports tables, task lists, strikethrough, bare-URL autolinks.
-	assert.True(t, FlavorGFM.Supports(FeatureTables))
-	assert.True(t, FlavorGFM.Supports(FeatureTaskLists))
-	assert.True(t, FlavorGFM.Supports(FeatureStrikethrough))
-	assert.True(t, FlavorGFM.Supports(FeatureBareURLAutolinks))
+func TestFeatureSupportCommonMark(t *testing.T) {
+	assertSupports(t, FlavorCommonMark)
+}
 
-	// GFM rejects footnotes, definition lists, heading IDs, math, sub/sup, abbr.
-	assert.False(t, FlavorGFM.Supports(FeatureFootnotes))
-	assert.False(t, FlavorGFM.Supports(FeatureDefinitionLists))
-	assert.False(t, FlavorGFM.Supports(FeatureHeadingIDs))
-	assert.False(t, FlavorGFM.Supports(FeatureSuperscript))
-	assert.False(t, FlavorGFM.Supports(FeatureSubscript))
-	assert.False(t, FlavorGFM.Supports(FeatureMathBlock))
-	assert.False(t, FlavorGFM.Supports(FeatureMathInline))
-	assert.False(t, FlavorGFM.Supports(FeatureAbbreviations))
+func TestFeatureSupportGFM(t *testing.T) {
+	assertSupports(t, FlavorGFM,
+		FeatureTables, FeatureTaskLists, FeatureStrikethrough,
+		FeatureBareURLAutolinks)
+}
 
-	// goldmark profile: GFM features + heading IDs.
-	assert.True(t, FlavorGoldmark.Supports(FeatureTables))
-	assert.True(t, FlavorGoldmark.Supports(FeatureTaskLists))
-	assert.True(t, FlavorGoldmark.Supports(FeatureStrikethrough))
-	assert.True(t, FlavorGoldmark.Supports(FeatureBareURLAutolinks))
-	assert.True(t, FlavorGoldmark.Supports(FeatureHeadingIDs))
-	assert.False(t, FlavorGoldmark.Supports(FeatureFootnotes))
-	assert.False(t, FlavorGoldmark.Supports(FeatureDefinitionLists))
+func TestFeatureSupportGoldmark(t *testing.T) {
+	assertSupports(t, FlavorGoldmark,
+		FeatureTables, FeatureTaskLists, FeatureStrikethrough,
+		FeatureBareURLAutolinks, FeatureHeadingIDs)
+}
+
+func TestFeatureSupportAny(t *testing.T) {
+	assertSupports(t, FlavorAny, AllFeatures()...)
+}
+
+func TestFeatureSupportPandoc(t *testing.T) {
+	assertSupports(t, FlavorPandoc,
+		FeatureTables, FeatureTaskLists, FeatureStrikethrough,
+		FeatureBareURLAutolinks, FeatureFootnotes, FeatureDefinitionLists,
+		FeatureHeadingIDs, FeatureSuperscript, FeatureSubscript,
+		FeatureMathBlock, FeatureMathInline)
+}
+
+func TestFeatureSupportPHPExtra(t *testing.T) {
+	assertSupports(t, FlavorPHPExtra,
+		FeatureTables, FeatureFootnotes, FeatureDefinitionLists,
+		FeatureHeadingIDs, FeatureAbbreviations)
+}
+
+func TestFeatureSupportMultiMarkdown(t *testing.T) {
+	assertSupports(t, FlavorMultiMarkdown,
+		FeatureTables, FeatureFootnotes, FeatureDefinitionLists,
+		FeatureHeadingIDs, FeatureAbbreviations,
+		FeatureMathBlock, FeatureMathInline)
+}
+
+func TestFeatureSupportMyST(t *testing.T) {
+	assertSupports(t, FlavorMyST,
+		FeatureTables, FeatureStrikethrough, FeatureFootnotes,
+		FeatureDefinitionLists, FeatureHeadingIDs,
+		FeatureMathBlock, FeatureMathInline)
 }
 
 func TestAllFeaturesComplete(t *testing.T) {

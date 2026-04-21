@@ -45,7 +45,8 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 			fl, ok := ParseFlavor(s)
 			if !ok {
 				return fmt.Errorf(
-					"markdown-flavor: unknown flavor %q (expected commonmark, gfm, or goldmark)",
+					"markdown-flavor: unknown flavor %q (expected one of: "+
+						"any, commonmark, gfm, goldmark, multimarkdown, myst, pandoc, phpextra)",
 					s,
 				)
 			}

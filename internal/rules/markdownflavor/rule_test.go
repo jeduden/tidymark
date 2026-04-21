@@ -37,7 +37,11 @@ func TestRuleDefaultSettings(t *testing.T) {
 }
 
 func TestRuleApplySettingsValid(t *testing.T) {
-	for _, name := range []string{"commonmark", "gfm", "goldmark"} {
+	valid := []string{
+		"commonmark", "gfm", "goldmark",
+		"any", "pandoc", "phpextra", "multimarkdown", "myst",
+	}
+	for _, name := range valid {
 		t.Run(name, func(t *testing.T) {
 			r := &Rule{}
 			err := r.ApplySettings(map[string]any{"flavor": name})
@@ -45,6 +49,48 @@ func TestRuleApplySettingsValid(t *testing.T) {
 			assert.Equal(t, name, r.Flavor.String())
 		})
 	}
+}
+
+// TestRuleFlavorAnySilencesAllDiagnostics verifies that `flavor: any`
+// never emits a diagnostic, regardless of what features the document
+// uses. That matches the explicit "disable flavor reporting" contract
+// promised in the doc.
+func TestRuleFlavorAnySilencesAllDiagnostics(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "any"}))
+
+	src := "# Head {#top}\n\n- [ ] task\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n" +
+		"~~old~~ https://example.com\n\nE = mc^2^ and H~2~O.\n\n" +
+		"$x+1$ inline and\n\n$$\nx\n$$\n\n" +
+		"*[API]: Application Programming Interface\n\nUse API here.\n"
+	diags := r.Check(mkFile(t, src))
+	assert.Empty(t, diags,
+		"flavor: any must not flag any tracked feature")
+}
+
+// TestRuleFlavorPHPExtra exercises the PHP Markdown Extra support
+// set: footnotes and abbreviations are accepted, GFM features and
+// math are not.
+func TestRuleFlavorPHPExtra(t *testing.T) {
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "phpextra"}))
+
+	src := "*[API]: Application Programming Interface\n\n" +
+		"Use API here.[^1]\n\n[^1]: note\n\n~~strike~~ and $x+1$.\n"
+	diags := r.Check(mkFile(t, src))
+
+	byMsg := map[string]bool{}
+	for _, d := range diags {
+		byMsg[d.Message] = true
+	}
+	assert.False(t, byMsg["footnotes are not supported by phpextra"],
+		"phpextra accepts footnotes")
+	assert.False(t, byMsg["abbreviations are not supported by phpextra"],
+		"phpextra accepts abbreviations")
+	assert.True(t, byMsg["strikethrough is not supported by phpextra"],
+		"phpextra rejects strikethrough")
+	assert.True(t, byMsg["inline math is not supported by phpextra"],
+		"phpextra rejects inline math")
 }
 
 func TestRuleApplySettingsInvalid(t *testing.T) {
