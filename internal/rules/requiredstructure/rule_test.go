@@ -1069,3 +1069,120 @@ func TestExtractPIFileParam_MultiLine(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "other.md", result)
 }
+
+// =====================================================================
+// Phase 3 coverage: cueExprForValue scalar types
+// =====================================================================
+
+func TestCueExprForValue_Int(t *testing.T) {
+	expr, err := cueExprForValue(42)
+	require.NoError(t, err)
+	assert.Equal(t, "42", expr)
+}
+
+func TestCueExprForValue_Float64(t *testing.T) {
+	expr, err := cueExprForValue(3.14)
+	require.NoError(t, err)
+	assert.Equal(t, "3.14", expr)
+}
+
+func TestCueExprForValue_Bool(t *testing.T) {
+	expr, err := cueExprForValue(true)
+	require.NoError(t, err)
+	assert.Equal(t, "true", expr)
+}
+
+// =====================================================================
+// Phase 3 coverage: deriveFrontMatterCUE empty map
+// =====================================================================
+
+func TestDeriveFrontMatterCUE_EmptyMap(t *testing.T) {
+	result, err := deriveFrontMatterCUE([]byte("{}"))
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+// =====================================================================
+// Phase 3 coverage: extractPIFileParam additional branches
+// =====================================================================
+
+func TestExtractPIFileParam_SingleLine(t *testing.T) {
+	// A PI on a single line: <?include file: foo.md?>
+	// lines.Len() == 1 exercises the single-line path.
+	src := "<?include file: foo.md?>\n"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), false)
+	require.NoError(t, err)
+
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi, "expected ProcessingInstruction in parsed AST")
+
+	result, err := extractPIFileParam(pi, []byte(src))
+	require.NoError(t, err)
+	assert.Equal(t, "foo.md", result)
+}
+
+func TestExtractPIFileParam_EmptyBody(t *testing.T) {
+	// A multi-line PI with no YAML body (just whitespace) returns ("", nil).
+	src := "<?include\n?>\n"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), false)
+	require.NoError(t, err)
+
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi)
+
+	result, err := extractPIFileParam(pi, []byte(src))
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestExtractPIFileParam_YAMLAliasError(t *testing.T) {
+	src := "<?include\nfile: *alias\n?>\n"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), false)
+	require.NoError(t, err)
+
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi)
+
+	_, err = extractPIFileParam(pi, []byte(src))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid include directive YAML")
+}
+
+func TestExtractPIFileParam_YAMLUnmarshalError(t *testing.T) {
+	// Use a YAML body that unmarshal into map[string]string fails.
+	// A nested map value causes yaml.Unmarshal to fail for map[string]string.
+	src := "<?include\nfile:\n  nested: value\n?>\n"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), false)
+	require.NoError(t, err)
+
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi)
+
+	_, err = extractPIFileParam(pi, []byte(src))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid include directive YAML")
+}

@@ -548,6 +548,95 @@ func TestPI_Dump_EmptySource(t *testing.T) {
 	pi.Dump([]byte{}, 0)
 }
 
+// --- SetRootDir tests ---
+
+func TestSetRootDir_SetsFields(t *testing.T) {
+	f := &File{}
+	f.SetRootDir("/tmp")
+	assert.Equal(t, "/tmp", f.RootDir)
+	assert.NotNil(t, f.RootFS)
+}
+
+// --- matchRule hasSlash tests ---
+
+func TestMatchRule_HasSlash_Matches(t *testing.T) {
+	r := ignoreRule{base: "/project", pattern: "sub/file.md", hasSlash: true}
+	assert.True(t, matchRule(r, "/project/sub/file.md"))
+}
+
+func TestMatchRule_HasSlash_NoMatch(t *testing.T) {
+	r := ignoreRule{base: "/project", pattern: "sub/other.md", hasSlash: true}
+	assert.False(t, matchRule(r, "/project/sub/file.md"))
+}
+
+// --- resolveGlob NoFollowSymlinks tests ---
+
+func TestResolveGlob_SymlinkSkippedByNoFollow(t *testing.T) {
+	if os.Getenv("CI") == "" {
+		_ = os.Getenv("CI") // symlinks work in most environments
+	}
+	dir := t.TempDir()
+	// Create a real markdown file and a symlink to it.
+	real := filepath.Join(dir, "real.md")
+	require.NoError(t, os.WriteFile(real, []byte("# Real\n"), 0o644))
+	link := filepath.Join(dir, "link.md")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("symlinks not supported:", err)
+	}
+
+	var files []string
+	opts := DefaultResolveOpts()
+	opts.NoFollowSymlinks = []string{"*.md"}
+	pattern := filepath.Join(dir, "*.md")
+	err := resolveGlob(pattern, opts, func(f string) { files = append(files, f) })
+	require.NoError(t, err)
+	// Symlinks matching the no-follow pattern should be skipped.
+	for _, f := range files {
+		assert.NotEqual(t, link, f, "symlink should have been skipped")
+	}
+}
+
+// --- NewGitignoreMatcher with unreadable gitignore ---
+
+func TestNewGitignoreMatcher_UnreadableAncestorGitignore(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission test not reliable as root")
+	}
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+
+	// Write a valid .gitignore in the ancestor that will be made unreadable.
+	gi := filepath.Join(dir, ".gitignore")
+	require.NoError(t, os.WriteFile(gi, []byte("*.log\n"), 0o000))
+	defer func() { _ = os.Chmod(gi, 0o644) }()
+
+	// NewGitignoreMatcher should still return a valid (empty) matcher despite
+	// the parse error — the error is silently skipped via continue.
+	m := NewGitignoreMatcher(sub)
+	require.NotNil(t, m)
+}
+
+// --- collectAncestorGitignores Stat path ---
+
+func TestCollectAncestorGitignores_ExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	gi := filepath.Join(dir, ".gitignore")
+	require.NoError(t, os.WriteFile(gi, []byte("*.log\n"), 0o644))
+
+	// Collect from a subdirectory; the parent gitignore should be found.
+	sub := filepath.Join(dir, "sub")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+	ancestors := collectAncestorGitignores(sub)
+	found := false
+	for _, a := range ancestors {
+		if a == gi {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected parent .gitignore to be collected")
+}
+
 // Verify formatSnippet called from AST walk with multiple levels
 func TestNewFile_MultiPIs(t *testing.T) {
 	src := "<?foo?>\n\n<?bar\nbaz\n?>\n"

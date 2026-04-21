@@ -285,3 +285,85 @@ func TestFix_CleanFileNoModification(t *testing.T) {
 	assert.Empty(t, result.Modified)
 	assert.Equal(t, 0, result.Failures)
 }
+
+// mockNeverConverge always appends a newline on each Fix call, so content
+// never stabilizes. After maxPasses the loop exits without convergence.
+type mockNeverConverge struct {
+	id   string
+	name string
+}
+
+func (r *mockNeverConverge) ID() string       { return r.id }
+func (r *mockNeverConverge) Name() string     { return r.name }
+func (r *mockNeverConverge) Category() string { return "test" }
+
+func (r *mockNeverConverge) Check(f *lint.File) []lint.Diagnostic {
+	return []lint.Diagnostic{{
+		File: f.Path, Line: 1, Column: 1,
+		RuleID: r.id, RuleName: r.name,
+		Severity: lint.Warning, Message: "always needs fixing",
+	}}
+}
+
+func (r *mockNeverConverge) Fix(f *lint.File) []byte {
+	return append(append([]byte{}, f.Source...), '\n')
+}
+
+var _ rule.FixableRule = (*mockNeverConverge)(nil)
+
+func TestApplyFixPasses_NeverConverges(t *testing.T) {
+	// A rule that always appends a newline forces all 10 passes without
+	// convergence; applyFixPasses must return the content after 10 passes.
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "test.md")
+	require.NoError(t, os.WriteFile(mdFile, []byte("# Hello\n"), 0o644))
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"never-converge": {Enabled: true},
+		},
+	}
+
+	fixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{&mockNeverConverge{id: "MDS500", name: "never-converge"}},
+	}
+
+	result := fixer.Fix([]string{mdFile})
+	require.Empty(t, result.Errors)
+	require.Len(t, result.Modified, 1)
+
+	content, err := os.ReadFile(mdFile)
+	require.NoError(t, err)
+	// After 10 passes each adding a newline, content ends with 10 extra newlines.
+	assert.Equal(t, "# Hello\n"+string(bytes.Repeat([]byte("\n"), 10)), string(content))
+}
+
+func TestFix_DiagnosticsAreSorted(t *testing.T) {
+	// Two non-fixable rules report diagnostics on two different files.
+	// Result diagnostics must be in file + line + column order.
+	dir := t.TempDir()
+	file1 := filepath.Join(dir, "b.md")
+	file2 := filepath.Join(dir, "a.md")
+	require.NoError(t, os.WriteFile(file1, []byte("# B\n"), 0o644))
+	require.NoError(t, os.WriteFile(file2, []byte("# A\n"), 0o644))
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"mock-nonfixable": {Enabled: true},
+		},
+	}
+
+	fixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{&mockNonFixableRule{id: "MDS999", name: "mock-nonfixable"}},
+	}
+
+	result := fixer.Fix([]string{file1, file2})
+	require.Empty(t, result.Errors)
+	require.Len(t, result.Diagnostics, 2)
+	// Diagnostics must be sorted by file path (a.md < b.md).
+	assert.True(t, result.Diagnostics[0].File < result.Diagnostics[1].File,
+		"diagnostics not sorted: %v, %v",
+		result.Diagnostics[0].File, result.Diagnostics[1].File)
+}

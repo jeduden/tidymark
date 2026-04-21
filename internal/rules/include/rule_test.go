@@ -804,3 +804,44 @@ func TestCheck_NoFS(t *testing.T) {
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
+
+// =====================================================================
+// Phase 3 coverage: Fix nil FS
+// =====================================================================
+
+func TestFix_NilFS(t *testing.T) {
+	// When f.FS is nil, Fix returns the source unchanged.
+	f, err := lint.NewFile("test.md", []byte("# Hello\n"))
+	require.NoError(t, err)
+	// f.FS is nil by default.
+	r := &Rule{}
+	result := r.Fix(f)
+	assert.Equal(t, f.Source, result)
+}
+
+// =====================================================================
+// Phase 3 coverage: validateIncludeDirective edge cases
+// =====================================================================
+
+func TestCheck_EmptyWrap(t *testing.T) {
+	fsys := fstest.MapFS{
+		"sub.md": {Data: []byte("# Sub\n")},
+	}
+	// wrap: "" is an explicit empty string in YAML.
+	src := "<?include\nfile: sub.md\nwrap: \"\"\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "doc.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, `empty "wrap" value`)
+}
+
+func TestCheck_InvalidStripFrontmatter(t *testing.T) {
+	fsys := fstest.MapFS{
+		"sub.md": {Data: []byte("# Sub\n")},
+	}
+	src := "<?include\nfile: sub.md\nstrip-frontmatter: yes\n?>\nold\n<?/include?>\n"
+	f := newTestFile(t, "doc.md", src, fsys)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, `"strip-frontmatter" must be "true" or "false"`)
+}

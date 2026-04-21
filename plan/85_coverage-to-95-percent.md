@@ -84,19 +84,22 @@ Phase 2 --- AST heading and paragraph helpers:
 
 Phase 3 --- error-path tests for remaining gaps:
 
-  - [ ] `internal/fix`: test max-passes boundary (10
+  - [x] `internal/fix`: test max-passes boundary (10
     iterations without convergence)
-  - [ ] `internal/lint`: test `resolveGlob` with invalid
+  - [x] `internal/lint`: test `resolveGlob` with invalid
     patterns, `NewGitignoreMatcher` with malformed
     gitignore files
-  - [ ] `internal/rules/include`: test `readFSFile` with
-    nonexistent and unreadable files
+  - [x] `internal/rules/include`: test `readFSFile` with
+    nonexistent and unreadable files (already covered;
+    added nil-FS Fix path and validateIncludeDirective
+    edge cases)
   - [ ] `cmd/mdsmith`: test `formatDiagnostics` write
     error via the error-writer pattern
-  - [ ] `internal/rules/requiredstructure`: test
+  - [x] `internal/rules/requiredstructure`: test
     `cueExprForValue` with `[]any` and `map[string]any`
     inputs; test `extractYAML` with unclosed front
-    matter
+    matter (scalar int/float/bool and
+    extractPIFileParam paths added)
 
 Phase 4 --- deep edge cases (pursue only if 95% not met
 after phases 1--3):
