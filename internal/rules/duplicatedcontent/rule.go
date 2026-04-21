@@ -16,6 +16,7 @@ import (
 	"github.com/gobwas/glob"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/jeduden/mdsmith/internal/rules/settings"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -360,11 +361,11 @@ func configDiag(f *lint.File, r *Rule, err error) lint.Diagnostic {
 }
 
 // ApplySettings implements rule.Configurable.
-func (r *Rule) ApplySettings(settings map[string]any) error {
-	for k, v := range settings {
+func (r *Rule) ApplySettings(cfg map[string]any) error {
+	for k, v := range cfg {
 		switch k {
 		case "include":
-			list, ok := toStringSlice(v)
+			list, ok := settings.ToStringSlice(v)
 			if !ok {
 				return fmt.Errorf(
 					"duplicated-content: include must be a list of strings, got %T",
@@ -373,7 +374,7 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 			}
 			r.Include = list
 		case "exclude":
-			list, ok := toStringSlice(v)
+			list, ok := settings.ToStringSlice(v)
 			if !ok {
 				return fmt.Errorf(
 					"duplicated-content: exclude must be a list of strings, got %T",
@@ -382,7 +383,7 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 			}
 			r.Exclude = list
 		case "min-chars":
-			n, ok := toInt(v)
+			n, ok := settings.ToInt(v)
 			if !ok {
 				return fmt.Errorf(
 					"duplicated-content: min-chars must be an integer, got %T",
@@ -422,41 +423,6 @@ func (r *Rule) DefaultSettings() map[string]any {
 		"include":   []string{},
 		"exclude":   []string{},
 		"min-chars": defaultMinChars,
-	}
-}
-
-func toStringSlice(v any) ([]string, bool) {
-	switch s := v.(type) {
-	case []string:
-		return append([]string(nil), s...), true
-	case []any:
-		out := make([]string, 0, len(s))
-		for _, it := range s {
-			str, ok := it.(string)
-			if !ok {
-				return nil, false
-			}
-			out = append(out, str)
-		}
-		return out, true
-	default:
-		return nil, false
-	}
-}
-
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case float64:
-		if n != float64(int(n)) {
-			return 0, false
-		}
-		return int(n), true
-	default:
-		return 0, false
 	}
 }
 

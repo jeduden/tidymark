@@ -423,10 +423,12 @@ func TestApplySettings_AcceptsIntegerTypesForMinChars(t *testing.T) {
 	}
 }
 
-func TestApplySettings_RejectsFractionalFloat(t *testing.T) {
+func TestApplySettings_TruncatesFractionalFloat(t *testing.T) {
+	// settings.ToInt truncates toward zero, matching the rest of the
+	// codebase, so 1.5 becomes 1 rather than being rejected.
 	r := &Rule{}
-	err := r.ApplySettings(map[string]any{"min-chars": 1.5})
-	require.Error(t, err)
+	require.NoError(t, r.ApplySettings(map[string]any{"min-chars": 1.5}))
+	assert.Equal(t, 1, r.MinChars)
 }
 
 func newLintFileWithRoot(t *testing.T, path, root string) *lint.File {
