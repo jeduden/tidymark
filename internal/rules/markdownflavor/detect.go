@@ -252,7 +252,7 @@ func blockFinding(f *lint.File, n ast.Node, feat Feature) Finding {
 // inside the containing ListItem). TaskCheckBox has no source segment
 // of its own.
 func taskCheckBoxFinding(f *lint.File, n ast.Node) Finding {
-	if p := nearestBlockAncestor(n, ast.NodeKind(0)); p != nil {
+	if p := nearestBlockAncestor(n); p != nil {
 		return findingFromBlock(f, p, FeatureTaskLists)
 	}
 	return Finding{Feature: FeatureTaskLists, Line: 1, Column: 1}
@@ -263,23 +263,16 @@ func taskCheckBoxFinding(f *lint.File, n ast.Node) Finding {
 // first-line position instead of firstTextStart, which would return
 // zero for a childless inline.
 func inlineExtFinding(f *lint.File, n ast.Node, feat Feature) Finding {
-	if p := nearestBlockAncestor(n, ast.NodeKind(0)); p != nil {
+	if p := nearestBlockAncestor(n); p != nil {
 		return findingFromBlock(f, p, feat)
 	}
 	return Finding{Feature: feat, Line: 1, Column: 1}
 }
 
-// nearestBlockAncestor walks up from n and returns the first ancestor
-// whose kind matches want; when want is 0 the first block-typed
-// ancestor with Lines() is returned.
-func nearestBlockAncestor(n ast.Node, want ast.NodeKind) ast.Node {
+// nearestBlockAncestor walks up from n and returns the first block-
+// typed ancestor with non-empty Lines().
+func nearestBlockAncestor(n ast.Node) ast.Node {
 	for p := n.Parent(); p != nil; p = p.Parent() {
-		if want != 0 {
-			if p.Kind() == want {
-				return p
-			}
-			continue
-		}
 		if p.Type() != ast.TypeBlock {
 			continue
 		}
