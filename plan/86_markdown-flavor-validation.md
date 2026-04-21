@@ -174,14 +174,14 @@ math, abbreviations.
   `internal/rules/markdownflavor/ext/mathblock.go`
 - [x] Write `MathInlineExt` inline parser in
   `internal/rules/markdownflavor/ext/mathinline.go`
-- [ ] Write `AbbreviationExt` block parser + paragraph
+- [x] Write `AbbreviationExt` block parser + paragraph
   transformer in
   `internal/rules/markdownflavor/ext/abbreviation.go`
-- [ ] Add tests for all five custom extensions
-  <!-- Tests for Super/Subscript and Math block/inline
-  landed with their extensions; abbreviation tests
-  arrive with that extension. -->
-
+  <!-- Uses an AST transformer (instead of a per-
+  paragraph transformer) so definitions can appear
+  anywhere in the document; it reads the term table
+  the block parser built during Open. -->
+- [x] Add tests for all five custom extensions
 - [x] Build dual parser with built-in extensions (custom
   extensions pending)
 - [x] Add AST-based detectors for the seven built-in

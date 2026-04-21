@@ -30,6 +30,19 @@ func parseWith(t *testing.T, src string, exts ...goldmark.Extender) ast.Node {
 	return doc
 }
 
+// countKind returns the number of nodes of the given kind anywhere
+// in the tree rooted at root.
+func countKind(root ast.Node, kind ast.NodeKind) int {
+	n := 0
+	_ = ast.Walk(root, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering && node.Kind() == kind {
+			n++
+		}
+		return ast.WalkContinue, nil
+	})
+	return n
+}
+
 func TestSuperscriptParses(t *testing.T) {
 	doc := parseWith(t, "x^2^ is fine.\n", Superscript)
 	assert.NotNil(t, walkFindKind(doc, KindSuperscript),
