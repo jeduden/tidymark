@@ -176,9 +176,11 @@ func (t *abbreviationTransformer) Transform(doc *ast.Document, reader text.Reade
 	}
 	source := reader.Source()
 
-	// Walk paragraphs and rewrite their Text descendants. Inline
-	// code spans and raw inlines are skipped so their contents stay
-	// literal.
+	// Walk every Text descendant in the document and rewrite
+	// whole-word term matches. Code spans, fenced and indented code
+	// blocks, and AbbreviationDefinition nodes are skipped so their
+	// contents stay literal; everything else (paragraphs, headings,
+	// list items, etc.) is eligible for marking.
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
@@ -274,12 +276,12 @@ func applyMatches(parent ast.Node, t *ast.Text, seg text.Segment, body []byte, m
 	first := matches[0]
 	var anchor ast.Node
 	if first.start == 0 {
-		ref := buildReference(seg, first, nil)
+		ref := buildReference(seg, first)
 		parent.ReplaceChild(parent, t, ref)
 		anchor = ref
 	} else {
 		t.Segment = seg.WithStop(seg.Start + first.start)
-		ref := buildReference(seg, first, nil)
+		ref := buildReference(seg, first)
 		parent.InsertAfter(parent, t, ref)
 		anchor = ref
 	}
@@ -296,7 +298,7 @@ func appendRestAfter(parent, anchor ast.Node, seg text.Segment, rest []abbrMatch
 			parent.InsertAfter(parent, anchor, gap)
 			anchor = gap
 		}
-		ref := buildReference(seg, m, nil)
+		ref := buildReference(seg, m)
 		parent.InsertAfter(parent, anchor, ref)
 		anchor = ref
 		prev = m.end
@@ -325,7 +327,7 @@ func lastEnd(first abbrMatch, rest []abbrMatch) int {
 
 // buildReference constructs an AbbreviationReference whose child
 // Text covers the term's byte span.
-func buildReference(parentSeg text.Segment, m abbrMatch, _ []byte) ast.Node {
+func buildReference(parentSeg text.Segment, m abbrMatch) ast.Node {
 	ref := &AbbreviationReference{Term: []byte(m.term)}
 	ref.AppendChild(ref, ast.NewTextSegment(subSeg(parentSeg, m.start, m.end)))
 	return ref

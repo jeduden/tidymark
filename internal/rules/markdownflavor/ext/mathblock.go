@@ -47,9 +47,9 @@ func (p *mathBlockParser) Trigger() []byte { return []byte{'$'} }
 var mathFence = []byte("$$")
 
 // Open implements parser.BlockParser. A line that starts with `$$`
-// (after up to three spaces of indent) at the document root opens a
-// math-block node. If the same line also contains a closing `$$`,
-// the block is closed immediately.
+// after up to three spaces of indent opens a math-block node,
+// regardless of its parent block. If the same line also contains a
+// closing `$$`, the block is closed immediately.
 func (p *mathBlockParser) Open(
 	parent ast.Node, reader text.Reader, pc parser.Context,
 ) (ast.Node, parser.State) {
