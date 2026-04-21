@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/text"
 
 	"github.com/jeduden/mdsmith/internal/lint"
 )
@@ -124,4 +125,55 @@ func TestNodeByteRangeClampsNegativeStart(t *testing.T) {
 	start, end := nodeByteRange(n)
 	assert.Equal(t, 0, start)
 	assert.Equal(t, 0, end)
+}
+
+// TestNearestBlockAncestorSkipsNonBlockAncestors exercises the
+// "parent is not a block" branch in nearestBlockAncestor: when we
+// walk through an inline ancestor on the way up, the helper skips
+// it and keeps climbing.
+func TestNearestBlockAncestorSkipsNonBlockAncestors(t *testing.T) {
+	// Build: Paragraph (block, has Lines) → Emphasis (inline) →
+	// FootnoteLink (inline). Walking up from the FootnoteLink must
+	// skip Emphasis and return the Paragraph.
+	p := ast.NewParagraph()
+	// Append a line so findingFromBlock can resolve a position
+	// later (not needed here, but keeps the block well-formed).
+	p.Lines().Append(text.NewSegment(0, 1))
+	em := ast.NewEmphasis(1)
+	link := extast.NewFootnoteLink(1)
+	p.AppendChild(p, em)
+	em.AppendChild(em, link)
+
+	got := nearestBlockAncestor(link)
+	assert.Same(t, ast.Node(p), got)
+}
+
+// TestFindHeadingIDHandlesMissingLines exercises the
+// "lines == nil || lines.Len() == 0" rejection branch in
+// findHeadingID. Normal parsing always fills in Lines on a
+// Heading, so we synthesise a Heading with the id attribute set
+// but no Lines appended.
+func TestFindHeadingIDHandlesMissingLines(t *testing.T) {
+	f, err := lint.NewFile("t.md", []byte("# Heading {#top}\n"))
+	require.NoError(t, err)
+	h := ast.NewHeading(1)
+	h.SetAttributeString("id", []byte("top"))
+	_, ok := findHeadingID(f, h)
+	assert.False(t, ok,
+		"findHeadingID must return ok=false when Lines is empty")
+}
+
+// TestFindHeadingIDHandlesNoOpeningBrace covers the "brace < 0"
+// branch: a Heading whose id attribute was somehow set but whose
+// source line contains no `{`. The parser ordinarily does not
+// produce such a node; we construct one directly.
+func TestFindHeadingIDHandlesNoOpeningBrace(t *testing.T) {
+	f, err := lint.NewFile("t.md", []byte("# plain heading\n"))
+	require.NoError(t, err)
+	h := ast.NewHeading(1)
+	h.SetAttributeString("id", []byte("top"))
+	h.Lines().Append(text.NewSegment(2, 15))
+	_, ok := findHeadingID(f, h)
+	assert.False(t, ok,
+		"findHeadingID must return ok=false when source line contains no '{'")
 }

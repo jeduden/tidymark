@@ -54,3 +54,16 @@ func TestMathInlineDoesNotMatchDoubleDollar(t *testing.T) {
 	doc := parseWith(t, "before $$ not inline $$ after\n", MathInline)
 	assert.Nil(t, walkFindKind(doc, KindMathInline))
 }
+
+// TestMathInlineSkipsDoubleDollarAsCloser exercises the Parse branch
+// that rejects a candidate closing `$` when it is immediately
+// followed by another `$` (i.e. a `$$` fence). The parser must look
+// past the first `$$` and pair the opening `$` with a later, valid
+// closing `$`.
+func TestMathInlineSkipsDoubleDollarAsCloser(t *testing.T) {
+	// The first candidate closer `$` at index after `x` is followed
+	// by another `$`, so it is skipped; the next `$` after `y`
+	// closes the span.
+	doc := parseWith(t, "see $x$$y$ here\n", MathInline)
+	assert.NotNil(t, walkFindKind(doc, KindMathInline))
+}

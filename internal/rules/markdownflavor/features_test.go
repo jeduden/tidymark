@@ -63,6 +63,16 @@ func assertSupports(t *testing.T, f Flavor, supported ...Feature) {
 	}
 }
 
+func TestFlavorStringUnknownIsEmpty(t *testing.T) {
+	var zero Flavor
+	assert.Equal(t, "", zero.String())
+	assert.Equal(t, "", Flavor(999).String())
+}
+
+func TestFeatureNameUnknownIsEmpty(t *testing.T) {
+	assert.Equal(t, "", Feature(999).Name())
+}
+
 func TestFeatureSupportCommonMark(t *testing.T) {
 	assertSupports(t, FlavorCommonMark)
 }

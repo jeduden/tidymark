@@ -9,6 +9,35 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
+// TestRewriteTextEmptyBody covers the early-return when the Text
+// node's segment is empty.
+func TestRewriteTextEmptyBody(t *testing.T) {
+	tbl := abbrTable{"HTML": []byte("Hyper Text Markup Language")}
+	src := []byte("")
+	tn := ast.NewTextSegment(text.NewSegment(0, 0))
+	assert.NotPanics(t, func() { rewriteText(tn, tbl, src) })
+}
+
+// TestRewriteTextOrphanParent covers the early-return when the Text
+// has no parent (the rewrite pass has nowhere to insert siblings).
+func TestRewriteTextOrphanParent(t *testing.T) {
+	src := []byte("HTML")
+	tbl := abbrTable{"HTML": []byte("Hyper Text Markup Language")}
+	tn := ast.NewTextSegment(text.NewSegment(0, len(src)))
+	assert.NotPanics(t, func() { rewriteText(tn, tbl, src) })
+}
+
+// TestBestMatchAtWordBoundaryRejectsSuffix exercises the
+// "endIdx < len(body) && isWordByte(...)" rejection in bestMatchAt:
+// a defined term that is a prefix of a longer word must not match.
+func TestBestMatchAtWordBoundaryRejectsSuffix(t *testing.T) {
+	tbl := abbrTable{"API": []byte("Application Programming Interface")}
+	body := []byte("APIserver does things")
+	_, ok := bestMatchAt(body, 0, tbl)
+	assert.False(t, ok,
+		"API followed by word byte 's' must not match")
+}
+
 // TestAbbreviationOpenEdgeCases exercises every rejection path in
 // the block parser's Open method that the happy-path tests don't
 // already hit.

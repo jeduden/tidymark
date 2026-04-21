@@ -43,3 +43,25 @@ func TestMathBlockContinueEOF(t *testing.T) {
 			"unclosed block must carry closed=false")
 	}
 }
+
+// TestMathBlockContinueAlreadyClosed exercises the `mb.closed` early-
+// return in Continue. A same-line `$$…$$` block is closed during
+// Open; goldmark still calls Continue once, and it must return
+// parser.Close without consuming another line.
+func TestMathBlockContinueAlreadyClosed(t *testing.T) {
+	mb := &MathBlockNode{closed: true}
+	r := text.NewReader([]byte("some other line\n"))
+	got := (&mathBlockParser{}).Continue(mb, r, parser.NewContext())
+	assert.Equal(t, parser.Close, got,
+		"Continue on an already-closed block must return parser.Close")
+}
+
+// TestMathBlockContinueEOFDirect covers the `line == nil` branch in
+// Continue by feeding the parser an empty reader.
+func TestMathBlockContinueEOFDirect(t *testing.T) {
+	mb := &MathBlockNode{}
+	r := text.NewReader([]byte(""))
+	got := (&mathBlockParser{}).Continue(mb, r, parser.NewContext())
+	assert.Equal(t, parser.Close, got,
+		"Continue on EOF must return parser.Close")
+}
