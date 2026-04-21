@@ -4,6 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/yuin/goldmark/ast"
+	extast "github.com/yuin/goldmark/extension/ast"
+
+	"github.com/jeduden/mdsmith/internal/lint"
 )
 
 // TestLineColClampsNegativeOffset exercises the guard that clamps a
@@ -60,4 +65,63 @@ func TestFindHeadingIDIgnoresHeadingWithoutAttribute(t *testing.T) {
 	// "# Heading" alone: no attribute block, no finding.
 	fs := findings(t, "# Heading\n")
 	assert.False(t, hasFeature(fs, FeatureHeadingIDs))
+}
+
+// TestFindHeadingIDIgnoresAttributesWithoutID covers the second
+// guard: the heading has an attribute block but no `id` key.
+func TestFindHeadingIDIgnoresAttributesWithoutID(t *testing.T) {
+	// Goldmark's attribute parser accepts class-only attribute
+	// blocks like `{.highlight}`. Those set Attributes() != nil but
+	// no "id" key, so findHeadingID should return ok=false.
+	fs := findings(t, "# Heading {.highlight}\n")
+	assert.False(t, hasFeature(fs, FeatureHeadingIDs))
+}
+
+// TestTaskCheckBoxFindingOrphan exercises the defensive fallback in
+// taskCheckBoxFinding when the node has no block ancestor — which
+// only happens if the AST was hand-constructed rather than produced
+// by goldmark. The fallback returns (1, 1).
+func TestTaskCheckBoxFindingOrphan(t *testing.T) {
+	f, err := lint.NewFile("t.md", []byte("body\n"))
+	require.NoError(t, err)
+	orphan := extast.NewTaskCheckBox(true)
+	got := taskCheckBoxFinding(f, orphan)
+	assert.Equal(t, FeatureTaskLists, got.Feature)
+	assert.Equal(t, 1, got.Line)
+	assert.Equal(t, 1, got.Column)
+}
+
+// TestInlineExtFindingOrphan is the same test for inlineExtFinding.
+func TestInlineExtFindingOrphan(t *testing.T) {
+	f, err := lint.NewFile("t.md", []byte("body\n"))
+	require.NoError(t, err)
+	orphan := extast.NewFootnoteLink(7)
+	got := inlineExtFinding(f, orphan, FeatureFootnotes)
+	assert.Equal(t, FeatureFootnotes, got.Feature)
+	assert.Equal(t, 1, got.Line)
+	assert.Equal(t, 1, got.Column)
+}
+
+// TestFindingFromBlockNoLines covers the `lines == nil || .Len()==0`
+// short-circuit: a freshly-constructed block with no Lines appended
+// falls back to (1, 1).
+func TestFindingFromBlockNoLines(t *testing.T) {
+	f, err := lint.NewFile("t.md", []byte("body\n"))
+	require.NoError(t, err)
+	block := ast.NewParagraph() // no Lines appended
+	got := findingFromBlock(f, block, FeatureTables)
+	assert.Equal(t, FeatureTables, got.Feature)
+	assert.Equal(t, 1, got.Line)
+	assert.Equal(t, 1, got.Column)
+}
+
+// TestNodeByteRangeClampsNegativeStart covers the clamp in
+// nodeByteRange that floors a negative firstTextStart result to 0.
+// A FootnoteLink has no children and no source segment, so
+// firstTextStart returns -1 and nodeByteRange must floor that.
+func TestNodeByteRangeClampsNegativeStart(t *testing.T) {
+	n := extast.NewFootnoteLink(7)
+	start, end := nodeByteRange(n)
+	assert.Equal(t, 0, start)
+	assert.Equal(t, 0, end)
 }
