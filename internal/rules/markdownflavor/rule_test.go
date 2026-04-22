@@ -224,9 +224,7 @@ func TestRuleCheckGFMAcceptsAlerts(t *testing.T) {
 	require.NoError(t, r.ApplySettings(map[string]any{"flavor": "gfm"}))
 	f := mkFile(t, "> [!NOTE]\n> Something.\n")
 	diags := r.Check(f)
-	for _, d := range diags {
-		assert.NotContains(t, d.Message, "github alerts")
-	}
+	require.Empty(t, diags)
 }
 
 func TestRuleCheckCommonMarkRejectsAlerts(t *testing.T) {

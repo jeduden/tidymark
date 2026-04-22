@@ -15,7 +15,7 @@ flavor does not render.
 - **Name**: `markdown-flavor`
 - **Status**: ready
 - **Default**: disabled
-- **Fixable**: yes
+- **Fixable**: partially (GitHub Alerts only)
 - **Implementation**:
   [source](./)
 - **Category**: meta
