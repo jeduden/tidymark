@@ -125,7 +125,7 @@ suite.
 
 ## Diagnostics
 
-| Condition         | Message                                  |
-|-------------------|------------------------------------------|
-| paragraph repeats | paragraph duplicated in {other}:{line}   |
-| invalid glob      | duplicated-content: invalid glob pattern |
+| Condition         | Message                                                                  |
+|-------------------|--------------------------------------------------------------------------|
+| paragraph repeats | paragraph duplicated in {other}:{line}                                   |
+| invalid glob      | duplicated-content: {include,exclude}: invalid glob pattern "{pat}": ... |
