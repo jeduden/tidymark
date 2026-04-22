@@ -194,6 +194,41 @@ func TestCheck_NoFSIsNoop(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+func TestCheck_MirrorsFrontMatterModeForCorpusFiles(t *testing.T) {
+	// When the engine runs with `front-matter: false`, current-file
+	// paragraph line numbers are raw-source coordinates (no offset
+	// was added). Corpus files must be parsed in the same mode so
+	// the {other}:{line} part of the diagnostic is also in raw
+	// coordinates. Without plumbing StripFrontMatter through, the
+	// corpus walk would always strip and over-add LineOffset to the
+	// reported line, producing an off-by-N bug for files with front
+	// matter.
+	dir := t.TempDir()
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+	fm := "---\ntitle: B\n---\n"
+	// b.md carries front matter whose stripping would add 3 to
+	// paragraph lines. The paragraph sits at raw line 6.
+	writeFile(t, filepath.Join(dir, "b.md"), fm+"\n# B\n\n"+p+"\n")
+	writeFile(t, filepath.Join(dir, "a.md"), "# A\n\n"+p+"\n")
+
+	data, err := os.ReadFile(filepath.Join(dir, "a.md"))
+	require.NoError(t, err)
+	// Parse a.md with stripFrontMatter=false, matching a
+	// `front-matter: false` Runner.
+	f, err := lint.NewFileFromSource(filepath.Join(dir, "a.md"), data, false)
+	require.NoError(t, err)
+	f.FS = os.DirFS(dir)
+	f.SetRootDir(dir)
+
+	diags := (&Rule{}).Check(f)
+	require.Len(t, diags, 1)
+	// b.md's paragraph sits at raw line 7: front matter lines
+	// 1-3, blank line 4, heading line 5 ("# B"), blank line 6,
+	// paragraph line 7.
+	assert.Contains(t, diags[0].Message, "b.md:7",
+		"corpus line must stay in raw-source coords when front-matter stripping is disabled")
+}
+
 func TestCheck_StdinWithRootDirDoesNotWalkProject(t *testing.T) {
 	// Mirrors `mdsmith check -` (or Runner.RunSource) under a
 	// discovered project root: f.FS is nil because the input has

@@ -91,7 +91,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 	index := buildCorpusIndex(
 		corpus, selfName, f.MaxInputBytes, minChars,
-		includeMatchers, excludeMatchers,
+		f.StripFrontMatter, includeMatchers, excludeMatchers,
 	)
 
 	var diags []lint.Diagnostic
@@ -263,6 +263,7 @@ func buildCorpusIndex(
 	selfName string,
 	maxBytes int64,
 	minChars int,
+	stripFrontMatter bool,
 	include, exclude []glob.Glob,
 ) map[string][]externalMatch {
 	index := make(map[string][]externalMatch)
@@ -275,7 +276,8 @@ func buildCorpusIndex(
 		}
 		indexFileIfEligible(
 			index, corpus, path, selfName,
-			maxBytes, minChars, include, exclude,
+			maxBytes, minChars, stripFrontMatter,
+			include, exclude,
 		)
 		return nil
 	})
@@ -325,6 +327,7 @@ func indexFileIfEligible(
 	path, selfName string,
 	maxBytes int64,
 	minChars int,
+	stripFrontMatter bool,
 	include, exclude []glob.Glob,
 ) {
 	if !isMarkdownPath(path) || path == selfName {
@@ -337,7 +340,7 @@ func indexFileIfEligible(
 	if err != nil {
 		return
 	}
-	other, err := lint.NewFileFromSource(path, data, true)
+	other, err := lint.NewFileFromSource(path, data, stripFrontMatter)
 	if err != nil {
 		return
 	}
