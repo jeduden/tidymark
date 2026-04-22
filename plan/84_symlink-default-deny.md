@@ -1,7 +1,7 @@
 ---
 id: 84
 title: 'Symlink default-deny for file discovery'
-status: "🔲"
+status: "🔳"
 summary: >-
   Skip symlinks by default during directory walks;
   add --follow-symlinks opt-in flag.
