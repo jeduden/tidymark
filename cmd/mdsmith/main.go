@@ -171,7 +171,7 @@ func runCheck(args []string) int {
 	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
 	fs.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
-	registerLegacyNoFollowSymlinks(fs)
+	legacyNoFollow := registerLegacyNoFollowSymlinks(fs)
 	fs.StringVar(&maxInputSize, "max-input-size", "", "Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
 	fs.Usage = func() {
@@ -193,6 +193,12 @@ func runCheck(args []string) int {
 		verbose = false
 	}
 
+	walk := walkCLI{
+		noGitignore:    noGitignore,
+		followSymlinks: followSymlinks,
+		legacyNoFollow: *legacyNoFollow,
+	}
+
 	allArgs := fs.Args()
 
 	// Check for explicit stdin argument "-".
@@ -203,17 +209,11 @@ func runCheck(args []string) int {
 	}
 
 	if len(fileArgs) > 0 {
-		return checkFiles(
-			fileArgs, configPath, format, noColor, quiet, verbose,
-			noGitignore, followSymlinks, maxInputSize,
-		)
+		return checkFiles(fileArgs, configPath, format, noColor, quiet, verbose, walk, maxInputSize)
 	}
 
 	// No file args and no stdin: discover files from config.
-	return checkDiscovered(
-		configPath, format, noColor, quiet, verbose,
-		noGitignore, followSymlinks, maxInputSize,
-	)
+	return checkDiscovered(configPath, format, noColor, quiet, verbose, walk, maxInputSize)
 }
 
 // runFix implements the "fix" subcommand: auto-fix lint issues in place.
@@ -237,7 +237,7 @@ func runFix(args []string) int {
 	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
 	fs.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
-	registerLegacyNoFollowSymlinks(fs)
+	legacyNoFollow := registerLegacyNoFollowSymlinks(fs)
 	fs.StringVar(&maxInputSize, "max-input-size", "", "Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
 	fs.Usage = func() {
@@ -259,6 +259,12 @@ func runFix(args []string) int {
 		verbose = false
 	}
 
+	walk := walkCLI{
+		noGitignore:    noGitignore,
+		followSymlinks: followSymlinks,
+		legacyNoFollow: *legacyNoFollow,
+	}
+
 	allArgs := fs.Args()
 
 	// Check for explicit stdin argument "-".
@@ -270,17 +276,11 @@ func runFix(args []string) int {
 	}
 
 	if len(fileArgs) > 0 {
-		return fixFiles(
-			fileArgs, configPath, format, noColor, quiet, verbose,
-			noGitignore, followSymlinks, maxInputSize,
-		)
+		return fixFiles(fileArgs, configPath, format, noColor, quiet, verbose, walk, maxInputSize)
 	}
 
 	// No file args: discover files from config.
-	return fixDiscovered(
-		configPath, format, noColor, quiet, verbose,
-		noGitignore, followSymlinks, maxInputSize,
-	)
+	return fixDiscovered(configPath, format, noColor, quiet, verbose, walk, maxInputSize)
 }
 
 // runQuery implements the "query" subcommand: select files by CUE
@@ -528,11 +528,11 @@ func printRunStats(format string, quiet bool, stats runStats) {
 // checkFiles lints the given file paths and returns the appropriate exit code.
 func checkFiles(
 	fileArgs []string, configPath, format string,
-	noColor, quiet, verbose, noGitignore, followSymlinks bool,
+	noColor, quiet, verbose bool, walk walkCLI,
 	maxInputSize string,
 ) int {
 	cfg, cfgPath, logger, files, maxBytes, code := loadAndResolve(
-		fileArgs, configPath, verbose, noGitignore, followSymlinks, maxInputSize,
+		fileArgs, configPath, verbose, walk, maxInputSize,
 	)
 	if code >= 0 {
 		return code
@@ -574,11 +574,11 @@ func checkFiles(
 // fixFiles fixes lint issues in the given file paths.
 func fixFiles(
 	fileArgs []string, configPath, format string,
-	noColor, quiet, verbose, noGitignore, followSymlinks bool,
+	noColor, quiet, verbose bool, walk walkCLI,
 	maxInputSize string,
 ) int {
 	cfg, cfgPath, logger, files, maxBytes, code := loadAndResolve(
-		fileArgs, configPath, verbose, noGitignore, followSymlinks, maxInputSize,
+		fileArgs, configPath, verbose, walk, maxInputSize,
 	)
 	if code >= 0 {
 		return code
@@ -700,7 +700,7 @@ func checkStdin(format string, noColor, quiet, verbose bool, configPath, maxInpu
 // or -1 on success.
 func loadAndResolve(
 	fileArgs []string, configPath string,
-	verbose, noGitignore, followSymlinks bool,
+	verbose bool, walk walkCLI,
 	maxInputSize string,
 ) (*config.Config, string, *vlog.Logger, []string, int64, int) {
 	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
@@ -714,7 +714,7 @@ func loadAndResolve(
 		logger.Printf("config: %s", cfgPath)
 	}
 
-	opts := resolveOpts(cfg, noGitignore, followSymlinks)
+	opts := resolveOpts(cfg, walk)
 	files, err := lint.ResolveFilesWithOpts(fileArgs, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
@@ -752,7 +752,7 @@ func splitStdinArg(args []string) (hasStdin bool, fileArgs []string) {
 // exit code; the caller should return it directly. A negative code means
 // "continue with the returned values".
 func discoverFiles(
-	configPath string, verbose, noGitignore, followSymlinks bool,
+	configPath string, verbose bool, walk walkCLI,
 ) (*config.Config, string, *vlog.Logger, []string, int) {
 	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
 
@@ -770,8 +770,8 @@ func discoverFiles(
 
 	files, err := discovery.Discover(discovery.Options{
 		Patterns:       cfg.Files,
-		UseGitignore:   !noGitignore,
-		FollowSymlinks: resolveOpts(cfg, noGitignore, followSymlinks).FollowSymlinks,
+		UseGitignore:   !walk.noGitignore,
+		FollowSymlinks: resolveOpts(cfg, walk).FollowSymlinks,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: discovering files: %v\n", err)
@@ -787,10 +787,10 @@ func discoverFiles(
 // and lints them. Returns the appropriate exit code.
 func checkDiscovered(
 	configPath, format string,
-	noColor, quiet, verbose, noGitignore, followSymlinks bool,
+	noColor, quiet, verbose bool, walk walkCLI,
 	maxInputSize string,
 ) int {
-	cfg, cfgPath, logger, files, code := discoverFiles(configPath, verbose, noGitignore, followSymlinks)
+	cfg, cfgPath, logger, files, code := discoverFiles(configPath, verbose, walk)
 	if code >= 0 {
 		return code
 	}
@@ -838,10 +838,10 @@ func checkDiscovered(
 // and fixes them. Returns the appropriate exit code.
 func fixDiscovered(
 	configPath, format string,
-	noColor, quiet, verbose, noGitignore, followSymlinks bool,
+	noColor, quiet, verbose bool, walk walkCLI,
 	maxInputSize string,
 ) int {
-	cfg, cfgPath, logger, files, code := discoverFiles(configPath, verbose, noGitignore, followSymlinks)
+	cfg, cfgPath, logger, files, code := discoverFiles(configPath, verbose, walk)
 	if code >= 0 {
 		return code
 	}
@@ -886,26 +886,45 @@ func fixDiscovered(
 }
 
 // registerLegacyNoFollowSymlinks registers the removed
-// `--no-follow-symlinks` flag as a silently-accepted deprecation.
-// Plan 84 inverted the default; the flag no longer has any effect.
-func registerLegacyNoFollowSymlinks(fs *flag.FlagSet) {
-	_ = fs.Bool("no-follow-symlinks", false,
+// `--no-follow-symlinks` flag as a silently-accepted deprecation
+// and returns a pointer to its parsed value. When set, the caller
+// should force `FollowSymlinks` off regardless of config / other
+// flags, so existing invocations remain a safe way to get the
+// secure default without editing the config file.
+func registerLegacyNoFollowSymlinks(fs *flag.FlagSet) *bool {
+	return fs.Bool("no-follow-symlinks", false,
 		"Deprecated: symlinks are now skipped by default")
+}
+
+// walkCLI bundles the CLI flags that affect how files are
+// discovered and resolved, so helpers can thread one value
+// instead of three (and the next addition isn't a parameter
+// explosion).
+type walkCLI struct {
+	noGitignore    bool
+	followSymlinks bool
+	legacyNoFollow bool
 }
 
 // frontMatterEnabled returns whether front matter stripping is enabled.
 // Defaults to true if not set in config.
 // resolveOpts builds ResolveOpts from config and CLI flags.
-// CLI flags override config: --no-gitignore disables gitignore filtering,
-// --follow-symlinks opts in to following symbolic links (default: skip).
-func resolveOpts(cfg *config.Config, noGitignore, followSymlinks bool) lint.ResolveOpts {
-	useGitignore := !noGitignore
+// CLI precedence for symlinks (highest wins): the deprecated
+// --no-follow-symlinks flag forces deny, then --follow-symlinks
+// opts in, then the `follow-symlinks:` config key. The deprecated
+// flag lets users run in secure mode without editing an existing
+// config that enables symlink following.
+func resolveOpts(cfg *config.Config, walk walkCLI) lint.ResolveOpts {
+	useGitignore := !walk.noGitignore
 	opts := lint.ResolveOpts{
 		UseGitignore:   &useGitignore,
 		FollowSymlinks: cfg.FollowSymlinks,
 	}
-	if followSymlinks {
+	if walk.followSymlinks {
 		opts.FollowSymlinks = true
+	}
+	if walk.legacyNoFollow {
+		opts.FollowSymlinks = false
 	}
 	return opts
 }

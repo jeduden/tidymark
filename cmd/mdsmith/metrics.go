@@ -100,6 +100,7 @@ type metricsRankOptions struct {
 	format         string
 	noGitignore    bool
 	followSymlinks bool
+	legacyNoFollow bool
 	maxInputSize   string
 }
 
@@ -124,7 +125,7 @@ func parseMetricsRankOptions(args []string) (metricsRankOptions, []string, error
 	fs.StringVarP(&opts.format, "format", "f", "text", "Output format: text, json")
 	fs.BoolVar(&opts.noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
 	fs.BoolVar(&opts.followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
-	registerLegacyNoFollowSymlinks(fs)
+	legacyNoFollow := registerLegacyNoFollowSymlinks(fs)
 	fs.StringVar(&opts.maxInputSize, "max-input-size", "",
 		"Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
@@ -145,6 +146,7 @@ func parseMetricsRankOptions(args []string) (metricsRankOptions, []string, error
 	if opts.top < 0 {
 		return metricsRankOptions{}, nil, fmt.Errorf("--top must be >= 0")
 	}
+	opts.legacyNoFollow = *legacyNoFollow
 
 	fileArgs := fs.Args()
 	if len(fileArgs) == 0 {
@@ -244,7 +246,11 @@ func resolveRankSelection(
 }
 
 func resolveRankFiles(cfg *config.Config, opts metricsRankOptions, fileArgs []string) ([]string, error) {
-	resolveOptions := resolveOpts(cfg, opts.noGitignore, opts.followSymlinks)
+	resolveOptions := resolveOpts(cfg, walkCLI{
+		noGitignore:    opts.noGitignore,
+		followSymlinks: opts.followSymlinks,
+		legacyNoFollow: opts.legacyNoFollow,
+	})
 	return lint.ResolveFilesWithOpts(fileArgs, resolveOptions)
 }
 
