@@ -19,6 +19,7 @@ mdsmith <command> [flags] [files...]
 | `help`         | Show help for rules/topics                     |
 | `metrics`      | List and rank shared metrics                   |
 | `merge-driver` | Git merge driver for regenerable sections      |
+| `archetypes`   | Scaffold, list, show, and locate archetypes    |
 | `init`         | Generate `.mdsmith.yml`                        |
 | `version`      | Print version, exit                            |
 
@@ -33,25 +34,46 @@ match, exits 0.
 
 ## Subcommand Flags (check, fix)
 
-| Flag               | Description                          |
-|--------------------|--------------------------------------|
-| `-c`, `--config`   | Config path                          |
-| `-f`, `--format`   | `text` or `json`                     |
-| `--max-input-size` | Max file size (e.g. `2MB`, `0`=none) |
-| `--no-color`       | Plain output                         |
-| `--no-gitignore`   | Skip gitignore                       |
-| `-q`, `--quiet`    | Quiet mode                           |
-| `-v`, `--verbose`  | Verbose output                       |
+| Flag                   | Default | Description                             |
+|------------------------|---------|-----------------------------------------|
+| `-c`, `--config`       | auto    | Config path (auto-discovers by default) |
+| `-f`, `--format`       | `text`  | `text` or `json`                        |
+| `--max-input-size`     | `2MB`   | Max file size (e.g. `2MB`, `0`=none)    |
+| `--no-color`           | false   | Plain output                            |
+| `--no-follow-symlinks` | false   | Skip symbolic links when walking        |
+| `--no-gitignore`       | false   | Skip gitignore                          |
+| `-q`, `--quiet`        | false   | Quiet mode                              |
+| `-v`, `--verbose`      | false   | Verbose output                          |
 
 ## Other Subcommand Flags
 
 `query` accepts `-c`/`--config`, `-v`/`--verbose`,
 `-0`/`--null`, and `--max-input-size`.
 
+`metrics list` accepts `-f`/`--format` (`text` or `json`)
+and `--scope` (only `file` is supported; defaults to
+`file`).
+
 `metrics rank` accepts `-c`/`--config`, `-f`/`--format`,
 `--no-gitignore`, `--no-follow-symlinks`,
 `--max-input-size`, plus `--metrics`, `--by`, `--order`,
 `--top`.
+
+## `archetypes` Subcommands
+
+| Subcommand    | Description                                  |
+|---------------|----------------------------------------------|
+| `init [dir]`  | Scaffold archetype dir with example + README |
+| `list`        | Print discovered archetypes (name + path)    |
+| `show <name>` | Print raw schema source to stdout            |
+| `path <name>` | Print resolved filesystem path               |
+
+Archetype roots come from the top-level
+`archetypes.roots` key in `.mdsmith.yml`. When absent,
+`./archetypes` is used. `init` never mutates the
+config file; it prints the snippet to add manually.
+`list` exits `1` when no archetypes are discovered;
+`show` and `path` exit `2` on unknown names.
 
 ## `--max-input-size`
 
