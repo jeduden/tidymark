@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,46 +21,58 @@ func TestVisit_WalkError(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrPermission)
 }
 
-// TestVisit_SkipsSymlinkDirByDefault confirms the walker returns
-// SkipDir for a symlinked directory entry when FollowSymlinks is
-// false (the secure default), without needing a pattern.
+// TestVisit_SkipsSymlinkDirByDefault confirms the walker returns nil
+// (no descent) for a symlinked directory entry when FollowSymlinks is
+// false. filepath.Walk reports symlinks via Lstat, so the entry's
+// info has ModeSymlink set but IsDir()==false — the test uses real
+// Lstat info rather than a synthetic fakeFileInfo so the assertion
+// reflects actual Walk semantics.
 func TestVisit_SkipsSymlinkDirByDefault(t *testing.T) {
 	dir := t.TempDir()
-	absBase := dir
 
-	subDir := filepath.Join(dir, "linked")
-	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	target := filepath.Join(dir, "real")
+	require.NoError(t, os.MkdirAll(target, 0o755))
+	linked := filepath.Join(dir, "linked")
+	require.NoError(t, os.Symlink(target, linked))
+
+	info, err := os.Lstat(linked)
+	require.NoError(t, err)
+	require.NotZero(t, info.Mode()&os.ModeSymlink, "fixture must be a symlink")
 
 	w := &walker{
-		absBase:  absBase,
+		absBase:  dir,
 		patterns: []string{"**/*.md"},
 		seen:     make(map[string]bool),
 	}
-
-	info := fakeFileInfo{name: "linked", mode: os.ModeDir | os.ModeSymlink, isDir: true}
-	err := w.visit(filepath.Join(absBase, "linked"), info, nil)
-	assert.Equal(t, filepath.SkipDir, err)
+	visitErr := w.visit(linked, info, nil)
+	assert.NoError(t, visitErr)
+	assert.Empty(t, w.result, "symlink must be skipped")
 }
 
-// TestVisit_FollowsSymlinkDirWhenOptedIn asserts the symlinked
-// directory is NOT skipped when the walker has FollowSymlinks=true.
-func TestVisit_FollowsSymlinkDirWhenOptedIn(t *testing.T) {
+// TestVisit_FollowsSymlinkFileWhenOptedIn asserts a symlinked markdown
+// file is NOT skipped when FollowSymlinks=true. This is the primary
+// opt-in case — symlinked directories are still not recursed into,
+// per the Options.FollowSymlinks doc comment.
+func TestVisit_FollowsSymlinkFileWhenOptedIn(t *testing.T) {
 	dir := t.TempDir()
-	absBase := dir
 
-	subDir := filepath.Join(dir, "linked")
-	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	target := filepath.Join(dir, "real.md")
+	require.NoError(t, os.WriteFile(target, []byte("# Real\n"), 0o644))
+	linked := filepath.Join(dir, "linked.md")
+	require.NoError(t, os.Symlink(target, linked))
+
+	info, err := os.Lstat(linked)
+	require.NoError(t, err)
 
 	w := &walker{
-		absBase:        absBase,
+		absBase:        dir,
 		patterns:       []string{"**/*.md"},
 		followSymlinks: true,
 		seen:           make(map[string]bool),
 	}
-
-	info := fakeFileInfo{name: "linked", mode: os.ModeDir | os.ModeSymlink, isDir: true}
-	err := w.visit(filepath.Join(absBase, "linked"), info, nil)
-	assert.NoError(t, err)
+	visitErr := w.visit(linked, info, nil)
+	assert.NoError(t, visitErr)
+	assert.Len(t, w.result, 1, "symlinked file must be included under opt-in")
 }
 
 func TestVisit_SkipsFileWhenGitignored(t *testing.T) {
@@ -172,17 +183,3 @@ func TestDiscover_FollowSymlinks_OptIn(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, files, 2, "both real and linked entries are discovered")
 }
-
-// fakeFileInfo implements os.FileInfo for testing.
-type fakeFileInfo struct {
-	name  string
-	mode  os.FileMode
-	isDir bool
-}
-
-func (f fakeFileInfo) Name() string       { return f.name }
-func (f fakeFileInfo) Size() int64        { return 0 }
-func (f fakeFileInfo) Mode() os.FileMode  { return f.mode }
-func (f fakeFileInfo) ModTime() time.Time { return time.Time{} }
-func (f fakeFileInfo) IsDir() bool        { return f.isDir }
-func (f fakeFileInfo) Sys() any           { return nil }

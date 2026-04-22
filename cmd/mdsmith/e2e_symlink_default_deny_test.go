@@ -118,6 +118,33 @@ func TestE2E_Symlink_FollowSymlinksConfigKey_OptsIn(t *testing.T) {
 		"expected exit 1 with follow-symlinks: true exposing dirty linked file")
 }
 
+// TestE2E_Symlink_DirSymlinkAlwaysSkipped asserts that a symlink
+// pointing at a directory is skipped even in opt-in mode. Rationale:
+// filepath.Walk is Lstat-based and would silently return zero files
+// for a symlink root; `--follow-symlinks` applies only to file
+// symlinks, as documented on ResolveOpts.FollowSymlinks.
+func TestE2E_Symlink_DirSymlinkAlwaysSkipped(t *testing.T) {
+	project := t.TempDir()
+	external := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(project, ".git"), 0o755))
+	writeFixture(t, project, ".mdsmith.yml",
+		"rules:\n  no-trailing-spaces: true\n")
+
+	// External dir with a dirty file. Project contains a symlinked
+	// directory pointing at it.
+	require.NoError(t, os.WriteFile(filepath.Join(external, "dirty.md"),
+		[]byte("# Evil\n\ntrailing   \n"), 0o644))
+	require.NoError(t, os.Symlink(external, filepath.Join(project, "linked")))
+
+	// Explicit arg + --follow-symlinks: symlinked directory is
+	// skipped silently; no findings.
+	_, _, exitOpt := runBinaryInDir(t, project, "", "check",
+		"--no-color", "--no-gitignore", "--follow-symlinks", "linked")
+	assert.Equal(t, 0, exitOpt,
+		"symlinked directory must be skipped even with --follow-symlinks")
+}
+
 // TestE2E_Symlink_LegacyFlag_OverridesFollowConfig verifies that the
 // deprecated --no-follow-symlinks flag still has meaning: it forces
 // deny even when `follow-symlinks: true` is set in config. This lets

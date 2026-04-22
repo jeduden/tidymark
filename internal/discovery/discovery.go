@@ -22,8 +22,13 @@ type Options struct {
 	// UseGitignore enables filtering by .gitignore rules.
 	UseGitignore bool
 
-	// FollowSymlinks opts in to following symlinks during the walk.
-	// The zero value skips all symlinks, which is the secure default.
+	// FollowSymlinks opts in to reading symlinked file entries during
+	// the walk. The zero value skips all symlinks, which is the secure
+	// default.
+	//
+	// filepath.Walk is Lstat-based, so a symlinked directory is never
+	// descended into even when this flag is true — it only controls
+	// whether symlinked file entries are included in results.
 	FollowSymlinks bool
 }
 
@@ -103,10 +108,10 @@ func (w *walker) visit(path string, info os.FileInfo, walkErr error) error {
 	}
 	rel = filepath.ToSlash(rel)
 
+	// Symlink entries always have Lstat-based info with
+	// IsDir()==false under filepath.Walk, so returning nil also
+	// means Walk won't try to descend.
 	if !w.followSymlinks && info.Mode()&os.ModeSymlink != 0 {
-		if info.IsDir() {
-			return filepath.SkipDir
-		}
 		return nil
 	}
 

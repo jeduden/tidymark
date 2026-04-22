@@ -28,9 +28,15 @@ type ResolveOpts struct {
 	// used (see DefaultResolveOpts).
 	UseGitignore *bool
 
-	// FollowSymlinks opts in to following symbolic links during
-	// directory walks and glob expansion. The zero value skips all
-	// symlinks, which is the secure default.
+	// FollowSymlinks opts in to following symbolic links that resolve
+	// to files. The zero value skips all symlinks, which is the secure
+	// default.
+	//
+	// Symlinked directories are always skipped, regardless of this
+	// flag. `filepath.Walk` is Lstat-based and does not descend into
+	// a symlink root, so supporting symlinked-directory traversal
+	// would require explicit EvalSymlinks resolution plus atomic
+	// writes against an unknown path — out of scope for plan 84.
 	FollowSymlinks bool
 }
 
@@ -99,13 +105,22 @@ func resolveArg(arg string, opts ResolveOpts, addFile func(string)) error {
 	if lerr != nil {
 		return fmt.Errorf("cannot access %q: %w", arg, lerr)
 	}
-	if !opts.FollowSymlinks && linfo.Mode()&os.ModeSymlink != 0 {
+	isSymlink := linfo.Mode()&os.ModeSymlink != 0
+	if isSymlink && !opts.FollowSymlinks {
 		return nil
 	}
 
 	info, err := os.Stat(arg)
 	if err != nil {
 		return fmt.Errorf("cannot access %q: %w", arg, err)
+	}
+
+	// Symlinks to directories are always skipped. filepath.Walk is
+	// Lstat-based and cannot recurse into a symlink root, so walking
+	// a symlinked dir would silently yield no files and confuse
+	// callers. `--follow-symlinks` applies to file symlinks only.
+	if isSymlink && info.IsDir() {
+		return nil
 	}
 
 	if info.IsDir() {
@@ -124,15 +139,20 @@ func resolveGlob(pattern string, opts ResolveOpts, addFile func(string)) error {
 		return fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 	}
 	for _, m := range matches {
-		// Default-deny symlinks unless the caller opts in.
-		if !opts.FollowSymlinks {
-			if linfo, lerr := os.Lstat(m); lerr == nil &&
-				linfo.Mode()&os.ModeSymlink != 0 {
-				continue
-			}
+		linfo, lerr := os.Lstat(m)
+		if lerr != nil {
+			continue
+		}
+		isSymlink := linfo.Mode()&os.ModeSymlink != 0
+		if isSymlink && !opts.FollowSymlinks {
+			continue
 		}
 		info, err := os.Stat(m)
 		if err != nil {
+			continue
+		}
+		// Symlinks to directories are always skipped (see resolveArg).
+		if isSymlink && info.IsDir() {
 			continue
 		}
 		if info.IsDir() {
@@ -160,7 +180,9 @@ func addDirFiles(dir string, opts ResolveOpts, addFile func(string)) error {
 
 // walkDir recursively walks a directory and returns all markdown files.
 // When useGitignore is true, files matched by .gitignore patterns are skipped.
-// Symlinks are skipped unless followSymlinks is true.
+// Symlinks are skipped unless followSymlinks is true. filepath.Walk is
+// Lstat-based, so symlinked directories encountered during the walk are
+// never descended into either way.
 func walkDir(dir string, useGitignore, followSymlinks bool) ([]string, error) {
 	var matcher *GitignoreMatcher
 	if useGitignore {
@@ -173,10 +195,10 @@ func walkDir(dir string, useGitignore, followSymlinks bool) ([]string, error) {
 			return err
 		}
 
+		// Symlink entries always have Lstat-based info with
+		// IsDir()==false under filepath.Walk, so a plain return nil
+		// here also means Walk won't try to descend.
 		if !followSymlinks && info.Mode()&os.ModeSymlink != 0 {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
 			return nil
 		}
 
