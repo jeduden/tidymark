@@ -34,20 +34,25 @@ match, exits 0.
 
 ## Subcommand Flags (check, fix)
 
-| Flag               | Description                          |
-|--------------------|--------------------------------------|
-| `-c`, `--config`   | Config path                          |
-| `-f`, `--format`   | `text` or `json`                     |
-| `--max-input-size` | Max file size (e.g. `2MB`, `0`=none) |
-| `--no-color`       | Plain output                         |
-| `--no-gitignore`   | Skip gitignore                       |
-| `-q`, `--quiet`    | Quiet mode                           |
-| `-v`, `--verbose`  | Verbose output                       |
+| Flag                   | Description                          |
+|------------------------|--------------------------------------|
+| `-c`, `--config`       | Config path                          |
+| `-f`, `--format`       | `text` or `json`                     |
+| `--max-input-size`     | Max file size (e.g. `2MB`, `0`=none) |
+| `--no-color`           | Plain output                         |
+| `--no-follow-symlinks` | Skip symbolic links when walking     |
+| `--no-gitignore`       | Skip gitignore                       |
+| `-q`, `--quiet`        | Quiet mode                           |
+| `-v`, `--verbose`      | Verbose output                       |
 
 ## Other Subcommand Flags
 
 `query` accepts `-c`/`--config`, `-v`/`--verbose`,
 `-0`/`--null`, and `--max-input-size`.
+
+`metrics list` accepts `-f`/`--format` (`text` or `json`)
+and `--scope` (only `file` is supported; defaults to
+`file`).
 
 `metrics rank` accepts `-c`/`--config`, `-f`/`--format`,
 `--no-gitignore`, `--no-follow-symlinks`,
