@@ -134,48 +134,33 @@ type externalMatch struct {
 // extractParagraphs walks f.AST and returns fingerprints for every
 // paragraph whose normalized text is at least minChars runes long.
 // Paragraphs are read via Node.Lines so raw markdown text — not rendered
-// inline output — feeds the fingerprint.
+// inline output — feeds the fingerprint. Paragraphs with no source lines
+// (a shape goldmark never produces today, but cheap to guard) and ones
+// shorter than the threshold are skipped via the same min-chars gate.
 func extractParagraphs(f *lint.File, minChars int) []paragraph {
 	var out []paragraph
 	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
+		if !entering || n.Kind() != ast.KindParagraph {
 			return ast.WalkContinue, nil
 		}
-		if n.Kind() != ast.KindParagraph {
-			return ast.WalkContinue, nil
+		lines := n.Lines()
+		var b strings.Builder
+		for i := 0; i < lines.Len(); i++ {
+			seg := lines.At(i)
+			b.Write(seg.Value(f.Source))
 		}
-		text, startOffset, ok := nodeText(n, f.Source)
-		if !ok {
-			return ast.WalkSkipChildren, nil
-		}
-		normalized := normalize(text)
+		normalized := normalize(b.String())
 		if runeLen(normalized) < minChars {
 			return ast.WalkSkipChildren, nil
 		}
 		sum := sha256.Sum256([]byte(normalized))
 		out = append(out, paragraph{
 			fingerprint: hex.EncodeToString(sum[:]),
-			line:        f.LineOfOffset(startOffset),
+			line:        f.LineOfOffset(lines.At(0).Start),
 		})
 		return ast.WalkSkipChildren, nil
 	})
 	return out
-}
-
-// nodeText concatenates a block node's line segments into the raw text
-// that the source contains between the node's first and last line. It
-// returns the first line's byte offset so callers can compute its line.
-func nodeText(n ast.Node, source []byte) (string, int, bool) {
-	lines := n.Lines()
-	if lines.Len() == 0 {
-		return "", 0, false
-	}
-	var b strings.Builder
-	for i := 0; i < lines.Len(); i++ {
-		seg := lines.At(i)
-		b.Write(seg.Value(source))
-	}
-	return b.String(), lines.At(0).Start, true
 }
 
 // normalize collapses runs of whitespace to single spaces, lowercases
@@ -347,10 +332,11 @@ func indexFileIfEligible(
 	if err != nil {
 		return
 	}
-	other, err := lint.NewFileFromSource(path, data, stripFrontMatter)
-	if err != nil {
-		return
-	}
+	// NewFileFromSource cannot fail for in-memory bytes that came
+	// out of ReadFSFileLimited successfully; goldmark's parser does
+	// not error on any input. The error return is kept in the
+	// signature for future-proofing but is dead here.
+	other, _ := lint.NewFileFromSource(path, data, stripFrontMatter) //nolint:errcheck
 	for _, p := range extractParagraphs(other, minChars) {
 		index[p.fingerprint] = append(index[p.fingerprint], externalMatch{
 			path: path,

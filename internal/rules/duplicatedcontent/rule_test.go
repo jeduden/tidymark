@@ -1,6 +1,8 @@
 package duplicatedcontent
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -149,6 +151,55 @@ func TestCheck_HonorsIncludePattern(t *testing.T) {
 func TestCheck_NilASTIsNoop(t *testing.T) {
 	// An uninitialized File (no parse) must not panic.
 	f := &lint.File{Path: "x.md"}
+	diags := (&Rule{}).Check(f)
+	assert.Empty(t, diags)
+}
+
+// errFS wraps an fs.FS and returns err from ReadDir on a specific
+// path, so buildCorpusIndex's WalkDir callback receives a non-nil
+// error and takes the skip-but-continue branch.
+type errFS struct {
+	inner   fs.FS
+	failOn  string
+	failErr error
+}
+
+func (e errFS) Open(name string) (fs.File, error) { return e.inner.Open(name) }
+
+func (e errFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if name == e.failOn {
+		return nil, e.failErr
+	}
+	return fs.ReadDir(e.inner, name)
+}
+
+func TestCheck_CorpusWalkSwallowsFSErrors(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+	writeFile(t, filepath.Join(dir, "a.md"), "# A\n\n"+p+"\n")
+	writeFile(t, filepath.Join(sub, "b.md"), "# B\n\n"+p+"\n")
+
+	// Build a.md as the current file, then point RootFS at an FS
+	// that errors on ReadDir("sub") so the walker is forced down
+	// the err != nil branch for that entry.
+	data, err := os.ReadFile(filepath.Join(dir, "a.md"))
+	require.NoError(t, err)
+	f, err := lint.NewFile(filepath.Join(dir, "a.md"), data)
+	require.NoError(t, err)
+	f.FS = os.DirFS(dir)
+	f.RootDir = dir
+	f.RootFS = errFS{
+		inner:   os.DirFS(dir),
+		failOn:  "sub",
+		failErr: errors.New("forced walk error"),
+	}
+
+	// The rule must not panic or return the error; it silently
+	// skips the unreadable subtree. b.md is in sub/ and therefore
+	// not found, so no duplicate diagnostic fires.
 	diags := (&Rule{}).Check(f)
 	assert.Empty(t, diags)
 }
