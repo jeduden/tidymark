@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	gopath "path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -58,20 +59,19 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if f.AST == nil {
 		return nil
 	}
+	// Stdin / in-memory source has no filesystem context; a cross-
+	// file rule cannot meaningfully run against it. Match MDS021/
+	// MDS027 and short-circuit instead of walking RootFS behind the
+	// user's back when they piped content through `-`.
+	if f.FS == nil {
+		return nil
+	}
 
 	// Validate config first so bad globs surface even on files that
 	// contain no qualifying paragraphs.
-	includeMatchers, err := compileMatchers(r.Include)
-	if err != nil {
-		return []lint.Diagnostic{
-			configDiag(f, r, fmt.Errorf("include: %w", err)),
-		}
-	}
-	excludeMatchers, err := compileMatchers(r.Exclude)
-	if err != nil {
-		return []lint.Diagnostic{
-			configDiag(f, r, fmt.Errorf("exclude: %w", err)),
-		}
+	includeMatchers, excludeMatchers, configErr := r.compileFilters()
+	if configErr != nil {
+		return []lint.Diagnostic{configDiag(f, r, configErr)}
 	}
 
 	minChars := r.MinChars
@@ -296,15 +296,19 @@ func buildCorpusIndex(
 // walkDirDecision returns the fs.WalkDirFunc verdict for a directory:
 // descend normally, or SkipDir for known-heavy subtrees (`.git`,
 // `node_modules`) and user-configured excludes.
-func walkDirDecision(path string, exclude []glob.Glob) error {
-	if path == "." {
+func walkDirDecision(p string, exclude []glob.Glob) error {
+	if p == "." {
 		return nil
 	}
-	switch filepath.Base(path) {
+	// fs.WalkDir always yields forward-slash paths; gopath.Base
+	// splits on '/' regardless of OS, while filepath.Base would
+	// only split on '\\' on Windows and leave the whole path
+	// intact.
+	switch gopath.Base(p) {
 	case ".git", "node_modules":
 		return fs.SkipDir
 	}
-	if shouldSkipDir(path, exclude) {
+	if shouldSkipDir(p, exclude) {
 		return fs.SkipDir
 	}
 	return nil
@@ -359,14 +363,16 @@ func isMarkdownPath(p string) bool {
 // not consulted here: excluding a subtree is safe, but a missing
 // include match at the directory level would skip subtree entries
 // that individual include globs could still allow.
-func shouldSkipDir(path string, exclude []glob.Glob) bool {
+func shouldSkipDir(p string, exclude []glob.Glob) bool {
 	if len(exclude) == 0 {
 		return false
 	}
-	slashPath := filepath.ToSlash(path)
-	base := filepath.Base(path)
+	// p is an fs.WalkDir path (forward slash on every OS), so
+	// gopath.Base does the right thing cross-platform where
+	// filepath.Base would not split on '/' on Windows.
+	base := gopath.Base(p)
 	for _, g := range exclude {
-		if g.Match(slashPath) || g.Match(base) {
+		if g.Match(p) || g.Match(base) {
 			return true
 		}
 	}
@@ -378,11 +384,10 @@ func shouldSkipDir(path string, exclude []glob.Glob) bool {
 // patterns are matched against both the full forward-slash path and
 // the basename, so `"draft.md"` excludes a file regardless of which
 // directory it sits in.
-func matchesFilters(path string, include, exclude []glob.Glob) bool {
-	slashPath := filepath.ToSlash(path)
-	base := filepath.Base(path)
+func matchesFilters(p string, include, exclude []glob.Glob) bool {
+	base := gopath.Base(p)
 	for _, g := range exclude {
-		if g.Match(slashPath) || g.Match(base) {
+		if g.Match(p) || g.Match(base) {
 			return false
 		}
 	}
@@ -390,11 +395,27 @@ func matchesFilters(path string, include, exclude []glob.Glob) bool {
 		return true
 	}
 	for _, g := range include {
-		if g.Match(slashPath) || g.Match(base) {
+		if g.Match(p) || g.Match(base) {
 			return true
 		}
 	}
 	return false
+}
+
+// compileFilters compiles the include/exclude globs and wraps any
+// failure with the offending setting name so users see which list
+// holds the bad pattern. Kept on the rule to keep Check() focused on
+// diagnostics rather than configuration plumbing.
+func (r *Rule) compileFilters() (include, exclude []glob.Glob, err error) {
+	include, err = compileMatchers(r.Include)
+	if err != nil {
+		return nil, nil, fmt.Errorf("include: %w", err)
+	}
+	exclude, err = compileMatchers(r.Exclude)
+	if err != nil {
+		return nil, nil, fmt.Errorf("exclude: %w", err)
+	}
+	return include, exclude, nil
 }
 
 // compileMatchers compiles user-supplied glob patterns without a path

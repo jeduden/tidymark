@@ -194,6 +194,31 @@ func TestCheck_NoFSIsNoop(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+func TestCheck_StdinWithRootDirDoesNotWalkProject(t *testing.T) {
+	// Mirrors `mdsmith check -` (or Runner.RunSource) under a
+	// discovered project root: f.FS is nil because the input has
+	// no directory context, but RootFS/RootDir get populated for
+	// rules that look up project-relative resources. MDS037 is a
+	// cross-file rule that cannot meaningfully run against stdin,
+	// so it must short-circuit on f.FS == nil instead of silently
+	// walking the entire RootFS.
+	dir := t.TempDir()
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+	// A duplicate sibling in the root would normally fire, but
+	// with no FS the rule must emit nothing.
+	writeFile(t, filepath.Join(dir, "sibling.md"), "# S\n\n"+p+"\n")
+
+	src := []byte("# Stdin\n\n" + p + "\n")
+	f, err := lint.NewFile("stdin.md", src)
+	require.NoError(t, err)
+	// FS intentionally left nil (stdin); RootFS populated as
+	// RunSource would do.
+	f.SetRootDir(dir)
+
+	diags := (&Rule{}).Check(f)
+	assert.Empty(t, diags)
+}
+
 func TestApplySettings_MinChars(t *testing.T) {
 	r := &Rule{}
 	require.NoError(t, r.ApplySettings(map[string]any{"min-chars": 50}))
