@@ -37,6 +37,14 @@ func Load(path string) (*Config, error) {
 	// Detect whether the "files" key was explicitly present in the YAML.
 	cfg.FilesExplicit = yamlHasKey(data, "files")
 
+	if yamlHasKey(data, "no-follow-symlinks") {
+		cfg.Deprecations = append(cfg.Deprecations,
+			"config key `no-follow-symlinks` is deprecated; "+
+				"symlinks are now skipped by default — "+
+				"use `follow-symlinks: true` to opt in, "+
+				"or remove the key")
+	}
+
 	return &cfg, nil
 }
 

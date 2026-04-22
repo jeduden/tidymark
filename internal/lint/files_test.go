@@ -275,9 +275,12 @@ func TestResolveFilesWithOpts_GitignoreNegation(t *testing.T) {
 	assert.Equal(t, "keep.md", filepath.Base(files[0]))
 }
 
-// --- NoFollowSymlinks tests ---
+// --- FollowSymlinks tests ---
 
-func TestResolveFilesWithOpts_NoFollowSymlinks(t *testing.T) {
+// TestResolveFilesWithOpts_SkipsSymlinksByDefault asserts that the
+// secure default (FollowSymlinks=false) skips all symlinked files and
+// symlinked directories during directory walks.
+func TestResolveFilesWithOpts_SkipsSymlinksByDefault(t *testing.T) {
 	dir := t.TempDir()
 
 	realFile := filepath.Join(dir, "real.md")
@@ -291,44 +294,63 @@ func TestResolveFilesWithOpts_NoFollowSymlinks(t *testing.T) {
 	linkFile := filepath.Join(dir, "link.md")
 	require.NoError(t, os.Symlink(targetFile, linkFile))
 
-	// Without no-follow-symlinks: all files should be found.
+	// Default: only the real files are walked; symlink is skipped.
 	files, err := ResolveFilesWithOpts([]string{dir}, DefaultResolveOpts())
 	require.NoError(t, err)
-	require.Len(t, files, 3) // real.md, link.md, target/doc.md
-
-	// With no-follow-symlinks matching all .md: symlink should be skipped.
-	noGitignore := false
-	opts := ResolveOpts{
-		UseGitignore:     &noGitignore,
-		NoFollowSymlinks: []string{"*.md"},
-	}
-	files, err = ResolveFilesWithOpts([]string{dir}, opts)
-	require.NoError(t, err)
-	require.Len(t, files, 2, "expected 2 files (symlink skipped)")
+	require.Len(t, files, 2)
 	for _, f := range files {
-		assert.NotEqual(t, "link.md", filepath.Base(f), "link.md should have been skipped (symlink)")
+		assert.NotEqual(t, "link.md", filepath.Base(f),
+			"symlinked link.md must be skipped by default")
 	}
 }
 
-func TestResolveFilesWithOpts_NoFollowSymlinks_PatternSpecific(t *testing.T) {
+// TestResolveFilesWithOpts_FollowSymlinks_OptIn asserts that
+// FollowSymlinks=true restores the pre-plan-84 behavior of walking
+// symlinked entries.
+func TestResolveFilesWithOpts_FollowSymlinks_OptIn(t *testing.T) {
 	dir := t.TempDir()
 
-	targetA := filepath.Join(dir, "a.md")
-	targetB := filepath.Join(dir, "b.md")
-	require.NoError(t, os.WriteFile(targetA, []byte("# A"), 0o644))
-	require.NoError(t, os.WriteFile(targetB, []byte("# B"), 0o644))
+	realFile := filepath.Join(dir, "real.md")
+	require.NoError(t, os.WriteFile(realFile, []byte("# Real"), 0o644))
 
-	linkDir := filepath.Join(dir, "links")
-	require.NoError(t, os.MkdirAll(linkDir, 0o755))
-	require.NoError(t, os.Symlink(targetA, filepath.Join(linkDir, "link-a.md")))
-	require.NoError(t, os.Symlink(targetB, filepath.Join(linkDir, "link-b.md")))
+	subDir := filepath.Join(dir, "target")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+	targetFile := filepath.Join(subDir, "doc.md")
+	require.NoError(t, os.WriteFile(targetFile, []byte("# Target"), 0o644))
+
+	linkFile := filepath.Join(dir, "link.md")
+	require.NoError(t, os.Symlink(targetFile, linkFile))
 
 	noGitignore := false
 	opts := ResolveOpts{
-		UseGitignore:     &noGitignore,
-		NoFollowSymlinks: []string{"**/links/*"},
+		UseGitignore:   &noGitignore,
+		FollowSymlinks: true,
 	}
 	files, err := ResolveFilesWithOpts([]string{dir}, opts)
 	require.NoError(t, err)
-	require.Len(t, files, 2)
+	require.Len(t, files, 3,
+		"with FollowSymlinks=true, symlink is walked alongside real files")
+}
+
+// TestResolveFilesWithOpts_Glob_SkipsSymlinksByDefault asserts the
+// same default-deny applies when paths come in through a glob
+// expansion (resolveGlob path) rather than a directory walk.
+func TestResolveFilesWithOpts_Glob_SkipsSymlinksByDefault(t *testing.T) {
+	dir := t.TempDir()
+
+	realFile := filepath.Join(dir, "real.md")
+	require.NoError(t, os.WriteFile(realFile, []byte("# Real"), 0o644))
+
+	target := filepath.Join(dir, "target.md")
+	require.NoError(t, os.WriteFile(target, []byte("# Target"), 0o644))
+	linkFile := filepath.Join(dir, "link.md")
+	require.NoError(t, os.Symlink(target, linkFile))
+
+	pattern := filepath.Join(dir, "*.md")
+	files, err := ResolveFilesWithOpts([]string{pattern}, DefaultResolveOpts())
+	require.NoError(t, err)
+	for _, f := range files {
+		assert.NotEqual(t, "link.md", filepath.Base(f),
+			"glob expansion must skip symlinks by default")
+	}
 }

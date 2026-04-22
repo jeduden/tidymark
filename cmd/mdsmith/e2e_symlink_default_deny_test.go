@@ -109,9 +109,11 @@ func TestE2E_Symlink_LegacyNoFollowConfig_Deprecation(t *testing.T) {
 		"expected deprecation warning, got: %s", stderr)
 }
 
-// TestE2E_Symlink_FixRespectsFollowSymlinks ensures `fix` also
-// honors --follow-symlinks: the dirty external file must NOT be
-// rewritten by default, and MUST be rewritten when opted in.
+// TestE2E_Symlink_FixRespectsFollowSymlinks ensures `fix` honors
+// --follow-symlinks: the dirty external file is never rewritten
+// (atomic rename replaces the symlink itself, not its target — see
+// plan 83 section C), and the in-project symlink is only visited
+// when the flag is set.
 func TestE2E_Symlink_FixRespectsFollowSymlinks(t *testing.T) {
 	project := t.TempDir()
 	external := t.TempDir()
@@ -124,22 +126,37 @@ func TestE2E_Symlink_FixRespectsFollowSymlinks(t *testing.T) {
 	const dirtyContent = "# Dirty\n\ntrailing   \n"
 	require.NoError(t, os.WriteFile(externalFile,
 		[]byte(dirtyContent), 0o644))
-	require.NoError(t, os.Symlink(externalFile,
-		filepath.Join(project, "linked.md")))
+	linked := filepath.Join(project, "linked.md")
+	require.NoError(t, os.Symlink(externalFile, linked))
 
-	// Default-deny: fix must not touch the external file.
+	// Default-deny: fix does not visit the symlink. The link remains
+	// a symlink and the external file is untouched.
 	_, _, _ = runBinaryInDir(t, project, "",
 		"fix", "--no-color", "--no-gitignore", ".")
+	lstat, err := os.Lstat(linked)
+	require.NoError(t, err)
+	assert.NotZero(t, lstat.Mode()&os.ModeSymlink,
+		"default-deny must leave the symlink intact")
 	got, err := os.ReadFile(externalFile)
 	require.NoError(t, err)
 	assert.Equal(t, dirtyContent, string(got),
 		"fix must not rewrite symlinked external file by default")
 
-	// Opt-in: fix follows the symlink and rewrites the file.
+	// Opt-in: fix visits the symlink. Atomic rename replaces the
+	// symlink with a regular file containing the fixed content; the
+	// external target stays untouched (plan 83 write-side protection).
 	_, _, _ = runBinaryInDir(t, project, "",
 		"fix", "--no-color", "--no-gitignore", "--follow-symlinks", ".")
-	got2, err := os.ReadFile(externalFile)
+	lstat2, err := os.Lstat(linked)
 	require.NoError(t, err)
-	assert.NotContains(t, string(got2), "   \n",
-		"fix --follow-symlinks must rewrite symlinked external file")
+	assert.Zero(t, lstat2.Mode()&os.ModeSymlink,
+		"fix --follow-symlinks must replace symlink with a regular file")
+	projectContent, err := os.ReadFile(linked)
+	require.NoError(t, err)
+	assert.NotContains(t, string(projectContent), "   \n",
+		"fix --follow-symlinks must rewrite the in-project file")
+	extAfter, err := os.ReadFile(externalFile)
+	require.NoError(t, err)
+	assert.Equal(t, dirtyContent, string(extAfter),
+		"fix must never rewrite the external symlink target directly")
 }
