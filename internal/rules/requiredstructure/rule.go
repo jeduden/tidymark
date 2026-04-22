@@ -253,17 +253,26 @@ func (r *Rule) isSchemaOrArchetypeFile(f *lint.File) bool {
 	}
 	for _, root := range roots {
 		cleanRoot := filepath.ToSlash(filepath.Clean(root))
-		if cleanRoot == "." {
-			cleanRoot = ""
-		} else {
-			cleanRoot += "/"
-		}
 		for _, c := range candidates {
-			if strings.HasSuffix(c, ".md") &&
-				(cleanRoot == "" ||
-					strings.HasPrefix(c, cleanRoot)) {
-				return true
+			if !strings.HasSuffix(c, ".md") {
+				continue
 			}
+			// An archetype lives at "<root>/<name>.md" — exactly one
+			// file deep. `.` is a root with no prefix at all, so the
+			// candidate must have no path separators.
+			var rel string
+			switch {
+			case cleanRoot == ".":
+				rel = c
+			case strings.HasPrefix(c, cleanRoot+"/"):
+				rel = strings.TrimPrefix(c, cleanRoot+"/")
+			default:
+				continue
+			}
+			if rel == "" || strings.Contains(rel, "/") {
+				continue
+			}
+			return true
 		}
 	}
 	return false

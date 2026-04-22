@@ -269,6 +269,34 @@ func newFileInRootDirOnly(t *testing.T, root, name, body string) *lint.File {
 	return f
 }
 
+func TestCheck_DotRootOnlyMatchesTopLevelMarkdown(t *testing.T) {
+	root := t.TempDir()
+	// Nested doc under a subdirectory — must NOT be treated as an
+	// archetype source just because archetype-roots is ".".
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "docs"), 0o755))
+	src := "<?require\nfilename: \"doc-*.md\"\n?>\n# Title\n"
+	f := newFileInRoot(t, root, filepath.Join("docs", "doc.md"), src)
+	r := &Rule{ArchetypeRoots: []string{"."}}
+	diags := r.Check(f)
+	// Expect the misplaced-require warning because docs/doc.md is a
+	// normal doc, not a top-level schema source.
+	expectDiagMsg(t, diags, "<?require?>")
+}
+
+func TestCheck_NonDotRootOnlyMatchesDirectChildren(t *testing.T) {
+	root := t.TempDir()
+	// File lives in archetypes/sub/story.md — deeper than archetype
+	// discovery supports, so not a schema source.
+	require.NoError(t, os.MkdirAll(
+		filepath.Join(root, "archetypes", "sub"), 0o755))
+	src := "<?require\nfilename: \"story-*.md\"\n?>\n# ?\n"
+	f := newFileInRoot(t, root,
+		filepath.Join("archetypes", "sub", "story.md"), src)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "<?require?>")
+}
+
 func TestCheck_ArchetypeRootEscapesProjectRoot(t *testing.T) {
 	root := t.TempDir()
 	f := newFileInRoot(t, root, "doc.md", "# Title\n")
