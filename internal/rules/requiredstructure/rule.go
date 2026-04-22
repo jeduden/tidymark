@@ -28,12 +28,8 @@ func init() {
 type Rule struct {
 	Schema         string   // path to schema file
 	Archetype      string   // name of an archetype schema discovered under ArchetypeRoots
-	ArchetypeRoots []string // directories searched for archetypes; defaults to [DefaultArchetypeRoot]
+	ArchetypeRoots []string // directories searched for archetypes; defaults to [archetypes.DefaultRoot]
 }
-
-// DefaultArchetypeRoot is the directory used when no archetype roots
-// are configured for the rule.
-const DefaultArchetypeRoot = "archetypes"
 
 // ID implements rule.Rule.
 func (r *Rule) ID() string { return "MDS020" }
@@ -107,7 +103,7 @@ func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
 		"schema":          "",
 		"archetype":       "",
-		"archetype-roots": []string{DefaultArchetypeRoot},
+		"archetype-roots": []string{archetypes.DefaultRoot},
 	}
 }
 
@@ -237,7 +233,7 @@ func (r *Rule) isSchemaOrArchetypeFile(f *lint.File) bool {
 	}
 	roots := r.ArchetypeRoots
 	if len(roots) == 0 {
-		roots = []string{DefaultArchetypeRoot}
+		roots = []string{archetypes.DefaultRoot}
 	}
 	// Try a plain relative-path match (covers common layouts where
 	// mdsmith runs from the project root) and an absolute-to-RootDir
@@ -282,7 +278,7 @@ func (r *Rule) isSchemaOrArchetypeFile(f *lint.File) bool {
 // the default when the rule's setting is empty.
 func (r *Rule) archetypeRoots() []string {
 	if len(r.ArchetypeRoots) == 0 {
-		return []string{DefaultArchetypeRoot}
+		return []string{archetypes.DefaultRoot}
 	}
 	return r.ArchetypeRoots
 }

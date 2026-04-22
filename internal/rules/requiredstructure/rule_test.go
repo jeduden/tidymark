@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jeduden/mdsmith/internal/archetypes"
 	"github.com/jeduden/mdsmith/internal/lint"
 
 	"github.com/stretchr/testify/assert"
@@ -255,7 +256,7 @@ func TestApplySettings_ArchetypeRootsTypedStringSlice(t *testing.T) {
 func TestDefaultSettings_ArchetypeRoots(t *testing.T) {
 	r := &Rule{}
 	assert.Equal(t,
-		[]string{DefaultArchetypeRoot},
+		[]string{archetypes.DefaultRoot},
 		r.DefaultSettings()["archetype-roots"])
 }
 

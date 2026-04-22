@@ -282,6 +282,48 @@ func TestValidateRoots_EmptySliceOK(t *testing.T) {
 	assert.NoError(t, ValidateRoots(nil))
 }
 
+// readDirErrFS returns a non-ErrNotExist error from ReadDir for a
+// specific root, exercising ListWithErrors' error-surfacing branch.
+type readDirErrFS struct {
+	fs      fs.FS
+	errRoot string
+	err     error
+}
+
+func (s readDirErrFS) Open(name string) (fs.File, error) {
+	return s.fs.Open(name)
+}
+
+func (s readDirErrFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if name == s.errRoot {
+		return nil, s.err
+	}
+	return fs.ReadDir(s.fs, name)
+}
+
+func TestResolver_ListWithErrors_ReturnsNonNotExistErrors(t *testing.T) {
+	boom := errors.New("io boom")
+	r := &Resolver{FS: readDirErrFS{
+		fs:      fsWith(map[string]string{"good/story.md": "# ?"}),
+		errRoot: "bad",
+		err:     boom,
+	}, Roots: []string{"bad", "good"}}
+	entries, errs := r.ListWithErrors()
+	require.Len(t, entries, 1)
+	assert.Equal(t, "story", entries[0].Name)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "reading archetype root")
+	assert.True(t, errors.Is(errs[0], boom))
+}
+
+func TestResolver_ListWithErrors_SilentOnNotExist(t *testing.T) {
+	// Missing root is fine — the resolver tolerates empty directories.
+	r := &Resolver{Roots: []string{"missing"}, FS: fsWith(nil)}
+	entries, errs := r.ListWithErrors()
+	assert.Empty(t, entries)
+	assert.Empty(t, errs)
+}
+
 func TestResolver_LookupSkipsDirectoryMatch(t *testing.T) {
 	// A directory named "story.md" under the root must not be treated
 	// as the archetype file.

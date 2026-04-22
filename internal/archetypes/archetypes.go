@@ -139,16 +139,36 @@ func (r *Resolver) osJoin(p string) string {
 // archetype names (see isArchetypeName) are skipped — this keeps
 // README.md, dotfiles, and underscore-prefixed scratch files out of
 // the archetype namespace.
+//
+// List silently ignores every readDir error so it can never return
+// a partial result with an error set. Use ListWithErrors when
+// callers need to distinguish "root does not exist" from "root
+// could not be read".
 func (r *Resolver) List() []Entry {
+	entries, _ := r.ListWithErrors()
+	return entries
+}
+
+// ListWithErrors is like List but also returns every non-ErrNotExist
+// error encountered while reading a root. The entry slice is always
+// populated with the archetypes that were successfully discovered;
+// errors are returned alongside so callers can decide whether to
+// surface them as warnings or fail fast.
+func (r *Resolver) ListWithErrors() ([]Entry, []error) {
 	seen := map[string]bool{}
 	var out []Entry
+	var errs []error
 	for _, root := range r.roots() {
 		cleanRoot := filepath.ToSlash(filepath.Clean(root))
-		entries, err := r.readDir(cleanRoot)
+		dirEntries, err := r.readDir(cleanRoot)
 		if err != nil {
+			if !errors.Is(err, fs.ErrNotExist) {
+				errs = append(errs, fmt.Errorf(
+					"reading archetype root %q: %w", root, err))
+			}
 			continue
 		}
-		for _, e := range entries {
+		for _, e := range dirEntries {
 			if e.IsDir() {
 				continue
 			}
@@ -172,7 +192,7 @@ func (r *Resolver) List() []Entry {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
+	return out, errs
 }
 
 // isArchetypeName reports whether basename (without the ".md"

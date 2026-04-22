@@ -204,8 +204,14 @@ func runArchetypesList(args []string) int {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
 		return 2
 	}
-	entries := resolver.List()
+	entries, listErrs := resolver.ListWithErrors()
+	for _, err := range listErrs {
+		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
+	}
 	if len(entries) == 0 {
+		if len(listErrs) > 0 {
+			return 2
+		}
 		fmt.Fprintf(os.Stderr,
 			"mdsmith: no archetypes found under roots %v\n",
 			resolver.EffectiveRoots())
