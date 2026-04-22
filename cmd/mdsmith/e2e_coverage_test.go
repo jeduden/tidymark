@@ -145,6 +145,7 @@ func TestE2E_Fix_Discovered_BadConfig_ExitsTwo(t *testing.T) {
 // "accept silently") and that the new secure default leaves the
 // real directory reachable.
 func TestE2E_Check_LegacyNoFollowSymlinksFlag(t *testing.T) {
+	skipIfSymlinkUnsupported(t)
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
 	writeFixture(t, dir, ".mdsmith.yml",
@@ -170,6 +171,7 @@ func TestE2E_Check_LegacyNoFollowSymlinksFlag(t *testing.T) {
 // TestE2E_Fix_LegacyNoFollowSymlinksFlag covers the same silent-
 // acceptance path for the fix subcommand.
 func TestE2E_Fix_LegacyNoFollowSymlinksFlag(t *testing.T) {
+	skipIfSymlinkUnsupported(t)
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
 	writeFixture(t, dir, ".mdsmith.yml",
@@ -496,6 +498,7 @@ func TestE2E_Query_Verbose_MixedResults(t *testing.T) {
 // achieves what the legacy key intended, so discovery results match
 // what the user expects.
 func TestE2E_Check_LegacyNoFollowSymlinksConfig(t *testing.T) {
+	skipIfSymlinkUnsupported(t)
 	dir := t.TempDir()
 	writeFixture(t, dir, ".mdsmith.yml",
 		"no-follow-symlinks:\n  - \"**\"\nrules:\n  no-trailing-spaces: true\n")

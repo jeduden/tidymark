@@ -168,35 +168,36 @@ func TestResolveMaxInputBytes_InvalidCLI_Error(t *testing.T) {
 
 func TestResolveOpts_BothFalse_GitignoreEnabled(t *testing.T) {
 	cfg := &config.Config{}
-	opts := resolveOpts(cfg, false, false)
+	opts := resolveOpts(cfg, walkCLI{})
 	require.NotNil(t, opts.UseGitignore)
 	assert.True(t, *opts.UseGitignore)
-	assert.Nil(t, opts.NoFollowSymlinks)
+	assert.False(t, opts.FollowSymlinks)
 }
 
 func TestResolveOpts_NoGitignore_DisablesFilter(t *testing.T) {
 	cfg := &config.Config{}
-	opts := resolveOpts(cfg, true, false)
+	opts := resolveOpts(cfg, walkCLI{noGitignore: true})
 	require.NotNil(t, opts.UseGitignore)
 	assert.False(t, *opts.UseGitignore)
 }
 
-func TestResolveOpts_NoFollowSymlinks_SetsGlobStar(t *testing.T) {
+func TestResolveOpts_FollowSymlinksFlag_OptsIn(t *testing.T) {
 	cfg := &config.Config{}
-	opts := resolveOpts(cfg, false, true)
-	assert.Equal(t, []string{"**"}, opts.NoFollowSymlinks)
+	opts := resolveOpts(cfg, walkCLI{followSymlinks: true})
+	assert.True(t, opts.FollowSymlinks)
 }
 
-func TestResolveOpts_ConfigNoFollowSymlinks_Propagated(t *testing.T) {
-	cfg := &config.Config{NoFollowSymlinks: []string{"vendor/**"}}
-	opts := resolveOpts(cfg, false, false)
-	assert.Equal(t, []string{"vendor/**"}, opts.NoFollowSymlinks)
+func TestResolveOpts_ConfigFollowSymlinks_Propagated(t *testing.T) {
+	cfg := &config.Config{FollowSymlinks: true}
+	opts := resolveOpts(cfg, walkCLI{})
+	assert.True(t, opts.FollowSymlinks)
 }
 
-func TestResolveOpts_CLISymlinksOverridesConfig(t *testing.T) {
-	cfg := &config.Config{NoFollowSymlinks: []string{"vendor/**"}}
-	opts := resolveOpts(cfg, false, true)
-	assert.Equal(t, []string{"**"}, opts.NoFollowSymlinks)
+func TestResolveOpts_LegacyNoFollowForcesDeny(t *testing.T) {
+	cfg := &config.Config{FollowSymlinks: true}
+	opts := resolveOpts(cfg, walkCLI{followSymlinks: true, legacyNoFollow: true})
+	assert.False(t, opts.FollowSymlinks,
+		"deprecated --no-follow-symlinks flag must win over both config and --follow-symlinks")
 }
 
 // --- printRunStats ---
