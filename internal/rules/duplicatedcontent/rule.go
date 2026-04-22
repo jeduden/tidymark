@@ -84,10 +84,10 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return nil
 	}
 
+	// resolveCorpus is guaranteed non-nil here: the f.FS == nil
+	// guard above short-circuits, and resolveCorpus falls back to
+	// f.FS when RootFS is missing or rootRelative fails.
 	corpus, selfName := resolveCorpus(f)
-	if corpus == nil {
-		return nil
-	}
 
 	index := buildCorpusIndex(
 		corpus, selfName, f.MaxInputBytes, minChars,
@@ -216,18 +216,16 @@ func runeLen(s string) int {
 // to the project root (ResolveFiles returns things like "./docs/a.md").
 // Absolute paths go through filepath.Rel; relative paths are cleaned
 // and slashed in place. Either way, a self-path that escapes RootDir
-// (starts with "..") falls through to the FS scope rather than
-// walking the whole project root behind the user's back.
+// falls through to the FS scope rather than walking the whole project
+// root behind the user's back. Callers guarantee f.FS != nil before
+// invoking this.
 func resolveCorpus(f *lint.File) (fs.FS, string) {
 	if f.RootFS != nil && f.RootDir != "" {
 		if selfName, ok := rootRelative(f.RootDir, f.Path); ok {
 			return f.RootFS, selfName
 		}
 	}
-	if f.FS != nil {
-		return f.FS, filepath.Base(f.Path)
-	}
-	return nil, ""
+	return f.FS, filepath.Base(f.Path)
 }
 
 // rootRelative returns path expressed relative to rootDir using forward
