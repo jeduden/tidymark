@@ -201,9 +201,17 @@ func (r *Resolver) ListWithErrors() ([]Entry, []error) {
 // case-insensitive names "readme", "license", and "contributing" are
 // reserved for repository metadata so that files conventionally
 // written into project directories do not accidentally surface as
-// archetypes.
+// archetypes. Names containing path separators or traversal segments
+// are rejected so Lookup cannot be coerced into reading outside the
+// archetype roots.
 func isArchetypeName(base string) bool {
 	if base == "" {
+		return false
+	}
+	if strings.ContainsAny(base, "/\\") {
+		return false
+	}
+	if base == ".." {
 		return false
 	}
 	if strings.HasPrefix(base, "_") || strings.HasPrefix(base, ".") {

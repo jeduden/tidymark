@@ -3,6 +3,8 @@ package archetypes
 import (
 	"errors"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -213,24 +215,57 @@ func TestResolver_LookupRejectsReservedNames(t *testing.T) {
 
 func TestIsArchetypeName(t *testing.T) {
 	cases := map[string]bool{
-		"story":        true,
-		"prd":          true,
-		"agent-def":    true,
-		"Story":        true,
-		"":             false,
-		"_draft":       false,
-		".hidden":      false,
-		"README":       false,
-		"readme":       false,
-		"ReadMe":       false,
-		"License":      false,
-		"CONTRIBUTING": false,
-		"codeowners":   false,
+		"story":              true,
+		"prd":                true,
+		"agent-def":          true,
+		"Story":              true,
+		"":                   false,
+		"_draft":             false,
+		".hidden":            false,
+		"README":             false,
+		"readme":             false,
+		"ReadMe":             false,
+		"License":            false,
+		"CONTRIBUTING":       false,
+		"codeowners":         false,
+		"sub/story":          false,
+		"a/../../etc/passwd": false,
+		"..":                 false,
+		"sub\\win":           false,
 	}
 	for in, want := range cases {
 		assert.Equal(t, want, isArchetypeName(in),
 			"isArchetypeName(%q)", in)
 	}
+}
+
+func TestResolver_LookupRejectsPathInjection(t *testing.T) {
+	dir := t.TempDir()
+	// Place a file outside the archetype root that Lookup must not read.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "secret.md"), []byte("# secret"), 0o644))
+	require.NoError(t, os.MkdirAll(
+		filepath.Join(dir, "archetypes"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "archetypes", "story.md"),
+		[]byte("# ?"), 0o644))
+
+	r := &Resolver{RootDir: dir}
+	for _, name := range []string{
+		"../secret",
+		"sub/story",
+		"a/../../etc/passwd",
+		"..",
+	} {
+		_, err := r.Lookup(name)
+		require.Errorf(t, err, "expected rejection for %q", name)
+		assert.Contains(t, err.Error(), "unknown archetype",
+			"got: %v", err)
+	}
+	// Sanity: the real archetype still resolves.
+	entry, err := r.Lookup("story")
+	require.NoError(t, err)
+	assert.Equal(t, "story", entry.Name)
 }
 
 func TestEffectiveRoots_DefaultsAndRootDirJoin(t *testing.T) {
