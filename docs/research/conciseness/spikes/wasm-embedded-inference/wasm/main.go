@@ -56,8 +56,14 @@ func classify(ptr, length int32) int64 {
 	if length < 0 {
 		return 0
 	}
-	data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), length)
-	text := string(data)
+	if length > 0 && ptr == 0 {
+		return 0
+	}
+	text := ""
+	if length > 0 {
+		data := unsafe.Slice((*byte)(unsafe.Pointer(uintptr(ptr))), length)
+		text = string(data)
+	}
 	result := model.Classify(text)
 
 	var b strings.Builder
@@ -71,7 +77,13 @@ func classify(ptr, length int32) int64 {
 		result.Version,
 		strings.Join(result.TriggeredCues, ","),
 	)
-	n := copy(outputBuf[:], b.String())
+	encoded := b.String()
+	if len(encoded) > len(outputBuf) {
+		// Signal truncation with a negative length so the host can detect
+		// and raise rather than silently decoding a truncated JSON buffer.
+		return -1
+	}
+	n := copy(outputBuf[:], encoded)
 	out := uintptr(unsafe.Pointer(&outputBuf[0]))
 	return (int64(out) << 32) | int64(n)
 }

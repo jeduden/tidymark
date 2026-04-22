@@ -98,27 +98,34 @@ func (g *guestHandle) Close() error {
 
 func (g *guestHandle) Classify(text string) (classifyResult, error) {
 	input := []byte(text)
-	allocRet, err := g.alloc.Call(g.ctx, uint64(len(input)))
-	if err != nil {
-		return classifyResult{}, fmt.Errorf("alloc: %w", err)
-	}
-	ptr := uint32(allocRet[0])
-	if ptr == 0 {
-		return classifyResult{}, errors.New("alloc returned null ptr")
-	}
-	defer func() { _, _ = g.free.Call(g.ctx, uint64(ptr)) }()
+	var ptr uint32
 
-	if !g.memory.Write(ptr, input) {
-		return classifyResult{}, errors.New("memory.Write failed")
+	if len(input) > 0 {
+		allocRet, err := g.alloc.Call(g.ctx, uint64(len(input)))
+		if err != nil {
+			return classifyResult{}, fmt.Errorf("alloc: %w", err)
+		}
+		ptr = uint32(allocRet[0])
+		if ptr == 0 {
+			return classifyResult{}, errors.New("alloc returned null ptr")
+		}
+		defer func() { _, _ = g.free.Call(g.ctx, uint64(ptr)) }()
+
+		if !g.memory.Write(ptr, input) {
+			return classifyResult{}, errors.New("memory.Write failed")
+		}
 	}
 
 	ret, err := g.classify.Call(g.ctx, uint64(ptr), uint64(len(input)))
 	if err != nil {
 		return classifyResult{}, fmt.Errorf("classify: %w", err)
 	}
-	packed := ret[0]
-	outPtr := uint32(packed >> 32)
-	outLen := uint32(packed & 0xFFFFFFFF)
+	packed := int64(ret[0])
+	if packed < 0 {
+		return classifyResult{}, errors.New("guest signaled output truncation")
+	}
+	outPtr := uint32(uint64(packed) >> 32)
+	outLen := uint32(uint64(packed) & 0xFFFFFFFF)
 	raw, ok := g.memory.Read(outPtr, outLen)
 	if !ok {
 		return classifyResult{}, errors.New("memory.Read failed")
