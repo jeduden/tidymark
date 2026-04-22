@@ -34,16 +34,16 @@ match, exits 0.
 
 ## Subcommand Flags (check, fix)
 
-| Flag                   | Description                          |
-|------------------------|--------------------------------------|
-| `-c`, `--config`       | Config path                          |
-| `-f`, `--format`       | `text` or `json`                     |
-| `--max-input-size`     | Max file size (e.g. `2MB`, `0`=none) |
-| `--no-color`           | Plain output                         |
-| `--no-follow-symlinks` | Skip symbolic links when walking     |
-| `--no-gitignore`       | Skip gitignore                       |
-| `-q`, `--quiet`        | Quiet mode                           |
-| `-v`, `--verbose`      | Verbose output                       |
+| Flag                   | Default | Description                             |
+|------------------------|---------|-----------------------------------------|
+| `-c`, `--config`       | auto    | Config path (auto-discovers by default) |
+| `-f`, `--format`       | `text`  | `text` or `json`                        |
+| `--max-input-size`     | `2MB`   | Max file size (e.g. `2MB`, `0`=none)    |
+| `--no-color`           | false   | Plain output                            |
+| `--no-follow-symlinks` | false   | Skip symbolic links when walking        |
+| `--no-gitignore`       | false   | Skip gitignore                          |
+| `-q`, `--quiet`        | false   | Quiet mode                              |
+| `-v`, `--verbose`      | false   | Verbose output                          |
 
 ## Other Subcommand Flags
 
