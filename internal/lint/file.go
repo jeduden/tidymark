@@ -22,6 +22,13 @@ type File struct {
 	FrontMatter []byte
 	LineOffset  int
 
+	// StripFrontMatter records whether this file was parsed in
+	// front-matter-stripping mode. Rules that read other files
+	// from the corpus should mirror the same mode so that line
+	// numbers in cross-file diagnostics are computed against the
+	// same coordinate system as the current file.
+	StripFrontMatter bool
+
 	// MaxInputBytes is the maximum file size in bytes that rules
 	// should enforce when reading secondary files (includes, schemas,
 	// cross-references). Zero or negative means unlimited.
@@ -110,6 +117,7 @@ func NewFileFromSource(path string, source []byte, stripFrontMatter bool) (*File
 	}
 	f.FrontMatter = fm
 	f.LineOffset = offset
+	f.StripFrontMatter = stripFrontMatter
 	return f, nil
 }
 

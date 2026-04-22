@@ -16,7 +16,7 @@ footer: |
 
 | ID  | Status | Title                                                                                                           |
 |-----|--------|-----------------------------------------------------------------------------------------------------------------|
-| 50  | 🔲     | [Redundancy / Duplication Detection](plan/50_redundancy-duplication-detection.md)                               |
+| 50  | ✅     | [Redundancy / Duplication Detection](plan/50_redundancy-duplication-detection.md)                               |
 | 51  | ✅     | [Section-Level Size Limits](plan/51_section-level-size-limits.md)                                               |
 | 52  | 🔲     | [Archetype / Template Library for Agentic Patterns](plan/52_archetype-template-library.md)                      |
 | 53  | ⛔     | [Conciseness Scoring](plan/53_conciseness-scoring.md)                                                           |
@@ -47,4 +47,6 @@ footer: |
 | 87  | ✅     | [Flavor validation for GitHub Alerts](plan/87_markdown-flavor-github-alerts.md)                                 |
 | 88  | ✅     | [TOC directive migration aid](plan/88_toc-directive-migration.md)                                               |
 | 89  | 🔲     | [TOC generator directive and MDS035 auto-fix](plan/89_toc-generator-directive.md)                               |
+| 90  | 🔲     | [Isolate corpus test git config from host signing](plan/90_corpus-test-git-config-isolation.md)                 |
+| 91  | 🔲     | [MDS037 skips paragraphs inside generated sections](plan/91_mds037-skip-generated-sections.md)                  |
 <?/catalog?>
