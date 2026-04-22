@@ -675,6 +675,128 @@ func TestRootRelative_RelErrorOnRelativeRoot(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+func TestCheck_SkipsIncludeGeneratedSection(t *testing.T) {
+	// A paragraph inside an <?include?> generated section must not be
+	// flagged as a duplicate, even when the same text appears in
+	// another corpus file (it's the source of the inclusion).
+	dir := t.TempDir()
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+
+	// source.md contains the paragraph that gets included.
+	writeFile(t, filepath.Join(dir, "source.md"), "# Source\n\n"+p+"\n")
+
+	// host.md includes source.md; the generated body holds the same paragraph.
+	host := "# Host\n\n" +
+		"<?include\nfile: source.md\n?>\n" +
+		p + "\n" +
+		"<?/include?>\n"
+	writeFile(t, filepath.Join(dir, "host.md"), host)
+
+	f := newLintFileWithRoot(t, filepath.Join(dir, "host.md"), dir)
+	diags := (&Rule{MinChars: 10}).Check(f)
+	assert.Empty(t, diags,
+		"paragraph inside <?include?> body must not be flagged as a duplicate")
+}
+
+func TestCheck_SkipsCatalogGeneratedSection(t *testing.T) {
+	// A paragraph inside a <?catalog?> generated section must not be
+	// flagged even when the same text appears in another corpus file.
+	dir := t.TempDir()
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+
+	writeFile(t, filepath.Join(dir, "source.md"), "# Source\n\n"+p+"\n")
+
+	host := "# Host\n\n" +
+		"<?catalog\nglob: \"*.md\"\n?>\n" +
+		p + "\n" +
+		"<?/catalog?>\n"
+	writeFile(t, filepath.Join(dir, "host.md"), host)
+
+	f := newLintFileWithRoot(t, filepath.Join(dir, "host.md"), dir)
+	diags := (&Rule{MinChars: 10}).Check(f)
+	assert.Empty(t, diags,
+		"paragraph inside <?catalog?> body must not be flagged as a duplicate")
+}
+
+func TestCheck_DuplicateOutsideGeneratedSectionStillFires(t *testing.T) {
+	// A paragraph outside any generated section must still be flagged
+	// when it appears verbatim in another corpus file.
+	dir := t.TempDir()
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+
+	// both.md has the paragraph before the generated section.
+	both := "# Both\n\n" +
+		p + "\n\n" +
+		"<?include\nfile: source.md\n?>\n" +
+		"generated content goes here and is definitely not the same\n" +
+		"<?/include?>\n"
+	writeFile(t, filepath.Join(dir, "both.md"), both)
+	writeFile(t, filepath.Join(dir, "other.md"), "# Other\n\n"+p+"\n")
+
+	f := newLintFileWithRoot(t, filepath.Join(dir, "both.md"), dir)
+	diags := (&Rule{MinChars: 10}).Check(f)
+	require.Len(t, diags, 1,
+		"real duplicate outside generated section must still fire")
+	assert.Contains(t, diags[0].Message, "other.md")
+}
+
+func TestCheck_CorpusSkipsIncludeGeneratedSection(t *testing.T) {
+	// When a corpus file contains an <?include?> generated section,
+	// the paragraphs inside it must not be indexed. Otherwise a host
+	// file checking its own (non-generated) paragraph against the
+	// corpus would find a false match in the corpus file's generated body.
+	dir := t.TempDir()
+	p := longParagraph("the quick brown fox jumps over the lazy dog")
+
+	// corpus-host.md has the same paragraph inside a generated section.
+	corpusHost := "# CorpusHost\n\n" +
+		"<?include\nfile: source.md\n?>\n" +
+		p + "\n" +
+		"<?/include?>\n"
+	writeFile(t, filepath.Join(dir, "corpus-host.md"), corpusHost)
+
+	// current.md has the paragraph as real content.
+	writeFile(t, filepath.Join(dir, "current.md"), "# Current\n\n"+p+"\n")
+
+	f := newLintFileWithRoot(t, filepath.Join(dir, "current.md"), dir)
+	diags := (&Rule{MinChars: 10}).Check(f)
+	assert.Empty(t, diags,
+		"paragraph inside corpus file's generated section must not be indexed")
+}
+
+func TestGeneratedRanges_EmptyFile(t *testing.T) {
+	f, err := lint.NewFile("test.md", []byte("# Hello\n"))
+	require.NoError(t, err)
+	assert.Empty(t, generatedRanges(f))
+}
+
+func TestGeneratedRanges_SingleIncludePair(t *testing.T) {
+	src := "<?include\nfile: x.md\n?>\nsome content\n<?/include?>\n"
+	f, err := lint.NewFile("test.md", []byte(src))
+	require.NoError(t, err)
+	ranges := generatedRanges(f)
+	require.Len(t, ranges, 1)
+	// Range must cover "some content\n" but not the PI markers.
+	contentStart := strings.Index(src, "some content")
+	contentEnd := strings.Index(src, "<?/include?>")
+	assert.Equal(t, contentStart, ranges[0][0])
+	assert.Equal(t, contentEnd, ranges[0][1])
+}
+
+func TestGeneratedRanges_MultiplePairs(t *testing.T) {
+	src := "<?include\nfile: a.md\n?>\ncontent a\n<?/include?>\n" +
+		"<?catalog\nglob: \"*.md\"\n?>\ncontent b\n<?/catalog?>\n"
+	f, err := lint.NewFile("test.md", []byte(src))
+	require.NoError(t, err)
+	ranges := generatedRanges(f)
+	assert.Len(t, ranges, 2)
+}
+
+func TestGeneratedRanges_NilAST(t *testing.T) {
+	f := &lint.File{}
+	assert.Empty(t, generatedRanges(f))
+}
+
 func TestRootRelative_AbsErrorWhenCWDIsRemoved(t *testing.T) {
 	// filepath.Abs errors when os.Getwd fails, which happens when
 	// the process's current directory was removed underneath it.

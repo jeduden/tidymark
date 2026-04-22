@@ -131,19 +131,70 @@ type externalMatch struct {
 	line int
 }
 
+// generatedRanges returns the [start, stop) byte ranges that cover the
+// body of generated sections (<?include?> and <?catalog?>). Only
+// top-level, well-formed open/close pairs produce a range; malformed or
+// unmatched markers are silently skipped, which is safe because the
+// generated-section rule (MDS031/MDS032) handles those errors separately.
+func generatedRanges(f *lint.File) [][2]int {
+	if f.AST == nil {
+		return nil
+	}
+	var ranges [][2]int
+	var openPI *lint.ProcessingInstruction
+	for n := f.AST.FirstChild(); n != nil; n = n.NextSibling() {
+		pi, ok := n.(*lint.ProcessingInstruction)
+		if !ok {
+			continue
+		}
+		if openPI == nil {
+			if (pi.Name == "include" || pi.Name == "catalog") && pi.HasClosure() {
+				openPI = pi
+			}
+		} else if pi.Name == "/"+openPI.Name && pi.HasClosure() && pi.Lines().Len() > 0 {
+			start := openPI.ClosureLine.Stop
+			stop := pi.Lines().At(0).Start
+			if stop > start {
+				ranges = append(ranges, [2]int{start, stop})
+			}
+			openPI = nil
+		}
+	}
+	return ranges
+}
+
+// inGeneratedRange reports whether offset falls within any of the given
+// [start, stop) byte ranges.
+func inGeneratedRange(offset int, ranges [][2]int) bool {
+	for _, r := range ranges {
+		if offset >= r[0] && offset < r[1] {
+			return true
+		}
+	}
+	return false
+}
+
 // extractParagraphs walks f.AST and returns fingerprints for every
 // paragraph whose normalized text is at least minChars runes long.
 // Paragraphs are read via Node.Lines so raw markdown text — not rendered
 // inline output — feeds the fingerprint. Paragraphs with no source lines
-// (a shape goldmark never produces today, but cheap to guard) and ones
-// shorter than the threshold are skipped via the same min-chars gate.
+// (a shape goldmark never produces today, but cheap to guard), ones
+// shorter than the threshold, and paragraphs inside generated sections
+// (<?include?> or <?catalog?> bodies) are skipped.
 func extractParagraphs(f *lint.File, minChars int) []paragraph {
+	genRanges := generatedRanges(f)
 	var out []paragraph
 	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering || n.Kind() != ast.KindParagraph {
 			return ast.WalkContinue, nil
 		}
 		lines := n.Lines()
+		if lines.Len() == 0 {
+			return ast.WalkSkipChildren, nil
+		}
+		if inGeneratedRange(lines.At(0).Start, genRanges) {
+			return ast.WalkSkipChildren, nil
+		}
 		var b strings.Builder
 		for i := 0; i < lines.Len(); i++ {
 			seg := lines.At(i)
