@@ -3,8 +3,10 @@ package lint
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/testutil"
@@ -373,6 +375,40 @@ func TestResolveFilesWithOpts_Glob_SkipsSymlinksByDefault(t *testing.T) {
 		"glob expansion must yield real.md and target.md and skip link.md")
 }
 
+// TestResolveFiles_SkipsNonRegularEntries asserts that FIFOs, and
+// by extension other non-regular file types, are never enqueued —
+// even when their name has a markdown extension. Reading such
+// entries via the lint pipeline could block indefinitely.
+func TestResolveFiles_SkipsNonRegularEntries(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("named pipes behave differently on Windows")
+	}
+	dir := t.TempDir()
+	// Real file + FIFO-with-.md-name in the same directory.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "real.md"), []byte("# Real"), 0o644))
+	fifo := filepath.Join(dir, "pipe.md")
+	require.NoError(t, syscall.Mkfifo(fifo, 0o644))
+
+	// Explicit arg (resolveArg path).
+	gotExplicit, err := ResolveFiles([]string{fifo})
+	require.NoError(t, err)
+	assert.Empty(t, gotExplicit,
+		"explicit FIFO arg must not be enqueued")
+
+	// Directory walk (walkDir path).
+	gotWalk, err := ResolveFiles([]string{dir})
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join(dir, "real.md")}, gotWalk,
+		"walkDir must include the regular file and skip the FIFO")
+
+	// Glob expansion (resolveGlob path).
+	gotGlob, err := ResolveFiles([]string{filepath.Join(dir, "*.md")})
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join(dir, "real.md")}, gotGlob,
+		"resolveGlob must skip the FIFO even with a matching name")
+}
+
 // --- hasSymlinkAncestor / helpers ---
 
 // TestHasSymlinkAncestor_RelativeUnderCwd exercises the common case:
@@ -436,11 +472,15 @@ func TestHasSymlinkAncestor_AbsPathOutsideCwdWithGitRoot(t *testing.T) {
 // absolute path with no cwd or .git anchor is trusted (no probe).
 // This keeps system-level symlinks like /tmp on macOS out of scope.
 func TestHasSymlinkAncestor_SkipsPathOutsideProjects(t *testing.T) {
+	// cwd and target live in unrelated temp dirs; neither has a
+	// .git ancestor, so hasSymlinkAncestor should find no anchor
+	// and return false. Using temp dirs keeps the test portable
+	// across OSes — unlike a hardcoded `/etc/...` path.
 	cwd := t.TempDir()
+	outside := t.TempDir()
 	t.Chdir(cwd)
-	// /etc/some-file isn't under cwd and no .git ancestor exists
-	// on the path; helper must return false.
-	assert.False(t, hasSymlinkAncestor("/etc/nonexistent/foo.md"))
+	assert.False(t, hasSymlinkAncestor(
+		filepath.Join(outside, "nonexistent", "foo.md")))
 }
 
 // TestGitProjectRoot_FindsAncestor and _None cover the boundary

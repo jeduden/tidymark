@@ -136,6 +136,14 @@ func (w *walker) visit(path string, info os.FileInfo, walkErr error) error {
 	if info.IsDir() {
 		return nil
 	}
+	// Only include regular files and opted-in symlinks whose
+	// target is regular (already verified in the symlink branch
+	// above). FIFO, device, and socket entries are skipped to
+	// avoid blocking reads during linting.
+	isSymlink := info.Mode()&os.ModeSymlink != 0
+	if !isSymlink && !info.Mode().IsRegular() {
+		return nil
+	}
 
 	if w.matchesAny(rel) {
 		w.addFile(rel, path)

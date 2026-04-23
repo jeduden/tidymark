@@ -145,6 +145,14 @@ func resolveArg(arg string, opts ResolveOpts, addFile func(string)) error {
 		return addDirFiles(arg, opts, addFile)
 	}
 
+	// Non-directory, non-symlink path: reject FIFO, device, and
+	// socket entries even when explicitly named. Reading them via
+	// the lint pipeline could block or error, and nothing markdown
+	// ever lives behind them.
+	if !isSymlink && !info.Mode().IsRegular() {
+		return nil
+	}
+
 	// Explicitly named files are never filtered by gitignore.
 	addFile(arg)
 	return nil
@@ -302,7 +310,15 @@ func resolveGlob(pattern string, opts ResolveOpts, addFile func(string)) error {
 			if err := addDirFiles(m, opts, addFile); err != nil {
 				return err
 			}
-		} else if isMarkdown(m) {
+			continue
+		}
+		// Skip FIFO, device, and socket entries even when their
+		// name ends in .md; only regular files (and symlinks to
+		// regular files, which passed the check above) are linted.
+		if !isSymlink && !info.Mode().IsRegular() {
+			continue
+		}
+		if isMarkdown(m) {
 			addFile(m)
 		}
 	}
@@ -363,7 +379,17 @@ func walkDir(dir string, useGitignore, followSymlinks bool) ([]string, error) {
 			return nil
 		}
 
-		if !info.IsDir() && isMarkdown(path) {
+		if info.IsDir() {
+			return nil
+		}
+		// Only regular files and opted-in symlinks (target regular,
+		// verified above) are markdown candidates. Skip FIFOs,
+		// devices, and sockets to avoid blocking reads later.
+		isSymlink := info.Mode()&os.ModeSymlink != 0
+		if !isSymlink && !info.Mode().IsRegular() {
+			return nil
+		}
+		if isMarkdown(path) {
 			files = append(files, path)
 		}
 		return nil
