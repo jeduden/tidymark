@@ -352,10 +352,11 @@ func TestResolveFilesWithOpts_Glob_SkipsSymlinksByDefault(t *testing.T) {
 	pattern := filepath.Join(dir, "*.md")
 	files, err := ResolveFilesWithOpts([]string{pattern}, DefaultResolveOpts())
 	require.NoError(t, err)
-	for _, f := range files {
-		assert.NotEqual(t, "link.md", filepath.Base(f),
-			"glob expansion must skip symlinks by default")
-	}
+	require.Len(t, files, 2,
+		"expected only the two real markdown files, got %v", files)
+	bases := []string{filepath.Base(files[0]), filepath.Base(files[1])}
+	assert.ElementsMatch(t, []string{"real.md", "target.md"}, bases,
+		"glob expansion must yield real.md and target.md and skip link.md")
 }
 
 // skipIfSymlinkUnsupported skips the calling test when the host

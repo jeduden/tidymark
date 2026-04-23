@@ -331,6 +331,42 @@ func TestE2E_Symlink_NoFollowFlagRemoved(t *testing.T) {
 		"removed --no-follow-symlinks flag must surface as a parse error")
 }
 
+// TestE2E_Symlink_FollowFalseFlag_OverridesConfigOptIn asserts the
+// tri-state semantic of `--follow-symlinks`: an explicit
+// `--follow-symlinks=false` forces deny even when
+// `follow-symlinks: true` is set in the loaded config. This is the
+// secure-one-off-run knob that replaces the deprecated
+// `--no-follow-symlinks`.
+func TestE2E_Symlink_FollowFalseFlag_OverridesConfigOptIn(t *testing.T) {
+	skipIfSymlinkUnsupported(t)
+	project := t.TempDir()
+	external := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(project, ".git"), 0o755))
+	writeFixture(t, project, ".mdsmith.yml",
+		"follow-symlinks: true\nrules:\n  no-trailing-spaces: true\n")
+
+	externalFile := filepath.Join(external, "dirty.md")
+	require.NoError(t, os.WriteFile(externalFile,
+		[]byte("# Evil\n\ntrailing   \n"), 0o644))
+	require.NoError(t, os.Symlink(externalFile,
+		filepath.Join(project, "linked.md")))
+
+	// Baseline: with follow-symlinks: true in config, the linked
+	// file is walked and the dirty line surfaces.
+	_, _, withConfig := runBinaryInDir(t, project, "", "check",
+		"--no-color", "--no-gitignore", ".")
+	require.Equal(t, 1, withConfig,
+		"follow-symlinks: true config must expose the linked file")
+
+	// Override: --follow-symlinks=false explicitly forces deny for
+	// this invocation.
+	_, _, withOverride := runBinaryInDir(t, project, "", "check",
+		"--no-color", "--no-gitignore", "--follow-symlinks=false", ".")
+	assert.Equal(t, 0, withOverride,
+		"--follow-symlinks=false must force deny over a config opt-in")
+}
+
 // TestE2E_Symlink_LegacyNoFollowConfig_Deprecation verifies that the
 // old `no-follow-symlinks:` key still parses and emits a deprecation
 // warning on stderr.

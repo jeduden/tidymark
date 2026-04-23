@@ -99,7 +99,7 @@ type metricsRankOptions struct {
 	top            int
 	format         string
 	noGitignore    bool
-	followSymlinks bool
+	followSymlinks *bool
 	maxInputSize   string
 }
 
@@ -115,6 +115,7 @@ func runMetricsRank(args []string) int {
 func parseMetricsRankOptions(args []string) (metricsRankOptions, []string, error) {
 	fs := flag.NewFlagSet("metrics rank", flag.ContinueOnError)
 	var opts metricsRankOptions
+	var followSymlinks bool
 
 	fs.StringVarP(&opts.configPath, "config", "c", "", "Override config file path")
 	fs.StringVar(&opts.metricsRaw, "metrics", "", "Comma-separated metrics (defaults to registry defaults)")
@@ -123,7 +124,7 @@ func parseMetricsRankOptions(args []string) (metricsRankOptions, []string, error
 	fs.IntVar(&opts.top, "top", 0, "Limit results to top N files (0 = all)")
 	fs.StringVarP(&opts.format, "format", "f", "text", "Output format: text, json")
 	fs.BoolVar(&opts.noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
-	fs.BoolVar(&opts.followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
+	fs.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
 	fs.StringVar(&opts.maxInputSize, "max-input-size", "",
 		"Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
@@ -144,6 +145,7 @@ func parseMetricsRankOptions(args []string) (metricsRankOptions, []string, error
 	if opts.top < 0 {
 		return metricsRankOptions{}, nil, fmt.Errorf("--top must be >= 0")
 	}
+	opts.followSymlinks = followSymlinksOverride(fs, followSymlinks)
 
 	fileArgs := fs.Args()
 	if len(fileArgs) == 0 {

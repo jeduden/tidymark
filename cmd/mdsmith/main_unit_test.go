@@ -183,7 +183,8 @@ func TestResolveOpts_NoGitignore_DisablesFilter(t *testing.T) {
 
 func TestResolveOpts_FollowSymlinksFlag_OptsIn(t *testing.T) {
 	cfg := &config.Config{}
-	opts := resolveOpts(cfg, walkCLI{followSymlinks: true})
+	yes := true
+	opts := resolveOpts(cfg, walkCLI{followSymlinks: &yes})
 	assert.True(t, opts.FollowSymlinks)
 }
 
@@ -191,6 +192,14 @@ func TestResolveOpts_ConfigFollowSymlinks_Propagated(t *testing.T) {
 	cfg := &config.Config{FollowSymlinks: true}
 	opts := resolveOpts(cfg, walkCLI{})
 	assert.True(t, opts.FollowSymlinks)
+}
+
+func TestResolveOpts_ExplicitFalseFlag_OverridesConfigOptIn(t *testing.T) {
+	cfg := &config.Config{FollowSymlinks: true}
+	no := false
+	opts := resolveOpts(cfg, walkCLI{followSymlinks: &no})
+	assert.False(t, opts.FollowSymlinks,
+		"--follow-symlinks=false must force deny over a config opt-in")
 }
 
 // --- printRunStats ---

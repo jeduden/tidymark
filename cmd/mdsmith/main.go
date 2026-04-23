@@ -194,7 +194,7 @@ func runCheck(args []string) int {
 
 	walk := walkCLI{
 		noGitignore:    noGitignore,
-		followSymlinks: followSymlinks,
+		followSymlinks: followSymlinksOverride(fs, followSymlinks),
 	}
 
 	allArgs := fs.Args()
@@ -258,7 +258,7 @@ func runFix(args []string) int {
 
 	walk := walkCLI{
 		noGitignore:    noGitignore,
-		followSymlinks: followSymlinks,
+		followSymlinks: followSymlinksOverride(fs, followSymlinks),
 	}
 
 	allArgs := fs.Args()
@@ -883,28 +883,44 @@ func fixDiscovered(
 
 // walkCLI bundles the CLI flags that affect how files are
 // discovered and resolved, so helpers can thread one value
-// instead of two (and the next addition isn't a parameter
-// explosion).
+// instead of several (and the next addition isn't a parameter
+// explosion). followSymlinks is tri-state: nil means "fall back
+// to cfg.FollowSymlinks"; non-nil overrides config either way,
+// so users can write `--follow-symlinks=false` to force the
+// secure default for a one-off run against a config that opts
+// in.
 type walkCLI struct {
 	noGitignore    bool
-	followSymlinks bool
+	followSymlinks *bool
 }
 
 // frontMatterEnabled returns whether front matter stripping is enabled.
 // Defaults to true if not set in config.
 // resolveOpts builds ResolveOpts from config and CLI flags.
 // The `--follow-symlinks` CLI flag overrides `follow-symlinks:`
-// from config; otherwise the config value stands.
+// from config when explicitly set; otherwise the config value
+// stands.
 func resolveOpts(cfg *config.Config, walk walkCLI) lint.ResolveOpts {
 	useGitignore := !walk.noGitignore
-	opts := lint.ResolveOpts{
+	follow := cfg.FollowSymlinks
+	if walk.followSymlinks != nil {
+		follow = *walk.followSymlinks
+	}
+	return lint.ResolveOpts{
 		UseGitignore:   &useGitignore,
-		FollowSymlinks: cfg.FollowSymlinks,
+		FollowSymlinks: follow,
 	}
-	if walk.followSymlinks {
-		opts.FollowSymlinks = true
+}
+
+// followSymlinksOverride returns a *bool override for the
+// `--follow-symlinks` flag if it was explicitly set on the
+// command line, or nil to defer to config.
+func followSymlinksOverride(fs *flag.FlagSet, value bool) *bool {
+	if fs.Changed("follow-symlinks") {
+		v := value
+		return &v
 	}
-	return opts
+	return nil
 }
 
 // resolveMaxInputBytes returns the effective max-input-size in bytes.
