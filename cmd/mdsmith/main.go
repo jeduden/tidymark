@@ -170,7 +170,9 @@ func runCheck(args []string) int {
 	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
 	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
-	fs.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
+	fs.BoolVar(&followSymlinks, "follow-symlinks", false,
+		"Follow symlinks; omitted defers to follow-symlinks config (default skip); "+
+			"=false forces skip over any config opt-in")
 	fs.StringVar(&maxInputSize, "max-input-size", "", "Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
 	fs.Usage = func() {
@@ -234,7 +236,9 @@ func runFix(args []string) int {
 	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
 	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
 	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
-	fs.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
+	fs.BoolVar(&followSymlinks, "follow-symlinks", false,
+		"Follow symlinks; omitted defers to follow-symlinks config (default skip); "+
+			"=false forces skip over any config opt-in")
 	fs.StringVar(&maxInputSize, "max-input-size", "", "Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
 	fs.Usage = func() {

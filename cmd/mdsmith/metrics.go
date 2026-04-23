@@ -124,7 +124,9 @@ func parseMetricsRankOptions(args []string) (metricsRankOptions, []string, error
 	fs.IntVar(&opts.top, "top", 0, "Limit results to top N files (0 = all)")
 	fs.StringVarP(&opts.format, "format", "f", "text", "Output format: text, json")
 	fs.BoolVar(&opts.noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
-	fs.BoolVar(&followSymlinks, "follow-symlinks", false, "Follow symlinks (default: skip)")
+	fs.BoolVar(&followSymlinks, "follow-symlinks", false,
+		"Follow symlinks; omitted defers to follow-symlinks config (default skip); "+
+			"=false forces skip over any config opt-in")
 	fs.StringVar(&opts.maxInputSize, "max-input-size", "",
 		"Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
