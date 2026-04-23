@@ -320,6 +320,43 @@ func TestE2E_Symlink_DirSymlinkAncestorDotDotPath(t *testing.T) {
 		"`..`-relative path through symlinked dir must be skipped")
 }
 
+// TestE2E_Symlink_DotDotAfterSymlinkedDir blocks the
+// lexical-collapse bypass: an arg like `linked/../dirty.md`
+// where `linked` is a symlink to an external directory must
+// not reach the external target. filepath.Clean would collapse
+// the path to `dirty.md`, hiding the symlink ancestor from a
+// naive scan, but the kernel still traverses `linked` when
+// resolving the leaf.
+func TestE2E_Symlink_DotDotAfterSymlinkedDir(t *testing.T) {
+	skipIfSymlinkUnsupported(t)
+	project := t.TempDir()
+	external := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(project, ".git"), 0o755))
+	writeFixture(t, project, ".mdsmith.yml",
+		"rules:\n  no-trailing-spaces: true\n")
+
+	// External tree: `/ext/parent/dirty.md` with trailing space.
+	parent := filepath.Join(external, "parent")
+	require.NoError(t, os.MkdirAll(parent, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(parent, "dirty.md"),
+		[]byte("# Evil\n\ntrailing   \n"), 0o644))
+
+	// Project symlink: `project/linked -> /ext/parent/child`. The
+	// traversal `linked/..` then lands back at /ext/parent (not
+	// inside project), so `linked/../dirty.md` resolves to
+	// /ext/parent/dirty.md via the kernel.
+	child := filepath.Join(parent, "child")
+	require.NoError(t, os.MkdirAll(child, 0o755))
+	require.NoError(t, os.Symlink(child, filepath.Join(project, "linked")))
+
+	_, _, exitCode := runBinaryInDir(t, project, "",
+		"check", "--no-color", "--no-gitignore",
+		"linked/../dirty.md")
+	assert.Equal(t, 0, exitCode,
+		"`..` after a symlinked component must not defeat default-deny")
+}
+
 // TestE2E_Symlink_NoFollowFlagRemoved asserts that the deprecated
 // `--no-follow-symlinks` CLI flag has been removed and now errors
 // out as an unknown flag.

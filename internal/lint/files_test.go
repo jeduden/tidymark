@@ -475,6 +475,38 @@ func TestAncestorChainHasSymlink_CacheShortcircuits(t *testing.T) {
 	assert.True(t, got, "cache hit must return stored value")
 }
 
+// TestContainsDotDotAfterName tables the guard helper that blocks
+// `linked/../foo.md` style inputs from erasing a symlink component
+// via filepath.Clean.
+func TestContainsDotDotAfterName(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{"linked/../foo.md", true},
+		{"a/b/../c.md", true},
+		{"../foo.md", false},    // leading .. is fine; no name to mask
+		{"../../foo", false},    // still leading
+		{"./foo.md", false},     // leading . only
+		{"foo.md", false},       // no ..
+		{"foo/./bar.md", false}, // dot, not dot-dot
+	}
+	for _, tc := range cases {
+		got := containsDotDotAfterName(tc.path)
+		assert.Equal(t, tc.want, got, "path=%q", tc.path)
+	}
+}
+
+// TestHasSymlinkAncestorWithCwd_RejectsDotDotAfterName confirms the
+// guard is wired into the public helper.
+func TestHasSymlinkAncestorWithCwd_RejectsDotDotAfterName(t *testing.T) {
+	cache := make(map[string]bool)
+	got := hasSymlinkAncestorWithCwd(
+		"linked/../dirty.md", t.TempDir(), cache)
+	assert.True(t, got,
+		"`linked/../dirty.md` must be rejected even without touching the fs")
+}
+
 // TestHasSymlinkAncestorWithCwd_HonorsCwdArg confirms that the
 // `cwd` parameter — not the process working directory — is what
 // gets joined to a relative path. Otherwise the precomputed-cwd

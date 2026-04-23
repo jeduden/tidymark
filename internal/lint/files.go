@@ -194,6 +194,15 @@ func hasSymlinkAncestorCached(path string, cache map[string]bool) bool {
 // `os.Getwd` once and pass it here for every match to avoid the
 // syscall per entry.
 func hasSymlinkAncestorWithCwd(path, cwd string, cache map[string]bool) bool {
+	// A segment of ".." after a named segment (e.g. `linked/..`)
+	// would be collapsed by filepath.Clean — but the kernel still
+	// traverses the symlink during os.Lstat, which could let an
+	// external target slip past the scan. Conservatively treat any
+	// such path as if it had a symlinked ancestor: skip silently,
+	// same as the legitimate symlinked-ancestor case.
+	if containsDotDotAfterName(path) {
+		return true
+	}
 	abs := absWithCwd(path, cwd)
 	if abs == "" {
 		return false
@@ -203,6 +212,25 @@ func hasSymlinkAncestorWithCwd(path, cwd string, cache map[string]bool) bool {
 		return false
 	}
 	return ancestorChainHasSymlink(filepath.Dir(abs), stop, cache)
+}
+
+// containsDotDotAfterName returns true if any path segment of path
+// equals ".." and is preceded by a non-".." named segment. Such
+// paths can hide a symlinked directory from a lexical ancestor
+// scan: `linked/../foo` cleans to `foo`, erasing `linked`.
+func containsDotDotAfterName(path string) bool {
+	seenName := false
+	for _, p := range strings.Split(filepath.ToSlash(path), "/") {
+		switch p {
+		case "", ".", "..":
+			if p == ".." && seenName {
+				return true
+			}
+		default:
+			seenName = true
+		}
+	}
+	return false
 }
 
 // absWithCwd resolves path to an absolute, cleaned form using the
