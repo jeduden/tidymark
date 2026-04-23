@@ -28,15 +28,15 @@ type ResolveOpts struct {
 	// used (see DefaultResolveOpts).
 	UseGitignore *bool
 
-	// FollowSymlinks opts in to following symbolic links that resolve
-	// to files. The zero value skips all symlinks, which is the secure
-	// default.
+	// FollowSymlinks opts in to following symbolic links that
+	// resolve to regular files. The zero value skips all symlinks,
+	// which is the secure default.
 	//
-	// Symlinked directories are always skipped, regardless of this
-	// flag. `filepath.Walk` is Lstat-based and does not descend into
-	// a symlink root, so supporting symlinked-directory traversal
-	// would require explicit EvalSymlinks resolution plus atomic
-	// writes against an unknown path — out of scope for plan 84.
+	// Symlinks that resolve to anything other than a regular file
+	// are always skipped, regardless of this flag: directories
+	// (filepath.Walk is Lstat-based and does not descend a symlink
+	// root) as well as FIFOs, devices, and sockets (reading them
+	// during linting could block or fail unexpectedly).
 	FollowSymlinks bool
 }
 
@@ -125,11 +125,12 @@ func resolveArg(arg string, opts ResolveOpts, addFile func(string)) error {
 		return fmt.Errorf("cannot access %q: %w", arg, err)
 	}
 
-	// Symlinks to directories are always skipped. filepath.Walk is
-	// Lstat-based and cannot recurse into a symlink root, so walking
-	// a symlinked dir would silently yield no files and confuse
-	// callers. `--follow-symlinks` applies to file symlinks only.
-	if isSymlink && info.IsDir() {
+	// Symlinks are followed only when they resolve to a regular
+	// file. Directory targets are skipped (filepath.Walk is
+	// Lstat-based and cannot recurse into a symlink root); device,
+	// FIFO, and socket targets are skipped to avoid blocking reads
+	// later. `--follow-symlinks` applies to file symlinks only.
+	if isSymlink && !info.Mode().IsRegular() {
 		return nil
 	}
 
@@ -272,8 +273,9 @@ func resolveGlob(pattern string, opts ResolveOpts, addFile func(string)) error {
 		if err != nil {
 			continue
 		}
-		// Symlinks to directories are always skipped (see resolveArg).
-		if isSymlink && info.IsDir() {
+		// Symlinks are followed only when they resolve to a regular
+		// file; see resolveArg for rationale.
+		if isSymlink && !info.Mode().IsRegular() {
 			continue
 		}
 		if info.IsDir() {
@@ -324,11 +326,12 @@ func walkDir(dir string, useGitignore, followSymlinks bool) ([]string, error) {
 				return nil
 			}
 			// In opt-in mode, follow the link only if it resolves to
-			// a regular file. A symlink-to-dir named "evil.md" would
-			// otherwise be treated as a markdown file and fail on
-			// read; this also matches the FollowSymlinks doc that
-			// says symlinked directories are always skipped.
-			if tgt, statErr := os.Stat(path); statErr != nil || tgt.IsDir() {
+			// a regular file. Directory targets would be silently
+			// treated as an empty walk; FIFO/device/socket targets
+			// would block or fail later on read. `--follow-symlinks`
+			// applies to file symlinks only.
+			if tgt, statErr := os.Stat(path); statErr != nil ||
+				!tgt.Mode().IsRegular() {
 				return nil
 			}
 		}

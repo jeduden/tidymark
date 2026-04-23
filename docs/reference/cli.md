@@ -50,11 +50,18 @@ symlink from redirecting `check` or `fix` to files outside
 the project. The rule applies to directory walks, glob
 expansion, and explicit file or directory arguments:
 `mdsmith check ./linked.md` silently skips a symlink named
-on the command line.
+on the command line. Opt-in follows only symlinks that
+resolve to regular files; directory / FIFO / device / socket
+targets are always skipped.
 
-Pass `--follow-symlinks` to opt in on the command line.
-Set `follow-symlinks: true` in `.mdsmith.yml` to opt in
-from config.
+`--follow-symlinks` is tri-state:
+
+- omitted — fall back to `follow-symlinks:` in
+  `.mdsmith.yml` (default: skip)
+- `--follow-symlinks` or `--follow-symlinks=true` — opt in
+  for this run
+- `--follow-symlinks=false` — force deny for this run, even
+  when the loaded config has `follow-symlinks: true`
 
 The old `no-follow-symlinks:` config key still parses and
 emits a deprecation warning on stderr.

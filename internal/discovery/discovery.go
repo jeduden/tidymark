@@ -22,13 +22,14 @@ type Options struct {
 	// UseGitignore enables filtering by .gitignore rules.
 	UseGitignore bool
 
-	// FollowSymlinks opts in to reading symlinked file entries during
-	// the walk. The zero value skips all symlinks, which is the secure
-	// default.
+	// FollowSymlinks opts in to including symlinks that resolve
+	// to regular files. The zero value skips all symlinks, which
+	// is the secure default.
 	//
-	// filepath.Walk is Lstat-based, so a symlinked directory is never
-	// descended into even when this flag is true — it only controls
-	// whether symlinked file entries are included in results.
+	// Symlinks resolving to anything other than a regular file
+	// (directories, FIFOs, devices, sockets) are always skipped.
+	// filepath.Walk is Lstat-based, so symlinked directories are
+	// never descended into regardless of this flag.
 	FollowSymlinks bool
 }
 
@@ -116,10 +117,11 @@ func (w *walker) visit(path string, info os.FileInfo, walkErr error) error {
 			return nil
 		}
 		// In opt-in mode, include the entry only if it resolves to
-		// a regular file. A symlink-to-dir named like "evil.md"
-		// would otherwise match patterns and land in results —
-		// the Options doc says symlinked directories are skipped.
-		if tgt, statErr := os.Stat(path); statErr != nil || tgt.IsDir() {
+		// a regular file. Directory targets are skipped (Options
+		// doc); FIFO/device/socket targets are skipped to avoid
+		// blocking reads during linting.
+		if tgt, statErr := os.Stat(path); statErr != nil ||
+			!tgt.Mode().IsRegular() {
 			return nil
 		}
 	}
