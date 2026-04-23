@@ -1,7 +1,7 @@
 ---
 id: 89
 title: TOC generator directive and MDS035 auto-fix
-status: "🔲"
+status: "🔳"
 summary: >-
   Add a `<?toc?>...<?/toc?>` generated-section
   directive that emits a nested list of the
