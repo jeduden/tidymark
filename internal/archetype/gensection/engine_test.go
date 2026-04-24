@@ -238,7 +238,9 @@ func TestEngine_Check_InvalidYAML(t *testing.T) {
 }
 
 func TestEngine_Check_NonStringValues(t *testing.T) {
-	src := "<?mock\nkey: 42\n?>\n<?/mock?>\n"
+	// Integers and floats are now silently coerced to strings; booleans
+	// and maps are still rejected as non-string values.
+	src := "<?mock\nkey: true\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{}
 	e := NewEngine(d)
@@ -246,6 +248,16 @@ func TestEngine_Check_NonStringValues(t *testing.T) {
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
 	assert.Contains(t, diags[0].Message, "non-string value",
 		"expected 'non-string value' message, got %q", diags[0].Message)
+}
+
+func TestEngine_Check_IntegerValueCoerced(t *testing.T) {
+	// Integer YAML params (e.g. min-level: 2) are coerced to string "2".
+	src := "<?mock\nkey: 42\n?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	assert.Empty(t, diags, "integer param should be coerced, not rejected")
 }
 
 func TestEngine_Check_ValidationDiags(t *testing.T) {

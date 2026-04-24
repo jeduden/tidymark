@@ -435,8 +435,9 @@ glob: "other/*.md"
 }
 
 func TestDiag_NonStringYAMLValues(t *testing.T) {
+	// Booleans are still rejected as non-string; integers are coerced.
 	src := `<?catalog
-glob: 42
+glob: true
 ?>
 <?/catalog?>
 `
@@ -455,9 +456,9 @@ glob: 42
 }
 
 func TestDiag_NonStringMultipleKeys(t *testing.T) {
-	// Non-string YAML values produce diagnostic per key.
+	// Non-string YAML boolean values produce diagnostics per key.
 	src := `<?catalog
-glob: 42
+glob: true
 sort: true
 ?>
 <?/catalog?>
@@ -1118,9 +1119,9 @@ glob: [invalid
 }
 
 func TestEdge_NonStringValuesShortCircuit(t *testing.T) {
-	// Non-string values should prevent further validation.
+	// Boolean values are rejected before further validation runs.
 	src := `<?catalog
-glob: 42
+glob: true
 ?>
 <?/catalog?>
 `

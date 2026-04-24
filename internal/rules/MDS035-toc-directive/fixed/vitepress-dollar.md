@@ -1,12 +1,7 @@
----
-diagnostics:
-  - line: 3
-    column: 1
-    message: "unsupported TOC directive `${toc}`; use `<?toc?>` (MDS038)"
----
 # VitePress dollar-brace TOC directive
 
-${toc}
+<?toc?>
+<?/toc?>
 
 Some VitePress configurations expand this
 token. CommonMark and goldmark render it as

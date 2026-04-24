@@ -1,12 +1,7 @@
----
-diagnostics:
-  - line: 3
-    column: 1
-    message: "unsupported TOC directive `[[_TOC_]]`; use `<?toc?>` (MDS038)"
----
 # GitLab-flavored TOC directive
 
-[[_TOC_]]
+<?toc?>
+<?/toc?>
 
 GitLab Flavored Markdown and Azure DevOps
 expand this into a TOC; CommonMark and

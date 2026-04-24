@@ -4,6 +4,7 @@
 package tocdirective
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -111,12 +112,47 @@ func matchVariant(line string) (tocVariant, bool) {
 
 func buildMessage(token string) string {
 	return fmt.Sprintf(
-		"unsupported TOC directive `%s`; "+
-			"mdsmith has no heading TOC equivalent; "+
-			"use `<?catalog?>` for file indexes (MDS019)",
+		"unsupported TOC directive `%s`; use `<?toc?>` (MDS038)",
 		token,
 	)
 }
+
+// Fix implements rule.FixableRule. Each matched TOC directive token on its
+// own line is replaced with an empty <?toc?>\n<?/toc?> block. Blank lines
+// are inserted above and below when adjacent content would otherwise fuse
+// the block into a paragraph.
+func (r *Rule) Fix(f *lint.File) []byte {
+	if f == nil {
+		return nil
+	}
+	hasTOCRef := hasTOCLinkReference(f.Source)
+
+	rawLines := bytes.Split(f.Source, []byte("\n"))
+	result := make([][]byte, 0, len(rawLines)+4)
+
+	for i, line := range rawLines {
+		lineStr := strings.TrimRight(string(line), "\r")
+		v, matched := matchVariant(lineStr)
+		if !matched || (v.isLinkRefCandidate && hasTOCRef) {
+			result = append(result, line)
+			continue
+		}
+		// Insert blank line before if previous non-empty line is content.
+		if len(result) > 0 && len(bytes.TrimSpace(result[len(result)-1])) > 0 {
+			result = append(result, []byte{})
+		}
+		result = append(result, []byte("<?toc?>"))
+		result = append(result, []byte("<?/toc?>"))
+		// Insert blank line after if next line is non-empty content.
+		if i+1 < len(rawLines) && len(bytes.TrimSpace(rawLines[i+1])) > 0 {
+			result = append(result, []byte{})
+		}
+	}
+
+	return bytes.Join(result, []byte("\n"))
+}
+
+var _ rule.FixableRule = (*Rule)(nil)
 
 // hasTOCLinkReference returns true when the document defines a link
 // reference with label "TOC" (CommonMark-normalized). It re-parses with

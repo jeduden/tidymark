@@ -1,6 +1,7 @@
 package mdtext
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"unicode"
@@ -10,6 +11,69 @@ import (
 
 	sentlib "github.com/neurosnap/sentences"
 )
+
+// Slugify converts heading text to a GitHub-compatible URL anchor slug.
+// Lowercase, letters/digits preserved, spaces and hyphens become a single dash.
+func Slugify(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	prevDash := false
+	for _, r := range s {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			b.WriteRune(r)
+			prevDash = false
+		case unicode.IsSpace(r) || r == '-' || r == '_':
+			if b.Len() > 0 && !prevDash {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+// TOCItem represents a single heading entry for table-of-contents generation.
+type TOCItem struct {
+	Level  int
+	Text   string
+	Anchor string
+}
+
+// CollectTOCItems returns all headings from the AST as TOC items, in document
+// order. Anchors are disambiguated by insertion order: first occurrence keeps
+// the plain slug, subsequent duplicates get -1, -2, … suffixes — matching the
+// anchor computation in crossfilereferenceintegrity.
+func CollectTOCItems(root ast.Node, source []byte) []TOCItem {
+	var items []TOCItem
+	seen := make(map[string]int)
+	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		h, ok := n.(*ast.Heading)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		text := ExtractPlainText(h, source)
+		slug := Slugify(text)
+		if slug == "" {
+			return ast.WalkContinue, nil
+		}
+		count := seen[slug]
+		anchor := slug
+		if count > 0 {
+			anchor = fmt.Sprintf("%s-%d", slug, count)
+		}
+		seen[slug] = count + 1
+		items = append(items, TOCItem{Level: h.Level, Text: text, Anchor: anchor})
+		return ast.WalkContinue, nil
+	})
+	return items
+}
 
 // ExtractPlainText extracts readable text from a goldmark AST node,
 // stripping markdown syntax. Keeps: text content, link display text,

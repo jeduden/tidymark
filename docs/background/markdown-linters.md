@@ -24,7 +24,7 @@ Key differentiators:
 - Token-budget rule ([MDS028][mds028]) for LLM context
   windows
 - Paragraph readability (ARI grade) and structure limits
-- Regenerable sections: catalog, include,
+- Regenerable sections: catalog, include, toc,
   required-structure
 - Git merge driver for auto-resolving generated sections
 - Metrics subsystem (bytes, lines, words, headings,
@@ -226,14 +226,14 @@ lack determinism.
 
 ### Formatting and Fixing
 
-| Capability         | mdsmith          | Prettier                 | markdownlint |
-|--------------------|------------------|--------------------------|--------------|
-| Autofix CLI        | `fix`            | `--write`                | `--fix`      |
-| Table alignment    | [MDS025][mds025] | yes                      | no           |
-| Prose wrapping     | no               | [`proseWrap`][prosewrap] | no           |
-| Embedded code fmt  | no               | JS/TS/CSS/JSON           | no           |
-| Multi-pass fix     | yes              | single pass              | single pass  |
-| Generated sections | catalog, include | no                       | no           |
+| Capability         | mdsmith               | Prettier                 | markdownlint |
+|--------------------|-----------------------|--------------------------|--------------|
+| Autofix CLI        | `fix`                 | `--write`                | `--fix`      |
+| Table alignment    | [MDS025][mds025]      | yes                      | no           |
+| Prose wrapping     | no                    | [`proseWrap`][prosewrap] | no           |
+| Embedded code fmt  | no                    | JS/TS/CSS/JSON           | no           |
+| Multi-pass fix     | yes                   | single pass              | single pass  |
+| Generated sections | catalog, include, toc | no                       | no           |
 
 Prose wrapping controls whether a tool reflows paragraph
 line breaks. Prettier's [`proseWrap`][prosewrap] option
@@ -243,7 +243,7 @@ as-is, the default). Neither mdsmith nor markdownlint
 reflow prose; they only diagnose long lines.
 
 Prettier is the strongest pure formatter. mdsmith has
-unique autofix for generated content (catalog, include).
+unique autofix for generated content (catalog, include, toc).
 markdownlint fixes structural violations.
 
 ### Cross-File and Project Features
@@ -280,6 +280,11 @@ each of the four tokens on its own line. For
 when a matching link reference definition
 makes it a legitimate link. No other linter
 in this comparison detects these tokens.
+
+`mdsmith fix` replaces each token with a
+`<?toc?>...<?/toc?>` block ([MDS038][mds038]).
+A second fix pass populates the block with a
+nested heading list.
 
 ### Runtime and Integration
 
@@ -475,6 +480,7 @@ relaxed rules) for presentation files.
 [mds029]: ../../internal/rules/MDS029-conciseness-scoring/README.md
 [mds030]: ../../internal/rules/MDS030-empty-section-body/README.md
 [mds035]: ../../internal/rules/MDS035-toc-directive/README.md
+[mds038]: ../../internal/rules/MDS038-toc/README.md
 <!-- markdownlint links -->
 [markdownlint]: https://github.com/DavidAnson/markdownlint
 [markdownlint-cli2]: https://github.com/DavidAnson/markdownlint-cli2

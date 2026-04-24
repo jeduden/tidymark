@@ -42,8 +42,8 @@ func TestCheck_BracketedTOC(t *testing.T) {
 	assert.Equal(t, lint.Warning, diags[0].Severity)
 	assert.Equal(t, 3, diags[0].Line)
 	assert.Contains(t, diags[0].Message, "`[TOC]`")
-	assert.Contains(t, diags[0].Message, "<?catalog?>")
-	assert.Contains(t, diags[0].Message, "MDS019")
+	assert.Contains(t, diags[0].Message, "<?toc?>")
+	assert.Contains(t, diags[0].Message, "MDS038")
 }
 
 func TestCheck_GitLabTOC(t *testing.T) {
@@ -178,9 +178,45 @@ func TestCheck_EmptyFile(t *testing.T) {
 	assert.Empty(t, (&Rule{}).Check(f))
 }
 
-func TestCheck_NoFix(t *testing.T) {
-	// The rule is detection-only and must not implement FixableRule.
+func TestRule_IsFixable(t *testing.T) {
 	var r any = &Rule{}
 	_, ok := r.(rule.FixableRule)
-	assert.False(t, ok, "MDS035 must be detection-only (no Fix)")
+	assert.True(t, ok, "MDS035 must implement FixableRule")
+}
+
+func TestFix_BracketedTOC(t *testing.T) {
+	src := []byte("# Title\n\n[TOC]\n\nContent.\n")
+	f, err := lint.NewFile("t.md", src)
+	require.NoError(t, err)
+	fixed := string((&Rule{}).Fix(f))
+	assert.Contains(t, fixed, "<?toc?>")
+	assert.Contains(t, fixed, "<?/toc?>")
+	assert.NotContains(t, fixed, "[TOC]")
+}
+
+func TestFix_GitLabTOC(t *testing.T) {
+	src := []byte("# Title\n\n[[_TOC_]]\n\nContent.\n")
+	f, err := lint.NewFile("t.md", src)
+	require.NoError(t, err)
+	fixed := string((&Rule{}).Fix(f))
+	assert.Contains(t, fixed, "<?toc?>")
+	assert.NotContains(t, fixed, "[[_TOC_]]")
+}
+
+func TestFix_TOCLinkRef_Untouched(t *testing.T) {
+	// [TOC] with a link reference definition must not be replaced.
+	src := []byte("# Title\n\n[TOC]\n\n[TOC]: https://example.com\n")
+	f, err := lint.NewFile("t.md", src)
+	require.NoError(t, err)
+	fixed := string((&Rule{}).Fix(f))
+	assert.Contains(t, fixed, "[TOC]")
+	assert.NotContains(t, fixed, "<?toc?>")
+}
+
+func TestFix_InsertsBlankLines(t *testing.T) {
+	src := []byte("Paragraph.\n[TOC]\nMore text.\n")
+	f, err := lint.NewFile("t.md", src)
+	require.NoError(t, err)
+	fixed := string((&Rule{}).Fix(f))
+	assert.Contains(t, fixed, "\n\n<?toc?>\n<?/toc?>\n\n")
 }
