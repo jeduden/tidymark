@@ -466,45 +466,51 @@ func TestGitProjectRoot_NoAncestor(t *testing.T) {
 		"gitProjectRoot must return \"\" when no .git ancestor exists")
 }
 
-// TestAncestorChainHasSymlink_CacheShortcircuits covers the cache
-// hit branch in the recursive helper: a second call with the same
-// dir skips the Lstat and returns the memoised value.
-func TestAncestorChainHasSymlink_CacheShortcircuits(t *testing.T) {
-	cache := map[string]bool{"/fake/dir": true}
-	got := ancestorChainHasSymlink("/fake/dir", "/fake", cache)
-	assert.True(t, got, "cache hit must return stored value")
+// TestHasSymlinkAncestor_DotDotAfterSymlinkedDir covers the
+// physics-preserving component walk: `linked/../dirty.md` where
+// `linked` is a real symlink must be rejected (the walker probes
+// `linked` before the `..` pops back, catching the symlink).
+func TestHasSymlinkAncestor_DotDotAfterSymlinkedDir(t *testing.T) {
+	skipIfSymlinkUnsupported(t)
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "real"), 0o755))
+	require.NoError(t, os.Symlink(
+		filepath.Join(dir, "real"), filepath.Join(dir, "linked")))
+	t.Chdir(dir)
+
+	assert.True(t, hasSymlinkAncestor("linked/../dirty.md"),
+		"`linked/../dirty.md` with symlinked `linked` must be flagged")
 }
 
-// TestContainsDotDotAfterName tables the guard helper that blocks
-// `linked/../foo.md` style inputs from erasing a symlink component
-// via filepath.Clean.
-func TestContainsDotDotAfterName(t *testing.T) {
-	cases := []struct {
-		path string
-		want bool
-	}{
-		{"linked/../foo.md", true},
-		{"a/b/../c.md", true},
-		{"../foo.md", false},    // leading .. is fine; no name to mask
-		{"../../foo", false},    // still leading
-		{"./foo.md", false},     // leading . only
-		{"foo.md", false},       // no ..
-		{"foo/./bar.md", false}, // dot, not dot-dot
-	}
-	for _, tc := range cases {
-		got := containsDotDotAfterName(tc.path)
-		assert.Equal(t, tc.want, got, "path=%q", tc.path)
-	}
+// TestHasSymlinkAncestor_DotDotAfterRealDir confirms the
+// component walk does NOT over-reject: `a/b/../c.md` where no
+// component is a symlink is allowed through.
+func TestHasSymlinkAncestor_DotDotAfterRealDir(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "a", "b"), 0o755))
+	t.Chdir(dir)
+
+	assert.False(t, hasSymlinkAncestor("a/b/../c.md"),
+		"`..` after a non-symlink dir must not trigger rejection")
 }
 
-// TestHasSymlinkAncestorWithCwd_RejectsDotDotAfterName confirms the
-// guard is wired into the public helper.
-func TestHasSymlinkAncestorWithCwd_RejectsDotDotAfterName(t *testing.T) {
+// TestHasSymlinkAncestorCache_SkipsRepeatLstat confirms that once
+// a directory has been Lstat'd, a second hit uses the cached value
+// instead of re-probing.
+func TestHasSymlinkAncestorCache_SkipsRepeatLstat(t *testing.T) {
+	skipIfSymlinkUnsupported(t)
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "real"), 0o755))
+	require.NoError(t, os.Symlink(
+		filepath.Join(dir, "real"), filepath.Join(dir, "linked")))
+
 	cache := make(map[string]bool)
-	got := hasSymlinkAncestorWithCwd(
-		"linked/../dirty.md", t.TempDir(), cache)
-	assert.True(t, got,
-		"`linked/../dirty.md` must be rejected even without touching the fs")
+	first := hasSymlinkAncestorWithCwd("linked/a.md", dir, cache)
+	second := hasSymlinkAncestorWithCwd("linked/b.md", dir, cache)
+	assert.True(t, first)
+	assert.True(t, second)
+	assert.True(t, cache[filepath.Join(dir, "linked")],
+		"shared ancestor must be memoised as a symlink")
 }
 
 // TestHasSymlinkAncestorWithCwd_HonorsCwdArg confirms that the

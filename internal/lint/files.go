@@ -193,16 +193,14 @@ func hasSymlinkAncestorCached(path string, cache map[string]bool) bool {
 // takes a precomputed cwd. Per-glob-expansion callers should read
 // `os.Getwd` once and pass it here for every match to avoid the
 // syscall per entry.
+//
+// The path is walked component-by-component (preserving `..`
+// segments) so a lexical `filepath.Clean` can't erase a symlinked
+// directory from the scan. For `linked/../dirty.md` where `linked`
+// is a symlinked dir, the walker probes `linked` (detects the
+// symlink) before the `..` pops back; `a/b/../c.md` with no
+// symlinks anywhere is allowed.
 func hasSymlinkAncestorWithCwd(path, cwd string, cache map[string]bool) bool {
-	// A segment of ".." after a named segment (e.g. `linked/..`)
-	// would be collapsed by filepath.Clean — but the kernel still
-	// traverses the symlink during os.Lstat, which could let an
-	// external target slip past the scan. Conservatively treat any
-	// such path as if it had a symlinked ancestor: skip silently,
-	// same as the legitimate symlinked-ancestor case.
-	if containsDotDotAfterName(path) {
-		return true
-	}
 	abs := absWithCwd(path, cwd)
 	if abs == "" {
 		return false
@@ -211,26 +209,69 @@ func hasSymlinkAncestorWithCwd(path, cwd string, cache map[string]bool) bool {
 	if stop == "" {
 		return false
 	}
-	return ancestorChainHasSymlink(filepath.Dir(abs), stop, cache)
-}
 
-// containsDotDotAfterName returns true if any path segment of path
-// equals ".." and is preceded by a non-".." named segment. Such
-// paths can hide a symlinked directory from a lexical ancestor
-// scan: `linked/../foo` cleans to `foo`, erasing `linked`.
-func containsDotDotAfterName(path string) bool {
-	seenName := false
-	for _, p := range strings.Split(filepath.ToSlash(path), "/") {
-		switch p {
-		case "", ".", "..":
-			if p == ".." && seenName {
-				return true
+	// Determine the starting "current" directory for the walk —
+	// root for absolute paths, cwd (or a Getwd fallback) for
+	// relative paths.
+	current := cwd
+	if filepath.IsAbs(path) {
+		current = string(filepath.Separator)
+	} else if current == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return false
+		}
+		current = wd
+	}
+
+	// Walk each component of the original (uncleaned) path.
+	// Named segments are probed for symlinkness once we're at or
+	// below the stop boundary; `..` segments pop `current` up;
+	// the leaf segment (last) is never probed — we only check
+	// ancestors.
+	segs := strings.Split(filepath.ToSlash(path), "/")
+	if len(segs) > 0 {
+		segs = segs[:len(segs)-1]
+	}
+	for _, seg := range segs {
+		switch seg {
+		case "", ".":
+			// no-op
+		case "..":
+			if parent := filepath.Dir(current); parent != current {
+				current = parent
 			}
 		default:
-			seenName = true
+			current = filepath.Join(current, seg)
+			// Only probe inside the stop boundary (skip
+			// system-level ancestors like `/tmp` on macOS).
+			if current == stop || !isDescendantOf(current, stop) {
+				continue
+			}
+			if v, ok := cache[current]; ok {
+				if v {
+					return true
+				}
+				continue
+			}
+			info, err := os.Lstat(current)
+			isSymlink := err == nil && info.Mode()&os.ModeSymlink != 0
+			cache[current] = isSymlink
+			if isSymlink {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// isDescendantOf reports whether p is a strict descendant of base.
+// Returns false when p equals base.
+func isDescendantOf(p, base string) bool {
+	if p == base {
+		return false
+	}
+	return strings.HasPrefix(p, base+string(filepath.Separator))
 }
 
 // absWithCwd resolves path to an absolute, cleaned form using the
@@ -287,31 +328,6 @@ func gitProjectRoot(start string) string {
 		}
 		dir = parent
 	}
-}
-
-// ancestorChainHasSymlink walks upward from dir up to (but not
-// including) stop and reports whether any step in the chain is a
-// symbolic link. Results are memoised per directory so sibling
-// paths under a shared ancestor do not re-Lstat the same entries.
-func ancestorChainHasSymlink(dir, stop string, cache map[string]bool) bool {
-	if dir == stop || dir == "." || dir == "/" {
-		return false
-	}
-	if v, ok := cache[dir]; ok {
-		return v
-	}
-	result := false
-	if info, err := os.Lstat(dir); err == nil &&
-		info.Mode()&os.ModeSymlink != 0 {
-		result = true
-	} else {
-		parent := filepath.Dir(dir)
-		if parent != dir {
-			result = ancestorChainHasSymlink(parent, stop, cache)
-		}
-	}
-	cache[dir] = result
-	return result
 }
 
 // resolveGlob expands a glob pattern and adds matching markdown files.
