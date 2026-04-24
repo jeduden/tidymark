@@ -35,6 +35,18 @@ The rule walks `RootFS` when the project root is known. Otherwise it
 falls back to the file's own directory. An `include` list narrows the
 scan to matching paths. An `exclude` entry takes precedence.
 
+## Generated sections
+
+Paragraphs inside `<?include?>` and `<?catalog?>` directive bodies are
+skipped automatically. This applies to the file being checked and to
+every corpus file scanned for matches.
+
+These paragraphs are copies of content owned by another file. Flagging
+them would produce false positives on any project that uses generated
+sections. The same skip applies during corpus indexing: a host file's
+generated body is not added to the index. That prevents the original
+source file from matching its own text in a host's generated copy.
+
 ## Performance
 
 Each checked file reads every other Markdown file in scope

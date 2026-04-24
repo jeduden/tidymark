@@ -1,7 +1,7 @@
 ---
 id: 91
 title: MDS037 skips paragraphs inside generated sections
-status: "🔲"
+status: "✅"
 summary: >-
   Paragraphs inside `<?include?>` and `<?catalog?>`
   directive bodies are copies of content owned by
@@ -49,35 +49,35 @@ without re-parsing the file.
 
 ## Tasks
 
-1. Walk top-level AST once to build a list of
+1. [x] Walk top-level AST once to build a list of
    generated-section byte ranges. A range starts at
    the opening PI's segment end and closes at the
    closing PI's segment start.
-2. In `extractParagraphs`, skip any paragraph whose
+2. [x] In `extractParagraphs`, skip any paragraph whose
    first-line byte offset sits inside one of those
    ranges.
-3. Likewise skip the paragraph when the rule walks
+3. [x] Likewise skip the paragraph when the rule walks
    *other* files during corpus indexing — otherwise
    a host file would still match against source text
    the other file only carries because of its own
    generated section.
-4. Update the README to document this behavior and
+4. [x] Update the README to document this behavior and
    drop the recommendation to hand-exclude the host
    files.
-5. Add tests: include-expanded paragraph in host is
+5. [x] Add tests: include-expanded paragraph in host is
    not flagged; catalog-rendered paragraph in host
    is not flagged; duplicates outside generated
    sections still fire.
 
 ## Acceptance Criteria
 
-- [ ] A paragraph in a file's body whose bytes sit
+- [x] A paragraph in a file's body whose bytes sit
       between `<?include?>` / `<?/include?>` markers
       does not produce an MDS037 diagnostic.
-- [ ] Same for `<?catalog?>` / `<?/catalog?>`.
-- [ ] A real duplicate outside any generated
+- [x] Same for `<?catalog?>` / `<?/catalog?>`.
+- [x] A real duplicate outside any generated
       section still fires.
-- [ ] `mdsmith check .` stays clean on this repo
+- [x] `mdsmith check .` stays clean on this repo
       with MDS037 enabled in `.mdsmith.yml`.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
