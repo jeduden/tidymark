@@ -11,6 +11,15 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
+// parseDoc parses markdown and returns the document root node.
+func parseDoc(t *testing.T, src string) (ast.Node, []byte) {
+	t.Helper()
+	source := []byte(src)
+	reader := text.NewReader(source)
+	doc := goldmark.DefaultParser().Parse(reader)
+	return doc, source
+}
+
 // parseParagraph parses markdown and returns the first Paragraph node.
 func parseParagraph(t *testing.T, src string) (ast.Node, []byte) {
 	t.Helper()
@@ -164,4 +173,79 @@ func TestCountCharacters_Empty(t *testing.T) {
 
 func TestCountCharacters_OnlyPunctuation(t *testing.T) {
 	assert.Equal(t, 0, mdtext.CountCharacters("...!!!"))
+}
+
+// --- Slugify tests ---
+
+func TestSlugify_Simple(t *testing.T) {
+	assert.Equal(t, "hello-world", mdtext.Slugify("Hello World"))
+}
+
+func TestSlugify_Empty(t *testing.T) {
+	assert.Equal(t, "", mdtext.Slugify(""))
+}
+
+func TestSlugify_TrimSpaces(t *testing.T) {
+	assert.Equal(t, "hello", mdtext.Slugify("  Hello  "))
+}
+
+func TestSlugify_SpecialChars(t *testing.T) {
+	assert.Equal(t, "hello-world", mdtext.Slugify("Hello, World!"))
+}
+
+func TestSlugify_MultipleDashes(t *testing.T) {
+	assert.Equal(t, "hello-world", mdtext.Slugify("Hello  World"))
+}
+
+func TestSlugify_Underscores(t *testing.T) {
+	assert.Equal(t, "foo-bar", mdtext.Slugify("foo_bar"))
+}
+
+func TestSlugify_LeadingTrailingDashes(t *testing.T) {
+	assert.Equal(t, "hello", mdtext.Slugify("---hello---"))
+}
+
+func TestSlugify_Unicode(t *testing.T) {
+	// Unicode letters are preserved.
+	result := mdtext.Slugify("Ångström")
+	assert.NotEmpty(t, result)
+}
+
+// --- CollectTOCItems tests ---
+
+func TestCollectTOCItems_Basic(t *testing.T) {
+	doc, src := parseDoc(t, "# Title\n\n## Section\n\n### Sub\n")
+	items := mdtext.CollectTOCItems(doc, src)
+	require.Len(t, items, 3)
+	assert.Equal(t, 1, items[0].Level)
+	assert.Equal(t, "Title", items[0].Text)
+	assert.Equal(t, "title", items[0].Anchor)
+	assert.Equal(t, 2, items[1].Level)
+	assert.Equal(t, "section", items[1].Anchor)
+	assert.Equal(t, 3, items[2].Level)
+	assert.Equal(t, "sub", items[2].Anchor)
+}
+
+func TestCollectTOCItems_DuplicateAnchors(t *testing.T) {
+	doc, src := parseDoc(t, "## Foo\n\n## Foo\n\n## Foo\n")
+	items := mdtext.CollectTOCItems(doc, src)
+	require.Len(t, items, 3)
+	assert.Equal(t, "foo", items[0].Anchor)
+	assert.Equal(t, "foo-1", items[1].Anchor)
+	assert.Equal(t, "foo-2", items[2].Anchor)
+}
+
+func TestCollectTOCItems_Empty(t *testing.T) {
+	doc, src := parseDoc(t, "Just a paragraph.\n")
+	items := mdtext.CollectTOCItems(doc, src)
+	assert.Empty(t, items)
+}
+
+func TestCollectTOCItems_HeadingWithEmptySlug(t *testing.T) {
+	// A heading consisting only of punctuation produces an empty slug and
+	// is skipped.
+	doc, src := parseDoc(t, "## ---\n\n## Normal\n")
+	items := mdtext.CollectTOCItems(doc, src)
+	require.Len(t, items, 1, "heading with empty slug should be skipped")
+	assert.Equal(t, "Normal", items[0].Text)
 }

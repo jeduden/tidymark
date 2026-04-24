@@ -220,3 +220,11 @@ func TestFix_InsertsBlankLines(t *testing.T) {
 	fixed := string((&Rule{}).Fix(f))
 	assert.Contains(t, fixed, "\n\n<?toc?>\n<?/toc?>\n\n")
 }
+
+func TestCheck_NilFile(t *testing.T) {
+	assert.Nil(t, (&Rule{}).Check(nil))
+}
+
+func TestFix_NilFile(t *testing.T) {
+	assert.Nil(t, (&Rule{}).Fix(nil))
+}

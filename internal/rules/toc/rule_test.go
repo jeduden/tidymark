@@ -108,3 +108,20 @@ func TestFix_SingleLevel(t *testing.T) {
 	fixed := string((&Rule{}).Fix(newFile(t, src)))
 	assert.Contains(t, fixed, "- [Only](#only)\n")
 }
+
+func TestValidate_InvalidMaxLevel(t *testing.T) {
+	r := &Rule{}
+	diags := r.Validate("f.md", 1, map[string]string{"max-level": "7"}, nil)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "max-level")
+}
+
+func TestGenerate_InvalidParams(t *testing.T) {
+	// Generate with invalid params returns diagnostics, not content.
+	r := &Rule{}
+	f := newFile(t, "## Sec\n")
+	content, diags := r.Generate(f, "f.md", 1, map[string]string{"min-level": "bad"}, nil)
+	assert.Empty(t, content)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "min-level")
+}

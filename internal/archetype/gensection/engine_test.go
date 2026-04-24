@@ -260,6 +260,40 @@ func TestEngine_Check_IntegerValueCoerced(t *testing.T) {
 	assert.Empty(t, diags, "integer param should be coerced, not rejected")
 }
 
+func TestEngine_Check_FloatIntValueCoerced(t *testing.T) {
+	// Float64 YAML params that represent integers (e.g. 2.0) are coerced to "2".
+	src := "<?mock\nkey: 2.0\n?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{validateFn: func(
+		_ string, _ int, params map[string]string, _ map[string]ColumnConfig,
+	) []lint.Diagnostic {
+		if params["key"] != "2" {
+			return []lint.Diagnostic{{Message: "expected \"2\", got " + params["key"]}}
+		}
+		return nil
+	}}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	assert.Empty(t, diags, "float-int param should be coerced to \"2\", not rejected")
+}
+
+func TestEngine_Check_FloatFractionalValueCoerced(t *testing.T) {
+	// Float64 YAML params with fractional parts (e.g. 2.5) are coerced to "2.5".
+	src := "<?mock\nkey: 2.5\n?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{validateFn: func(
+		_ string, _ int, params map[string]string, _ map[string]ColumnConfig,
+	) []lint.Diagnostic {
+		if params["key"] != "2.5" {
+			return []lint.Diagnostic{{Message: "expected \"2.5\", got " + params["key"]}}
+		}
+		return nil
+	}}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	assert.Empty(t, diags, "fractional float param should be coerced to \"2.5\"")
+}
+
 func TestEngine_Check_ValidationDiags(t *testing.T) {
 	src := "<?mock\nkey: value\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
