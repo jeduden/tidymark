@@ -210,12 +210,17 @@ func hasSymlinkAncestorWithCwd(path, cwd string, cache map[string]bool) bool {
 		return false
 	}
 
-	// Determine the starting "current" directory for the walk —
-	// root for absolute paths, cwd (or a Getwd fallback) for
-	// relative paths.
+	// Determine the starting "current" directory for the walk and
+	// the path suffix to walk from it. For absolute paths we have
+	// to respect the Windows volume/UNC prefix (e.g. `C:\`,
+	// `\\host\share\`); starting at `/` would produce invalid
+	// intermediate paths like `/foo` for an arg of `C:\foo`.
 	current := cwd
+	rest := path
 	if filepath.IsAbs(path) {
-		current = string(filepath.Separator)
+		vol := filepath.VolumeName(path)
+		current = vol + string(filepath.Separator)
+		rest = strings.TrimPrefix(path, vol)
 	} else if current == "" {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -224,12 +229,12 @@ func hasSymlinkAncestorWithCwd(path, cwd string, cache map[string]bool) bool {
 		current = wd
 	}
 
-	// Walk each component of the original (uncleaned) path.
+	// Walk each component of the original (uncleaned) suffix.
 	// Named segments are probed for symlinkness once we're at or
 	// below the stop boundary; `..` segments pop `current` up;
 	// the leaf segment (last) is never probed — we only check
 	// ancestors.
-	segs := strings.Split(filepath.ToSlash(path), "/")
+	segs := strings.Split(filepath.ToSlash(rest), "/")
 	if len(segs) > 0 {
 		segs = segs[:len(segs)-1]
 	}
@@ -266,12 +271,20 @@ func hasSymlinkAncestorWithCwd(path, cwd string, cache map[string]bool) bool {
 }
 
 // isDescendantOf reports whether p is a strict descendant of base.
-// Returns false when p equals base.
+// Returns false when p equals base. Uses filepath.Rel so paths
+// that only differ in separator normalisation still compare
+// correctly on Windows; it does not do case folding, so callers
+// should pass consistently-cased paths (both from the same cwd /
+// Lstat family).
 func isDescendantOf(p, base string) bool {
-	if p == base {
+	rel, err := filepath.Rel(base, p)
+	if err != nil {
 		return false
 	}
-	return strings.HasPrefix(p, base+string(filepath.Separator))
+	if rel == "." {
+		return false
+	}
+	return !strings.HasPrefix(rel, "..")
 }
 
 // absWithCwd resolves path to an absolute, cleaned form using the
