@@ -34,7 +34,7 @@ jobs:
       actions: write
       issues: write
     steps:
-      - uses: jeduden/merge-queue-action@2b5630af6314550ba236eafb80ec4363bc67ef68 # v0.5.2
+      - uses: jeduden/merge-queue-action@5adb5a76e27e96f1da5efd36f097a2c5233e9ad3 # v0.6.0
         with:
           token: ${{ secrets.MERGE_QUEUE_TOKEN }}
           ci_workflow: .github/workflows/ci.yml
