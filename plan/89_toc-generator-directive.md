@@ -1,12 +1,12 @@
 ---
 id: 89
 title: TOC generator directive and MDS035 auto-fix
-status: "🔲"
+status: "✅"
 summary: >-
   Add a `<?toc?>...<?/toc?>` generated-section
   directive that emits a nested list of the
   current document's headings linked to their
-  anchors (MDS037). Upgrade MDS035 (plan 88) to
+  anchors (MDS038). Upgrade MDS035 (plan 88) to
   auto-fix each detected renderer-specific TOC
   token by replacing it with a `<?toc?>` block,
   which the directive then regenerates on
@@ -120,14 +120,16 @@ the raw level. Given H2 → H4 → H2, the tree is:
 
 …not a flat list keyed on absolute level.
 
-### Rule: MDS037 (toc)
+### Rule: MDS038 (toc)
 
 Note on numbering: plan 89 originally claimed
 MDS036, but plan 51 shipped first and took
-MDS036 for `max-section-length`. MDS034 remains
-reserved for plan 86. Plan 89 takes MDS037.
+MDS036 for `max-section-length`. MDS034 was
+reserved for plan 86 (markdown-flavor). MDS037
+was taken by plan 50 (duplicated-content).
+Plan 89 takes MDS038.
 
-- ID: `MDS037`
+- ID: `MDS038`
 - Name: `toc`
 - Category: `meta`
 - Default: enabled (generated sections are
@@ -168,7 +170,7 @@ each matched directive line inside a paragraph:
   suppressed by Check; must stay out of Fix).
 
 The Fix output is plain `<?toc?>...<?/toc?>`
-with an **empty** body. MDS037 runs in a
+with an **empty** body. MDS038 runs in a
 subsequent pass of the same `mdsmith fix`
 invocation (mdsmith already supports
 multi-pass fix, used by MDS019/MDS021) and
@@ -207,45 +209,46 @@ and fall back only if needed.
 
 ## Tasks
 
-1. Move `slugify` and the duplicate-anchor
+1. [x] Move `slugify` and the duplicate-anchor
    counter from
    `internal/rules/crossfilereferenceintegrity/`
    into a shared helper in `internal/mdtext/`.
    Update the reference-integrity rule to call
    the shared helper. No behavior change.
-2. Create the `<?toc?>` directive in a new
+2. [x] Create the `<?toc?>` directive in a new
    `internal/rules/toc/` package using the
    shared `internal/archetype/gensection.Engine`
    (same engine as `catalog`) and the shared
-   slug helper from task 1. Register as MDS037
+   slug helper from task 1. Register as MDS038
    in category `meta`, enabled by default,
    `FixableRule`.
-3. Add MDS037 fixtures under
-   `internal/rules/MDS037-toc/`: `good/` with a
+3. [x] Add MDS038 fixtures under
+   `internal/rules/MDS038-toc/`: `good/` with a
    correct body, `bad/` with a stale body to
    verify Check, `fixed/` with the expected
    output after Fix. Cover default parameters,
    custom `min-level`/`max-level`, single-level
    docs, and deeply nested structures.
-4. Upgrade MDS035 to `FixableRule`: replace
+4. [x] Upgrade MDS035 to `FixableRule`: replace
    matched directive lines with the canonical
    empty block `<?toc?>\n<?/toc?>`, inserting
    blank lines above and below as needed; leave
    `[TOC]` untouched when a link-ref definition
    suppresses Check; add `fixed/` fixtures for
    each of the four variants.
-5. Update MDS035's diagnostic message to point
-   at `<?toc?>` (MDS037) instead of
+5. [x] Update MDS035's diagnostic message to
+   point at `<?toc?>` (MDS038) instead of
    `<?catalog?>` (MDS019); wording:
-   `unsupported TOC directive \`{token}\`; use \`<?toc?>\` (MDS037)`
-6. Update MDS035 README (message + examples),
-   plan 88 status/deviation note, and the
-   renderer-portability section in
+   `unsupported TOC directive \`{token}\`; use \`<?toc?>\` (MDS038)`
+6. [x] Update MDS035 README (message + examples)
+   and the renderer-portability section in
    [docs/background/markdown-linters.md][lnt].
-7. Update the generated-section archetype doc
+   (No plan 88 file exists; MDS035 was shipped
+   inline.)
+7. [x] Update the generated-section archetype doc
    to list `toc` alongside `catalog` and
    `include`.
-8. Verify multi-pass `mdsmith fix` end-to-end:
+8. [x] Verify multi-pass `mdsmith fix` end-to-end:
    starting from a document containing `[TOC]`,
    a single `fix` run must yield a populated
    `<?toc?>...<?/toc?>` block. Add an
@@ -255,28 +258,29 @@ and fall back only if needed.
 
 ## Acceptance Criteria
 
-- [ ] `<?toc?>...<?/toc?>` in a document
+- [x] `<?toc?>...<?/toc?>` in a document
       regenerates on `mdsmith fix` with a
       nested list of headings linked to
       GitHub-style slugs
-- [ ] `min-level` and `max-level` parameters
+- [x] `min-level` and `max-level` parameters
       gate which headings appear
-- [ ] `<?toc?>` with a stale body produces
-      an MDS037 diagnostic on `check`
-- [ ] MDS035 `fix` rewrites `[TOC]`,
+- [x] `<?toc?>` with a stale body produces
+      an MDS038 diagnostic on `check`
+- [x] MDS035 `fix` rewrites `[TOC]`,
       `[[_TOC_]]`, `[[toc]]`, and `${toc}`
       on their own line to
       `<?toc?>\n<?/toc?>` blocks
-- [ ] MDS035 `fix` leaves `[TOC]` untouched
+- [x] MDS035 `fix` leaves `[TOC]` untouched
       when a matching link reference
       definition is present
-- [ ] A single `mdsmith fix` run converts a
+- [x] A single `mdsmith fix` run converts a
       source containing `[TOC]` into a source
       containing a populated `<?toc?>` block
-- [ ] Merge driver regenerates `<?toc?>`
+- [x] Merge driver regenerates `<?toc?>`
       bodies on conflict, same as `<?catalog?>`
-- [ ] MDS035 diagnostic message names
-      `<?toc?>` (MDS037) as the replacement
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports
+      (inherited from the shared gensection engine)
+- [x] MDS035 diagnostic message names
+      `<?toc?>` (MDS038) as the replacement
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports
       no issues

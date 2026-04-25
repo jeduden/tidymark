@@ -238,7 +238,9 @@ func TestEngine_Check_InvalidYAML(t *testing.T) {
 }
 
 func TestEngine_Check_NonStringValues(t *testing.T) {
-	src := "<?mock\nkey: 42\n?>\n<?/mock?>\n"
+	// Integers and floats are now silently coerced to strings; booleans
+	// and maps are still rejected as non-string values.
+	src := "<?mock\nkey: true\n?>\n<?/mock?>\n"
 	f := newTestFile(t, "test.md", src)
 	d := &mockDirective{}
 	e := NewEngine(d)
@@ -246,6 +248,50 @@ func TestEngine_Check_NonStringValues(t *testing.T) {
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
 	assert.Contains(t, diags[0].Message, "non-string value",
 		"expected 'non-string value' message, got %q", diags[0].Message)
+}
+
+func TestEngine_Check_IntegerValueCoerced(t *testing.T) {
+	// Integer YAML params (e.g. min-level: 2) are coerced to string "2".
+	src := "<?mock\nkey: 42\n?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	assert.Empty(t, diags, "integer param should be coerced, not rejected")
+}
+
+func TestEngine_Check_FloatIntValueCoerced(t *testing.T) {
+	// Float64 YAML params that represent integers (e.g. 2.0) are coerced to "2".
+	src := "<?mock\nkey: 2.0\n?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{validateFn: func(
+		_ string, _ int, params map[string]string, _ map[string]ColumnConfig,
+	) []lint.Diagnostic {
+		if params["key"] != "2" {
+			return []lint.Diagnostic{{Message: "expected \"2\", got " + params["key"]}}
+		}
+		return nil
+	}}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	assert.Empty(t, diags, "float-int param should be coerced to \"2\", not rejected")
+}
+
+func TestEngine_Check_FloatFractionalValueCoerced(t *testing.T) {
+	// Float64 YAML params with fractional parts (e.g. 2.5) are coerced to "2.5".
+	src := "<?mock\nkey: 2.5\n?>\n<?/mock?>\n"
+	f := newTestFile(t, "test.md", src)
+	d := &mockDirective{validateFn: func(
+		_ string, _ int, params map[string]string, _ map[string]ColumnConfig,
+	) []lint.Diagnostic {
+		if params["key"] != "2.5" {
+			return []lint.Diagnostic{{Message: "expected \"2.5\", got " + params["key"]}}
+		}
+		return nil
+	}}
+	e := NewEngine(d)
+	diags := e.Check(f)
+	assert.Empty(t, diags, "fractional float param should be coerced to \"2.5\"")
 }
 
 func TestEngine_Check_ValidationDiags(t *testing.T) {

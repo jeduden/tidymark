@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 
 	"github.com/gobwas/glob"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/yuin/goldmark/ast"
 )
@@ -346,7 +346,7 @@ func collectHeadingAnchors(f *lint.File) map[string]bool {
 			return ast.WalkContinue, nil
 		}
 
-		slug := slugify(extractText(h, f.Source))
+		slug := mdtext.Slugify(extractText(h, f.Source))
 		if slug == "" {
 			return ast.WalkContinue, nil
 		}
@@ -386,36 +386,12 @@ func appendNodeText(b *strings.Builder, node ast.Node, source []byte) {
 	}
 }
 
-func slugify(s string) string {
-	s = strings.TrimSpace(strings.ToLower(s))
-	if s == "" {
-		return ""
-	}
-
-	var b strings.Builder
-	prevDash := false
-	for _, r := range s {
-		switch {
-		case unicode.IsLetter(r) || unicode.IsDigit(r):
-			b.WriteRune(r)
-			prevDash = false
-		case unicode.IsSpace(r) || r == '-' || r == '_':
-			if b.Len() > 0 && !prevDash {
-				b.WriteByte('-')
-				prevDash = true
-			}
-		}
-	}
-
-	return strings.Trim(b.String(), "-")
-}
-
 func normalizeAnchor(anchor string) string {
 	decoded, err := url.PathUnescape(anchor)
 	if err == nil {
 		anchor = decoded
 	}
-	return slugify(anchor)
+	return mdtext.Slugify(anchor)
 }
 
 func isMarkdownPath(path string) bool {

@@ -1,12 +1,7 @@
----
-diagnostics:
-  - line: 3
-    column: 1
-    message: "unsupported TOC directive `[[toc]]`; use `<?toc?>` (MDS038)"
----
 # markdown-it / VitePress TOC directive
 
-[[toc]]
+<?toc?>
+<?/toc?>
 
 markdown-it-toc-done-right and VitePress
 replace this with a generated heading TOC;

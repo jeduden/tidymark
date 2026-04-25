@@ -2,6 +2,7 @@ package gensection
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jeduden/mdsmith/internal/fieldinterp"
@@ -253,6 +254,9 @@ func ExtractColumnsRaw(rawMap map[string]any) map[string]any {
 // ValidateStringParams checks that all values in rawMap are strings.
 // YAML sequences of strings are joined with "\n" into a single string,
 // allowing rules to accept list-valued parameters (e.g., multi-glob).
+// YAML integer and float scalars are converted to their decimal string
+// representation so rules with numeric parameters (e.g. min-level: 2)
+// do not require quoting in the directive body.
 func ValidateStringParams(
 	filePath string, line int, rawMap map[string]any, ruleID, ruleName string,
 ) (map[string]string, []lint.Diagnostic) {
@@ -262,6 +266,15 @@ func ValidateStringParams(
 		switch val := v.(type) {
 		case string:
 			params[k] = val
+		case int:
+			params[k] = strconv.Itoa(val)
+		case float64:
+			// Preserve integer representation when the float has no fractional part.
+			if val == float64(int64(val)) {
+				params[k] = strconv.FormatInt(int64(val), 10)
+			} else {
+				params[k] = strconv.FormatFloat(val, 'f', -1, 64)
+			}
 		case []any:
 			strs, err := toStringSlice(val)
 			if err != nil {

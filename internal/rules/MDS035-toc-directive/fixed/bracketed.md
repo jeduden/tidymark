@@ -1,12 +1,7 @@
----
-diagnostics:
-  - line: 3
-    column: 1
-    message: "unsupported TOC directive `[TOC]`; use `<?toc?>` (MDS038)"
----
 # Python-Markdown TOC directive
 
-[TOC]
+<?toc?>
+<?/toc?>
 
 Everything below the directive renders fine,
 but the directive itself appears as literal

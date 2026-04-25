@@ -14,7 +14,7 @@ goldmark.
 - **Name**: `toc-directive`
 - **Status**: ready
 - **Default**: disabled (opt-in)
-- **Fixable**: no
+- **Fixable**: yes
 - **Implementation**:
   [source](./)
 - **Category**: meta
@@ -47,17 +47,26 @@ suppresses the diagnostic because the token
 resolves to a real link rather than rendering
 as literal text.
 
-## Why not auto-fix
+## Auto-fix
 
-The right replacement depends on intent. For
-file-index usage — an index page listing
-sibling documents — mdsmith's
-[`<?catalog?>`](../MDS019-catalog/README.md)
-directive is the replacement. For in-document
-heading TOCs, mdsmith has no equivalent; the
-author must drop the directive or maintain a
-manual list. The rule is detection-only and
-names both cases in its message.
+`mdsmith fix` replaces each detected token with
+the canonical empty generated-section block:
+
+```text
+<?toc?>
+<?/toc?>
+```
+
+[MDS038 (toc)](../MDS038-toc/README.md) then
+runs in the same fix pass. It populates the
+block with a nested heading list. A single
+`mdsmith fix` converts a `[TOC]` source into
+a populated `<?toc?>` block.
+
+`[TOC]` is left untouched when a matching
+`[TOC]: <url>` link reference definition
+exists. In that case the token is a valid
+CommonMark link, not a renderer directive.
 
 ## Config
 
