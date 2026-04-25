@@ -141,6 +141,13 @@ func TestCheck_Name(t *testing.T) {
 	}
 }
 
+func TestCheck_Category(t *testing.T) {
+	r := &Rule{}
+	if r.Category() != "code" {
+		t.Errorf("expected category code, got %s", r.Category())
+	}
+}
+
 func TestCheck_MultipleBlocks(t *testing.T) {
 	src := []byte("```go\ncode1\n```\ntext\n```python\ncode2\n```\n")
 	f, err := lint.NewFile("test.md", src)

@@ -258,3 +258,74 @@ func TestCategory(t *testing.T) {
 		t.Errorf("expected heading, got %s", r.Category())
 	}
 }
+
+// --- toInt coverage ---
+
+func TestToInt_Int64(t *testing.T) {
+	n, ok := toInt(int64(42))
+	assert.True(t, ok)
+	assert.Equal(t, 42, n)
+}
+
+func TestToInt_Float64_NonWhole(t *testing.T) {
+	_, ok := toInt(float64(2.5))
+	assert.False(t, ok, "non-whole float64 should return false")
+}
+
+func TestToInt_Float64_Whole(t *testing.T) {
+	n, ok := toInt(float64(3))
+	assert.True(t, ok)
+	assert.Equal(t, 3, n)
+}
+
+// --- headingLine setext coverage ---
+
+func TestHeadingLine_SetextHeading(t *testing.T) {
+	// Setext headings have Lines().Len() > 0; headingLine should use Lines().At(0).Start
+	src := []byte("# Doc\n\n## Setext Section\n-------------------\n\nContent.\n")
+	// Actually goldmark parses "## Setext" as ATX (it starts with #).
+	// Use a true setext heading to trigger Lines().Len() > 0 branch.
+	src = []byte("Setext Section\n==============\n\nContent.\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+
+	// With min-level=1 to also check level-1 headings
+	r := &Rule{MinLevel: 1, MaxLevel: 6, AllowMarker: defaultAllowMarker}
+	diags := r.Check(f)
+	// The section has content, so no diagnostic expected
+	assert.Len(t, diags, 0)
+}
+
+func TestHeadingLine_SetextEmptySection(t *testing.T) {
+	// Setext level-1 heading with empty body to trigger headingLine via Lines()
+	src := []byte("Empty Section\n=============\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+
+	r := &Rule{MinLevel: 1, MaxLevel: 6, AllowMarker: defaultAllowMarker}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	// headingLine for setext heading should report line 1
+	assert.Equal(t, 1, diags[0].Line)
+}
+
+// --- nodeHasText via Check ---
+
+func TestNodeHasText_ParagraphContent(t *testing.T) {
+	// A paragraph node hits the default branch in hasMeaningfulContent -> nodeHasText
+	src := []byte("# Doc\n\n## Section\n\nSome paragraph text.\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+
+	r := &Rule{}
+	diags := r.Check(f)
+	assert.Len(t, diags, 0, "section with paragraph should not be empty")
+}
+
+func TestApplySettings_Int64MinLevel(t *testing.T) {
+	// ApplySettings passes int64 values through toInt (via YAML decoding scenario)
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{"min-level": int64(2)})
+	require.NoError(t, err)
+	assert.Equal(t, 2, r.MinLevel)
+}
