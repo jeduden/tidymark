@@ -212,3 +212,10 @@ func TestDefaultSettings_FirstLineHeading(t *testing.T) {
 		t.Errorf("expected level=1, got %v", ds["level"])
 	}
 }
+
+func TestCategory(t *testing.T) {
+	r := &Rule{}
+	if r.Category() == "" {
+		t.Error("expected non-empty category")
+	}
+}

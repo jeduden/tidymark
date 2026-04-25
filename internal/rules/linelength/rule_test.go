@@ -822,3 +822,8 @@ func TestDefaultSettings_IncludesStern(t *testing.T) {
 	require.True(t, ok, "expected stern to be bool, got %T", ds["stern"])
 	assert.False(t, stern, "expected stern=false by default")
 }
+
+func TestCategory(t *testing.T) {
+	r := &Rule{}
+	assert.NotEmpty(t, r.Category())
+}
