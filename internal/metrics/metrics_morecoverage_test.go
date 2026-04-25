@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"fmt"
+	"io/fs"
 	"os"
 	"testing"
 	"testing/fstest"
@@ -103,6 +105,18 @@ func TestParseYAMLLine_NoColon(t *testing.T) {
 	assert.Empty(t, val)
 }
 
+// --- parseFrontMatter: line without colon (triggers !ok continue branch) ---
+
+func TestParseFrontMatter_LineWithoutColon(t *testing.T) {
+	// Front matter that contains a blank line (no colon) should be parsed
+	// successfully, with the blank line skipped.
+	content := "---\nid: MET001\n\nname: bytes\ndescription: File size.\n---\n"
+	info, err := parseFrontMatter(content)
+	require.NoError(t, err)
+	assert.Equal(t, "MET001", info.ID)
+	assert.Equal(t, "bytes", info.Name)
+}
+
 // --- FormatValue: JSONValue returns a type that doesn't match int64 or float64 ---
 // JSONValue's default branch returns value.Number (float64). FormatValue's
 // switch matches float64 → fmt.Sprintf. To hit the "default: return -" branch
@@ -180,4 +194,28 @@ func TestLookupDocFromFS_UnknownReturnsError(t *testing.T) {
 	_, err := lookupDocFromFS(fsys, "MET000")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown metric")
+}
+
+// --- listDocsFromFS: ReadDir error ---
+// Use a custom fs.FS implementation that returns an error from ReadDir.
+
+type errFS struct{}
+
+func (e errFS) Open(name string) (fs.File, error) {
+	return nil, fmt.Errorf("broken FS: open %s", name)
+}
+
+func TestListDocsFromFS_ReadDirError(t *testing.T) {
+	// errFS implements fs.FS but ReadDir fails because Open(".")
+	// returns an error, causing fs.ReadDir to fail.
+	_, err := listDocsFromFS(errFS{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reading metrics directory")
+}
+
+func TestLookupDocFromFS_ListDocsError(t *testing.T) {
+	// When listDocsFromFS fails, lookupDocFromFS returns the error.
+	_, err := lookupDocFromFS(errFS{}, "MET001")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reading metrics directory")
 }

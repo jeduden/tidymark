@@ -3597,3 +3597,82 @@ func TestScanIncludesForTarget_VisitedCycleSkipped(t *testing.T) {
 	result := scanIncludesForTarget(fsys, "a.md", "target.md", visited, 0, 1000)
 	assert.False(t, result)
 }
+
+// =====================================================================
+// Phase 5 coverage: additional branch coverage
+// =====================================================================
+
+// Generate: entryDiags error path (file too large)
+func TestGenerate_EntryDiagsError(t *testing.T) {
+	fsys := fstest.MapFS{
+		"big.md": &fstest.MapFile{
+			Data: []byte("---\ntitle: Big\n---\n" + strings.Repeat("x", 100)),
+		},
+	}
+	f := &lint.File{
+		Path:          "index.md",
+		FS:            fsys,
+		MaxInputBytes: 5, // very small limit → triggers read error
+	}
+	params := map[string]string{
+		"glob": "big.md",
+		"row":  "- [{title}](big.md)",
+	}
+	r := &Rule{}
+	content, diags := r.Generate(f, "index.md", 1, params, nil)
+	assert.Equal(t, "", content)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message, "cannot read front matter")
+}
+
+// checkCatalogIncludeCycle: f.FS == nil → return nil
+func TestCheckCatalogIncludeCycle_NoFS(t *testing.T) {
+	f := &lint.File{Path: "index.md", FS: nil}
+	diags := checkCatalogIncludeCycle(f, "index.md", 1, nil)
+	assert.Nil(t, diags)
+}
+
+// scanIncludesForTarget: recursive indirect match found=true
+func TestScanIncludesForTarget_IndirectMatch(t *testing.T) {
+	// a.md includes b.md, b.md includes target.md → indirect match.
+	fsys := fstest.MapFS{
+		"a.md": &fstest.MapFile{
+			Data: []byte("<?include\nfile: b.md\n?>\ncontent\n<?/include?>"),
+		},
+		"b.md": &fstest.MapFile{
+			Data: []byte("<?include\nfile: target.md\n?>\ncontent\n<?/include?>"),
+		},
+	}
+	visited := map[string]bool{"a.md": true}
+	result := scanIncludesForTarget(fsys, "a.md", "target.md", visited, 0, 1000)
+	assert.True(t, result)
+}
+
+// isExcluded: empty pattern → continue
+func TestIsExcluded_EmptyPatternSkipped(t *testing.T) {
+	// Empty pattern in list should be skipped; non-empty pattern can still match.
+	result := isExcluded("docs/file.md", []string{"", "docs/**"})
+	assert.True(t, result, "non-empty pattern should still match")
+
+	result2 := isExcluded("other/file.md", []string{"", ""})
+	assert.False(t, result2, "only empty patterns → no match")
+}
+
+// sortValue: ParseCUEPath returns nil → return ""
+func TestSortValue_InvalidCUEPath(t *testing.T) {
+	entry := fileEntry{
+		fields: map[string]any{
+			"filename": "docs/file.md",
+		},
+	}
+	// Empty string → ParseCUEPath returns nil
+	result := sortValue(entry, "")
+	assert.Equal(t, "", result)
+}
+
+// checkFieldCaseMismatches: len(fields)==0 → return nil
+func TestCheckFieldCaseMismatches_NoFields(t *testing.T) {
+	// Row template with no {field} placeholders.
+	diags := checkFieldCaseMismatches("index.md", 1, "| Title | Description |", nil)
+	assert.Nil(t, diags)
+}
