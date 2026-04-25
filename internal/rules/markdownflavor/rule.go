@@ -1,6 +1,7 @@
 package markdownflavor
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -95,15 +96,30 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
-// Fix implements rule.FixableRule. It removes the [!TOKEN] marker line from
-// GitHub Alert blockquotes when the configured flavor does not support them.
-// If the marker is the only line in the blockquote, the whole blockquote is
-// removed.
+// Fix implements rule.FixableRule. It removes the [!TOKEN] marker line
+// from GitHub Alert blockquotes (line-level edit, runs first because
+// the lazy-continuation handling rewrites multiple lines), then falls
+// through to fixByteRangeFeatures for the six byte-range features:
+// heading IDs, strikethrough, task lists, superscript, subscript, and
+// bare-URL autolinks. Each feature is fixed only when the configured
+// flavor does not support it.
 func (r *Rule) Fix(f *lint.File) []byte {
-	if r.Flavor == flavorInvalid || r.Flavor.Supports(FeatureGitHubAlerts) {
+	if r.Flavor == flavorInvalid {
 		return f.Source
 	}
+	if !r.Flavor.Supports(FeatureGitHubAlerts) {
+		if out := r.fixGitHubAlerts(f); !bytes.Equal(out, f.Source) {
+			return out
+		}
+	}
+	return r.fixByteRangeFeatures(f)
+}
 
+// fixGitHubAlerts strips [!TOKEN] alert markers from blockquotes,
+// re-adding "> " on lazy-continuation lines so the blockquote stays
+// well-formed after the marker line goes away. If the marker is the
+// only line in the blockquote, the whole blockquote is removed.
+func (r *Rule) fixGitHubAlerts(f *lint.File) []byte {
 	skip := map[int]bool{}
 	addPrefix := map[int]bool{} // lazy-continuation lines that lose blockquote context
 	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
