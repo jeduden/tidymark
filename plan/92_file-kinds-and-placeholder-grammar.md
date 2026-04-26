@@ -22,9 +22,12 @@ category), not Hugo's `archetype` (see Hugo task).
 
 ## Background
 
-Today `.mdsmith.yml` ignores four `proto.md` files:
-`.claude/skills/proto.md`, `plan/proto.md`,
-`internal/rules/proto.md`, `docs/security/proto.md`.
+Today [.mdsmith.yml](../.mdsmith.yml) ignores four
+`proto.md` files:
+[.claude/skills/proto.md](../.claude/skills/proto.md),
+[plan/proto.md](../plan/proto.md),
+[internal/rules/proto.md](../internal/rules/proto.md),
+[docs/security/proto.md](../docs/security/proto.md).
 
 Their front matter holds CUE schema patterns. Their
 bodies hold placeholder text like `# ?`, `## ...`,
@@ -85,8 +88,10 @@ kinds:
       front-matter: false
 ```
 
-Kinds merge with the same rules as overrides — later
-wins, settings deep-merge.
+Kinds merge with the same rules as overrides. Settings
+deep-merge. If multiple kinds set the same value, the
+kind appearing later in the file's resolved effective
+kind list wins.
 
 ### Kind assignment
 
@@ -196,10 +201,10 @@ divergent `placeholders:` lists. Resolution mirrors
   does not erase other settings the earlier kind put
   on `first-line-heading`.
 - **No silent reordering.** Effective list order is
-  front-matter `kinds:`, then `kind-assignment:`
-  matches in config order; file-glob overrides apply
-  last. The user controls which kind wins by ordering
-  declarations.
+  front-matter `kinds:` list order, then
+  `kind-assignment:` matches in config order; file-
+  glob overrides apply last. The user controls which
+  kind wins by ordering items in that effective list.
 
 `mdsmith config show <file>` prints the resolved
 order and merged body so conflicts are inspectable.
