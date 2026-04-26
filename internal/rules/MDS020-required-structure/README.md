@@ -224,7 +224,8 @@ Describe the goal here.
 - **Status**: ready
 - **Default**: enabled
 - **Fixable**: no
-- **Implementation**: [source](./)
+- **Implementation**:
+  [source](./)
 - **Guide**:
   [directive guide](../../../docs/guides/directives/enforcing-structure.md)
 - **Category**: meta
