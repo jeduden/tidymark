@@ -60,17 +60,19 @@ A kind is a named block under `kinds:`. Its body has
 the **same shape as an override entry** (`rules:`,
 `front-matter:`, etc.) — minus `files:`, since files
 are bound to kinds separately. The kind name (`plan`
-below) is whatever the project picks. A kind owns its
-schema by setting `rules.required-structure.schema:`
-in its body, no special top-level field needed:
+below) is whatever the project picks. A kind that sets
+`rules.required-structure.schema:` in its body
+attaches a CUE schema to every file of that kind —
+no special top-level field, just a normal rule
+setting:
 
 ```yaml
 kinds:
   plan:                          # project-chosen name
     rules:
       required-structure:
-        schema: plan/proto.md    # kind 'plan' owns
-                                 # this schema
+        schema: plan/proto.md    # CUE schema for this
+                                 # kind
       first-line-heading:
         placeholders: [var-token, heading-question]
       paragraph-readability: false
@@ -179,6 +181,29 @@ file of that kind. The proto.md file itself is
 typically a separate kind (e.g. `proto` above) so
 its placeholder-rich body lints cleanly.
 
+### Conflict resolution
+
+Two kinds can disagree about a setting. Examples:
+different schema paths, opposite enable/disable,
+divergent `placeholders:` lists. Resolution mirrors
+`overrides:`:
+
+- **Later wins for scalar settings.** If kinds `[a, b]`
+  both set `rules.required-structure.schema:`, kind
+  `b`'s value applies. Same for boolean enable/disable.
+- **Deep-merge for nested maps.** A later kind that
+  sets only `rules.first-line-heading.placeholders:`
+  does not erase other settings the earlier kind put
+  on `first-line-heading`.
+- **No silent reordering.** Effective list order is
+  front-matter `kinds:`, then `kind-assignment:`
+  matches in config order; file-glob overrides apply
+  last. The user controls which kind wins by ordering
+  declarations.
+
+`mdsmith config show <file>` prints the resolved
+order and merged body so conflicts are inspectable.
+
 ## Tasks
 
 1. Inventory current `ignore:` and per-file
@@ -241,6 +266,11 @@ its placeholder-rich body lints cleanly.
 - [ ] Two project-declared kinds compose correctly
       with each other and with file-glob overrides
       (covered by test).
+- [ ] Conflicting settings between kinds (different
+      schemas, divergent `placeholders:`, opposite
+      enable/disable) resolve via the same later-wins,
+      deep-merge semantics as `overrides:` (covered by
+      test).
 - [ ] A file declaring multiple kinds via
       `kinds: [a, b]` in front matter merges them in
       list order (covered by test).
