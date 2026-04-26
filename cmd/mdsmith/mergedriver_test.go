@@ -376,6 +376,31 @@ func TestIsTemporaryBinary_TempPath(t *testing.T) {
 	assert.True(t, isTemporaryBinary(filepath.Join(tmp, "go-run-123", "exe", "main")))
 }
 
+func TestIsTemporaryBinary_RelativePath_RelErrorReturnsFalse(t *testing.T) {
+	// filepath.Rel returns an error when basepath is absolute (os.TempDir
+	// is always absolute) and targpath is relative — filepath.Clean does
+	// not promote a relative path to absolute. The function must treat
+	// that as "not temporary" rather than panicking or returning true.
+	assert.False(t, isTemporaryBinary("relative/path/mdsmith"))
+}
+
+// --- registerMergeDriver ---
+
+func TestRegisterMergeDriver_BinaryNotFound_ReturnsError(t *testing.T) {
+	// When resolveInstalledBinary cannot locate a binary, registerMergeDriver
+	// must surface that error instead of writing a broken git config entry.
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) {
+		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+	}
+	t.Setenv("PATH", "")
+
+	err := registerMergeDriver()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot locate mdsmith binary")
+}
+
 // --- shellQuote ---
 
 func TestShellQuote_NoSpecialChars(t *testing.T) {
