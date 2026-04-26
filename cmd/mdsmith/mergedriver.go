@@ -30,7 +30,10 @@ Subcommands:
         Default files: PLAN.md README.md
 
 Git config (set by install):
-  merge.mdsmith.driver = mdsmith merge-driver run %O %A %B %P
+  merge.mdsmith.driver = '/absolute/path/to/mdsmith' merge-driver run %O %A %B %P
+
+  The path is the absolute location of the mdsmith binary at install time,
+  shell-quoted so paths with spaces are handled correctly.
 `
 
 // runMergeDriver dispatches the merge-driver subcommand.
