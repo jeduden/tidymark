@@ -296,3 +296,97 @@ func TestRunMergeDriverInstall_HelpFlag_ExitsZero(t *testing.T) {
 		assert.Equal(t, 0, code)
 	})
 }
+
+// --- resolveInstalledBinary ---
+
+func TestResolveInstalledBinary_NonTemporaryExe(t *testing.T) {
+	// Override executableFunc to return a path that is NOT under os.TempDir()
+	// so isTemporaryBinary returns false.  resolveInstalledBinary should use
+	// that path directly without falling through to the PATH/GOPATH lookup.
+	fakePermanent := "/usr/local/bin-test-fake/mdsmith"
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) { return fakePermanent, nil }
+
+	got, err := resolveInstalledBinary()
+	require.NoError(t, err)
+	assert.Equal(t, fakePermanent, got)
+}
+
+func TestResolveInstalledBinary_FromPATH(t *testing.T) {
+	// Place a fake "mdsmith" binary in a directory added to PATH.
+	// resolveInstalledBinary should find it after the temp-binary fallback.
+	dir := t.TempDir()
+	fakeBin := filepath.Join(dir, "mdsmith")
+	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0o755))
+
+	// Point executableFunc at a temporary path so the exe-based path is skipped.
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) {
+		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+	}
+
+	origPath := os.Getenv("PATH")
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+origPath)
+
+	got, err := resolveInstalledBinary()
+	require.NoError(t, err)
+	assert.Equal(t, fakeBin, got)
+}
+
+func TestResolveInstalledBinary_NotFound(t *testing.T) {
+	// When the exe is temporary, mdsmith is not in PATH, and GOPATH/bin has
+	// no mdsmith, resolveInstalledBinary should return an error.
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) {
+		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+	}
+
+	// Empty PATH so LookPath("mdsmith") fails and go env GOPATH also fails.
+	t.Setenv("PATH", "")
+
+	_, err := resolveInstalledBinary()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mdsmith not found")
+}
+
+// --- goEnvPath ---
+
+func TestGoEnvPath_GoNotInPATH(t *testing.T) {
+	// When PATH is empty "go" cannot be found, so goEnvPath returns an error.
+	t.Setenv("PATH", "")
+	_, err := goEnvPath()
+	require.Error(t, err)
+}
+
+// --- isTemporaryBinary ---
+
+func TestIsTemporaryBinary_NonTempPath(t *testing.T) {
+	// A path outside os.TempDir() should NOT be considered temporary.
+	// Use a path that is definitely not under /tmp.
+	assert.False(t, isTemporaryBinary("/usr/local/bin/mdsmith"))
+}
+
+func TestIsTemporaryBinary_TempPath(t *testing.T) {
+	// A path under os.TempDir() IS temporary.
+	tmp := os.TempDir()
+	assert.True(t, isTemporaryBinary(filepath.Join(tmp, "go-run-123", "exe", "main")))
+}
+
+// --- shellQuote ---
+
+func TestShellQuote_NoSpecialChars(t *testing.T) {
+	assert.Equal(t, "'/usr/local/bin/mdsmith'", shellQuote("/usr/local/bin/mdsmith"))
+}
+
+func TestShellQuote_ContainsSingleQuote(t *testing.T) {
+	// A single quote in the path must be escaped as '\''.
+	assert.Equal(t, "'/path/it'\\''s/mdsmith'", shellQuote("/path/it's/mdsmith"))
+}
+
+func TestShellQuote_PathWithSpaces(t *testing.T) {
+	assert.Equal(t, "'/home/my user/bin/mdsmith'", shellQuote("/home/my user/bin/mdsmith"))
+}

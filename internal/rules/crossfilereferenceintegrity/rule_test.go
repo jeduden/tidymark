@@ -654,23 +654,16 @@ func TestResolveTargetFile_FSOnlyPath(t *testing.T) {
 	require.Equal(t, targetContent, data)
 }
 
-// TestResolveTargetFile_FSPathAbsoluteReturnsNotFound exercises the
-// `strings.HasPrefix(fsPath, "/")` branch that returns false.
-func TestResolveTargetFile_FSPathAbsoluteReturnsNotFound(t *testing.T) {
+// TestResolveTargetFile_EmptyFSPathReturnsNotFound exercises the early
+// return when TrimPrefix("./", "./") leaves fsPath empty.
+func TestResolveTargetFile_EmptyFSPathReturnsNotFound(t *testing.T) {
 	dir := t.TempDir()
 	f := &lint.File{
 		Path: "doc.md", // no separator → resolveTargetOSPath returns false
 		FS:   os.DirFS(dir),
 	}
-	// A linkPath that normalises to an absolute-like path (leading /).
-	// normalizeLinkPath(filepath.FromSlash("/absolute")) → "/" → "."? No,
-	// actually linkPath must be pre-normalized by the caller as a relative
-	// path.  To hit the fsPath=="" branch, we pass a linkPath of "." which
-	// normalizeLinkPath would return "" for. We call resolveTargetFile
-	// directly with a clean "." which results in fsPath="" after TrimPrefix.
-	// Actually: normalizeLinkPath cleans to ".", and "." → "" is handled by
-	// checkLink; here we call resolveTargetFile directly with the already-
-	// normalised form. TrimPrefix("./", "./") removes "./" leaving "".
+	// "./" becomes an empty fsPath after TrimPrefix("./", "./"), which
+	// hits the fsPath=="" early-return branch.
 	_, ok := resolveTargetFile(f, "./", "")
 	require.False(t, ok, "fsPath='' after TrimPrefix must return not found")
 }

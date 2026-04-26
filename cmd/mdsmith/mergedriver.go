@@ -403,7 +403,7 @@ func registerMergeDriver() error {
 	if err != nil {
 		return fmt.Errorf("cannot locate mdsmith binary: %w", err)
 	}
-	driver := exe + " merge-driver run %O %A %B %P"
+	driver := shellQuote(exe) + " merge-driver run %O %A %B %P"
 	cmds := [][]string{
 		{"git", "config", "merge.mdsmith.name",
 			"mdsmith section-aware Markdown merge"},
@@ -417,6 +417,10 @@ func registerMergeDriver() error {
 	return nil
 }
 
+// executableFunc is the function used to locate the current binary.
+// Overridden in tests to exercise the non-temporary-exe branch.
+var executableFunc = os.Executable
+
 // resolveInstalledBinary returns the absolute path to the mdsmith
 // binary to use as the git merge driver. It prefers the current
 // executable when it lives outside the OS temp directory (i.e. it
@@ -424,7 +428,7 @@ func registerMergeDriver() error {
 // current executable is a transient "go run" binary it falls back
 // to searching PATH and then $GOPATH/bin.
 func resolveInstalledBinary() (string, error) {
-	if exe, err := os.Executable(); err == nil {
+	if exe, err := executableFunc(); err == nil {
 		if !isTemporaryBinary(exe) {
 			return filepath.Clean(exe), nil
 		}
@@ -434,7 +438,6 @@ func resolveInstalledBinary() (string, error) {
 		if abs, err := filepath.Abs(p); err == nil {
 			return abs, nil
 		}
-		return p, nil
 	}
 	gopath, err := goEnvPath()
 	if err == nil {
@@ -459,6 +462,13 @@ func isTemporaryBinary(path string) bool {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && !filepath.IsAbs(rel)
+}
+
+// shellQuote wraps s in single quotes, escaping any embedded single
+// quotes, so that it is safe to embed in a POSIX shell command such as
+// the git merge.*.driver value.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 // goEnvPath returns the value of GOPATH by running "go env GOPATH".
