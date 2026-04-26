@@ -182,8 +182,8 @@ func TestCheck_InvalidExcludeGlobReturnsConfigDiag(t *testing.T) {
 	require.Contains(t, diags[0].Message, "invalid rule settings")
 }
 
-// --- parseTarget: path == "" && u.Opaque != "" ---
-// An opaque URI like "mailto:user@example.com" has Opaque set.
+// --- parseTarget: plain relative path sets Path, not Opaque ---
+// url.Parse("guide.md") sets Path="guide.md"; Opaque is empty.
 func TestParseTarget_PlainRelativePath(t *testing.T) {
 	target, ok := parseTarget("guide.md")
 	require.True(t, ok)

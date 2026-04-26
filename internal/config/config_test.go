@@ -1590,11 +1590,11 @@ func TestTopLevelKeySet_DocumentNodeEmpty(t *testing.T) {
 	assert.Empty(t, result, "empty YAML should return empty key set")
 }
 
-// TestTopLevelKeySet_NotDocumentNode exercises the non-DocumentNode branch.
-// This happens when the YAML is not a document-level structure.
+// TestTopLevelKeySet_NullDocument exercises the mapping.Kind != yaml.MappingNode
+// branch. yaml.Unmarshal("null") produces a DocumentNode whose first child is
+// a ScalarNode, so the mapping check fails and an empty set is returned.
 func TestTopLevelKeySet_NullDocument(t *testing.T) {
-	// A YAML document with null value
 	result := topLevelKeySet([]byte("null\n"))
-	// Should return empty set (content is a ScalarNode, not a MappingNode)
+	// ScalarNode child means no keys to extract.
 	assert.Empty(t, result)
 }
