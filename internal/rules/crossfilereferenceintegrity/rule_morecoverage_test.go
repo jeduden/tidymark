@@ -11,17 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- resolveAbsRoot: Abs() fails branch (hard to trigger, but we can cover
-//     the EvalSymlinks-succeeds path with a non-existent path that Abs handles)
-
-// --- anchorsForFile: lint.NewFileFromSource error ---
-
-// TestAnchorsForFile_ParseError exercises the error path in anchorsForFile
-// when lint.NewFileFromSource returns an error (invalid content is rare but
-// the function is exercised by using empty data that parse succeeds on, and
-// then via bad content). Actually lint.NewFileFromSource rarely errors.
-// Instead we cover collectHeadingAnchors's slug == "" branch.
-
+// TestCollectHeadingAnchors_EmptySlug exercises the collectHeadingAnchors
+// branch that skips headings whose generated slug is empty.
 func TestCollectHeadingAnchors_EmptySlug(t *testing.T) {
 	// A heading with non-textual content that produces an empty slug.
 	// An empty heading "# " produces an empty slug.

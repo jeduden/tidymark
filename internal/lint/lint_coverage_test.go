@@ -609,9 +609,13 @@ func TestAddDirFiles_NonexistentDir(t *testing.T) {
 // existing SelfReturnsFalse test).  This additional test strengthens the
 // assertion that sibling paths are correctly classified.
 func TestIsDescendantOf_Sibling(t *testing.T) {
-	assert.False(t, isDescendantOf("/a/sibling", "/a/other"),
+	root := filepath.Join(string(filepath.Separator), "a")
+	sibling := filepath.Join(root, "sibling")
+	parent := filepath.Join(root, "other")
+	child := filepath.Join(parent, "child")
+	assert.False(t, isDescendantOf(sibling, parent),
 		"sibling directory must not be a descendant")
-	assert.True(t, isDescendantOf("/a/other/child", "/a/other"),
+	assert.True(t, isDescendantOf(child, parent),
 		"child must be a descendant of parent")
 }
 

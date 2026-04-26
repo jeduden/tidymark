@@ -16,8 +16,8 @@ func TestCategory_TableFormat(t *testing.T) {
 
 // --- Fix: tables == 0 branch ---
 
-func TestFix_NoTables_ReturnsCopy(t *testing.T) {
-	// When there are no tables, Fix should return a copy of the source.
+func TestFix_NoTables_ReturnsUnchangedBytes(t *testing.T) {
+	// When there are no tables, Fix returns bytes equal to the source.
 	src := "# Just a heading\n\nSome text, no tables here.\n"
 	r := &Rule{Pad: 1}
 	f := newTestFile(t, src)
@@ -27,8 +27,8 @@ func TestFix_NoTables_ReturnsCopy(t *testing.T) {
 
 // --- Fix: tableEqual branch (already formatted table) ---
 
-func TestFix_AlreadyFormattedTable_NoCopy(t *testing.T) {
-	// Table is already properly formatted — Fix should return it unchanged.
+func TestFix_AlreadyFormattedTable_ReturnsUnchangedBytes(t *testing.T) {
+	// Table is already properly formatted — Fix returns bytes equal to the source.
 	src := "| a   | b      |\n|-----|--------|\n| foo | barbaz |\n"
 	r := &Rule{Pad: 1}
 	f := newTestFile(t, src)
@@ -118,7 +118,7 @@ func TestFormatTable_LessThanTwoRows(t *testing.T) {
 		rows:      []row{{cells: []string{"a", "b"}}},
 	}
 	result := formatTable(tbl, 1)
-	// Should be the same object (returned as-is)
+	// Content should be unchanged (table with < 2 rows is returned as-is).
 	assert.Equal(t, tbl.rawLines, result.rawLines)
 }
 
