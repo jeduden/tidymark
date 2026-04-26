@@ -1,7 +1,5 @@
 name: Merge Queue
 
-# Dummy change to test merge queue action.
-
 on:
   pull_request:
     types: [labeled]
@@ -18,37 +16,19 @@ concurrency:
   group: merge-queue
   cancel-in-progress: false
 
-permissions: {}
-
 jobs:
   queue:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.label.name == 'queue' &&
-      github.event.pull_request.base.ref == 'main' &&
-      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
-      issues: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           token: ${{ secrets.MERGE_QUEUE_TOKEN }}
-          persist-credentials: false
 
-      - name: Configure git identity
-        run: |
-          git config user.email "merge-queue@users.noreply.github.com"
-          git config user.name  "merge-queue-bot"
-
-      - uses: jeduden/merge-queue-action@5adb5a76e27e96f1da5efd36f097a2c5233e9ad3 # v0.6.0
+      - uses: jeduden/merge-queue-action@3be8077b142e4057d2fc097635d1ab6ada2bbbf5 # v0.7.1
         with:
           token: ${{ secrets.MERGE_QUEUE_TOKEN }}
           ci_workflow: .github/workflows/ci.yml
           batch_size: "5"
-          bisect: ${{ github.event.inputs.bisect || false }}
-          batch_prs: ${{ github.event.inputs.batch_prs || '' }}
+          bisect: ${{ github.event.inputs.bisect }}
+          batch_prs: ${{ github.event.inputs.batch_prs }}
