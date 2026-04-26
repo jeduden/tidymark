@@ -86,7 +86,7 @@ A file's role set is the union of:
   (`role-assignment:` map, separate from role
   declaration);
 - implicit roles inferred from config references
-  (any path used as a `required-structure: schema:`
+  (any path used as the `required-structure.schema`
   target gains role `schema`; any path referenced by
   `<?include?>` gains `fragment`).
 
@@ -234,7 +234,7 @@ re-checked.
    role's body.
 3. Add the front-matter `role:` field and the
    implicit-from-reference assignment path
-   (`required-structure: schema:` and `<?include?>`).
+   (`required-structure.schema` and `<?include?>`).
 4. Add a placeholder helper (`var-token`,
    `heading-question`, `cue-frontmatter`, …) and a
    `placeholders:` setting on each rule that opts in
@@ -281,7 +281,7 @@ re-checked.
 - [ ] Adding a new schema file under any directory
       requires no change to `ignore:` — the role is
       assigned implicitly from its
-      `required-structure: schema:` reference.
+      `required-structure.schema` reference.
 - [ ] Rule code contains no `if role == "..."`
       branches; rule behavior is selected through
       `Configurable` settings only (enforced by grep
