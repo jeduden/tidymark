@@ -34,13 +34,14 @@ includes, demo sources, future schemas.
 
 The fix is two pieces, both built on existing plumbing:
 
-1. **User-declarable roles.** A role is a named block
+1. **User-declared roles.** A role is a named block
    with the same shape as an `overrides:` entry minus
-   `files:`. The five names mdsmith ships with
-   (`document`, `schema`, `template`, `fragment`,
-   `fixture`) are defaults — projects can declare
-   their own (e.g. `agent-prompt`, `runbook`) without
-   touching rule code.
+   `files:`. mdsmith ships **no built-in roles**;
+   projects declare whatever vocabulary they need
+   (`schema`, `template`, `agent-prompt`, …). Names
+   like `schema` appear in this RFC because the
+   linter looks for them when wiring implicit role
+   assignment, but their config is up to the project.
 2. **Placeholder support as rule settings.** Each rule
    that wants to recognize template tokens (`# ?`,
    `## ...`, `{var}`, CUE front-matter values) exposes
@@ -73,9 +74,11 @@ roles:
         mode: schema
 ```
 
-Same merge semantics as overrides apply: later wins,
-settings deep-merge. Five roles ship with mdsmith as
-defaults; users can add or override them.
+Roles merge with the same rules as overrides — later
+wins, settings deep-merge. mdsmith ships no roles by
+default. Each project declares the roles it needs.
+Starter configurations live in
+`docs/background/archetypes/file-roles/`.
 
 ### Role assignment
 
@@ -90,8 +93,11 @@ A file's role set is the union of:
   target gains role `schema`; any path referenced by
   `<?include?>` gains `fragment`).
 
-Implicit assignment is what removes the four current
-ignore entries without any user action.
+Implicit assignment removes the four current ignore
+entries. The project declares a `schema` role once.
+Every `required-structure.schema` reference then
+auto-tags its target. Referencing an undeclared role
+name is a config error.
 
 ### Composability
 
@@ -107,11 +113,9 @@ ignore entries without any user action.
    front matter is validated as a *schema* (CUE
    patterns OK); referenced subject files are
    validated as *data*.
-4. **No role names in rule code.** Rules consult
-   their own settings; they never branch on
-   `if role == "schema"`. New roles cannot regress
-   existing rule behavior because rules have no
-   knowledge of role names.
+4. **No role names in rule code.** Rules read their
+   own settings; they never branch on a role name.
+   New roles cannot regress existing behavior.
 
 ### Placeholder support
 
@@ -132,13 +136,9 @@ roles:
 
 Adding a new placeholder grammar is a code change in
 one helper plus opt-ins per rule; it is not coupled
-to any role.
-
-### Migration
-
-Migration removes ignore entries one role at a time
-and keeps the linter green at every step. Behavior on
-files not yet tagged with a role is unchanged.
+to any role. Migration removes `ignore:` entries one
+role at a time, keeping the linter green at each
+step; untagged files behave as today.
 
 ## Examples
 
@@ -181,7 +181,10 @@ The path `plan/proto.md` gains role `schema`
 implicitly. No `ignore:`, no front-matter tag, no
 glob needed.
 
-### User-declared role (no rule code changes)
+### Adding a project-specific role
+
+No rule code changes are needed; declare the role and
+assign it:
 
 ```yaml
 roles:
@@ -243,19 +246,25 @@ re-checked.
    `cross-file-reference-integrity`,
    `paragraph-readability`, `paragraph-structure`,
    front-matter validation).
-5. Ship the five built-in roles (`document`,
-   `schema`, `template`, `fragment`, `fixture`) as
-   default config that users can override.
-6. Implement lint-once for `<?include?>` and
+5. Implement lint-once for `<?include?>` and
    `<?catalog?>` host files.
-7. Drop the four `proto.md` entries from `ignore:`
-   and confirm `mdsmith check .` stays green.
-8. Document the model under
-   `docs/background/archetypes/` and link from each
-   affected rule README.
-9. Add a `mdsmith config show <file>` debug command
-   that prints the resolved role set and merged rule
-   config for a file.
+6. Update this repo's `.mdsmith.yml` to declare the
+   roles it needs (`schema`, `fragment`, `template`,
+   …) and drop the four `proto.md` entries from
+   `ignore:`; confirm `mdsmith check .` stays green.
+7. Document the model under
+   `docs/background/archetypes/file-roles/` (new
+   archetype page) with starter role declarations
+   that projects can copy. Link from each affected
+   rule README.
+8. Add CLI commands `mdsmith config roles` (list
+   declared roles with their merged bodies) and
+   `mdsmith config show <file>` (print the resolved
+   role set and merged rule config for a file).
+9. Emit a clear config error when role assignment
+   references an undeclared role name, with the
+   suggested fix ("declare role `<name>` in
+   `.mdsmith.yml`").
 
 ## Acceptance Criteria
 
@@ -266,14 +275,16 @@ re-checked.
       as an override entry (minus `files:`); override
       merge is reused for role merge (verified by
       test).
-- [ ] A user-declared role (not in the built-in five)
-      composes correctly with built-ins and with
-      file-glob overrides (covered by test).
-- [ ] Schema files are linted under role `schema`:
-      CUE-pattern front matter, `# ?` and `## ...`
-      placeholders, and `{var}` tokens produce no
-      diagnostics from rules whose `placeholders:`
-      setting permits them.
+- [ ] Two project-declared roles compose correctly
+      with each other and with file-glob overrides
+      (covered by test); no role names are present in
+      mdsmith's shipped default config.
+- [ ] Schema files declared by the project are
+      linted under their `schema` role: CUE-pattern
+      front matter, `# ?` and `## ...` placeholders,
+      and `{var}` tokens produce no diagnostics from
+      rules whose `placeholders:` setting permits
+      them.
 - [ ] Content embedded into a host file via
       `<?include?>` or `<?catalog?>` produces
       diagnostics only against the source file, not
@@ -286,6 +297,10 @@ re-checked.
       branches; rule behavior is selected through
       `Configurable` settings only (enforced by grep
       test).
+- [ ] Referencing an undeclared role name produces a
+      clear config error.
+- [ ] `mdsmith config roles` lists declared roles
+      with their merged bodies.
 - [ ] `mdsmith config show <file>` prints the
       resolved role set and the merged rule config.
 - [ ] All tests pass: `go test ./...`
