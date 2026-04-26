@@ -71,3 +71,14 @@ func TestByID_NotFound(t *testing.T) {
 	found := ByID("MDS999")
 	assert.Nil(t, found, "expected nil for unknown rule ID")
 }
+
+func TestReset(t *testing.T) {
+	resetRegistry()
+
+	Register(&stubRule{id: "MDS001", name: "line-length"})
+	require.Len(t, All(), 1, "expected 1 rule before Reset")
+
+	Reset()
+
+	require.Len(t, All(), 0, "expected 0 rules after Reset")
+}

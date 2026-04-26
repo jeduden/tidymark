@@ -100,3 +100,10 @@ func TestCheck_Name(t *testing.T) {
 		t.Errorf("expected name fenced-code-language, got %s", r.Name())
 	}
 }
+
+func TestCategory(t *testing.T) {
+	r := &Rule{}
+	if r.Category() == "" {
+		t.Error("expected non-empty category")
+	}
+}

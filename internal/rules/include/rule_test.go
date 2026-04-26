@@ -830,3 +830,8 @@ func TestCheck_NoFS(t *testing.T) {
 	diags := r.Check(f)
 	expectDiags(t, diags, 0)
 }
+
+func TestCategory(t *testing.T) {
+	r := &Rule{}
+	assert.NotEmpty(t, r.Category())
+}

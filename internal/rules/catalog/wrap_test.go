@@ -412,3 +412,138 @@ row: "| {title} | {description} |"
 	// The description should be wrapped with <br>
 	assert.Contains(t, result, "<br>", "expected wrapped description with '<br>' in output:\n%s", result)
 }
+
+// =====================================================================
+// Phase 5 coverage: additional wrap branch coverage
+// =====================================================================
+
+// wrapCellBr: maxWidth <= 0 → return ""
+func TestWrapCellBr_ZeroWidth(t *testing.T) {
+	result := wrapCellBr("hello world", 0)
+	assert.Equal(t, "", result)
+}
+
+// wrapCellBr: breakPos <= 0 → breakPos = maxWidth (hard break at width)
+func TestWrapCellBr_HardBreakAtWidthNoSpace(t *testing.T) {
+	// A single long word with no spaces longer than maxWidth.
+	result := wrapCellBr("abcdefghij", 5)
+	assert.Contains(t, result, "<br>")
+	parts := strings.Split(result, "<br>")
+	assert.Greater(t, len(parts), 1)
+	for _, p := range parts {
+		assert.LessOrEqual(t, len([]rune(p)), 5)
+	}
+}
+
+// findClosingBracketRunes: no closing bracket → return -1
+func TestFindClosingBracketRunes_NoClose(t *testing.T) {
+	runes := []rune("[unclosed")
+	result := findClosingBracketRunes(runes, 0)
+	assert.Equal(t, -1, result)
+}
+
+// findClosingParenRunes: no closing paren → return -1
+func TestFindClosingParenRunes_NoClose(t *testing.T) {
+	runes := []rune("(unclosed")
+	result := findClosingParenRunes(runes, 0)
+	assert.Equal(t, -1, result)
+}
+
+// findBreakPointRunes: targetWidth >= len(runes) → return len(runes)
+func TestFindBreakPointRunes_TargetBeyondEnd(t *testing.T) {
+	runes := []rune("hello")
+	result := findBreakPointRunes(runes, nil, 100)
+	assert.Equal(t, 5, result)
+}
+
+// findBreakPointRunes: inside span and span starts > 0 → return s.start
+func TestFindBreakPointRunes_InsideSpanWithBreakBefore(t *testing.T) {
+	// Text: "abc [long link](url)" where target falls inside the link span.
+	// The span starts at index 4, target at index 6 (inside span).
+	// Since space is at index 3, lastSpaceInRunes should find it.
+	runes := []rune("abc [longlink](url)")
+	// Span covers the link from position 4 to end.
+	spans := []markdownSpan{{start: 4, end: len(runes)}}
+	// targetWidth = 6 → inside the span → break before span at s.start=4
+	result := findBreakPointRunes(runes, spans, 6)
+	// Should break at space before the span (position 3) or at s.start (4)
+	assert.LessOrEqual(t, result, 4)
+	assert.Greater(t, result, 0)
+}
+
+// lastSpaceInRunes: pos > len(runes) → pos clamped
+func TestLastSpaceInRunes_PosExceedsLen(t *testing.T) {
+	runes := []rune("hello world")
+	// pos=100 > len("hello world")=11, should clamp to 11 and search backwards
+	result := lastSpaceInRunes(runes, 100)
+	assert.Equal(t, 5, result) // space at index 5
+}
+
+// spansInRange: span outside range → continue (not included)
+func TestSpansInRange_SpanOutsideRange(t *testing.T) {
+	spans := []markdownSpan{
+		{start: 0, end: 3},   // before offset=5 → excluded
+		{start: 10, end: 15}, // after end=8 → excluded
+		{start: 5, end: 8},   // inside range=5..8 → included
+	}
+	result := spansInRange(spans, 5, 8)
+	require.Len(t, result, 1)
+	assert.Equal(t, 0, result[0].start)
+	assert.Equal(t, 3, result[0].end)
+}
+
+// spansInRange: adjusted.start < 0 (span starts before offset)
+func TestSpansInRange_AdjustedStartNegative(t *testing.T) {
+	// Span starts at 2, offset=5, end=10
+	// → adjusted.start = 2-5 = -3 → clamped to 0
+	spans := []markdownSpan{{start: 2, end: 10}}
+	result := spansInRange(spans, 5, 10)
+	require.Len(t, result, 1)
+	assert.Equal(t, 0, result[0].start) // clamped from -3 to 0
+}
+
+// applyColumnConstraints: not a table row (no leading |) → return row unchanged
+func TestApplyColumnConstraints_NotTableRow(t *testing.T) {
+	cols := map[string]columnConfig{"title": {maxWidth: 10}}
+	colMap := map[int]string{0: "title"}
+	row := "plain text without pipes"
+	result := applyColumnConstraints(row, cols, colMap)
+	assert.Equal(t, row, result)
+}
+
+// applyColumnConstraints: cell within maxWidth → no modification
+func TestApplyColumnConstraints_CellWithinMaxWidth(t *testing.T) {
+	cols := map[string]columnConfig{"title": {maxWidth: 50}}
+	colMap := map[int]string{0: "title"}
+	row := "| short title |"
+	result := applyColumnConstraints(row, cols, colMap)
+	assert.Equal(t, row, result)
+}
+
+// applyColumnConstraints: nothing modified → return original row
+func TestApplyColumnConstraints_NothingModified(t *testing.T) {
+	// Column config exists but the cell content is short enough.
+	cols := map[string]columnConfig{"desc": {maxWidth: 100}}
+	colMap := map[int]string{0: "desc"}
+	row := "| short |"
+	result := applyColumnConstraints(row, cols, colMap)
+	assert.Equal(t, row, result)
+}
+
+// splitTableRow: row doesn't end with | → return nil
+func TestSplitTableRow_NoTrailingPipe(t *testing.T) {
+	result := splitTableRow("| cell1 | cell2")
+	assert.Nil(t, result)
+}
+
+// buildColumnMap: row template without | → cells==0 → return nil
+func TestBuildColumnMap_NotTableRow(t *testing.T) {
+	result := buildColumnMap("not a table row")
+	assert.Nil(t, result)
+}
+
+// extractPrimaryField: no fields → return ""
+func TestExtractPrimaryField_NoFields(t *testing.T) {
+	result := extractPrimaryField("plain text without braces")
+	assert.Equal(t, "", result)
+}

@@ -1227,7 +1227,8 @@ func TestE2E_MergeDriver_Install(t *testing.T) {
 	out, err := exec.Command("git", "-C", dir, "config", "merge.mdsmith.driver").Output()
 	require.NoError(t, err, "reading git config: %v", err)
 	driver := strings.TrimSpace(string(out))
-	assert.Contains(t, driver, "mdsmith merge-driver run", "expected merge driver config with 'run', got: %s", driver)
+	assert.Contains(t, driver, "merge-driver run %O %A %B %P",
+		"expected merge driver config with run+placeholders, got: %s", driver)
 
 	// Verify .gitattributes.
 	attrs, err := os.ReadFile(filepath.Join(dir, ".gitattributes"))
@@ -1268,7 +1269,7 @@ func TestE2E_MergeDriver_Install_CustomFiles(t *testing.T) {
 	out, err := exec.Command("git", "-C", dir, "config", "merge.mdsmith.driver").Output()
 	require.NoError(t, err, "reading git config: %v", err)
 	driver := strings.TrimSpace(string(out))
-	assert.Contains(t, driver, "mdsmith merge-driver run", "expected merge driver config, got: %s", driver)
+	assert.Contains(t, driver, "merge-driver run %O %A %B %P", "expected merge driver config, got: %s", driver)
 
 	// Verify .gitattributes has custom files, not defaults.
 	attrs, err := os.ReadFile(filepath.Join(dir, ".gitattributes"))

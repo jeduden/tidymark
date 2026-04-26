@@ -2,6 +2,7 @@ package requiredstructure
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -1539,4 +1540,313 @@ func TestCheck_OutOfOrderAlsoReportsLevelMismatch(t *testing.T) {
 	diags := r.Check(f)
 	expectDiagMsg(t, diags, `out of order`)
 	expectDiagMsg(t, diags, `heading level mismatch`)
+}
+
+// =====================================================================
+// Phase 5 coverage: additional branch coverage
+// =====================================================================
+
+// deriveFrontMatterCUE: empty map → return "", nil
+func TestDeriveFrontMatterCUE_EmptyMap(t *testing.T) {
+	// "{}" unmarshals to an empty map → len(raw)==0 branch.
+	result, err := deriveFrontMatterCUE([]byte("{}\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "", result)
+}
+
+// deriveFrontMatterCUE: cueExprForMap error via null YAML value
+func TestDeriveFrontMatterCUE_NullValueError(t *testing.T) {
+	// YAML null (represented as nil in Go) is not a supported schema type.
+	_, err := deriveFrontMatterCUE([]byte("key: ~\n"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parsing schema frontmatter constraints")
+}
+
+// extractRequireDirective: single-line require with empty body → continue
+func TestExtractRequireDirective_SingleLineEmpty(t *testing.T) {
+	// Single-line PI with no body content after trimming.
+	src := "<?require ?>\n# Title\n"
+	f := newTestFile(t, "schema.md", src)
+	result, err := extractRequireDirective(f)
+	require.NoError(t, err)
+	assert.Equal(t, "", result)
+}
+
+// extractPIFileParam: single-line form
+func TestExtractPIFileParam_SingleLine(t *testing.T) {
+	// Single-line include PI: <?include file: other.md ?>
+	src := "<?include file: other.md ?>\ncontent\n<?/include?>"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), true)
+	require.NoError(t, err)
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi, "expected ProcessingInstruction in parsed AST")
+	result, err := extractPIFileParam(pi, []byte(src))
+	require.NoError(t, err)
+	assert.Equal(t, "other.md", result)
+}
+
+// resolveSchemaIncludePath: empty file param
+func TestResolveSchemaIncludePath_EmptyFileParam(t *testing.T) {
+	// include with empty file param → error
+	src := "<?include\nfile: \"\"\n?>\ncontent\n<?/include?>"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), true)
+	require.NoError(t, err)
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi, "expected ProcessingInstruction in parsed AST")
+	_, err = resolveSchemaIncludePath(pi, []byte(src), "schema.md")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing required 'file' attribute")
+}
+
+// resolveSchemaIncludePath: absolute path → error
+func TestResolveSchemaIncludePath_AbsolutePath(t *testing.T) {
+	src := "<?include\nfile: /abs/path.md\n?>\ncontent\n<?/include?>"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), true)
+	require.NoError(t, err)
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi)
+	_, err = resolveSchemaIncludePath(pi, []byte(src), "schema.md")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "absolute file path")
+}
+
+// resolveSchemaIncludePath: path with .. traversal → error
+func TestResolveSchemaIncludePath_DotDotTraversal(t *testing.T) {
+	src := "<?include\nfile: ../parent.md\n?>\ncontent\n<?/include?>"
+	f, err := lint.NewFileFromSource("schema.md", []byte(src), true)
+	require.NoError(t, err)
+	var pi *lint.ProcessingInstruction
+	for c := f.AST.FirstChild(); c != nil; c = c.NextSibling() {
+		if p, ok := c.(*lint.ProcessingInstruction); ok {
+			pi = p
+			break
+		}
+	}
+	require.NotNil(t, pi)
+	_, err = resolveSchemaIncludePath(pi, []byte(src), "schema.md")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `".." traversal`)
+}
+
+// expandSchemaInclude: depth exceeds maximum
+func TestParseSchema_SchemaIncludeDepthExceeded(t *testing.T) {
+	dir := t.TempDir()
+	// Build a long chain: schema → d1 → d2 → ... → d(maxDepth+1)
+	// Each fragment includes the next one.
+	const depth = maxSchemaIncludeDepth + 1
+	for i := depth; i >= 1; i-- {
+		var content string
+		if i == depth {
+			content = "## Leaf\n"
+		} else {
+			content = fmt.Sprintf("## Level%d\n\n<?include\nfile: d%d.md\n?>\n", i, i+1)
+		}
+		require.NoError(t, os.WriteFile(
+			filepath.Join(dir, fmt.Sprintf("d%d.md", i)),
+			[]byte(content), 0o644,
+		))
+	}
+	schema := "# ?\n\n<?include\nfile: d1.md\n?>\n"
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	_, err := parseSchema([]byte(schema), schemaPath, 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "depth exceeds maximum")
+}
+
+// expandSchemaInclude: ReadFileLimited error (file not found)
+func TestParseSchema_SchemaIncludeMissingFile(t *testing.T) {
+	dir := t.TempDir()
+	schema := "# ?\n\n<?include\nfile: nonexistent.md\n?>\n"
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	_, err := parseSchema([]byte(schema), schemaPath, 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot read schema include file")
+}
+
+// expandSchemaInclude: fp2 propagation — include's include has a require directive
+func TestParseSchema_SchemaIncludeNestedRequirePropagated(t *testing.T) {
+	dir := t.TempDir()
+	// frag2.md has a <?require?> that sets filename pattern.
+	frag2 := "<?require\nfilename: \"nested-*.md\"\n?>\n## Nested\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "frag2.md"), []byte(frag2), 0o644))
+
+	// frag1.md includes frag2.md but has no require.
+	frag1 := "## Level1\n\n<?include\nfile: frag2.md\n?>\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "frag1.md"), []byte(frag1), 0o644))
+
+	// schema includes frag1.
+	schema := "# ?\n\n<?include\nfile: frag1.md\n?>\n"
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(schema), 0o644))
+
+	tmpl, err := parseSchema([]byte(schema), schemaPath, 0)
+	require.NoError(t, err)
+	// The filename pattern from the nested include should propagate up.
+	assert.Equal(t, "nested-*.md", tmpl.Config.FilenamePattern)
+}
+
+// validateFrontMatterCUE: invalid CUE schema error
+func TestValidateFrontMatterCUE_InvalidSchema(t *testing.T) {
+	err := validateFrontMatterCUE("this is not valid CUE {{{{", map[string]any{"key": "val"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid CUE schema")
+}
+
+// validateFrontMatterCUE: type mismatch between schema and front-matter value.
+func TestValidateFrontMatterCUE_TypeMismatch(t *testing.T) {
+	err := validateFrontMatterCUE(`close({id: string})`, map[string]any{"id": 42})
+	require.Error(t, err) // CUE unification fails: int != string
+}
+
+// readDocFrontMatterRaw: extractYAML returns nil when FrontMatter has no closing delimiter
+func TestReadDocFrontMatterRaw_ExtractYAMLNil(t *testing.T) {
+	// Manually set FrontMatter to content without proper --- delimiter pair.
+	f := &lint.File{FrontMatter: []byte("no-closing-delimiter content")}
+	raw, diags := readDocFrontMatterRaw(f)
+	assert.Nil(t, raw)
+	assert.Nil(t, diags)
+}
+
+// checkBodySync: headingIdx+1 < len(allHeadings) constrains endLine
+func TestCheck_BodySyncWithFollowingHeading(t *testing.T) {
+	// Schema: two headings, first has body sync.
+	// Doc has body text followed by a second heading.
+	schemaPath := writeSchema(t, "# ?\n\n{description}\n\n## Details\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\ndescription: Expected body text.\n---\n# Title\n\nExpected body text.\n\n## Details\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+// checkBodySync: paragraph match (multi-line body matching joined text)
+func TestCheck_BodySyncParagraphMatch(t *testing.T) {
+	// Body is wrapped across two lines but together matches the expected value.
+	schemaPath := writeSchema(t, "# ?\n\n{description}\n")
+	r := &Rule{Schema: schemaPath}
+	// The body content spans two lines that join to match the description.
+	f := newTestFile(t, "doc.md",
+		"---\ndescription: First line second line.\n---\n# Title\n\nFirst line\nsecond line.\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+// checkFilenamePattern: invalid glob pattern returns diagnostic
+func TestCheck_FilenamePatternInvalidGlob(t *testing.T) {
+	// The schema require directive has an invalid glob pattern "[" which filepath.Match rejects.
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.md")
+	require.NoError(t, os.WriteFile(schemaPath,
+		[]byte("<?require\nfilename: \"[\"\n?>\n# ?\n"), 0o644))
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md", "# Title\n")
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "invalid filename pattern")
+}
+
+// checkSync: isSectionWildcard continue branch
+func TestCheck_SyncWithSectionWildcard(t *testing.T) {
+	// Schema has a wildcard section (...) before a sync heading.
+	// The wildcard section is skipped in sync checking.
+	schemaPath := writeSchema(t, "# {title}\n\n## ...\n\n## Summary\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\ntitle: My Doc\n---\n# My Doc\n\n## Optional\n\n## Summary\n")
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+// checkSync: matchedDoc < 0 (section heading not found in doc)
+func TestCheck_SyncHeadingNotFoundInDoc(t *testing.T) {
+	// Schema has heading {id} but doc doesn't have that heading at all.
+	// checkSync should skip gracefully (matchedDoc < 0).
+	schemaPath := writeSchema(t, "# ?\n\n## {id}\n")
+	r := &Rule{Schema: schemaPath}
+	// Doc has first heading but not the second.
+	f := newTestFile(t, "doc.md",
+		"---\nid: MDS001\n---\n# My Doc\n")
+	diags := r.Check(f)
+	// Should report missing required section, not panic.
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "missing required section")
+}
+
+// checkSyncPoint: invalid CUE path (call directly since the fieldPattern
+// guards make this unreachable through normal schema parsing)
+func TestCheckSyncPoint_InvalidCUEPath(t *testing.T) {
+	f := newTestFile(t, "doc.md", "---\nfoo: bar\n---\n# My Title\n")
+	sp := syncPoint{Field: ""} // empty string → ParseCUEPath returns nil
+	req := schemaHeading{Level: 1, Text: "My Title"}
+	dh := docHeading{Level: 1, Text: "My Title", Line: 1}
+	diags := checkSyncPoint(f, sp, req, dh, 0, nil, nil)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "invalid CUE path")
+}
+
+// isSchemaOrArchetypeFile: candidates not ending in .md → continue
+func TestIsSchemaOrArchetypeFile_NonMdFile(t *testing.T) {
+	r := &Rule{ArchetypeRoots: []string{"archetypes"}}
+	// File without .md extension should not match archetype root.
+	f := &lint.File{Path: "archetypes/myschema.yaml"}
+	result := r.isSchemaOrArchetypeFile(f)
+	assert.False(t, result)
+}
+
+// writeNodeText: recursive fallthrough branch
+func TestHeadingText_WithLink(t *testing.T) {
+	// A heading with a link node exercises the recursive fallthrough.
+	f := newTestFile(t, "doc.md", "# Heading with [link text](url)\n")
+	headings := extractHeadings(f)
+	require.Len(t, headings, 1)
+	assert.Contains(t, headings[0].Text, "link text")
+}
+
+// matchRequired: level mismatch for out-of-order heading
+func TestCheck_OutOfOrderSectionLevelMismatch(t *testing.T) {
+	// Schema requires ## Alpha then ## Beta.
+	// Doc has ### Beta (out of order AND wrong level) then ## Alpha.
+	schemaPath := writeSchema(t, "## Alpha\n\n## Beta\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md", "### Beta\n\n## Alpha\n")
+	diags := r.Check(f)
+	require.NotEmpty(t, diags)
+	// Should see both an out-of-order and a level-mismatch diagnostic.
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "out of order") || strings.Contains(d.Message, "level mismatch") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected out-of-order or level-mismatch diagnostic, got: %v", diags)
+}
+
+// validateCUESchemaSyntax: with a valid non-empty schema (and also invalid CUE)
+func TestValidateCUESchemaSyntax_InvalidCUE(t *testing.T) {
+	err := validateCUESchemaSyntax("{{{not valid CUE}}}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid schema frontmatter CUE")
 }

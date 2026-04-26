@@ -1,12 +1,19 @@
 package rules
 
 import (
+	"fmt"
+	"io/fs"
 	"testing"
 	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// errFS is an fs.FS that always returns an error on Open, forcing ReadDir to fail.
+type errFS struct{}
+
+func (errFS) Open(string) (fs.File, error) { return nil, fmt.Errorf("forced readdir error") }
 
 func TestListRules_SortedByID(t *testing.T) {
 	rules, err := ListRules()
@@ -141,4 +148,76 @@ func TestListRulesFromFS_SkipsMissingStatus(t *testing.T) {
 	rules, err := listRulesFromFS(fsys)
 	require.NoError(t, err, "listRulesFromFS: %v", err)
 	require.Len(t, rules, 0, "expected 0 rules, got %d", len(rules))
+}
+
+// =====================================================================
+// Phase 5: additional coverage
+// =====================================================================
+
+// listRulesFromFS: ReadDir error
+func TestListRulesFromFS_ReadDirError(t *testing.T) {
+	_, err := listRulesFromFS(errFS{})
+	require.Error(t, err)
+}
+
+// listRulesFromFS: non-directory entry → continue
+func TestListRulesFromFS_SkipsNonDirEntries(t *testing.T) {
+	fsys := fstest.MapFS{
+		"not-a-dir": &fstest.MapFile{
+			Data: []byte("plain file in root"),
+		},
+		"realrule/README.md": &fstest.MapFile{
+			Data: []byte("---\nid: MDS997\nname: real-rule\nstatus: ready\ndescription: Real.\n---\n# Real\n"),
+		},
+	}
+	rules, err := listRulesFromFS(fsys)
+	require.NoError(t, err)
+	// "not-a-dir" is a file, not a dir, so it's skipped; only realrule is returned.
+	require.Len(t, rules, 1)
+	assert.Equal(t, "MDS997", rules[0].ID)
+}
+
+// listRulesFromFS: ReadFile error (dir without README.md) → continue
+func TestListRulesFromFS_SkipsEmptyDir(t *testing.T) {
+	fsys := fstest.MapFS{
+		// Dir has no README.md file.
+		"norule/other.txt": &fstest.MapFile{
+			Data: []byte("not a readme"),
+		},
+		"goodrule/README.md": &fstest.MapFile{
+			Data: []byte("---\nid: MDS996\nname: good\nstatus: ready\ndescription: Good.\n---\n"),
+		},
+	}
+	rules, err := listRulesFromFS(fsys)
+	require.NoError(t, err)
+	require.Len(t, rules, 1)
+	assert.Equal(t, "MDS996", rules[0].ID)
+}
+
+// lookupRuleFromFS: listRulesFromFS error propagation
+func TestLookupRuleFromFS_PropagatesReadDirError(t *testing.T) {
+	_, err := lookupRuleFromFS(errFS{}, "anything")
+	require.Error(t, err)
+}
+
+// parseFrontMatter: missing ID → error
+func TestParseFrontMatter_MissingID(t *testing.T) {
+	content := "---\nname: no-id\nstatus: ready\ndescription: Missing id.\n---\n"
+	_, err := parseFrontMatter(content)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing id")
+}
+
+// stripFrontMatter: no front matter prefix → return as-is
+func TestStripFrontMatter_NoPrefixReturnedUnchanged(t *testing.T) {
+	content := "# Heading\nNo front matter here.\n"
+	result := stripFrontMatter(content)
+	assert.Equal(t, content, result)
+}
+
+// stripFrontMatter: front matter with no closing --- → return as-is
+func TestStripFrontMatter_NoClosingDelimiter(t *testing.T) {
+	content := "---\nid: test\nno closing delimiter here\n"
+	result := stripFrontMatter(content)
+	assert.Equal(t, content, result)
 }

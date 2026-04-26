@@ -30,7 +30,10 @@ Subcommands:
         Default files: PLAN.md README.md
 
 Git config (set by install):
-  merge.mdsmith.driver = mdsmith merge-driver run %O %A %B %P
+  merge.mdsmith.driver = '/absolute/path/to/mdsmith' merge-driver run %O %A %B %P
+
+  The path is the absolute location of the mdsmith binary at install time,
+  shell-quoted so paths with spaces are handled correctly.
 `
 
 // runMergeDriver dispatches the merge-driver subcommand.
@@ -395,9 +398,15 @@ func runMergeDriverInstall(args []string) int {
 }
 
 // registerMergeDriver writes the merge.mdsmith.* keys to local
-// git config.
+// git config. It uses the absolute path of the current executable
+// so the driver works regardless of whether the install directory
+// is in PATH.
 func registerMergeDriver() error {
-	driver := "mdsmith merge-driver run %O %A %B %P"
+	exe, err := resolveInstalledBinary()
+	if err != nil {
+		return fmt.Errorf("cannot locate mdsmith binary: %w", err)
+	}
+	driver := shellQuote(exe) + " merge-driver run %O %A %B %P"
 	cmds := [][]string{
 		{"git", "config", "merge.mdsmith.name",
 			"mdsmith section-aware Markdown merge"},
@@ -409,6 +418,85 @@ func registerMergeDriver() error {
 		}
 	}
 	return nil
+}
+
+// executableFunc is the function used to locate the current binary.
+// Overridden in tests to exercise the non-temporary-exe branch.
+var executableFunc = os.Executable
+
+// resolveInstalledBinary returns the absolute path to the mdsmith
+// binary to use as the git merge driver. It prefers the current
+// executable when it lives outside the OS temp directory (i.e. it
+// was installed via "go install" or a release download). When the
+// current executable is a transient "go run" binary it falls back
+// to searching PATH and then $GOPATH/bin.
+func resolveInstalledBinary() (string, error) {
+	if exe, err := executableFunc(); err == nil {
+		if !isTemporaryBinary(exe) {
+			return filepath.Clean(exe), nil
+		}
+	}
+	// Transient go-run binary — try PATH first, then $GOPATH/bin.
+	if p, err := exec.LookPath("mdsmith"); err == nil {
+		if abs, err := filepath.Abs(p); err == nil {
+			return abs, nil
+		}
+	}
+	gopath, err := goEnvPath()
+	if err == nil {
+		// GOPATH may contain multiple entries separated by os.PathListSeparator.
+		// Check each entry's bin/mdsmith.
+		for _, entry := range filepath.SplitList(gopath) {
+			if entry == "" {
+				continue
+			}
+			candidate := filepath.Join(entry, "bin", "mdsmith")
+			if p, err := exec.LookPath(candidate); err == nil {
+				return p, nil
+			}
+		}
+	}
+	return "", fmt.Errorf(
+		"mdsmith not found in PATH or $GOPATH/bin; " +
+			"run \"go install ./cmd/mdsmith\" first",
+	)
+}
+
+// isTemporaryBinary reports whether path looks like a transient binary
+// created by "go run" or "go test" (i.e. built into a go-build/go-run
+// subdirectory under the OS temp directory). Binaries merely downloaded
+// to TempDir by a user or CI script are not considered transient.
+func isTemporaryBinary(path string) bool {
+	tmp := filepath.Clean(os.TempDir())
+	path = filepath.Clean(path)
+	rel, err := filepath.Rel(tmp, path)
+	if err != nil {
+		return false
+	}
+	// Not under TempDir at all.
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return false
+	}
+	// Under TempDir: only treat as transient when the first path segment
+	// matches the go toolchain naming convention ("go-build*", "go-run*").
+	first := strings.SplitN(rel, string(os.PathSeparator), 2)[0]
+	return strings.HasPrefix(first, "go-build") || strings.HasPrefix(first, "go-run")
+}
+
+// shellQuote wraps s in single quotes, escaping any embedded single
+// quotes, so that it is safe to embed in a POSIX shell command such as
+// the git merge.*.driver value.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+// goEnvPath returns the value of GOPATH by running "go env GOPATH".
+func goEnvPath() (string, error) {
+	out, err := exec.Command("go", "env", "GOPATH").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // ensureGitattributes reads .gitattributes, adds any missing

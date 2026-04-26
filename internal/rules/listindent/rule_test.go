@@ -150,3 +150,10 @@ func TestCheck_Spaces4_FlagsTwoSpaceIndent(t *testing.T) {
 	diags := r.Check(f)
 	require.Len(t, diags, 1, "expected 1 diagnostic with Spaces=4 for 2-space indent, got %d", len(diags))
 }
+
+func TestCategory(t *testing.T) {
+	r := &Rule{}
+	if r.Category() == "" {
+		t.Error("expected non-empty category")
+	}
+}

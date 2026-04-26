@@ -138,3 +138,10 @@ func TestDefaultSettings_HeadingStyle(t *testing.T) {
 		t.Errorf("expected style=atx, got %v", ds["style"])
 	}
 }
+
+func TestCategory_HeadingStyle(t *testing.T) {
+	r := &Rule{}
+	if r.Category() != "heading" {
+		t.Errorf("expected heading, got %s", r.Category())
+	}
+}

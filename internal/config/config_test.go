@@ -1520,3 +1520,81 @@ func TestInjectArchetypeRoots_CreatesSettingsMapIfNil(t *testing.T) {
 	got := cfg.Rules["required-structure"].Settings["archetype-roots"]
 	assert.Equal(t, []any{"r"}, got)
 }
+
+// TestMergeNilLoadedWithCategories exercises copyCategories with a non-nil
+// categories map, covering the branch at merge.go copyCategories.
+func TestMergeNilLoadedWithCategories(t *testing.T) {
+	defaults := &Config{
+		Rules: map[string]RuleCfg{
+			"line-length": {Enabled: true},
+		},
+		Categories: map[string]bool{
+			"heading":    false,
+			"whitespace": true,
+		},
+	}
+	merged := Merge(defaults, nil)
+	require.NotNil(t, merged.Categories, "expected non-nil categories")
+	assert.Equal(t, false, merged.Categories["heading"])
+	assert.Equal(t, true, merged.Categories["whitespace"])
+	// Verify it's a copy, not the same map.
+	defaults.Categories["heading"] = true
+	assert.Equal(t, false, merged.Categories["heading"], "merged categories should be independent copy")
+}
+
+// =====================================================================
+// Phase 5: additional branch coverage
+// =====================================================================
+
+// TestMergeNilLoaded_CopiesExplicitRules exercises the ExplicitRules loop
+// inside copyConfig when Merge is called with loaded == nil.
+func TestMergeNilLoaded_CopiesExplicitRules(t *testing.T) {
+	defaults := &Config{
+		Rules: map[string]RuleCfg{
+			"line-length": {Enabled: true},
+		},
+		ExplicitRules: map[string]bool{
+			"line-length": true,
+		},
+	}
+	merged := Merge(defaults, nil)
+	require.NotNil(t, merged.ExplicitRules, "expected non-nil ExplicitRules")
+	assert.True(t, merged.ExplicitRules["line-length"], "expected line-length to be explicit")
+	// Verify it's a copy.
+	defaults.ExplicitRules["heading-style"] = true
+	_, hasCopy := merged.ExplicitRules["heading-style"]
+	assert.False(t, hasCopy, "merged ExplicitRules should be independent copy")
+}
+
+// TestUnmarshalYAML_MappingDecodeError exercises the mapping decode error branch.
+// This is reached when a YAML mapping node cannot be decoded into map[string]any.
+// A mapping with YAML anchors triggers the RejectYAMLAliases check, so we need
+// a different invalid mapping. In practice this branch is very hard to trigger
+// since yaml.Decode on a MappingNode rarely fails; skip if not possible to test.
+// Instead test via the "non-scalar non-mapping" fallthrough branch.
+func TestUnmarshalYAML_NonScalarNonMappingValue(t *testing.T) {
+	// YAML sequence (list) as rule config → should return "rule config must be a bool or a mapping".
+	input := "rules:\n  line-length:\n    - item1\n    - item2\n"
+	var cfg Config
+	err := yaml.Unmarshal([]byte(input), &cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rule config must be a bool or a mapping")
+}
+
+// TestTopLevelKeySet_DocumentNodeEmpty exercises the
+// `node.Kind != yaml.DocumentNode || len(node.Content) == 0` branch
+// by passing YAML that produces a document node with empty content.
+func TestTopLevelKeySet_DocumentNodeEmpty(t *testing.T) {
+	// An empty YAML document produces a DocumentNode with no content.
+	result := topLevelKeySet([]byte(""))
+	assert.Empty(t, result, "empty YAML should return empty key set")
+}
+
+// TestTopLevelKeySet_NullDocument exercises the mapping.Kind != yaml.MappingNode
+// branch. yaml.Unmarshal("null") produces a DocumentNode whose first child is
+// a ScalarNode, so the mapping check fails and an empty set is returned.
+func TestTopLevelKeySet_NullDocument(t *testing.T) {
+	result := topLevelKeySet([]byte("null\n"))
+	// ScalarNode child means no keys to extract.
+	assert.Empty(t, result)
+}
