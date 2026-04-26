@@ -189,25 +189,13 @@ placeholder-rich body lints cleanly.
 ### Conflict resolution
 
 Two kinds can disagree about a setting. Examples:
-different schema paths, opposite enable/disable,
+different schema paths, opposite enable/disable, or
 divergent `placeholders:` lists. Resolution mirrors
-`overrides:`:
-
-- **Later wins for scalar settings.** If kinds `[a, b]`
-  both set `rules.required-structure.schema:`, kind
-  `b`'s value applies. Same for boolean enable/disable.
-- **Deep-merge for nested maps.** A later kind that
-  sets only `rules.first-line-heading.placeholders:`
-  does not erase other settings the earlier kind put
-  on `first-line-heading`.
-- **No silent reordering.** Effective list order is
-  front-matter `kinds:` list order, then
-  `kind-assignment:` matches in config order; file-
-  glob overrides apply last. The user controls which
-  kind wins by ordering items in that effective list.
-
-`mdsmith config show <file>` prints the resolved
-order and merged body so conflicts are inspectable.
+`overrides:`. Later-in-the-effective-list wins for
+scalars. Nested maps deep-merge, so a later kind
+touching only `placeholders:` keeps the earlier
+kind's other settings on the same rule. Inspect with
+`mdsmith config show <file>`.
 
 ## Tasks
 
@@ -252,10 +240,16 @@ order and merged body so conflicts are inspectable.
    `docs/background/archetypes/README.md`: mdsmith
    *kind* ≈ Hugo *type*; mdsmith *archetype* is a
    rule-mechanics pattern, not Hugo's scaffold.
-10. Add CLI commands `mdsmith config kinds` (list
-    declared kinds with their merged bodies) and
-    `mdsmith config show <file>` (print resolved
-    kind list and merged rule config for a file).
+10. CLI for troubleshooting kind/rule resolution:
+    `mdsmith config kinds` (list declared kinds);
+    `mdsmith config show <file>` (resolved kind list
+    and merged rule config, with **provenance**:
+    each setting tagged by source — default, kind
+    name, or override entry); `mdsmith check
+    --explain` (and `fix --explain`) attaches a
+    trailer to each diagnostic naming the rule and
+    the source of the triggering setting. Stretch:
+    `config why <file> <rule>` and `--json`.
 11. Emit a clear config error when kind assignment
     references an undeclared kind name.
 
@@ -300,7 +294,12 @@ order and merged body so conflicts are inspectable.
 - [ ] `mdsmith config kinds` lists declared kinds
       with their merged bodies.
 - [ ] `mdsmith config show <file>` prints the
-      resolved kind list and the merged rule config.
+      resolved kind list and the merged rule config,
+      including provenance: each setting tagged with
+      its source (default, kind name, or override).
+- [ ] `mdsmith check --explain` prints, after each
+      diagnostic, the rule plus the source of the
+      setting that triggered it (covered by test).
 - [ ] Hugo terminology note is present in
       `hugo-migration.md` and `archetypes/README.md`.
 - [ ] All tests pass: `go test ./...`
