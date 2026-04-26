@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -330,6 +331,34 @@ func TestResolveInstalledBinary_FromPATH(t *testing.T) {
 
 	origPath := os.Getenv("PATH")
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+origPath)
+
+	got, err := resolveInstalledBinary()
+	require.NoError(t, err)
+	assert.Equal(t, fakeBin, got)
+}
+
+func TestResolveInstalledBinary_FromGopathBin(t *testing.T) {
+	// When the current exe is a transient go-run binary and "mdsmith" is
+	// not in PATH, resolveInstalledBinary must fall back to $GOPATH/bin.
+	// Limit PATH to the directory containing "go" so goEnvPath succeeds
+	// but exec.LookPath("mdsmith") fails (no other dirs to search).
+	goBin, err := exec.LookPath("go")
+	require.NoError(t, err)
+
+	gopathDir := t.TempDir()
+	gopathBinDir := filepath.Join(gopathDir, "bin")
+	require.NoError(t, os.MkdirAll(gopathBinDir, 0o755))
+	fakeBin := filepath.Join(gopathBinDir, "mdsmith")
+	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0o755))
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) {
+		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+	}
+
+	t.Setenv("PATH", filepath.Dir(goBin))
+	t.Setenv("GOPATH", gopathDir)
 
 	got, err := resolveInstalledBinary()
 	require.NoError(t, err)
