@@ -1714,15 +1714,8 @@ func TestValidateFrontMatterCUE_InvalidSchema(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid CUE schema")
 }
 
-// validateFrontMatterCUE: compile front matter JSON error (invalid CUE JSON)
-func TestValidateFrontMatterCUE_CompileFrontMatterError(t *testing.T) {
-	// A valid CUE schema but front-matter data that causes CompileBytes to error:
-	// we can trigger this by using a CUE schema that's syntactically valid, but
-	// compile the data as invalid JSON. Since json.Marshal on map[string]any always
-	// works, try a path where the data value compiles to an error in CUE.
-	// Actually the simplest path: use a NaN float64 which json.Marshal rejects.
-	// But that's still unreachable since map[string]any from YAML never has NaN.
-	// Test validateFrontMatterCUE with a valid schema but mismatched front matter.
+// validateFrontMatterCUE: type mismatch between schema and front-matter value.
+func TestValidateFrontMatterCUE_TypeMismatch(t *testing.T) {
 	err := validateFrontMatterCUE(`close({id: string})`, map[string]any{"id": 42})
 	require.Error(t, err) // CUE unification fails: int != string
 }
