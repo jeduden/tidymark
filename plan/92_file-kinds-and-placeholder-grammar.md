@@ -17,18 +17,18 @@ other "input-to-other-Markdown" files in `ignore:`.
 Every Markdown file should be lintable under a declared
 **kind**. Kinds are configured with the same syntax as
 the existing rule configuration. No new bespoke schema.
-
-The term `kind` aligns with Hugo's `type` (a content
-category declared in front matter); it is *not* a
-Hugo *archetype*. See the Hugo terminology task below.
+`kind` aligns with Hugo's `type` (front-matter content
+category), not Hugo's `archetype` (see Hugo task).
 
 ## Background
 
-Today `.mdsmith.yml` ignores four `proto.md` files
-(`.claude/skills/`, `plan/`, `internal/rules/`,
-`docs/security/`). Their front matter holds CUE schema
-patterns and their bodies hold placeholder text like
-`# ?`, `## ...`, and `{var}`.
+Today `.mdsmith.yml` ignores four `proto.md` files:
+`.claude/skills/proto.md`, `plan/proto.md`,
+`internal/rules/proto.md`, `docs/security/proto.md`.
+
+Their front matter holds CUE schema patterns. Their
+bodies hold placeholder text like `# ?`, `## ...`,
+and `{var}`.
 
 The `required-structure` rule knows these files are
 schemas, but other rules do not, so the only escape
