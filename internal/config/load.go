@@ -48,6 +48,10 @@ func Load(path string) (*Config, error) {
 				"or remove the key")
 	}
 
+	if err := ValidateKinds(&cfg); err != nil {
+		return nil, fmt.Errorf("validating config: %w", err)
+	}
+
 	return &cfg, nil
 }
 

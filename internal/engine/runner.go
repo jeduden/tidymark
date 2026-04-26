@@ -76,7 +76,13 @@ func (r *Runner) Run(paths []string) *Result {
 			return r.cachedGitignore(gd)
 		}
 
-		effective := r.effectiveWithCategories(path)
+		fmKinds, err := r.parseFrontMatterKinds(path, f.FrontMatter)
+		if err != nil {
+			res.Errors = append(res.Errors, err)
+			continue
+		}
+
+		effective := r.effectiveWithCategories(path, fmKinds)
 
 		r.logRules(effective)
 
@@ -114,7 +120,13 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 		f.SetRootDir(r.RootDir)
 	}
 
-	effective := r.effectiveWithCategories(path)
+	fmKinds, err := r.parseFrontMatterKinds(path, f.FrontMatter)
+	if err != nil {
+		res.Errors = append(res.Errors, err)
+		return res
+	}
+
+	effective := r.effectiveWithCategories(path, fmKinds)
 
 	r.logRules(effective)
 
@@ -126,17 +138,24 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 	return res
 }
 
+// parseFrontMatterKinds parses and validates the kinds list from a file's
+// front-matter block, returning a combined error on parse or validation failure.
+func (r *Runner) parseFrontMatterKinds(path string, fm []byte) ([]string, error) {
+	kinds, err := lint.ParseFrontMatterKinds(fm)
+	if err != nil {
+		return nil, fmt.Errorf("parsing front-matter kinds in %q: %w", path, err)
+	}
+	if err := config.ValidateFrontMatterKinds(r.Config, path, kinds); err != nil {
+		return nil, err
+	}
+	return kinds, nil
+}
+
 // effectiveWithCategories computes the effective rule config for a file
 // path, applying category-based enable/disable on top of per-rule settings.
-func (r *Runner) effectiveWithCategories(path string) map[string]config.RuleCfg {
-	effective := config.Effective(r.Config, path)
-	categories := config.EffectiveCategories(r.Config, path)
-	explicit := config.EffectiveExplicitRules(r.Config, path)
-
-	// Build rule-name-to-category lookup from the runner's rule list.
-	catLookup := ruleCategoryLookup(r.Rules)
-
-	return config.ApplyCategories(effective, categories, catLookup, explicit)
+func (r *Runner) effectiveWithCategories(path string, fmKinds []string) map[string]config.RuleCfg {
+	effective, categories, explicit := config.EffectiveAll(r.Config, path, fmKinds)
+	return config.ApplyCategories(effective, categories, ruleCategoryLookup(r.Rules), explicit)
 }
 
 // cachedGitignore returns a GitignoreMatcher for the given directory,
