@@ -66,6 +66,8 @@ func Merge(defaults, loaded *Config) *Config {
 		Deprecations:           copyStrings(loaded.Deprecations),
 		MaxInputSize:           maxInputSize,
 		Archetypes:             archetypes,
+		Kinds:                  copyKinds(loaded.Kinds),
+		KindAssignment:         copyKindAssignments(loaded.KindAssignment),
 	}
 }
 
@@ -96,7 +98,45 @@ func copyConfig(cfg *Config) *Config {
 		ExplicitRules:          explicit,
 		FilesExplicit:          cfg.FilesExplicit,
 		Archetypes:             ArchetypesCfg{Roots: copyStrings(cfg.Archetypes.Roots)},
+		Kinds:                  copyKinds(cfg.Kinds),
+		KindAssignment:         copyKindAssignments(cfg.KindAssignment),
 	}
+}
+
+// copyKinds returns a copy of a kinds map with each Kind value's nested
+// rule and category maps copied. Returns nil if the input is nil.
+func copyKinds(kinds map[string]Kind) map[string]Kind {
+	if kinds == nil {
+		return nil
+	}
+	result := make(map[string]Kind, len(kinds))
+	for name, k := range kinds {
+		rules := make(map[string]RuleCfg, len(k.Rules))
+		for rk, rv := range k.Rules {
+			rules[rk] = rv
+		}
+		result[name] = Kind{
+			Rules:      rules,
+			Categories: copyCategories(k.Categories),
+		}
+	}
+	return result
+}
+
+// copyKindAssignments returns a copy of a kind-assignment slice with each
+// entry's slices copied. Returns nil if the input is nil.
+func copyKindAssignments(kas []KindAssignment) []KindAssignment {
+	if kas == nil {
+		return nil
+	}
+	result := make([]KindAssignment, len(kas))
+	for i, ka := range kas {
+		result[i] = KindAssignment{
+			Files: copyStrings(ka.Files),
+			Kinds: copyStrings(ka.Kinds),
+		}
+	}
+	return result
 }
 
 // copyStrings returns a copy of a string slice. Returns nil if the input is nil.

@@ -34,6 +34,17 @@ type Config struct {
 	MaxInputSize   string             `yaml:"max-input-size"`
 	Archetypes     ArchetypesCfg      `yaml:"archetypes"`
 
+	// Kinds declares named bundles of rule settings that can be
+	// applied to files via front-matter `kinds:` lists or
+	// `kind-assignment:` glob entries. A kind body has the same
+	// shape as an Override entry minus `files:`.
+	Kinds map[string]Kind `yaml:"kinds,omitempty"`
+
+	// KindAssignment binds files to kinds via globs. Each entry's
+	// kinds are appended to the effective kind list of every
+	// matching file in config order.
+	KindAssignment []KindAssignment `yaml:"kind-assignment,omitempty"`
+
 	// LegacyNoFollowSymlinks captures the removed `no-follow-symlinks`
 	// key. Its presence surfaces a deprecation warning via
 	// Deprecations; its contents are otherwise ignored now that
@@ -73,6 +84,23 @@ type Override struct {
 	Files      []string           `yaml:"files"`
 	Rules      map[string]RuleCfg `yaml:"rules"`
 	Categories map[string]bool    `yaml:"categories"`
+}
+
+// Kind is a named bundle of rule settings — same shape as an Override
+// entry minus `files:`. Kinds are bound to files via front-matter
+// `kinds:` lists or `kind-assignment:` glob entries.
+type Kind struct {
+	Rules      map[string]RuleCfg `yaml:"rules"`
+	Categories map[string]bool    `yaml:"categories"`
+}
+
+// KindAssignment binds a glob pattern set to one or more kind names.
+// Every file matching any of `Files` gets `Kinds` appended to its
+// effective kind list (in config order; in the order listed within an
+// entry).
+type KindAssignment struct {
+	Files []string `yaml:"files"`
+	Kinds []string `yaml:"kinds"`
 }
 
 // RuleCfg is a YAML union: can be bool (enable/disable) or map[string]any (settings).
