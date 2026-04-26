@@ -30,3 +30,12 @@ func TestSeverityConstants(t *testing.T) {
 	assert.Equal(t, Severity("error"), Error)
 	assert.Equal(t, Severity("warning"), Warning)
 }
+
+func TestLineRange_Contains(t *testing.T) {
+	r := LineRange{From: 5, To: 8}
+	assert.True(t, r.Contains(5), "start boundary")
+	assert.True(t, r.Contains(6), "middle")
+	assert.True(t, r.Contains(8), "end boundary")
+	assert.False(t, r.Contains(4), "before range")
+	assert.False(t, r.Contains(9), "after range")
+}

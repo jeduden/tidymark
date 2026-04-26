@@ -33,10 +33,7 @@ func FindAllGeneratedRanges(f *lint.File) []lint.LineRange {
 // fragments pulled in by directives. Used by the metrics pipeline so that
 // a host file's metric values count only its own content.
 func AuthoredSource(source []byte) []byte {
-	f, err := lint.NewFile("", source)
-	if err != nil {
-		return source
-	}
+	f, _ := lint.NewFile("", source) // NewFile never errors with current implementation
 	ranges := FindAllGeneratedRanges(f)
 	if len(ranges) == 0 {
 		return source
