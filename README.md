@@ -56,12 +56,13 @@ hold reading-grade and sentence count in line.
 [`duplicated-content`](internal/rules/MDS037-duplicated-content/README.md)
 flags verbatim repetition across files.
 
-**🔍 Triage your corpus — `query`, `metrics`.**
-`mdsmith query 'expr' paths…` filters files by a CUE
-expression on front matter (e.g. status, owner).
-`mdsmith metrics rank --by <metric>` ranks files by
-size, tokens, sections, and other shared metrics —
-useful for finding the biggest offenders.
+**🔍 Status reports and release gates — `query`, `metrics`.**
+At release time, gate the tag on
+`mdsmith query 'status: "✅"' plan/` to confirm every
+plan is done — or feed the list to a status report. At PR
+review time, run `mdsmith metrics rank --by tokens --top
+10 docs/` to spot files that grew too much, before an
+AI-bloated doc merges.
 
 **📖 AI-ready specs — `help`, no remote calls.**
 `mdsmith help rule [name]` prints rule docs (settings,
