@@ -10,14 +10,25 @@ import (
 // be excluded from host-file diagnostics and host-file metric counts.
 var generatedDirectiveNames = []string{"include", "catalog"}
 
+// directiveMarkers are the byte prefixes used for the quick pre-check in
+// AuthoredSource. Kept in sync with generatedDirectiveNames.
+var directiveMarkers = [][]byte{[]byte("<?include"), []byte("<?catalog")}
+
 // FindAllGeneratedRanges returns the content line ranges for all
 // include/catalog generated sections in f. Lines are 1-based and
 // relative to f.Source (i.e. post-front-matter when the file was
 // created with NewFileFromSource).
+//
+// If FindMarkerPairs returns any diagnostics for a directive (indicating
+// malformed markers), that directive's ranges are omitted entirely so the
+// engine never suppresses diagnostics based on an ambiguous range boundary.
 func FindAllGeneratedRanges(f *lint.File) []lint.LineRange {
 	var ranges []lint.LineRange
 	for _, name := range generatedDirectiveNames {
-		pairs, _ := FindMarkerPairs(f, name, "", "")
+		pairs, diags := FindMarkerPairs(f, name, "", "")
+		if len(diags) > 0 {
+			continue // malformed markers — skip to avoid filtering based on invalid spans
+		}
 		for _, mp := range pairs {
 			if mp.ContentFrom <= mp.ContentTo {
 				ranges = append(ranges, lint.LineRange{From: mp.ContentFrom, To: mp.ContentTo})
@@ -33,13 +44,26 @@ func FindAllGeneratedRanges(f *lint.File) []lint.LineRange {
 // fragments pulled in by directives. Used by the metrics pipeline so that
 // a host file's metric values count only its own content.
 func AuthoredSource(source []byte) []byte {
+	// Quick check: skip the expensive parse when no directive markers are present.
+	found := false
+	for _, marker := range directiveMarkers {
+		if bytes.Contains(source, marker) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return source
+	}
+
 	f, _ := lint.NewFile("", source) // NewFile never errors with current implementation
 	ranges := FindAllGeneratedRanges(f)
 	if len(ranges) == 0 {
 		return source
 	}
 
-	lines := bytes.Split(source, []byte("\n"))
+	// Reuse f.Lines (already split by NewFile) to avoid a second split.
+	lines := f.Lines
 	inRange := func(lineNum int) bool {
 		for _, r := range ranges {
 			if r.Contains(lineNum) {

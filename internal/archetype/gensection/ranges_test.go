@@ -67,6 +67,26 @@ func TestFindAllGeneratedRanges_EmptyBody(t *testing.T) {
 	assert.Empty(t, ranges, "empty generated body must not produce a range")
 }
 
+func TestFindAllGeneratedRanges_MalformedMarker_SkipsRanges(t *testing.T) {
+	// A start marker missing its ?> closure produces a diagnostic from
+	// FindMarkerPairs. FindAllGeneratedRanges must return no ranges for
+	// that directive so the engine does not suppress diagnostics based
+	// on an ambiguous span.
+	src := "# Host\n\n<?include\nfile: frag.md\nembedded\n<?/include?>\n"
+	f := mustNewFile(t, "host.md", src)
+
+	ranges := FindAllGeneratedRanges(f)
+	assert.Empty(t, ranges, "malformed markers must produce no ranges")
+}
+
+func TestAuthoredSource_NoMarkerBytes_SkipsParse(t *testing.T) {
+	// Source with no <?include or <?catalog bytes must be returned unchanged
+	// without incurring the parse overhead.
+	src := []byte("# Plain file\n\nNo directives here.\n")
+	got := AuthoredSource(src)
+	assert.Equal(t, src, got, "plain source must be returned as-is")
+}
+
 func TestFindAllGeneratedRanges_MultipleDirectives(t *testing.T) {
 	// Two <?include?> sections.
 	src := "# Host\n\n" +
