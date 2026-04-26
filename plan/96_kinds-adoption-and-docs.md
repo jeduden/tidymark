@@ -4,8 +4,8 @@ title: Adopt kinds in mdsmith repo and ship the docs
 status: "🔲"
 summary: >-
   Declare the kinds this repo needs, drop the four
-  `proto.md` ignore entries, and ship the user-facing
-  docs (file-kinds guide, Hugo terminology note).
+  `proto.md` ignore entries, ship the file-kinds user
+  guide.
 ---
 # Adopt kinds in mdsmith repo and ship the docs
 
@@ -15,8 +15,7 @@ Prove the kinds and placeholder-grammar machinery
 work end-to-end on this repo. Drop the four `proto.md`
 entries from `.mdsmith.yml` `ignore:` and confirm
 `mdsmith check .` stays green. Ship the user-facing
-docs at the same time so the new shape is
-discoverable.
+file-kinds guide so the new shape is discoverable.
 
 ## Background
 
@@ -35,6 +34,18 @@ the placeholder link in `internal/rules/proto.md`
 Once kinds + placeholder grammar are in place, all
 four files can be linted under their own kinds with
 appropriate `placeholders:` settings.
+
+### Land plan 97 first if practical
+
+Block-replace merge (plan 92) makes adoption verbose:
+each kind that wants to add a `placeholders:` token
+to a rule has to restate every other setting on that
+rule. With deep-merge (plan 97) a kind can amend one
+setting and leave the rest alone. Adopting after 97
+ships shrinks this repo's `kinds:` block substantially
+and removes the footgun of accidentally erasing a
+sibling setting. Plan 97 is not a hard prerequisite,
+but recommended order is 92 → 93 → 97 → 96.
 
 ## Design
 
@@ -91,20 +102,23 @@ kind-assignment:
 
 ### Docs
 
-Three new pieces:
+Two new pieces:
 
-1. `docs/guides/file-kinds.md` — user guide for kinds:
-   declaration, assignment, merge order, conflict
-   resolution, `mdsmith config show` workflow.
-2. `docs/background/archetypes/placeholder-grammar/`
-   — already produced by plan 93; this plan only links
-   to it from rule READMEs.
-3. Hugo terminology note added to the Hugo migration
-   guide and the archetypes README, located at
-   `docs/guides/directives/hugo-migration.md` and
-   `docs/background/archetypes/README.md`: mdsmith
-   *kind* ≈ Hugo *type*; mdsmith *archetype* is a
-   rule-mechanics pattern, not Hugo's scaffold.
+1. `docs/guides/file-kinds.md` — user guide for
+   kinds: declaration, assignment, merge order,
+   conflict resolution, and the
+   `mdsmith kinds resolve <file>` troubleshooting
+   workflow (from plan 95).
+2. The placeholder-grammar concept page (already
+   produced by plan 93 at
+   `docs/background/concepts/placeholder-grammar.md`)
+   — this plan only links to it from each rule
+   README that opted in.
+
+Plan 98 removes the `archetypes` subcommand and the
+`archetypes/` doc directory. Once those are gone, no
+Hugo-vs-mdsmith terminology note is needed in this
+plan — the collision is gone.
 
 ## Tasks
 
@@ -119,14 +133,11 @@ Three new pieces:
 4. Write `docs/guides/file-kinds.md` covering kind
    declaration, assignment (front matter + globs),
    merge order, and conflict resolution. Walk through
-   `mdsmith config show <file>` as the troubleshooting
-   path.
-5. Add the Hugo terminology note to
-   `docs/guides/directives/hugo-migration.md` and
-   `docs/background/archetypes/README.md`.
-6. Update each rule README that gained a
+   `mdsmith kinds resolve <file>` as the
+   troubleshooting path.
+5. Update each rule README that gained a
    `placeholders:` setting to link to the
-   placeholder-grammar archetype page.
+   placeholder-grammar concept page.
 
 ## Acceptance Criteria
 
@@ -143,12 +154,11 @@ Three new pieces:
       kind via `kind-assignment:` is enough.
 - [ ] `docs/guides/file-kinds.md` exists, describes
       declaration / assignment / merge / conflict
-      resolution, and references `mdsmith config
-      show` as the troubleshooting path.
-- [ ] Hugo terminology note is present in
-      `hugo-migration.md` and `archetypes/README.md`.
+      resolution, and references
+      `mdsmith kinds resolve` as the troubleshooting
+      path.
 - [ ] Each rule that gained a `placeholders:`
       setting in plan 93 has a README link to the
-      placeholder-grammar archetype page.
+      placeholder-grammar concept page.
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no issues

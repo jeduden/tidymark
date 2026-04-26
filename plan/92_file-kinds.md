@@ -164,6 +164,9 @@ kind-assignment:
 5. Grep test asserts the linter's core contains no
    `if kind == "..."` branches and no hardcoded kind
    names.
+6. `mdsmith help kinds` prints a short concept page
+   covering declaration, assignment, and merge order
+   (links to the user guide once plan 96 lands).
 
 ## Acceptance Criteria
 
@@ -189,5 +192,6 @@ kind-assignment:
       clear config error.
 - [ ] No kind name is referenced by mdsmith's core
       (enforced by grep test).
+- [ ] `mdsmith help kinds` prints a concept page.
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no issues

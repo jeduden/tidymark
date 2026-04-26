@@ -97,7 +97,11 @@ the list comes from config.
 - Directive consumers: `catalog` front-matter
   interpolation.
 - Engine: front-matter parsing under the
-  `front-matter:` config key.
+  `front-matter:` config key. The same parser feeds
+  the `query` subcommand, so `query` honors the
+  vocabulary automatically — without this, a file
+  with CUE-pattern front matter (e.g. `proto.md`)
+  fails to parse and breaks `query`.
 
 ## Tasks
 
@@ -110,16 +114,22 @@ the list comes from config.
    when its `placeholders:` list is non-empty.
 4. Wire `catalog` interpolation and engine
    front-matter parsing to the helper.
-5. Document the placeholder grammar as an archetype
+5. Document the placeholder grammar as a concept
    page at
-   `docs/background/archetypes/placeholder-grammar/`;
-   describe the token vocabulary, the
+   `docs/background/concepts/placeholder-grammar.md`
+   (the `archetypes` doc directory is renamed in
+   plan 98). Describe the token vocabulary, the
    `placeholders:` rule-setting contract, and how
    rules opt in. Link from each opt-in rule README.
-6. Unit tests per rule: with `placeholders:` set,
+6. `mdsmith help placeholder-grammar` prints a short
+   concept page.
+7. Unit tests per rule: with `placeholders:` set,
    placeholder tokens produce no diagnostics; with
    `placeholders:` empty, current behavior is
    unchanged.
+8. `query` regression: a file in a placeholder-aware
+   kind whose front matter contains CUE patterns
+   parses successfully and is selectable by `query`.
 
 ## Acceptance Criteria
 
@@ -141,7 +151,14 @@ the list comes from config.
       helper plus per-rule opt-ins; no rule names
       tokens hardcoded in its logic (enforced by
       review).
-- [ ] Archetype page exists with the contract and is
-      linked from each opt-in rule README.
+- [ ] Concept page at
+      `docs/background/concepts/placeholder-grammar.md`
+      describes the contract and is linked from each
+      opt-in rule README.
+- [ ] `mdsmith help placeholder-grammar` prints the
+      concept page summary.
+- [ ] `mdsmith query` parses a file with CUE-pattern
+      front matter under a placeholder-aware kind
+      (covered by test).
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no issues
