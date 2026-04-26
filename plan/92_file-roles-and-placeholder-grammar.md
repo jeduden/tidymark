@@ -38,10 +38,10 @@ The fix is two pieces, both built on existing plumbing:
    with the same shape as an `overrides:` entry minus
    `files:`. mdsmith ships **no built-in roles**;
    projects declare whatever vocabulary they need
-   (`schema`, `template`, `agent-prompt`, …). Names
-   like `schema` appear in this RFC because the
-   linter looks for them when wiring implicit role
-   assignment, but their config is up to the project.
+   (`schema`, `template`, `agent-prompt`, …). The
+   linter's core never references specific role
+   names — implicit assignment is itself user-
+   configured (see `implicit-roles:` below).
 2. **Placeholder support as rule settings.** Each rule
    that wants to recognize template tokens (`# ?`,
    `## ...`, `{var}`, CUE front-matter values) exposes
@@ -82,29 +82,48 @@ Starter configurations live in
 
 ### Role assignment
 
-A file's role set is the union of:
+A file's effective role list is built from three
+sources, concatenated in this order:
 
-- explicit `role:` field in front matter;
-- glob-based assignment in `.mdsmith.yml`
-  (`role-assignment:` map, separate from role
-  declaration);
-- implicit roles inferred from config references
-  (any path used as the `required-structure.schema`
-  target gains role `schema`; any path referenced by
-  `<?include?>` gains `fragment`).
+1. front-matter `roles:` field (a YAML list; a
+   single-role file still uses a one-item list);
+2. matching entries in `role-assignment:` (config
+   order; each entry's roles in the order listed);
+3. matching entries in `implicit-roles:` (config
+   order).
 
-Implicit assignment removes the four current ignore
-entries. The project declares a `schema` role once.
-Every `required-structure.schema` reference then
-auto-tags its target. Referencing an undeclared role
-name is a config error.
+Duplicate names are dropped after their first
+occurrence. Referencing an undeclared role is a
+config error.
+
+`implicit-roles:` maps **reference sources** to a
+role name. A reference source is any place where one
+Markdown file references another. The linter's core
+has no hardcoded role names; the user picks them:
+
+```yaml
+implicit-roles:
+  - source: required-structure.schema
+    role: schema
+  - source: include
+    role: fragment
+  - source: catalog
+    role: fragment
+```
+
+With this in place, declaring a `schema` role plus
+`required-structure.schema: plan/proto.md` is enough
+to drop `plan/proto.md` from `ignore:`.
 
 ### Composability
 
-1. **Role merge follows override merge.** Roles apply
-   in declared order; the file's own glob overrides
-   apply last. Resolution is deterministic and
-   inspectable.
+1. **Role merge follows override merge.** Roles
+   apply in *effective-list* order: front-matter,
+   then `role-assignment:`, then `implicit-roles:`,
+   each in config order; duplicates dropped after
+   first occurrence. The file's own glob overrides
+   apply last. The result is deterministic across
+   runs because order is driven by lists, not maps.
 2. **Lint-once.** Content pulled in via `<?include?>`
    or `<?catalog?>` is linted in its source file
    under its source role; the host file does not
@@ -142,16 +161,20 @@ step; untagged files behave as today.
 
 ## Examples
 
-### Explicit role in front matter
+### Explicit roles in front matter
 
 ```markdown
 ---
-role: schema
+roles: [schema]
 id: '=~"^MDS[0-9]{3}$"'
 status: '"ready" | "not-ready"'
 ---
 # {id}: {name}
 ```
+
+A file with multiple roles uses a multi-element list:
+`roles: [fragment, template]`. Merge order matches
+list order.
 
 ### Glob-based assignment
 
@@ -181,24 +204,6 @@ The path `plan/proto.md` gains role `schema`
 implicitly. No `ignore:`, no front-matter tag, no
 glob needed.
 
-### Adding a project-specific role
-
-No rule code changes are needed; declare the role and
-assign it:
-
-```yaml
-roles:
-  agent-prompt:
-    rules:
-      paragraph-readability: false
-      first-line-heading:
-        placeholders: [var-token]
-
-role-assignment:
-  agent-prompt:
-    - ".claude/prompts/**"
-```
-
 ### Composability — merged role config
 
 `docs/_partials/setup-snippet.md` carries both
@@ -209,35 +214,25 @@ with `mdsmith config show <path>`.
 
 ### Lint-once for embeds
 
-```text
-docs/index.md           role: document
-└── <?include file: _partials/intro.md ?>
-
-docs/_partials/intro.md role: fragment
-```
-
-`docs/_partials/intro.md` is linted under `fragment`.
-The embedded bytes inside `docs/index.md` are not
-re-checked.
-
-### Schema vs subject
-
-| File                                            | Role     | Front matter `id` validated as           |
-|-------------------------------------------------|----------|------------------------------------------|
-| `plan/proto.md`                                 | schema   | CUE pattern (`int & >=1`)                |
-| `plan/92_file-roles-and-placeholder-grammar.md` | document | data; matched against `proto.md` pattern |
+`docs/_partials/intro.md` (role `fragment`) is
+included by `docs/index.md` via `<?include?>`. The
+fragment is linted once, in its own file, under
+`fragment`. The embedded bytes inside the host file
+are not re-checked.
 
 ## Tasks
 
 1. Inventory current `ignore:` and per-file
    `overrides:` entries; classify each by intended
    role.
-2. Add the `roles:` and `role-assignment:` config
-   keys; reuse the existing override merge to apply a
-   role's body.
-3. Add the front-matter `role:` field and the
-   implicit-from-reference assignment path
-   (`required-structure.schema` and `<?include?>`).
+2. Add the `roles:`, `role-assignment:`, and
+   `implicit-roles:` config keys; reuse the existing
+   override merge to apply a role's body. The
+   linter's core must reference no role names.
+3. Add the front-matter `roles:` list field and wire
+   the implicit-from-reference assignment driven by
+   `implicit-roles:` (sources: `required-structure
+   .schema`, `include`, `catalog`).
 4. Add a placeholder helper (`var-token`,
    `heading-question`, `cue-frontmatter`, …) and a
    `placeholders:` setting on each rule that opts in
@@ -277,8 +272,14 @@ re-checked.
       test).
 - [ ] Two project-declared roles compose correctly
       with each other and with file-glob overrides
-      (covered by test); no role names are present in
-      mdsmith's shipped default config.
+      (covered by test).
+- [ ] A file declaring multiple roles via
+      `roles: [a, b]` in front matter merges them in
+      list order (covered by test).
+- [ ] Implicit role assignment is configured by
+      `implicit-roles:`; no role name is referenced
+      by mdsmith's core or shipped default config
+      (enforced by grep test).
 - [ ] Schema files declared by the project are
       linted under their `schema` role: CUE-pattern
       front matter, `# ?` and `## ...` placeholders,
