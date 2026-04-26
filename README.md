@@ -5,47 +5,55 @@
 [![Coverage][cov-badge]][cov-link]
 
 A fast, auto-fixing Markdown linter and formatter for docs, READMEs,
-and AI-generated content. Checks style, readability, and structure.
-Written in Go.
+and AI-generated content. Checks style, readability, structure, and
+cross-file integrity. Written in Go.
 
 <!-- Rendered by .github/workflows/demo.yml on push to main; published to the assets branch -->
 ![mdsmith demo](https://raw.githubusercontent.com/jeduden/mdsmith/assets/assets/demo.gif)
 
 ## ✨ Why mdsmith
 
-**📋 Progressive disclosure with catalogs.**
-The [`catalog`](internal/rules/MDS019-catalog/README.md) rule generates summary
-tables from file front matter and keeps them in sync.
-Link each row to the full document —
-readers see the overview first and drill down on demand.
-Run `mdsmith fix` and the table updates itself.
+**🔧 Auto-fix.**
+`mdsmith fix` corrects most rules in place: whitespace,
+heading style, code fences, bare URLs, list indentation,
+and table alignment. Multi-pass fixing resolves cascading
+changes automatically.
+
+**📋 Generated sections.**
+Embed live content via `<?catalog?>`, `<?toc?>`, and
+`<?include?>` directives — summary tables from front
+matter, tables of contents from headings, file inclusions.
+`mdsmith fix` regenerates them in place.
+
+**🔗 Cross-file integrity.**
+Broken links rot in silence.
+[`cross-file-reference-integrity`](internal/rules/MDS027-cross-file-reference-integrity/README.md)
+flags missing files and missing heading anchors before merge.
+[`required-structure`](internal/rules/MDS020-required-structure/README.md)
+checks each file against a schema.
+[`directory-structure`](internal/rules/MDS033-directory-structure/README.md)
+keeps Markdown in the right folders.
 
 **🤖 Keep AI verbosity in check.**
-AI tools produce walls of text.
-[`max-file-length`](internal/rules/MDS022-max-file-length/README.md)
-caps document size,
+AI tools produce walls of text. Cap file length with
+[`max-file-length`](internal/rules/MDS022-max-file-length/README.md),
+section length with
+[`max-section-length`](internal/rules/MDS036-max-section-length/README.md),
+and tokens with
+[`token-budget`](internal/rules/MDS028-token-budget/README.md).
 [`paragraph-readability`](internal/rules/MDS023-paragraph-readability/README.md)
-enforces a reading-grade ceiling,
-and [`paragraph-structure`](internal/rules/MDS024-paragraph-structure/README.md)
-limits sentence count and length.
-[`token-budget`](internal/rules/MDS028-token-budget/README.md)
-adds a token-aware
-budget with heuristic and tokenizer modes.
-Set the thresholds in `.mdsmith.yml` and let CI enforce them.
+and
+[`paragraph-structure`](internal/rules/MDS024-paragraph-structure/README.md)
+hold reading-grade and sentence count in line.
+[`duplicated-content`](internal/rules/MDS037-duplicated-content/README.md)
+flags verbatim repetition across files.
 
-**📖 AI-ready rule specs — no remote calls.**
-`mdsmith help rule` lists every rule with its ID and description.
-`mdsmith help rule <name>` prints the full spec: settings, examples,
-diagnostics. All docs are compiled into the binary — works offline,
-works in CI, works as a source for `.cursor/rules` or `AGENTS.md`.
-`mdsmith help metrics` and `mdsmith help metrics <name>` do the same
+**📖 AI-ready specs — no remote calls.**
+`mdsmith help rule [name]` prints rule docs (settings,
+examples, diagnostics) compiled into the binary. Works
+offline, in CI, or as a source for `.cursor/rules` or
+`AGENTS.md`. `mdsmith help metrics [name]` does the same
 for shared file metrics.
-
-**🔧 Auto-fix.**
-`mdsmith fix` corrects most rules in place.
-Whitespace, heading style, code fences, bare URLs, list indentation,
-table alignment, and generated sections — all handled.
-Multi-pass fixing resolves cascading changes automatically.
 
 ## 📦 Installation
 
@@ -66,21 +74,17 @@ mdsmith <command> [flags] [files...]
 | `check`        | Lint files (default command)                   |
 | `fix`          | Auto-fix issues in place                       |
 | `query`        | Select files by CUE expression on front matter |
-| `help`         | Show help for docs and topics                  |
+| `help`         | Show help for rules and topics                 |
 | `metrics`      | List and rank Markdown metrics                 |
 | `merge-driver` | Git merge driver for regenerable sections      |
+| `archetypes`   | Discover, show, and locate archetype schemas   |
 | `init`         | Generate `.mdsmith.yml`                        |
 | `version`      | Print version, exit                            |
 
 Files can be paths, directories (walked recursively for `*.md`),
-or glob patterns.
-With no arguments and no piped input, mdsmith exits 0.
-
-When walking directories, mdsmith respects `.gitignore` files by default.
-Files matched by `.gitignore` patterns are skipped, including patterns from
-nested `.gitignore` files in subdirectories and ancestor directories.
-Explicitly named file paths are never filtered by gitignore.
-Use `--no-gitignore` to disable this behavior and lint all files.
+or glob patterns. Directories respect `.gitignore` by default;
+use `--no-gitignore` to override. Explicitly named paths are
+never filtered.
 
 ### Flags
 
@@ -115,10 +119,6 @@ README.md:10:81 MDS001 line too long (135 > 80)
 12 | Up to two lines of context are shown on each side.
 ```
 
-Each diagnostic shows a header (`file:line:col rule message`).
-When source context is available, up to 5 surrounding lines appear
-with a dot path (`····^`) pointing to the exact column.
-
 ### Exit codes
 
 | Code | Meaning                        |
@@ -129,11 +129,8 @@ with a dot path (`····^`) pointing to the exact column.
 
 ## ⚙️ Configuration
 
-Create a `.mdsmith.yml` in your project root, or run
-`mdsmith init` to generate one with every rule and its
-default settings.
-Without a config file, rules run with their built-in
-defaults.
+Run `mdsmith init` to generate a `.mdsmith.yml` with every rule and its
+defaults. Without a config, rules run with built-in defaults.
 
 ```yaml
 rules:
@@ -150,57 +147,19 @@ overrides:
       no-duplicate-headings: false
 ```
 
-Rules can be `true` (enable with defaults), `false` (disable),
-or an object with settings.
-The `overrides` list applies different rules per file pattern.
-Later overrides take precedence.
+Rules are `true` (defaults), `false` (off), or an object with settings.
+`overrides` apply per file pattern; later entries take precedence.
+Config is discovered by walking up to the repo root; `--config` overrides.
 
-Config is discovered by walking up from the current directory to the repo root.
-Use `--config` to override.
+Commit `.mdsmith.yml` so contributors share the same rule settings and
+mdsmith upgrades become an explicit, reviewable change.
 
-### Bootstrapping with `mdsmith init`
+## 📚 More
 
-Run `mdsmith init` to generate a `.mdsmith.yml` with every rule and its
-default enablement and settings. This pins the config to the current defaults so
-that future
-mdsmith upgrades (which may change defaults) do not silently alter your
-lint results. Review the generated file and adjust settings to match your
-project's conventions.
-
-```bash
-mdsmith init
-# creates .mdsmith.yml with all rule defaults
-```
-
-Commit the generated file to version control.
-This ensures every contributor uses the same rule settings.
-Upgrades become an explicit, reviewable change.
-
-## 📚 Guides
-
-See the [Guides index](docs/guides/index.md) for
-directives, structure enforcement, and migration.
-
-## 📏 Rules
-
-See the
-[Rule Directory](internal/rules/index.md)
-for the complete list with status and description.
-
-## 🛠️ Development
-
-Requires Go 1.24+. See
-[`docs/development/index.md`](docs/development/index.md) for the full
-contributor guide (build commands, project layout,
-workflow, code style, and PR conventions).
-
-## 📂 Documentation
-
+- [Guides](docs/guides/index.md) — directives, structure, migration
+- [Rule directory](internal/rules/index.md) — every rule with status
 - [CLI reference](docs/reference/cli.md)
-- [Design archetypes](docs/background/archetypes/)
-- [Guides](docs/guides/)
-- [Background](docs/background/)
-- [Plans](plan/)
+- [Contributor guide](docs/development/index.md) — Go 1.24+, build, test, style
 
 ## 📄 License
 

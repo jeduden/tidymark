@@ -21,6 +21,8 @@
 #     is never visible in the output.
 #   - Keep Sleep durations short (50-100ms per step)
 #     to avoid long VHS render times in CI.
+#   - Style: show, don't tell. Let mdsmith's output
+#     speak. Comments are minimal labels, not narration.
 
 Output assets/demo.gif
 
@@ -33,8 +35,8 @@ Set TypingSpeed 0.005
 Set PlaybackSpeed 0.1
 
 # --- Hidden setup ---
-# Add mdsmith to PATH, create temp dirs for init and
-# check/fix demos, copy sample file and config.
+# Add mdsmith to PATH, create temp dirs for each scene,
+# copy sample files and configs.
 Hide
 Set TypingSpeed 0
 Type "set +e"
@@ -55,6 +57,10 @@ Type "CAT_DIR=$(mktemp -d)"
 Enter
 Type "cp -R demo/catalog/. $CAT_DIR/"
 Enter
+Type "TOC_DIR=$(mktemp -d)"
+Enter
+Type "cp -R demo/toc/. $TOC_DIR/"
+Enter
 Type "STRUCT_DIR=$(mktemp -d)"
 Enter
 Type "cp -R demo/structure/. $STRUCT_DIR/"
@@ -62,6 +68,10 @@ Enter
 Type "DIR_DIR=$(mktemp -d)"
 Enter
 Type "cp -R demo/dirstructure/. $DIR_DIR/"
+Enter
+Type "LINK_DIR=$(mktemp -d)"
+Enter
+Type "cp -R demo/links/. $LINK_DIR/"
 Enter
 Type "ARI_DIR=$(mktemp -d)"
 Enter
@@ -83,7 +93,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Initialize mdsmith in a new project"
+Type "# Initialize a new project"
 Enter
 Sleep 100ms
 Type "mdsmith init"
@@ -96,11 +106,7 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# Config created with default rules"
-Enter
-Sleep 100ms
-
-# --- Use case 2: Lint and fix a file ---
+# --- Use case 2: Lint and auto-fix ---
 
 Hide
 Set TypingSpeed 0
@@ -110,7 +116,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Check a file for lint issues"
+Type "# Lint a file"
 Enter
 Sleep 100ms
 Type "mdsmith check sample.md"
@@ -118,7 +124,7 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# Lint issues found — auto-fix them"
+Type "# Auto-fix"
 Enter
 Sleep 100ms
 Type "mdsmith fix sample.md"
@@ -126,19 +132,12 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# Verify the fix"
-Enter
-Sleep 100ms
 Type "mdsmith check sample.md"
 Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# All issues resolved"
-Enter
-Sleep 100ms
-
-# --- Use case 3: Auto-generate a catalog ---
+# --- Use case 3: Generate a catalog from front matter ---
 
 Hide
 Set TypingSpeed 0
@@ -148,7 +147,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Auto-generate a file catalog"
+Type "# Catalog directive: pull rows from front matter"
 Enter
 Sleep 100ms
 Type "cat index.md"
@@ -156,26 +155,35 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "mdsmith check index.md"
+Type "mdsmith fix index.md && cat index.md"
 Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "mdsmith fix index.md"
+# --- Use case 4: Auto-generate a table of contents ---
+
+Hide
+Set TypingSpeed 0
+Type "cd $TOC_DIR && clear"
+Enter
+Sleep 50ms
+Set TypingSpeed 0.005
+Show
+
+Type "# TOC directive: regenerated from headings"
+Enter
+Sleep 100ms
+Type "cat guide.md"
 Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "cat index.md"
+Type "mdsmith fix guide.md && sed -n '1,12p' guide.md"
 Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# Catalog filled in from data/ files"
-Enter
-Sleep 100ms
-
-# --- Use case 4: Enforce document structure ---
+# --- Use case 5: Enforce required document structure ---
 
 Hide
 Set TypingSpeed 0
@@ -185,15 +193,10 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Enforce required sections via a schema"
+Type "# required-structure: enforce a schema"
 Enter
 Sleep 100ms
 Type "cat schema.md"
-Sleep 100ms
-Enter
-Sleep 100ms
-
-Type "cat plan.md"
 Sleep 100ms
 Enter
 Sleep 100ms
@@ -203,12 +206,25 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type `# Missing "Tasks" section caught`
+# --- Use case 6: Resolve broken cross-file links ---
+
+Hide
+Set TypingSpeed 0
+Type "cd $LINK_DIR && clear"
+Enter
+Sleep 50ms
+Set TypingSpeed 0.005
+Show
+
+Type "# cross-file-reference-integrity: detect broken links"
+Enter
+Sleep 100ms
+Type "mdsmith check ."
 Sleep 100ms
 Enter
 Sleep 100ms
 
-# --- Use case 5: Restrict file locations ---
+# --- Use case 7: Restrict file locations ---
 
 Hide
 Set TypingSpeed 0
@@ -218,24 +234,15 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Restrict Markdown to allowed directories"
+Type "# directory-structure: restrict to allowed dirs"
 Enter
 Sleep 100ms
-Type "cat .mdsmith.yml"
-Sleep 100ms
-Enter
-Sleep 100ms
-
 Type "mdsmith check ."
 Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# notes.md flagged — not under docs/"
-Enter
-Sleep 100ms
-
-# --- Use case 6: Keep AI verbosity in check ---
+# --- Use case 8: Keep AI verbosity in check ---
 
 Hide
 Set TypingSpeed 0
@@ -245,24 +252,15 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Keep AI verbosity in check"
+Type "# paragraph-readability: cap reading-grade level"
 Enter
 Sleep 100ms
-Type "cat notes.md"
-Sleep 100ms
-Enter
-Sleep 100ms
-
 Type "mdsmith check notes.md"
 Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# ARI flags hard-to-read paragraphs"
-Enter
-Sleep 100ms
-
-# --- Use case 7: Explore rules ---
+# --- Use case 9: Look up a rule ---
 
 Hide
 Set TypingSpeed 0
@@ -272,7 +270,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Look up a specific lint rule"
+Type "# Inspect a rule — settings, examples, diagnostics"
 Enter
 Sleep 100ms
 Type "mdsmith help rule line-length | head -20"
@@ -280,11 +278,7 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# Shows rule description, severity, and config"
-Enter
-Sleep 100ms
-
-# --- Use case 8: Query front matter ---
+# --- Use case 10: Query front matter ---
 
 Hide
 Set TypingSpeed 0
@@ -294,7 +288,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Find plans with status ✅"
+Type "# Query: select files by front-matter expression"
 Enter
 Sleep 100ms
 Type `mdsmith query 'status: "✅"' plan/`
@@ -302,11 +296,7 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# Matched files listed"
-Enter
-Sleep 100ms
-
-# --- Use case 9: Metrics ---
+# --- Use case 11: Metrics ---
 
 Hide
 Set TypingSpeed 0
@@ -324,11 +314,7 @@ Sleep 100ms
 Enter
 Sleep 100ms
 
-Type "# Top 5 largest files shown"
-Enter
-Sleep 100ms
-
-# --- Use case 10: Merge driver for generated sections ---
+# --- Use case 12: Git merge driver ---
 
 Hide
 Set TypingSpeed 0
@@ -340,19 +326,10 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Install merge driver for generated sections"
+Type "# Merge driver: auto-resolve generated sections"
 Enter
 Sleep 100ms
-Type "mdsmith merge-driver install"
+Type "mdsmith merge-driver install && cat .gitattributes"
 Sleep 100ms
-Enter
-Sleep 100ms
-
-Type "cat .gitattributes"
-Sleep 100ms
-Enter
-Sleep 100ms
-
-Type "# Auto-resolves conflicts for files listed in .gitattributes"
 Enter
 Sleep 100ms
