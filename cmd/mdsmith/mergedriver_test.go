@@ -365,6 +365,36 @@ func TestResolveInstalledBinary_FromGopathBin(t *testing.T) {
 	assert.Equal(t, fakeBin, got)
 }
 
+func TestResolveInstalledBinary_GopathListWithEmptyEntries(t *testing.T) {
+	// A multi-entry GOPATH where the second entry contains the binary
+	// must be searched after the first entry comes up empty. An empty
+	// component in the list (resulting from leading/trailing/double
+	// separators) must be skipped instead of producing "/bin/mdsmith".
+	goBin, err := exec.LookPath("go")
+	require.NoError(t, err)
+
+	emptyGopath := t.TempDir() // no bin/ subdir → first lookup fails
+	realGopath := t.TempDir()
+	realBinDir := filepath.Join(realGopath, "bin")
+	require.NoError(t, os.MkdirAll(realBinDir, 0o755))
+	fakeBin := filepath.Join(realBinDir, "mdsmith")
+	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0o755))
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) {
+		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+	}
+
+	t.Setenv("PATH", filepath.Dir(goBin))
+	sep := string(os.PathListSeparator)
+	t.Setenv("GOPATH", emptyGopath+sep+sep+realGopath)
+
+	got, err := resolveInstalledBinary()
+	require.NoError(t, err)
+	assert.Equal(t, fakeBin, got)
+}
+
 func TestResolveInstalledBinary_NotFound(t *testing.T) {
 	// When the exe is temporary, mdsmith is not in PATH, and GOPATH/bin has
 	// no mdsmith, resolveInstalledBinary should return an error.

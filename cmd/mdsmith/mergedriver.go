@@ -441,9 +441,16 @@ func resolveInstalledBinary() (string, error) {
 	}
 	gopath, err := goEnvPath()
 	if err == nil {
-		candidate := filepath.Join(gopath, "bin", "mdsmith")
-		if p, err := exec.LookPath(candidate); err == nil {
-			return p, nil
+		// GOPATH may contain multiple entries separated by os.PathListSeparator.
+		// Check each entry's bin/mdsmith.
+		for _, entry := range filepath.SplitList(gopath) {
+			if entry == "" {
+				continue
+			}
+			candidate := filepath.Join(entry, "bin", "mdsmith")
+			if p, err := exec.LookPath(candidate); err == nil {
+				return p, nil
+			}
 		}
 	}
 	return "", fmt.Errorf(
