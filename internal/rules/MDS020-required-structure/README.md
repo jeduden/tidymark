@@ -18,7 +18,7 @@ schema.
 | `archetype-roots` | [ ]string | `["archetypes"]` | Directories searched for `<name>.md` schemas; earlier roots shadow later ones                                              |
 | `placeholders`    | list      | `[]`             | Placeholder tokens to treat as opaque; see [placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md) |
 
-Supported tokens: `cue-frontmatter`.
+Useful tokens: `cue-frontmatter`.
 
 When both `schema` and `archetype` are empty the rule
 skips structure and front matter validation, but still

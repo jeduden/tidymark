@@ -592,6 +592,14 @@ func TestRunHelp_KindsDispatch_ExitsZero(t *testing.T) {
 	assert.Contains(t, out, "kind-assignment")
 }
 
+func TestRunHelp_ConceptDispatch_ExitsZero(t *testing.T) {
+	out := captureStdout(func() {
+		code := runHelp([]string{"placeholder-grammar"})
+		assert.Equal(t, 0, code)
+	})
+	assert.Contains(t, out, "Placeholder grammar")
+}
+
 // --- runHelpRule ---
 
 func TestRunHelpRule_NoArgs_ListsRules(t *testing.T) {

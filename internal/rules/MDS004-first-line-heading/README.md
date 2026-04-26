@@ -15,7 +15,7 @@ First line of the file should be a heading.
 | `level`        | int  | 1       | Required heading level for the first line                                                                                  |
 | `placeholders` | list | `[]`    | Placeholder tokens to treat as opaque; see [placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md) |
 
-Supported tokens: `heading-question`, `var-token`.
+Useful tokens: `heading-question`, `var-token`, `placeholder-section`.
 
 ## Config
 

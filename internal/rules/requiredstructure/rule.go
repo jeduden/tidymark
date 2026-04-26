@@ -17,6 +17,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/placeholders"
 	"github.com/jeduden/mdsmith/internal/rule"
+	rulesettings "github.com/jeduden/mdsmith/internal/rules/settings"
 	"github.com/yuin/goldmark/ast"
 	"gopkg.in/yaml.v3"
 )
@@ -65,9 +66,11 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 			}
 			r.ArchetypeRoots = roots
 		case "placeholders":
-			toks, err := asStringList("placeholders", v)
-			if err != nil {
-				return err
+			toks, ok := rulesettings.ToStringSlice(v)
+			if !ok {
+				return fmt.Errorf(
+					"required-structure: placeholders must be a list of strings, got %T", v,
+				)
 			}
 			if err := placeholders.Validate(toks); err != nil {
 				return fmt.Errorf("required-structure: %w", err)

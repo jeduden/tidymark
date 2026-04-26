@@ -17,7 +17,7 @@ Links to local files and heading anchors must resolve.
 | `strict`       | bool | `false` | check non-Markdown file links                                                                                              |
 | `placeholders` | list | `[]`    | Placeholder tokens to treat as opaque; see [placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md) |
 
-Supported tokens: `var-token`.
+Useful tokens: `var-token`, `heading-question`, `placeholder-section`.
 
 With `strict: false`, only Markdown targets (`.md`, `.markdown`)
 are checked. External links (`http:`, `https:`, `mailto:`) are

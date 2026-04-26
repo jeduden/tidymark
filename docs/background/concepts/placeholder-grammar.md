@@ -70,12 +70,12 @@ from `internal/placeholders`:
 
 ## Opt-in rules
 
-| Rule ID | Rule name                        | Tokens honored                                         |
+| Rule ID | Rule name                        | Useful tokens                                          |
 |---------|----------------------------------|--------------------------------------------------------|
-| MDS003  | `heading-increment`              | `heading-question`, `placeholder-section`              |
-| MDS004  | `first-line-heading`             | `heading-question`, `var-token`                        |
-| MDS018  | `no-emphasis-as-heading`         | `var-token`                                            |
+| MDS003  | `heading-increment`              | `heading-question`, `placeholder-section`, `var-token` |
+| MDS004  | `first-line-heading`             | `heading-question`, `var-token`, `placeholder-section` |
+| MDS018  | `no-emphasis-as-heading`         | `var-token`, `heading-question`, `placeholder-section` |
 | MDS020  | `required-structure`             | `cue-frontmatter`                                      |
 | MDS023  | `paragraph-readability`          | `var-token`, `heading-question`, `placeholder-section` |
 | MDS024  | `paragraph-structure`            | `var-token`, `heading-question`, `placeholder-section` |
-| MDS027  | `cross-file-reference-integrity` | `var-token`                                            |
+| MDS027  | `cross-file-reference-integrity` | `var-token`, `heading-question`, `placeholder-section` |

@@ -14,7 +14,7 @@ Don't use bold or emphasis on a standalone line as a heading substitute.
 |----------------|------|---------|----------------------------------------------------------------------------------------------------------------------------|
 | `placeholders` | list | `[]`    | Placeholder tokens to treat as opaque; see [placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md) |
 
-Supported tokens: `var-token`.
+Useful tokens: `var-token`, `heading-question`, `placeholder-section`.
 
 ## Config
 
