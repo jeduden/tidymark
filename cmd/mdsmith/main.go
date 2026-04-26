@@ -1035,6 +1035,7 @@ const helpUsageText = `Usage: mdsmith help <topic>
 Topics:
   rule [id|name]      Show rule documentation
   metrics [id|name]   Show metric documentation
+  kinds               Concept page: declaring, assigning, and merging kinds
 `
 
 // runHelp implements the "help" subcommand.
@@ -1049,10 +1050,74 @@ func runHelp(args []string) int {
 		return runHelpRule(args[1:])
 	case "metrics":
 		return runHelpMetrics(args[1:])
+	case "kinds":
+		return runHelpKinds(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "mdsmith: help: unknown topic %q\n", args[0])
 		return 2
 	}
+}
+
+const helpKindsText = `Kinds — named bundles of rule settings
+
+A kind is a named bundle of rule settings, declared once in
+.mdsmith.yml and applied to any file that opts in to it. A kind body
+has the same shape as an overrides entry minus the files: list:
+
+  kinds:
+    plan:
+      rules:
+        required-structure:
+          schema: plan/proto.md
+        paragraph-readability: false
+    proto:
+      rules:
+        front-matter: false
+
+Assignment — a file becomes a member of a kind in one of two ways:
+
+  1. Front matter:
+
+       ---
+       kinds: [plan]
+       ---
+
+  2. kind-assignment globs in .mdsmith.yml (config order matters):
+
+       kind-assignment:
+         - files: ["plan/[0-9]*_*.md"]
+           kinds: [plan]
+         - files: ["**/proto.md"]
+           kinds: [proto]
+
+Effective kind list — built by concatenating, in order:
+
+  1. The file's front-matter kinds: list.
+  2. The kinds: of every matching kind-assignment entry (config
+     order; each entry's kinds in the order listed).
+
+Duplicates after the first occurrence are dropped.
+
+Merge order — for the file's effective rule config, mdsmith starts
+with the top-level rules, then applies each kind in the effective
+list (later kinds replacing earlier ones for the same rule, block-
+replace), then applies each matching overrides entry (also block-
+replace). When two kinds set the same rule, the later kind's entire
+rule config block replaces the earlier kind's block.
+
+Errors — referencing a kind name that is not declared under kinds:
+is a configuration error, both from front matter and from
+kind-assignment.
+`
+
+// runHelpKinds implements "help kinds".
+func runHelpKinds(args []string) int {
+	if len(args) > 0 {
+		fmt.Fprintf(os.Stderr, "mdsmith: help kinds: takes no arguments\n")
+		return 2
+	}
+	fmt.Print(helpKindsText)
+	return 0
 }
 
 // runHelpRule implements "help rule [id|name]".

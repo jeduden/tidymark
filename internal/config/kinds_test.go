@@ -252,7 +252,7 @@ func TestEffective_KindOrderBlockReplacesRule(t *testing.T) {
 func TestEffective_KindsComposeOnDifferentRules(t *testing.T) {
 	cfg := &Config{
 		Rules: map[string]RuleCfg{
-			"line-length": {Enabled: true},
+			"line-length":  {Enabled: true},
 			"no-bare-urls": {Enabled: true},
 		},
 		Kinds: map[string]Kind{

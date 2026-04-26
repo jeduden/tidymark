@@ -575,6 +575,36 @@ func TestRunHelp_RuleDispatch_ExitsZero(t *testing.T) {
 	})
 }
 
+func TestRunHelp_KindsDispatch_PrintsConceptPage(t *testing.T) {
+	out := captureStdout(func() {
+		code := runHelp([]string{"kinds"})
+		assert.Equal(t, 0, code)
+	})
+	// Concept page must cover declaration, assignment, and merge order.
+	assert.Contains(t, out, "kinds:")
+	assert.Contains(t, out, "kind-assignment:")
+	assert.Contains(t, out, "front matter")
+	assert.Contains(t, out, "block")
+}
+
+func TestRunHelpKinds_ExtraArg_ExitsTwo(t *testing.T) {
+	captureStderr(func() {
+		code := runHelpKinds([]string{"extra"})
+		assert.Equal(t, 2, code)
+	})
+}
+
+func TestRunHelpKinds_NoArgs_PrintsConceptPage(t *testing.T) {
+	out := captureStdout(func() {
+		code := runHelpKinds(nil)
+		assert.Equal(t, 0, code)
+	})
+	assert.NotEmpty(t, out)
+	// Concept page must mention the front-matter and assignment paths.
+	assert.Contains(t, out, "front matter")
+	assert.Contains(t, out, "kind-assignment")
+}
+
 // --- runHelpRule ---
 
 func TestRunHelpRule_NoArgs_ListsRules(t *testing.T) {

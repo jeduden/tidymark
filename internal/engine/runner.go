@@ -146,17 +146,6 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 	return res
 }
 
-// effectiveWithCategories computes the effective rule config for a file
-// path, applying category-based enable/disable on top of per-rule settings.
-// This is the kinds-unaware path retained for callers that do not parse
-// front matter (e.g. tests). Production callers use
-// effectiveWithCategoriesForKinds, which threads the file's front-matter
-// `kinds:` list through the resolution.
-func (r *Runner) effectiveWithCategories(path string) map[string]config.RuleCfg {
-	effective, _ := r.effectiveWithCategoriesForKinds(path, nil)
-	return effective
-}
-
 // effectiveWithCategoriesForKinds computes the effective rule config for a
 // file path, with kind-resolved settings layered between top-level rules
 // and file-glob overrides, and category-based enable/disable applied on
