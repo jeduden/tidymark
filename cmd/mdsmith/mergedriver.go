@@ -431,13 +431,16 @@ func resolveInstalledBinary() (string, error) {
 	}
 	// Transient go-run binary — try PATH first, then $GOPATH/bin.
 	if p, err := exec.LookPath("mdsmith"); err == nil {
+		if abs, err := filepath.Abs(p); err == nil {
+			return abs, nil
+		}
 		return p, nil
 	}
 	gopath, err := goEnvPath()
 	if err == nil {
 		candidate := filepath.Join(gopath, "bin", "mdsmith")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
+		if p, err := exec.LookPath(candidate); err == nil {
+			return p, nil
 		}
 	}
 	return "", fmt.Errorf(
@@ -449,8 +452,13 @@ func resolveInstalledBinary() (string, error) {
 // isTemporaryBinary reports whether path looks like a transient
 // binary created by "go run" (lives under the OS temp directory).
 func isTemporaryBinary(path string) bool {
-	tmp := os.TempDir()
-	return strings.HasPrefix(filepath.Clean(path), filepath.Clean(tmp))
+	tmp := filepath.Clean(os.TempDir())
+	path = filepath.Clean(path)
+	rel, err := filepath.Rel(tmp, path)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && !filepath.IsAbs(rel)
 }
 
 // goEnvPath returns the value of GOPATH by running "go env GOPATH".
