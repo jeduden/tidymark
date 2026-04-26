@@ -259,12 +259,12 @@ func TestCheck_LoadError(t *testing.T) {
 	origErr := scorerErr
 	t.Cleanup(func() {
 		// Reset Once objects (cannot copy sync.Once) and restore scorer state.
+		// Leave scorerOnce unconsumed so later loadScorer() calls can safely
+		// re-initialize instead of observing a done Once with stale nil state.
 		scorerOnce = sync.Once{}
 		errReportedOnce = sync.Once{}
 		globalScorer = origScorer
 		scorerErr = origErr
-		// Mark scorerOnce done with the restored values already set.
-		scorerOnce.Do(func() {})
 	})
 
 	// Inject a fake error so loadScorer() returns it.

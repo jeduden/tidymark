@@ -134,4 +134,3 @@ Run linter and tests after every phase:
 - [x] Shared packages have 100% statement coverage
 - [x] All tests pass: `go test ./...`
 - [x] `go tool golangci-lint run` reports no issues
-- [ ] Mutation testing on shared helpers kills 95%+

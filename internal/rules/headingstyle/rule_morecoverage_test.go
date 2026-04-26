@@ -165,3 +165,37 @@ func TestHeadingByteRange_NoLinesNoChildren(t *testing.T) {
 	assert.GreaterOrEqual(t, start, 0)
 	assert.GreaterOrEqual(t, end, start)
 }
+
+func TestHeadingLine_ManualATXWithTextChild(t *testing.T) {
+	src := []byte("# Title\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := ast.NewHeading(1)
+	textNode := ast.NewText()
+	textNode.Segment = text.NewSegment(2, 7)
+	h.AppendChild(h, textNode)
+	line := headingLine(h, f)
+	if line < 1 {
+		t.Errorf("expected headingLine >= 1, got %d", line)
+	}
+}
+
+func TestHeadingLine_ManualATXWithEmphasisChild(t *testing.T) {
+	src := []byte("# **bold**\n")
+	f, err := lint.NewFile("test.md", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := ast.NewHeading(1)
+	em := ast.NewEmphasis(2)
+	textNode := ast.NewText()
+	textNode.Segment = text.NewSegment(3, 7)
+	em.AppendChild(em, textNode)
+	h.AppendChild(h, em)
+	line := headingLine(h, f)
+	if line < 1 {
+		t.Errorf("expected headingLine >= 1, got %d", line)
+	}
+}
