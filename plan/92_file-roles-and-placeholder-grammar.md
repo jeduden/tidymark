@@ -37,11 +37,11 @@ The fix is two pieces, both built on existing plumbing:
 1. **User-declared roles.** A role is a named block
    with the same shape as an `overrides:` entry minus
    `files:`. mdsmith ships **no built-in roles**;
-   projects declare whatever vocabulary they need
-   (`schema`, `template`, `agent-prompt`, …). The
-   linter's core never references specific role
-   names — implicit assignment is itself user-
-   configured (see `implicit-roles:` below).
+   each project declares its own vocabulary. Examples
+   below use fictional names (`recipe`, `tip`,
+   `worksheet`) — the names belong to the project,
+   not to mdsmith. Implicit assignment is itself
+   user-configured (see `implicit-roles:`).
 2. **Placeholder support as rule settings.** Each rule
    that wants to recognize template tokens (`# ?`,
    `## ...`, `{var}`, CUE front-matter values) exposes
@@ -56,11 +56,12 @@ The fix is two pieces, both built on existing plumbing:
 A role is a named block under `roles:`. Its body has
 the **same shape as an override entry** (`rules:`,
 `front-matter:`, etc.) — minus `files:`, since files
-are bound to roles separately.
+are bound to roles separately. The role name (`recipe`
+below) is whatever the project picks:
 
 ```yaml
 roles:
-  schema:
+  recipe:                      # project-chosen name
     front-matter: false
     rules:
       first-line-heading:
@@ -70,15 +71,10 @@ roles:
       paragraph-readability: false
       paragraph-structure: false
       no-emphasis-as-heading: false
-      required-structure:
-        mode: schema
 ```
 
 Roles merge with the same rules as overrides — later
-wins, settings deep-merge. mdsmith ships no roles by
-default. Each project declares the roles it needs.
-Starter configurations live in
-`docs/background/archetypes/file-roles/`.
+wins, settings deep-merge.
 
 ### Role assignment
 
@@ -99,19 +95,19 @@ config error.
 `implicit-roles:` maps **reference sources** to a
 role name. A reference source is any place where one
 Markdown file references another. The linter's core
-has no hardcoded role names; the user picks them:
+has no hardcoded role names; the project picks them:
 
 ```yaml
 implicit-roles:
-  - source: required-structure.schema
-    role: schema
+  - source: required-structure.schema  # mdsmith field
+    role: recipe                       # project name
   - source: include
-    role: fragment
+    role: tip
   - source: catalog
-    role: fragment
+    role: tip
 ```
 
-With this in place, declaring a `schema` role plus
+With this in place, declaring a `recipe` role plus
 `required-structure.schema: plan/proto.md` is enough
 to drop `plan/proto.md` from `ignore:`.
 
@@ -147,7 +143,7 @@ right tokens per rule:
 
 ```yaml
 roles:
-  schema:
+  recipe:
     rules:
       cross-file-reference-integrity:
         placeholders: [var-token]
@@ -161,11 +157,16 @@ step; untagged files behave as today.
 
 ## Examples
 
+> Example role names below (`recipe`, `tip`,
+> `worksheet`) are deliberately fictional — they
+> aren't mdsmith built-ins. Real projects pick
+> names that fit their domain.
+
 ### Explicit roles in front matter
 
 ```markdown
 ---
-roles: [schema]
+roles: [recipe]
 id: '=~"^MDS[0-9]{3}$"'
 status: '"ready" | "not-ready"'
 ---
@@ -173,20 +174,18 @@ status: '"ready" | "not-ready"'
 ```
 
 A file with multiple roles uses a multi-element list:
-`roles: [fragment, template]`. Merge order matches
-list order.
+`roles: [tip, worksheet]`. Merge order matches list
+order.
 
 ### Glob-based assignment
 
-Role assignment lives next to role declarations:
-
 ```yaml
 role-assignment:
-  schema:
+  recipe:
     - "**/proto.md"
-  template:
+  worksheet:
     - ".github/PULL_REQUEST_TEMPLATE.md"
-  fragment:
+  tip:
     - "docs/_partials/**"
 ```
 
@@ -197,28 +196,29 @@ overrides:
   - files: ["plan/*.md"]
     rules:
       required-structure:
-        schema: plan/proto.md   # plan/proto.md → schema
+        schema: plan/proto.md   # → role 'recipe'
 ```
 
-The path `plan/proto.md` gains role `schema`
-implicitly. No `ignore:`, no front-matter tag, no
-glob needed.
+Combined with the `implicit-roles:` block above,
+`plan/proto.md` gains role `recipe` automatically.
+No `ignore:`, no front-matter tag, no glob needed.
 
 ### Composability — merged role config
 
-`docs/_partials/setup-snippet.md` carries both
-`fragment` and `template`. The effective config is a
-deep-merge of both role bodies in declared order.
-File-glob overrides apply last. Inspect the result
-with `mdsmith config show <path>`.
+`docs/_partials/setup-snippet.md` carries both `tip`
+(it's included elsewhere) and `worksheet` (it has
+placeholders). The effective config is a deep-merge
+of both role bodies in declared order. File-glob
+overrides apply last. Inspect with
+`mdsmith config show <path>`.
 
 ### Lint-once for embeds
 
-`docs/_partials/intro.md` (role `fragment`) is
-included by `docs/index.md` via `<?include?>`. The
-fragment is linted once, in its own file, under
-`fragment`. The embedded bytes inside the host file
-are not re-checked.
+`docs/_partials/intro.md` (role `tip`) is included by
+`docs/index.md` via `<?include?>`. The fragment is
+linted once, in its own file, under `tip`. The
+embedded bytes inside the host file are not
+re-checked.
 
 ## Tasks
 
@@ -231,8 +231,9 @@ are not re-checked.
    linter's core must reference no role names.
 3. Add the front-matter `roles:` list field and wire
    the implicit-from-reference assignment driven by
-   `implicit-roles:` (sources: `required-structure
-   .schema`, `include`, `catalog`).
+   `implicit-roles:` (supported sources:
+   `required-structure.schema`, `include`,
+   `catalog`).
 4. Add a placeholder helper (`var-token`,
    `heading-question`, `cue-frontmatter`, …) and a
    `placeholders:` setting on each rule that opts in
@@ -244,9 +245,9 @@ are not re-checked.
 5. Implement lint-once for `<?include?>` and
    `<?catalog?>` host files.
 6. Update this repo's `.mdsmith.yml` to declare the
-   roles it needs (`schema`, `fragment`, `template`,
-   …) and drop the four `proto.md` entries from
-   `ignore:`; confirm `mdsmith check .` stays green.
+   roles it needs and drop the four `proto.md`
+   entries from `ignore:`; confirm `mdsmith check .`
+   stays green.
 7. Document the model under
    `docs/background/archetypes/file-roles/` (new
    archetype page) with starter role declarations
@@ -281,7 +282,7 @@ are not re-checked.
       by mdsmith's core or shipped default config
       (enforced by grep test).
 - [ ] Schema files declared by the project are
-      linted under their `schema` role: CUE-pattern
+      linted under their chosen role: CUE-pattern
       front matter, `# ?` and `## ...` placeholders,
       and `{var}` tokens produce no diagnostics from
       rules whose `placeholders:` setting permits
