@@ -24,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: jeduden/merge-queue-action@0db908703757821c0e1225214d94152b6a75dd30 # v0.7.0
+      - uses: jeduden/merge-queue-action@3be8077b142e4057d2fc097635d1ab6ada2bbbf5 # v0.7.1
         with:
           token: ${{ secrets.MERGE_QUEUE_TOKEN }}
           ci_workflow: .github/workflows/ci.yml
