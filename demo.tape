@@ -93,7 +93,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Initialize a new project"
+Type "# Bootstrap a project with every rule pinned to its default"
 Enter
 Sleep 100ms
 Type "mdsmith init"
@@ -147,9 +147,14 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Catalog directive: pull rows from front matter"
+Type "# Catalog: rows generated from each file's front matter"
 Enter
 Sleep 100ms
+Type "head -3 data/*.md"
+Sleep 100ms
+Enter
+Sleep 100ms
+
 Type "cat index.md"
 Sleep 100ms
 Enter
@@ -170,7 +175,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# TOC directive: regenerated from headings"
+Type "# TOC: nested heading list, generated from the document"
 Enter
 Sleep 100ms
 Type "cat guide.md"
@@ -193,10 +198,15 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# required-structure: enforce a schema"
+Type "# required-structure: each file must match a schema"
 Enter
 Sleep 100ms
 Type "cat schema.md"
+Sleep 100ms
+Enter
+Sleep 100ms
+
+Type "cat plan.md"
 Sleep 100ms
 Enter
 Sleep 100ms
@@ -216,9 +226,19 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# cross-file-reference-integrity: detect broken links"
+Type "# cross-file-reference-integrity: links must resolve"
 Enter
 Sleep 100ms
+Type "cat index.md"
+Sleep 100ms
+Enter
+Sleep 100ms
+
+Type "ls"
+Sleep 100ms
+Enter
+Sleep 100ms
+
 Type "mdsmith check ."
 Sleep 100ms
 Enter
@@ -234,9 +254,19 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# directory-structure: restrict to allowed dirs"
+Type "# directory-structure: only allow Markdown in listed dirs"
 Enter
 Sleep 100ms
+Type "cat .mdsmith.yml"
+Sleep 100ms
+Enter
+Sleep 100ms
+
+Type "ls"
+Sleep 100ms
+Enter
+Sleep 100ms
+
 Type "mdsmith check ."
 Sleep 100ms
 Enter
@@ -252,9 +282,14 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# paragraph-readability: cap reading-grade level"
+Type "# paragraph-readability: dense AI prose flagged"
 Enter
 Sleep 100ms
+Type "cat notes.md"
+Sleep 100ms
+Enter
+Sleep 100ms
+
 Type "mdsmith check notes.md"
 Sleep 100ms
 Enter
@@ -288,7 +323,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Query: select files by front-matter expression"
+Type "# Query: filter files by a CUE expression on front matter"
 Enter
 Sleep 100ms
 Type `mdsmith query 'status: "✅"' plan/`
@@ -326,7 +361,7 @@ Sleep 50ms
 Set TypingSpeed 0.005
 Show
 
-Type "# Merge driver: auto-resolve generated sections"
+Type "# Merge driver: auto-resolve conflicts in generated sections"
 Enter
 Sleep 100ms
 Type "mdsmith merge-driver install && cat .gitattributes"
