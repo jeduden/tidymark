@@ -395,41 +395,29 @@ func TestFix_IsIgnored_Continue(t *testing.T) {
 
 // --- atomicWriteFile error paths ---
 
-// TestAtomicWriteFile_RenameFailure causes os.Rename to fail by making the
-// target path a directory. On Linux, renaming a regular file onto a directory
-// returns EISDIR.
-func TestAtomicWriteFile_RenameFailure(t *testing.T) {
+// TestAtomicWriteFile_TargetNotWritable verifies that atomicWriteFile returns
+// an error when the target exists but is not writable (directory). The
+// preflight OpenFile(O_WRONLY) check fails before any temp file is created.
+func TestAtomicWriteFile_TargetNotWritable(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("rename-over-directory test not reliable on Windows")
+		t.Skip("not reliable on Windows")
 	}
 
 	dir := t.TempDir()
-	// Create a directory at the target path.
+	// Create a directory at the target path — OpenFile(O_WRONLY) on a
+	// directory returns EISDIR on Linux, failing the preflight check.
 	targetDir := filepath.Join(dir, "target")
 	require.NoError(t, os.Mkdir(targetDir, 0o755))
 
-	// atomicWriteFile: the target exists, stat will succeed, OpenFile on a
-	// directory for O_WRONLY will fail on Linux (EISDIR).
 	err := atomicWriteFile(targetDir, []byte("data"), 0o644)
 	require.Error(t, err, "expected error when target is a directory")
 }
 
-// TestAtomicWriteFile_WriteFailure causes tmp.Write to fail by filling the
-// target directory's filesystem quota. Since we cannot easily exhaust disk
-// space, we instead point the temp file into a read-only directory — but that
-// would prevent CreateTemp too. Instead, we use a pipe trick: replace the
-// temp dir with a read-only mount is not portable. The most portable approach
-// is to write a very large file to a tmpfs of limited size. As an alternative,
-// we test the Rename failure path (different from read-only target) by
-// arranging the Chmod to fail.
-//
-// On Linux, Chmod of a temp file we own always succeeds, so the only reliably
-// injectable post-CreateTemp failure is Rename. TestAtomicWriteFile_RenameFailure
-// covers that. The write/sync/close paths are exercised implicitly by the
-// successful write tests; their error returns are straightforward OS wrappers
-// with no logic to branch on, so they do not contribute to the branch-coverage
-// gap targeted here.
-func TestAtomicWriteFile_TmpFileCleanedUpOnRenameFailure(t *testing.T) {
+// TestAtomicWriteFile_NoTempFilesOnEarlyFailure verifies that no temp files
+// are created when atomicWriteFile fails at the preflight writability check
+// (before reaching CreateTemp). Using a directory as the target triggers the
+// same early-exit path as TestAtomicWriteFile_TargetNotWritable.
+func TestAtomicWriteFile_NoTempFilesOnEarlyFailure(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("not reliable on Windows")
 	}
@@ -441,7 +429,7 @@ func TestAtomicWriteFile_TmpFileCleanedUpOnRenameFailure(t *testing.T) {
 	err := atomicWriteFile(targetDir, []byte("data"), 0o644)
 	require.Error(t, err)
 
-	// Verify no orphaned temp files remain in the directory after the failure.
+	// No temp files should exist because the error occurred before CreateTemp.
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	for _, e := range entries {

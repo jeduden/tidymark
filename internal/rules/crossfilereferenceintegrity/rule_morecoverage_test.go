@@ -134,13 +134,9 @@ func TestMatchesPathFilters_IncludeThenExclude(t *testing.T) {
 	require.Len(t, diags, 0)
 }
 
-// --- linkPosition: offset < 0 branch (no text node in link) ---
-
-func TestCheck_LinkWithNoTextOffset(t *testing.T) {
-	// A link that resolves but whose AST link node has no text children
-	// would produce offset < 0. This is very hard to construct directly,
-	// but we can exercise linkPosition indirectly through a normal check
-	// that produces a diagnostic — the diagnostic's line/col is correct.
+// TestCheck_BrokenLinkDiagnosticPosition verifies that a broken link produces
+// a diagnostic with correct non-zero line and column numbers.
+func TestCheck_BrokenLinkDiagnosticPosition(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "doc.md")
 	writeFile(t, sourcePath, "# Doc\n\nSee [missing](missing.md).\n")
