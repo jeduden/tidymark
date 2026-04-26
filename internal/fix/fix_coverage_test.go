@@ -393,6 +393,47 @@ func TestFix_IsIgnored_Continue(t *testing.T) {
 	assert.Equal(t, "# ignored  \n", string(got))
 }
 
+// --- prepareFile error paths ---
+
+// TestPrepareFile_InvalidFrontMatterKindsYAML verifies that Fix returns an
+// error when a file's front matter contains YAML aliases in the kinds field.
+func TestPrepareFile_InvalidFrontMatterKindsYAML(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "doc.md")
+	src := "---\nbase: &a [plan]\nkinds: *a\n---\n# Hello\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(src), 0o644))
+
+	fixer := &Fixer{
+		Config:           &config.Config{Rules: map[string]config.RuleCfg{}},
+		StripFrontMatter: true,
+	}
+
+	result := fixer.Fix([]string{mdFile})
+	require.Len(t, result.Errors, 1)
+	assert.Contains(t, result.Errors[0].Error(), "parsing front-matter kinds")
+}
+
+// TestPrepareFile_UndeclaredKindIsError verifies that Fix returns an error
+// when a file's front matter references a kind not declared in the config.
+func TestPrepareFile_UndeclaredKindIsError(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "doc.md")
+	src := "---\nkinds: [ghost]\n---\n# Hello\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(src), 0o644))
+
+	fixer := &Fixer{
+		Config: &config.Config{
+			Rules: map[string]config.RuleCfg{},
+			Kinds: map[string]config.KindBody{},
+		},
+		StripFrontMatter: true,
+	}
+
+	result := fixer.Fix([]string{mdFile})
+	require.Len(t, result.Errors, 1)
+	assert.Contains(t, result.Errors[0].Error(), "ghost")
+}
+
 // --- atomicWriteFile error paths ---
 
 // TestAtomicWriteFile_TargetNotWritable verifies that atomicWriteFile returns

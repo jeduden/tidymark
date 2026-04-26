@@ -157,6 +157,41 @@ func TestRunSource_FrontMatterKinds_UndeclaredIsError(t *testing.T) {
 	assert.Contains(t, result.Errors[0].Error(), "ghost")
 }
 
+// TestRun_FrontMatterKinds_InvalidYAMLIsError verifies that Run returns an
+// error when a file's front matter contains invalid YAML (aliases) in kinds.
+func TestRun_FrontMatterKinds_InvalidYAMLIsError(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "doc.md")
+	src := "---\nbase: &a [plan]\nkinds: *a\n---\n# Hello\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(src), 0o644))
+
+	runner := &Runner{
+		Config:           &config.Config{Rules: map[string]config.RuleCfg{}},
+		Rules:            []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
+		StripFrontMatter: true,
+	}
+
+	result := runner.Run([]string{mdFile})
+	require.Len(t, result.Errors, 1)
+	assert.Contains(t, result.Errors[0].Error(), "parsing front-matter kinds")
+}
+
+// TestRunSource_FrontMatterKinds_InvalidYAMLIsError verifies that RunSource
+// returns an error when front matter contains invalid YAML in the kinds field.
+func TestRunSource_FrontMatterKinds_InvalidYAMLIsError(t *testing.T) {
+	src := []byte("---\nbase: &a [plan]\nkinds: *a\n---\n# Hello\n")
+
+	runner := &Runner{
+		Config:           &config.Config{Rules: map[string]config.RuleCfg{}},
+		Rules:            []rule.Rule{&mockRule{id: "MDS999", name: "mock-rule"}},
+		StripFrontMatter: true,
+	}
+
+	result := runner.RunSource("doc.md", src)
+	require.Len(t, result.Errors, 1)
+	assert.Contains(t, result.Errors[0].Error(), "parsing front-matter kinds")
+}
+
 // TestKindSetsRequiredStructureSchema verifies that a kind setting
 // required-structure.schema is reflected in the effective rule config for
 // files assigned to that kind.
