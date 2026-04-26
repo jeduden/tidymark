@@ -40,7 +40,7 @@ The fix is two orthogonal concepts kept composable:
    `fragment`, `fixture`). Each rule declares how it
    reacts per role: applies, skips, or applies-with-
    relaxation. Roles are a *set*, so a file can be both
-   `guide` and `fragment` and the disabled-rule sets
+   `document` and `fragment` and the disabled-rule sets
    union.
 2. **Placeholder grammar.** Lift the ad-hoc escapes
    (`# ?`, `## ...`, `{var}`, CUE front-matter patterns,
@@ -109,11 +109,143 @@ Migration removes ignore entries one role at a time and
 keeps the linter green at every step. Behavior on files
 not yet tagged with a role is unchanged.
 
+## Examples
+
+### Explicit role in front matter
+
+```markdown
+---
+role: schema
+id: '=~"^MDS[0-9]{3}$"'
+status: '"ready" | "not-ready"'
+---
+# {id}: {name}
+```
+
+The `role: schema` field flips the file into schema
+mode; the CUE patterns and `{id}` placeholder stop
+tripping content rules.
+
+### Glob-based assignment in config
+
+```yaml
+roles:
+  schema:
+    - "**/proto.md"
+  template:
+    - ".github/PULL_REQUEST_TEMPLATE.md"
+  fragment:
+    - "docs/_partials/**"
+```
+
+### Implicit role from a config reference
+
+A file referenced as a structure schema gets role
+`schema` automatically:
+
+```yaml
+overrides:
+  - files: ["plan/*.md"]
+    rules:
+      required-structure:
+        schema: plan/proto.md   # plan/proto.md → role: schema
+```
+
+No `ignore:` entry, no front-matter tag, no glob
+needed. The same applies to `<?include?>` targets,
+which gain role `fragment`.
+
+### Placeholder grammar in `internal/rules/proto.md`
+
+Today's file (lines 1–7):
+
+```markdown
+---
+id: '=~"^MDS[0-9]{3}$"'
+name: 'string & != ""'
+status: '"ready" | "not-ready"'
+description: 'string & != ""'
+---
+# {id}: {name}
+```
+
+Under role `schema`, every placeholder-aware rule sees:
+
+- front matter — values are CUE patterns, validated as
+  schema; not parsed as data.
+- `# {id}: {name}` — recognized as a level-1 heading
+  by `first-line-heading` and `heading-increment`,
+  with `{id}` and `{name}` treated as opaque tokens
+  by content rules.
+- `[NAME](../../../docs/background/archetypes/NAME/)`
+  — `cross-file-reference-integrity` skips the link
+  because `NAME` is a `{var}` placeholder. The current
+  `exclude:` entry on line 47 of `.mdsmith.yml`
+  becomes unnecessary.
+
+### Composability — role union
+
+`docs/_partials/setup-snippet.md` carries both
+`fragment` (it is included elsewhere) and `template`
+(it has `{project}` placeholders). Disabled checks:
+
+- `fragment` removes: `first-line-heading`,
+  `heading-increment`.
+- `template` removes: `paragraph-readability`,
+  `paragraph-structure`.
+- Net disabled = union of the two sets.
+- Adding a third role can only enlarge that set,
+  never shrink it.
+
+### Lint-once for embeds
+
+```text
+docs/index.md           role: document
+└── <?include file: _partials/intro.md ?>
+
+docs/_partials/intro.md role: fragment
+```
+
+`docs/_partials/intro.md` is linted once, under
+`fragment`. `docs/index.md` is linted as `document`,
+but the embedded intro bytes are skipped by every
+rule because they belong to a fragment that has
+already been checked.
+
+### Schema vs subject
+
+| File                                            | Role     | Front matter `id` validated as           |
+|-------------------------------------------------|----------|------------------------------------------|
+| `plan/proto.md`                                 | schema   | CUE pattern (`int & >=1`)                |
+| `plan/92_file-roles-and-placeholder-grammar.md` | document | data; matched against `proto.md` pattern |
+
+The schema file's front matter is checked for valid
+*pattern syntax*. The subject file's front matter is
+checked against that pattern.
+
+### Per-rule role table
+
+Behavior per role for the rules currently tripped by
+`proto.md` files:
+
+| Rule                             | document | schema       | template     | fragment |
+|----------------------------------|----------|--------------|--------------|----------|
+| `first-line-heading`             | apply    | placeholders | placeholders | skip     |
+| `heading-increment`              | apply    | apply        | apply        | skip     |
+| `no-emphasis-as-heading`         | apply    | skip         | skip         | apply    |
+| `cross-file-reference-integrity` | apply    | placeholders | placeholders | apply    |
+| `paragraph-readability`          | apply    | skip         | skip         | apply    |
+| `paragraph-structure`            | apply    | skip         | skip         | apply    |
+| front-matter validation          | data     | schema       | schema/data  | data     |
+
+"placeholders" = rule applies but consults the
+placeholder grammar helper.
+
 ## Tasks
 
 1. Inventory current `ignore:` and per-file `overrides:`
    entries; classify each by intended role
-   (schema / template / fragment / fixture / doc).
+   (schema / template / fragment / fixture / document).
 2. Define the role enum and a `role:` front-matter
    field; wire glob-based and implicit assignment
    from config references.
