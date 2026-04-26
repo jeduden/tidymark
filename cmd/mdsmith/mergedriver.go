@@ -459,8 +459,10 @@ func resolveInstalledBinary() (string, error) {
 	)
 }
 
-// isTemporaryBinary reports whether path looks like a transient
-// binary created by "go run" (lives under the OS temp directory).
+// isTemporaryBinary reports whether path looks like a transient binary
+// created by "go run" or "go test" (i.e. built into a go-build/go-run
+// subdirectory under the OS temp directory). Binaries merely downloaded
+// to TempDir by a user or CI script are not considered transient.
 func isTemporaryBinary(path string) bool {
 	tmp := filepath.Clean(os.TempDir())
 	path = filepath.Clean(path)
@@ -468,7 +470,14 @@ func isTemporaryBinary(path string) bool {
 	if err != nil {
 		return false
 	}
-	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) && !filepath.IsAbs(rel)
+	// Not under TempDir at all.
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return false
+	}
+	// Under TempDir: only treat as transient when the first path segment
+	// matches the go toolchain naming convention ("go-build*", "go-run*").
+	first := strings.SplitN(rel, string(os.PathSeparator), 2)[0]
+	return strings.HasPrefix(first, "go-build") || strings.HasPrefix(first, "go-run")
 }
 
 // shellQuote wraps s in single quotes, escaping any embedded single

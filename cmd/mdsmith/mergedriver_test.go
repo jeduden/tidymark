@@ -326,7 +326,7 @@ func TestResolveInstalledBinary_FromPATH(t *testing.T) {
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) {
-		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+		return filepath.Join(os.TempDir(), "go-run-fake", "mdsmith"), nil
 	}
 
 	origPath := os.Getenv("PATH")
@@ -354,7 +354,7 @@ func TestResolveInstalledBinary_FromGopathBin(t *testing.T) {
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) {
-		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+		return filepath.Join(os.TempDir(), "go-run-fake", "mdsmith"), nil
 	}
 
 	t.Setenv("PATH", filepath.Dir(goBin))
@@ -383,7 +383,7 @@ func TestResolveInstalledBinary_GopathListWithEmptyEntries(t *testing.T) {
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) {
-		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+		return filepath.Join(os.TempDir(), "go-run-fake", "mdsmith"), nil
 	}
 
 	t.Setenv("PATH", filepath.Dir(goBin))
@@ -401,7 +401,7 @@ func TestResolveInstalledBinary_NotFound(t *testing.T) {
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) {
-		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+		return filepath.Join(os.TempDir(), "go-run-fake", "mdsmith"), nil
 	}
 
 	// Empty PATH so LookPath("mdsmith") fails and go env GOPATH also fails.
@@ -430,9 +430,19 @@ func TestIsTemporaryBinary_NonTempPath(t *testing.T) {
 }
 
 func TestIsTemporaryBinary_TempPath(t *testing.T) {
-	// A path under os.TempDir() IS temporary.
+	// A binary under a go-run* subdirectory of os.TempDir() IS transient.
 	tmp := os.TempDir()
 	assert.True(t, isTemporaryBinary(filepath.Join(tmp, "go-run-123", "exe", "main")))
+	assert.True(t, isTemporaryBinary(filepath.Join(tmp, "go-build456", "b001", "mdsmith")))
+}
+
+func TestIsTemporaryBinary_TempPathNotGoToolchain(t *testing.T) {
+	// A binary downloaded to TempDir but NOT in a go-run/go-build subdirectory
+	// must NOT be treated as transient — a user may have intentionally placed
+	// a release binary there.
+	tmp := os.TempDir()
+	assert.False(t, isTemporaryBinary(filepath.Join(tmp, "my-tools", "mdsmith")))
+	assert.False(t, isTemporaryBinary(filepath.Join(tmp, "mdsmith")))
 }
 
 func TestIsTemporaryBinary_RelativePath_RelErrorReturnsFalse(t *testing.T) {
@@ -451,7 +461,7 @@ func TestRegisterMergeDriver_BinaryNotFound_ReturnsError(t *testing.T) {
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) {
-		return filepath.Join(os.TempDir(), "fake-go-run", "mdsmith"), nil
+		return filepath.Join(os.TempDir(), "go-run-fake", "mdsmith"), nil
 	}
 	t.Setenv("PATH", "")
 
