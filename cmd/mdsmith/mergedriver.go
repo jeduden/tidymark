@@ -395,9 +395,15 @@ func runMergeDriverInstall(args []string) int {
 }
 
 // registerMergeDriver writes the merge.mdsmith.* keys to local
-// git config.
+// git config. It uses the absolute path of the current executable
+// so the driver works regardless of whether the install directory
+// is in PATH.
 func registerMergeDriver() error {
-	driver := "mdsmith merge-driver run %O %A %B %P"
+	exe, err := resolveInstalledBinary()
+	if err != nil {
+		return fmt.Errorf("cannot locate mdsmith binary: %w", err)
+	}
+	driver := exe + " merge-driver run %O %A %B %P"
 	cmds := [][]string{
 		{"git", "config", "merge.mdsmith.name",
 			"mdsmith section-aware Markdown merge"},
@@ -409,6 +415,51 @@ func registerMergeDriver() error {
 		}
 	}
 	return nil
+}
+
+// resolveInstalledBinary returns the absolute path to the mdsmith
+// binary to use as the git merge driver. It prefers the current
+// executable when it lives outside the OS temp directory (i.e. it
+// was installed via "go install" or a release download). When the
+// current executable is a transient "go run" binary it falls back
+// to searching PATH and then $GOPATH/bin.
+func resolveInstalledBinary() (string, error) {
+	if exe, err := os.Executable(); err == nil {
+		if !isTemporaryBinary(exe) {
+			return filepath.Clean(exe), nil
+		}
+	}
+	// Transient go-run binary — try PATH first, then $GOPATH/bin.
+	if p, err := exec.LookPath("mdsmith"); err == nil {
+		return p, nil
+	}
+	gopath, err := goEnvPath()
+	if err == nil {
+		candidate := filepath.Join(gopath, "bin", "mdsmith")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf(
+		"mdsmith not found in PATH or $GOPATH/bin; " +
+			"run \"go install ./cmd/mdsmith\" first",
+	)
+}
+
+// isTemporaryBinary reports whether path looks like a transient
+// binary created by "go run" (lives under the OS temp directory).
+func isTemporaryBinary(path string) bool {
+	tmp := os.TempDir()
+	return strings.HasPrefix(filepath.Clean(path), filepath.Clean(tmp))
+}
+
+// goEnvPath returns the value of GOPATH by running "go env GOPATH".
+func goEnvPath() (string, error) {
+	out, err := exec.Command("go", "env", "GOPATH").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // ensureGitattributes reads .gitattributes, adds any missing
