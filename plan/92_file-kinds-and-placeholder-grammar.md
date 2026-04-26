@@ -175,11 +175,11 @@ kind-assignment:
 
 ### Schema linkage
 
-A kind that defines a `rules.required-structure
-.schema:` value applies that CUE schema to every
-file of that kind. The proto.md file itself is
-typically a separate kind (e.g. `proto` above) so
-its placeholder-rich body lints cleanly.
+A kind that defines a `rules.required-structure.schema:`
+value applies that CUE schema to every file of that
+kind. The proto.md file itself is typically a
+separate kind (e.g. `proto` above) so its
+placeholder-rich body lints cleanly.
 
 ### Conflict resolution
 
