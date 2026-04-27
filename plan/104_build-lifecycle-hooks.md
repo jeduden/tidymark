@@ -103,10 +103,14 @@ purely a config-level construct, run once per
   stderr and exit code, continue running
   remaining `after` hooks. Final exit code is
   non-zero.
-- **Multiple failures**: exit code is
-  `before-fail || recipe-fail || after-fail`,
-  in that priority — the user sees the earliest
-  cause first.
+- **Multiple failures**: choose the final exit
+  code by priority, not boolean combination. If
+  a `before` hook failed, return that hook's
+  exit code. Otherwise, if the recipe pass had
+  any failure, return the recipe-pass failure
+  status from plan 102. Otherwise, if any
+  `after` hook failed, return the first failing
+  `after` hook's exit code. Otherwise return 0.
 
 The asymmetry is intentional. A failed `before`
 means setup is incomplete. Recipes would produce
@@ -214,9 +218,15 @@ explicit opt-in.)
    `--dry-run` to list hooks alongside recipes.
 6. Integration tests:
 
-  - `before` hook starts a goroutine HTTP
-     server, `screenshot` recipe captures it,
-     `after` hook stops the server.
+  - The test harness starts an
+     `httptest.Server` in setup. A `before`
+     hook touches a sentinel file; a
+     `screenshot` recipe captures the server;
+     an `after` hook touches a second
+     sentinel. The test asserts both
+     sentinels exist and the screenshot was
+     written, proving hook ordering and that
+     hooks ran via `os/exec`.
   - `before` hook returning non-zero aborts
      the run with no recipes executed and no
      `after` hooks executed.

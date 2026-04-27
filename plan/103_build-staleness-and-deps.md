@@ -72,9 +72,12 @@ output: book.html
 <?/build?>
 ```
 
-`inputs` is a list of relative paths or globs.
-Globs are evaluated at build time, expanded to
-the matching set, sorted, and folded into the
+`inputs` is a list of paths or globs, each
+resolved relative to the Markdown file
+containing the `<?build?>` directive (matching
+how plan 101 resolves `output`). Globs are
+evaluated at build time, expanded to the
+matching set, sorted, and folded into the
 hash. An `inputs` entry that resolves to zero
 files is a build error (likely a typo).
 
@@ -83,7 +86,9 @@ files is a build error (likely a typo).
 Recipes may declare implicit inputs in
 `build.recipes.NAME.default-inputs`. The token
 `{param}` expands to the directive's value for
-that param.
+that param. Resolution is the same as for
+directive `inputs`: relative to the Markdown
+file containing the `<?build?>` directive.
 
 Built-in defaults:
 
