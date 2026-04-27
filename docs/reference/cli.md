@@ -20,6 +20,7 @@ mdsmith <command> [flags] [files...]
 | `metrics`      | List and rank shared metrics                   |
 | `merge-driver` | Git merge driver for regenerable sections      |
 | `archetypes`   | Scaffold, list, show, and locate archetypes    |
+| `kinds`        | Inspect declared kinds and resolve config      |
 | `init`         | Generate `.mdsmith.yml`                        |
 | `version`      | Print version, exit                            |
 
@@ -85,6 +86,109 @@ file: content between the `<?include?>` and `<?catalog?>`
 markers is excluded. This matches the lint-once model —
 embedded content is measured against the source file,
 not the host that pulls it in.
+
+## `kinds` Subcommands
+
+| Subcommand          | Description                                        |
+|---------------------|----------------------------------------------------|
+| `list`              | Print declared kinds and their merged bodies       |
+| `show <name>`       | Print one kind's merged body                       |
+| `path <name>`       | Print resolved schema path of `required-structure` |
+| `resolve <file>`    | Resolved kind list and per-leaf provenance summary |
+| `why <file> <rule>` | Full per-rule merge chain, including no-op layers  |
+
+Each subcommand accepts `--json` for stable structured
+output. Unknown kinds and unresolved schemas exit `2`.
+
+Provenance layer sources:
+
+- `default` — built-ins plus top-level `rules:`.
+- `kinds.<name>` — one per kind in the effective list.
+- `overrides[<i>]` — one per matching glob override
+  (zero-indexed).
+- `front-matter override` — reserved for future
+  per-file rule overrides.
+
+## `--explain` on `check` / `fix`
+
+`--explain` attaches per-leaf rule provenance to each
+diagnostic. Text output prints a `└─` trailer naming
+the rule and the winning source for each leaf setting;
+JSON adds an `explanation` field (see schema below).
+
+## JSON Schemas
+
+Stable shapes intended for LSP / VS Code extension
+consumption.
+
+`check --explain` adds an `explanation` field to each
+diagnostic; omitted unless `--explain` is set:
+
+```json
+"explanation": {
+  "rule": "line-length",
+  "leaves": [
+    {"path": "settings.max", "value": 30, "source": "kinds.short"}
+  ]
+}
+```
+
+`kinds list` returns `{"kinds": [<body>...]}`; `show`
+returns one body. Body shape:
+
+```json
+{"name": "plan", "rules": {...}, "categories": {...}}
+```
+
+`rules[<name>]` follows the YAML rule-cfg union:
+`false`, `true`, or the settings map.
+
+`kinds resolve <file>`:
+
+```json
+{
+  "file": "plan/95.md",
+  "kinds": [{"name": "plan", "source": "kind-assignment[0]"}],
+  "categories": {"meta": true},
+  "rules": {
+    "max-file-length": {
+      "final": {"max": 500},
+      "leaves": [
+        {"path": "settings.max", "value": 500, "source": "kinds.plan"}
+      ]
+    }
+  }
+}
+```
+
+`kinds[].source` is `front-matter` or
+`kind-assignment[<i>]`.
+
+`kinds why <file> <rule>`:
+
+```json
+{
+  "file": "plan/9_big.md",
+  "rule": "max-file-length",
+  "final": {"max": 900},
+  "layers": [
+    {"source": "default", "set": true, "value": {"max": 300}},
+    {"source": "kinds.plan", "set": true, "value": {"max": 500}},
+    {"source": "overrides[0]", "set": true, "value": {"max": 900}}
+  ],
+  "leaves": [
+    {"path": "settings.max", "value": 900,
+     "source": "overrides[0]",
+     "chain": [
+       {"source": "default", "value": 300},
+       {"source": "overrides[0]", "value": 900}
+     ]}
+  ]
+}
+```
+
+No-op layers carry `"set": false` and omit `value`.
+`leaves[].chain` records only layers that set that leaf.
 
 ## `archetypes` Subcommands
 
