@@ -197,6 +197,29 @@ When adding or changing a rule feature, add both:
    are discovered automatically by the integration test
    runner in `internal/integration/rules_test.go`.
 
+### Config Merge Semantics
+
+A file's rule settings come from layered config:
+top-level `rules:`, matching `kinds:`, and matching
+`overrides:`. mdsmith **deep-merges** the layers
+rather than replacing whole rule blocks. Per leaf:
+
+- **Maps** merge key-by-key.
+- **Scalars** are replaced by the later layer.
+- **Lists** default to *replace*. A `Configurable`
+  rule may opt one list setting into *append* mode
+  via `rule.MergeModes`.
+
+The `placeholders:` setting uses append mode on every
+rule that exposes it. A kind or override that adds a
+token extends the inherited list rather than
+overwriting it.
+
+A layer that fully restates a rule's body still wins
+on every leaf. Deep-merge becomes block-replace when
+every leaf is supplied. A layer that touches one
+nested key changes only that key.
+
 ### Generated Sections
 
 Content between `<?directive ... ?>` and

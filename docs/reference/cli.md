@@ -102,6 +102,42 @@ config file; it prints the snippet to add manually.
 `list` exits `1` when no archetypes are discovered;
 `show` and `path` exit `2` on unknown names.
 
+## Merge Semantics
+
+Rule settings come from up to four config layers,
+applied in order:
+
+1. **Defaults** — the rule's built-in values plus the
+   top-level `rules:` block in `.mdsmith.yml`.
+2. **Kinds** — every kind in the file's effective
+   list, where front-matter `kinds:` come first and
+   `kind-assignment:` matches follow in config order.
+3. **Overrides** — every entry in `overrides:` whose
+   `files:` glob matches the file, in config order.
+   File-glob overrides are the last config layer.
+
+Layers compose by **deep-merge**, not by replacing
+the rule block. For each leaf:
+
+- A **map** value merges key-by-key with earlier
+  layers; nested maps recurse.
+- A **scalar** value (number, string, bool) is
+  replaced by the later layer.
+- A **list** value defaults to *replace* mode: the
+  later layer's list wins. Settings declared
+  `append` (e.g. `placeholders:` on
+  `first-line-heading`) concatenate the later list
+  onto the earlier list.
+
+A layer that fully restates a rule's body wins on
+every key — deep-merge degenerates to block-replace
+when every leaf is supplied. A layer that touches
+one nested key leaves siblings from earlier layers
+intact.
+
+Append-mode lists deduplicate at the rule level if
+needed; the merge layer preserves order.
+
 ## `--max-input-size`
 
 Sets the byte-size cap for any input file read by

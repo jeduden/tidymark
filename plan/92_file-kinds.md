@@ -99,11 +99,16 @@ error.
 
 ### Conflict resolution
 
-Two kinds can disagree about a setting. The later kind
-in the effective list replaces the earlier kind's
-config for that rule wholesale — no deep-merge, same
-as `overrides:` today. A follow-up may add deep-merge
-across both kinds and overrides; see plan 97.
+Plan 97 made the merge across the layer chain
+**deep**. The chain is: defaults → kinds in effective-
+list order → matching overrides.
+
+Scalar and map leaves are replaced or merged per-key.
+List leaves default to *replace*; a rule can opt one
+list into *append* via `rule.MergeModes`. The later
+kind still wins on every leaf it touches, while
+siblings survive from the earlier layer. See plan 97
+for the live behaviour.
 
 ## Examples
 
