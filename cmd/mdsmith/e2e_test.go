@@ -298,6 +298,14 @@ func TestE2E_UnknownCommand_ExitsTwo(t *testing.T) {
 	assert.Contains(t, stderr, "unknown command", "expected 'unknown command' in stderr, got: %s", stderr)
 }
 
+func TestE2E_ArchetypesCommand_ExitsTwo(t *testing.T) {
+	// The archetypes subcommand has been removed. It should now exit 2
+	// with "unknown command", directing users to the kinds subcommand.
+	_, stderr, exitCode := runBinary(t, "", "archetypes")
+	assert.Equal(t, 2, exitCode, "expected exit code 2 for removed 'archetypes' command")
+	assert.Contains(t, stderr, "unknown command", "expected 'unknown command' in stderr, got: %s", stderr)
+}
+
 func TestE2E_FilePathWithoutSubcommand_ExitsTwo(t *testing.T) {
 	dir := t.TempDir()
 	path := writeFixture(t, dir, "test.md", "# Title\n\nHello   \n")
@@ -562,6 +570,35 @@ func TestE2E_Init_RefusesIfExists(t *testing.T) {
 	_, stderr, exitCode := runBinaryInDir(t, dir, "", "init")
 	assert.Equal(t, 2, exitCode, "expected exit code 2, got %d", exitCode)
 	assert.Contains(t, stderr, "already exists", "expected 'already exists' error, got: %s", stderr)
+}
+
+func TestE2E_Init_NoArchetypesKey(t *testing.T) {
+	// Regression test: init must not emit archetypes: in the generated
+	// config file, since that key is no longer supported.
+	dir := t.TempDir()
+
+	_, _, exitCode := runBinaryInDir(t, dir, "", "init")
+	assert.Equal(t, 0, exitCode)
+
+	content, err := os.ReadFile(filepath.Join(dir, ".mdsmith.yml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "archetypes",
+		"generated config must not contain the removed archetypes: key")
+}
+
+func TestE2E_ArchetypesConfigKey_ProducesError(t *testing.T) {
+	// A .mdsmith.yml with archetypes: must produce an error directing
+	// users to kinds:.
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	writeFixture(t, dir, ".mdsmith.yml",
+		"archetypes:\n  roots:\n    - archetypes\nrules: {}\n")
+	writeFixture(t, dir, "doc.md", "# Title\n\nContent.\n")
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "check", "doc.md")
+	assert.Equal(t, 2, exitCode, "expected exit code 2 for invalid config, got %d", exitCode)
+	assert.Contains(t, stderr, "archetypes", "expected archetypes in error message, got: %s", stderr)
+	assert.Contains(t, stderr, "kinds", "expected kinds in error message, got: %s", stderr)
 }
 
 // --- Stdin frontmatter and Configurable settings tests ---

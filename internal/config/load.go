@@ -48,6 +48,13 @@ func Load(path string) (*Config, error) {
 				"or remove the key")
 	}
 
+	if keys["archetypes"] {
+		return nil, fmt.Errorf(
+			"config key `archetypes` is no longer supported; " +
+				"use `kinds:` with explicit `schema:` paths instead — " +
+				"see 'mdsmith kinds list' for the new interface")
+	}
+
 	if err := ValidateKinds(&cfg); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}

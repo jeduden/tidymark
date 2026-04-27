@@ -550,6 +550,32 @@ func TestRunInit_AlreadyExists_ExitsTwo(t *testing.T) {
 	})
 }
 
+func TestRunInit_NoArchetypesKey(t *testing.T) {
+	// Regression test: init must not emit an archetypes: key in the
+	// generated .mdsmith.yml, as archetypes: is no longer a valid
+	// config key and will be rejected by the loader.
+	dir := t.TempDir()
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(oldWd) }()
+	require.NoError(t, os.Chdir(dir))
+
+	captureStderr(func() {
+		code := runInit(nil)
+		assert.Equal(t, 0, code)
+	})
+
+	data, err := os.ReadFile(filepath.Join(dir, ".mdsmith.yml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "archetypes",
+		"generated .mdsmith.yml must not contain the removed archetypes: key")
+
+	// Verify the generated file is accepted by the loader without error.
+	cfg, err := config.Load(filepath.Join(dir, ".mdsmith.yml"))
+	require.NoError(t, err, "generated .mdsmith.yml must be parseable by config.Load")
+	assert.NotNil(t, cfg)
+}
+
 // --- runHelp ---
 
 func TestRunHelp_NoArgs_ExitsZero(t *testing.T) {
