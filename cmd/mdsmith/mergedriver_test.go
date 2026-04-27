@@ -508,6 +508,31 @@ func TestEnsurePreMergeCommitHook_OverwritesManagedHook(t *testing.T) {
 	assert.Contains(t, string(data), "'PLAN.md'")
 }
 
+func TestEnsurePreMergeCommitHook_SetsExecutableBitOnExistingHook(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission semantics not applicable on Windows")
+	}
+	dir := t.TempDir()
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
+	// Pre-existing hook with our marker but NO execute permissions.
+	old := "#!/bin/sh\n" + preMergeCommitHookMarker + "\n# old\n"
+	require.NoError(t, os.WriteFile(hookPath, []byte(old), 0o644))
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	require.NoError(t, ensurePreMergeCommitHook(dir, []string{"PLAN.md"}))
+
+	info, err := os.Stat(hookPath)
+	require.NoError(t, err)
+	// Verify execute bit is set despite the file existing without it.
+	assert.NotZero(t, info.Mode()&0o111,
+		"hook must have execute bit set even when overwriting non-executable file")
+}
+
 func TestEnsurePreMergeCommitHook_RefusesUnmanagedHook(t *testing.T) {
 	dir := t.TempDir()
 	hooksDir := filepath.Join(dir, ".git", "hooks")
@@ -644,6 +669,26 @@ func TestEnsurePreMergeCommitHook_WriteFileFails(t *testing.T) {
 	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "writing")
+}
+
+func TestEnsurePreMergeCommitHook_ChmodFails(t *testing.T) {
+	dir := t.TempDir()
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+
+	origExe := executableFunc
+	t.Cleanup(func() { executableFunc = origExe })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	origChmod := chmodFunc
+	t.Cleanup(func() { chmodFunc = origChmod })
+	chmodFunc = func(string, os.FileMode) error {
+		return os.ErrPermission
+	}
+
+	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "setting permissions")
 }
 
 // --- resolveHooksDir ---
