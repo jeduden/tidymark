@@ -100,8 +100,9 @@ Parameters:
 | `click`    | string         | no       | —          | CSS selector to click before capture                                      |
 | `hide`     | list of string | no       | `[]`       | CSS selectors hidden via `display: none` for the capture                  |
 
-Out of scope here: `crop`, `torn`, auth,
-scripted multi-step interactions. The
+Out of scope here: `crop`, `torn` (a
+decorative edge effect), auth, and scripted
+multi-step interactions. The
 `Capturer` interface (below) absorbs them
 later without re-shaping the directive
 surface.
