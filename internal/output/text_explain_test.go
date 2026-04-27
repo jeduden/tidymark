@@ -69,6 +69,18 @@ func TestTextFormatter_ExplainOmittedWhenNil(t *testing.T) {
 	assert.NotContains(t, buf.String(), "└─")
 }
 
+func TestFormatLeafValue_UnmarshalableFallsBackToFmt(t *testing.T) {
+	// channels are not JSON-encodable; formatLeafValue falls back to %v.
+	out := formatLeafValue(make(chan int))
+	assert.NotEmpty(t, out)
+}
+
+func TestFormatLeafValue_Scalars(t *testing.T) {
+	assert.Equal(t, "30", formatLeafValue(30))
+	assert.Equal(t, "true", formatLeafValue(true))
+	assert.Equal(t, "null", formatLeafValue(nil))
+}
+
 func TestTextFormatter_ExplainEmptyLeavesPrintsNoSettings(t *testing.T) {
 	f := &TextFormatter{Color: false}
 	var buf bytes.Buffer

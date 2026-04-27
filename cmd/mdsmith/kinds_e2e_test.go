@@ -340,3 +340,214 @@ func TestKinds_WhyMissingArgsExits2(t *testing.T) {
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr, "<file> and <rule>")
 }
+
+// kindsBadConfigDir writes an unparseable .mdsmith.yml so loadConfig
+// fails inside kindsConfig(). Mirrors archetypes' badConfigDir.
+func kindsBadConfigDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, ".mdsmith.yml"),
+		[]byte(":\n\tbad yaml\n"), 0o644))
+	return dir
+}
+
+func TestKinds_ListFailsOnBadConfig(t *testing.T) {
+	dir := kindsBadConfigDir(t)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "list")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "mdsmith:")
+}
+
+func TestKinds_ShowFailsOnBadConfig(t *testing.T) {
+	dir := kindsBadConfigDir(t)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "show", "x")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "mdsmith:")
+}
+
+func TestKinds_PathFailsOnBadConfig(t *testing.T) {
+	dir := kindsBadConfigDir(t)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "path", "x")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "mdsmith:")
+}
+
+func TestKinds_ResolveFailsOnBadConfig(t *testing.T) {
+	dir := kindsBadConfigDir(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# T\n"), 0o644))
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "mdsmith:")
+}
+
+func TestKinds_WhyFailsOnBadConfig(t *testing.T) {
+	dir := kindsBadConfigDir(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "doc.md"), []byte("# T\n"), 0o644))
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "why", "doc.md", "rule")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "mdsmith:")
+}
+
+func TestKinds_ResolveMissingFileExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "no-such.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "no-such.md")
+}
+
+func TestKinds_ResolveRejectsInvalidFrontMatterKind(t *testing.T) {
+	cfg := `kinds:
+  plan: {}
+`
+	doc := "---\nkinds: [ghost]\n---\n# T\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": doc})
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "ghost")
+}
+
+func TestKinds_ResolveFailsOnInvalidMaxInputSize(t *testing.T) {
+	cfg := "max-input-size: bogus\nrules: {}\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "max-input-size")
+}
+
+// Each subcommand's fs.Usage is called by pflag when it sees --help.
+func TestKinds_ListHelpFlag(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "list", "--help")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stderr, "kinds list")
+}
+
+func TestKinds_ShowHelpFlag(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "show", "--help")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stderr, "kinds show")
+}
+
+func TestKinds_PathHelpFlag(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "path", "--help")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stderr, "kinds path")
+}
+
+func TestKinds_ResolveHelpFlag(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "--help")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stderr, "kinds resolve")
+}
+
+func TestKinds_WhyHelpFlag(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "why", "--help")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stderr, "kinds why")
+}
+
+func TestKinds_HelpFlagOnRoot(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "--help")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stderr, "Subcommands:")
+}
+
+// Invalid flag triggers fs.Parse error (and Usage is printed to stderr).
+func TestKinds_ListInvalidFlagExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, _, code := runBinaryInDir(t, dir, "", "kinds", "list", "--bogus")
+	assert.Equal(t, 2, code)
+}
+
+func TestKinds_ShowInvalidFlagExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, _, code := runBinaryInDir(t, dir, "", "kinds", "show", "--bogus")
+	assert.Equal(t, 2, code)
+}
+
+func TestKinds_PathInvalidFlagExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, _, code := runBinaryInDir(t, dir, "", "kinds", "path", "--bogus")
+	assert.Equal(t, 2, code)
+}
+
+func TestKinds_ResolveInvalidFlagExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "--bogus")
+	assert.Equal(t, 2, code)
+}
+
+func TestKinds_WhyInvalidFlagExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, _, code := runBinaryInDir(t, dir, "", "kinds", "why", "--bogus")
+	assert.Equal(t, 2, code)
+}
+
+func TestKinds_ListExtraArgExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "list", "extra")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "no positional arguments")
+}
+
+func TestKinds_PathTooManyArgsExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "path", "a", "b")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "exactly one kind name")
+}
+
+func TestKinds_ResolveTooManyArgsExits2(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "a", "b")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "exactly one file argument")
+}
+
+// kinds path branch: required-structure rule disabled (false).
+func TestKinds_PathExits2WhenRequiredStructureDisabled(t *testing.T) {
+	cfg := `kinds:
+  plan:
+    rules:
+      required-structure: false
+`
+	dir := kindsTestDir(t, cfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "path", "plan")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "does not configure required-structure")
+}
+
+// kinds path branch: schema set to empty string.
+func TestKinds_PathExits2WhenSchemaIsEmptyString(t *testing.T) {
+	cfg := `kinds:
+  plan:
+    rules:
+      required-structure:
+        schema: ""
+`
+	dir := kindsTestDir(t, cfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "path", "plan")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "no required-structure.schema set")
+}
+
+// kinds path branch: absolute schema path is returned as-is.
+func TestKinds_PathPreservesAbsoluteSchema(t *testing.T) {
+	cfg := `kinds:
+  plan:
+    rules:
+      required-structure:
+        schema: /etc/passwd
+`
+	dir := kindsTestDir(t, cfg, nil)
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "path", "plan")
+	require.Equal(t, 0, code)
+	assert.Equal(t, "/etc/passwd", strings.TrimSpace(stdout))
+}

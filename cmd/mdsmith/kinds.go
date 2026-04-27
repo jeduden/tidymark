@@ -86,6 +86,9 @@ func runKindsList(args []string) int {
 		fmt.Fprintln(os.Stderr, "Usage: mdsmith kinds list [--json]")
 	}
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 	if fs.NArg() > 0 {
@@ -136,6 +139,9 @@ func runKindsShow(args []string) int {
 		fmt.Fprintln(os.Stderr, "Usage: mdsmith kinds show <name> [--json]")
 	}
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 	if fs.NArg() != 1 {
@@ -165,6 +171,37 @@ func runKindsShow(args []string) int {
 	return 0
 }
 
+// kindSchemaPath extracts a kind's required-structure.schema setting,
+// returning a clear stderr error and a non-zero exit code on every
+// way the kind can fail to resolve to a schema string.
+func kindSchemaPath(body config.KindBody, name string) (string, int) {
+	rs, ok := body.Rules["required-structure"]
+	if !ok || !rs.Enabled {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: kind %q does not configure required-structure\n", name)
+		return "", 2
+	}
+	rawSchema, hasSchema := rs.Settings["schema"]
+	if !hasSchema {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: kind %q has no required-structure.schema set\n", name)
+		return "", 2
+	}
+	schema, ok := rawSchema.(string)
+	if !ok {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: kind %q required-structure.schema must be a string, got %T (%v)\n",
+			name, rawSchema, rawSchema)
+		return "", 2
+	}
+	if schema == "" {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: kind %q has no required-structure.schema set\n", name)
+		return "", 2
+	}
+	return schema, 0
+}
+
 // runKindsPath prints the resolved schema path of the kind's
 // required-structure rule. Exits 2 when the kind is unknown or the
 // kind does not configure a schema.
@@ -174,6 +211,9 @@ func runKindsPath(args []string) int {
 		fmt.Fprintln(os.Stderr, "Usage: mdsmith kinds path <name>")
 	}
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 	if fs.NArg() != 1 {
@@ -193,29 +233,9 @@ func runKindsPath(args []string) int {
 		return 2
 	}
 
-	rs, ok := body.Rules["required-structure"]
-	if !ok || !rs.Enabled {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: kind %q does not configure required-structure\n", name)
-		return 2
-	}
-	rawSchema, hasSchema := rs.Settings["schema"]
-	if !hasSchema {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: kind %q has no required-structure.schema set\n", name)
-		return 2
-	}
-	schema, ok := rawSchema.(string)
-	if !ok {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: kind %q required-structure.schema must be a string, got %T (%v)\n",
-			name, rawSchema, rawSchema)
-		return 2
-	}
-	if schema == "" {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: kind %q has no required-structure.schema set\n", name)
-		return 2
+	schema, code := kindSchemaPath(body, name)
+	if code != 0 {
+		return code
 	}
 	resolved := schema
 	if !filepath.IsAbs(schema) {
@@ -277,6 +297,9 @@ func runKindsResolve(args []string) int {
 		fmt.Fprintln(os.Stderr, "Usage: mdsmith kinds resolve <file> [--json]")
 	}
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 	if fs.NArg() != 1 {
@@ -308,6 +331,9 @@ func runKindsWhy(args []string) int {
 		fmt.Fprintln(os.Stderr, "Usage: mdsmith kinds why <file> <rule> [--json]")
 	}
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 	if fs.NArg() != 2 {
