@@ -4,7 +4,7 @@ title: Build lifecycle hooks (before/after)
 status: "🔲"
 summary: >-
   Add `build.hooks.before` and `build.hooks.after`
-  config blocks: argv-tokenised commands run once
+  config blocks: argv-tokenized commands run once
   per `mdsmith build` invocation around the recipe
   pass. Lets users start a dev server before
   screenshots and stop it after, or warm a cache
@@ -151,7 +151,7 @@ per plan 100 rule 6.)
 
 ### Flags
 
-| Flag         | Behaviour                                                    |
+| Flag         | Behavior                                                     |
 |--------------|--------------------------------------------------------------|
 | `--no-hooks` | Skip both `before` and `after` hooks (debugging, CI bypass)  |
 | `--dry-run`  | List hooks alongside recipes; run nothing (extends plan 102) |
@@ -171,7 +171,7 @@ default — they may have effects beyond the
 recipes (e.g. publishing, notifications). To
 skip them when nothing would build, add
 `--skip-hooks-when-fresh`. (Naming intentional:
-the default favours predictability; the flag is
+the default favors predictability; the flag is
 explicit opt-in.)
 
 ### Out of scope
@@ -206,7 +206,7 @@ explicit opt-in.)
    shell operator, and fused-placeholder cases.
 3. Add `internal/build/hooks.go`: a `runHooks`
    helper that takes a list of `HookCfg`,
-   tokenises and expands each, dispatches via
+   tokenizes and expands each, dispatches via
    `os/exec`, and returns the first failure.
 4. Wire `runHooks` into `mdsmith build`: run
    `before` hooks; on failure, exit immediately

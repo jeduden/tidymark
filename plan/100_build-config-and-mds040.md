@@ -141,11 +141,12 @@ delimiter (MDS040)
    `optional`; emit a config error for unknowns.
    Validate that `{alt}` and `{output}` do not appear
    in `command`.
-2. Add MDS040 (`recipe-safety`) in
-   `internal/rules/MDS040-recipe-safety/`. Implement
-   the five checks above. Diagnostic messages include
-   the recipe name and the offending string. Not
-   fixable.
+2. Add MDS040 (`recipe-safety`) implementation in
+   `internal/rules/recipesafety/` (Go package).
+   Implement the six checks above (the five
+   safety checks plus the unused-param warning).
+   Diagnostic messages include the recipe name
+   and the offending string. Not fixable.
 3. Add `good/` and `bad/` fixtures for MDS040
    under `internal/rules/MDS040-recipe-safety/`.
 4. Wire MDS040 into `cmd/mdsmith/main.go`.

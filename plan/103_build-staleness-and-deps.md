@@ -36,7 +36,7 @@ The article behind this PR
 calls out the missing piece directly. It frames
 the build-system semantic as "sources update →
 result must update". Plans 100–102 give the
-shape. They lack the behaviour.
+shape. They lack the behavior.
 
 [post]: https://bgslabs.org/blog/why-are-we-using-markdown
 [plan-100]: 100_build-config-and-mds040.md
@@ -116,7 +116,7 @@ For each target, in order:
    entry is missing → build error.
 3. Compute `hash = sha256(spec ‖ each input
    content)` where `spec` is the canonical
-   serialisation of `(recipe, command-template,
+   serialization of `(recipe, command-template,
    sorted directive params, sorted resolved
    input paths)`.
 4. Look up `output` in the cache. If absent or
@@ -156,7 +156,7 @@ guide; the file is per-clone state, like
 
 ### Flags
 
-| Flag            | Behaviour                                                                              |
+| Flag            | Behavior                                                                               |
 |-----------------|----------------------------------------------------------------------------------------|
 | (none)          | Default: rebuild only stale targets; refresh cache entries for rebuilt targets         |
 | `--force`       | Rebuild every target regardless of cache; refresh all cache entries                    |
@@ -231,7 +231,7 @@ without crashing on stale schemas.
    rebuilt targets, atomic cache write at the
    end of the run.
 6. Add flags `--force`, `--check-stale`,
-   `--no-cache` with the behaviour above.
+   `--no-cache` with the behavior above.
 7. Built-in `vhs` declares `default-inputs:
    [{input}]`. Built-in `screenshot` declares
    none (always-stale by default).

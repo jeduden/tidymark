@@ -143,7 +143,7 @@ still passes.
 
 1. Define the `Builder` interface and recipe registry
    in `internal/build/`. Implement the custom recipe
-   driver that tokenises `command` at config load and
+   driver that tokenizes `command` at config load and
    dispatches via `os/exec`.
 2. Implement the `screenshot` builder using chromedp.
    Support `selector`, `viewport`, `wait`, `click`,
