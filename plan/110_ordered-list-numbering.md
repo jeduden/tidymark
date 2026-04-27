@@ -3,7 +3,7 @@ id: 110
 title: Ordered list numbering rule
 status: "🔲"
 summary: >-
-  New rule MDS044 that pins how ordered lists number
+  New rule MDS046 that pins how ordered lists number
   their items: literal sequential (`1. 2. 3.`) or all
   ones (`1. 1. 1.`). Removes the "ordered list which
   doesn't care how you ordered them" surprise from
@@ -51,11 +51,11 @@ The rant's complaint targets the *mismatch* between
 source and output, not either choice on its own. A
 team picks one and stops thinking about it.
 
-### Interaction with MDS016 and MDS043
+### Interaction with MDS016 and MDS045
 
-MDS016 (list-indent) handles indentation. MDS043
+MDS016 (list-indent) handles indentation. MDS045
 (list-marker-style) handles the unordered marker.
-MDS044 only handles ordered numbering. The three
+MDS046 only handles ordered numbering. The three
 rules can fire on the same list independently.
 
 ## Design
@@ -129,7 +129,7 @@ ordered list item {position} numbered {actual}; expected {expected}
 5. Implement `Fix()` rewriting numbers and adjusting
    continuation indentation when marker width
    changes.
-6. Register as MDS044 in category `list`.
+6. Register as MDS046 in category `list`.
 7. Add fixture tests covering each style, the
    width-change case (single-digit to double-digit),
    wrong start, nested ordered lists, and unordered

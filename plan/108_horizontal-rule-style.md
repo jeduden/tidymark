@@ -3,7 +3,7 @@ id: 108
 title: Horizontal rule style rule
 status: "🔲"
 summary: >-
-  New rule MDS042 that pins one of `---`, `***`, or
+  New rule MDS044 that pins one of `---`, `***`, or
   `___` for thematic breaks and requires blank lines
   on both sides so the rule cannot be confused with
   a setext heading underline. Closes one of the
@@ -35,13 +35,13 @@ the source line that produced the node.
 Setext headings (`Title\n=====` or `Title\n-----`)
 are `*ast.Heading` with `IsSetext` true. MDS002
 already lets users pin ATX-only, which removes the
-collision risk from one direction. MDS042 closes the
+collision risk from one direction. MDS044 closes the
 other direction: even with setext allowed, a
 horizontal rule must not look like a setext underline.
 
 ### Why a separate rule from MDS002
 
-MDS002 is about *headings*. MDS042 is about
+MDS002 is about *headings*. MDS044 is about
 *thematic breaks*. They share an underlying syntax
 collision but operate on disjoint AST node types and
 have independent toggles.
@@ -115,7 +115,7 @@ horizontal rule needs a blank line {above|below}
    `length`, and `require-blank-lines`.
 4. Implement `Fix()` rewriting the line and adding
    surrounding blank lines.
-5. Register as MDS042 in category `whitespace`.
+5. Register as MDS044 in category `whitespace`.
 6. Add fixture tests covering each delimiter
    choice, wrong length, internal spaces, missing
    blank lines, and a thematic break adjacent to a

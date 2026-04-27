@@ -3,7 +3,7 @@ id: 109
 title: List marker style rule
 status: "🔲"
 summary: >-
-  New rule MDS043 that pins one of `-`, `*`, or `+`
+  New rule MDS045 that pins one of `-`, `*`, or `+`
   as the bullet for unordered lists. Removes the
   three-way ambiguity called out in "Exhibit C" of
   the bgslabs.org rant.
@@ -106,7 +106,7 @@ unordered list at depth {n} uses {actual}; expected {expected}
    `nested`. Document `nested` as replace-mode.
 4. Implement `Fix()` replacing the marker byte at
    each item start.
-5. Register as MDS043 in category `list`.
+5. Register as MDS045 in category `list`.
 6. Add fixture tests covering each marker choice,
    mixed markers in one list, nested lists with and
    without `nested` set, and ordered lists (must

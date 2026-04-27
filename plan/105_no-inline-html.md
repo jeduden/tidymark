@@ -3,7 +3,7 @@ id: 105
 title: No inline HTML rule
 status: "🔲"
 summary: >-
-  New rule MDS039 that flags raw HTML in Markdown
+  New rule MDS041 that flags raw HTML in Markdown
   (block and inline), with an allowlist for tags
   that have no Markdown equivalent. Closes the
   largest attack surface for XSS and the largest
@@ -185,9 +185,9 @@ distinct.
    handler.
 5. Implement `rule.Defaultable` returning `false`
    so the rule is opt-in.
-6. Register as MDS039 in category `meta`.
+6. Register as MDS041 in category `meta`.
 7. Add fixture tests in
-   `internal/rules/MDS039-no-inline-html/` with
+   `internal/rules/MDS041-no-inline-html/` with
    `good/` and `bad/` examples (paragraph with
    `<span>`, block with `<div>`, comment, allowlisted
    tag, directive, autolink — verify the directive

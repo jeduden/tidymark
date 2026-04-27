@@ -3,7 +3,7 @@ id: 107
 title: No reference-style links rule
 status: "🔲"
 summary: >-
-  New rule MDS041 that forbids reference-style links
+  New rule MDS043 that forbids reference-style links
   and footnotes. These constructs require global
   definition resolution, moving Markdown from a
   context-free to a context-sensitive grammar — the
@@ -49,11 +49,11 @@ shape — `[text](url)` vs `[text][id]` vs `[text][]`
 ### Why a separate rule from MDS034
 
 MDS034 (markdown-flavor) flags footnotes as a flavor
-extension. MDS041 forbids them even on flavors that
+extension. MDS043 forbids them even on flavors that
 support them, because the *grammar* concern is
 independent of the renderer concern. The two rules
 can be enabled together; MDS034 fires when the flavor
-is `commonmark` and the file uses footnotes, MDS041
+is `commonmark` and the file uses footnotes, MDS043
 fires when the policy forbids footnotes regardless
 of flavor.
 
@@ -142,7 +142,7 @@ unused reference definition: [{id}]
 4. Implement unused-definition detection.
 5. Implement inline-rewrite auto-fix for
    reference-style links only.
-6. Register as MDS041 in category `link`.
+6. Register as MDS043 in category `link`.
 7. Add fixture tests covering inline, full
    reference, collapsed reference, shortcut
    reference, footnote (with and without

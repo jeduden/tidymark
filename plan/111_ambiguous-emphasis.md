@@ -3,7 +3,7 @@ id: 111
 title: Ambiguous emphasis rule
 status: "🔲"
 summary: >-
-  New rule MDS045 that flags emphasis runs whose
+  New rule MDS047 that flags emphasis runs whose
   meaning a human cannot predict at a glance even
   though CommonMark resolves them deterministically.
   Targets the parser-stress cases ("Exhibit A") and
@@ -61,10 +61,10 @@ chose, not whether a human could have predicted
 that choice. The rule scans the raw source line for
 the suspicious shapes instead.
 
-### Interaction with MDS040
+### Interaction with MDS042
 
-MDS040 (emphasis-style) pins which delimiter is
-used. MDS045 catches the ambiguous *combinations*
+MDS042 (emphasis-style) pins which delimiter is
+used. MDS047 catches the ambiguous *combinations*
 that survive a delimiter pin. They can fire
 independently on the same line.
 
@@ -143,7 +143,7 @@ adjacent same-delimiter emphasis is ambiguous
 4. Implement `rule.Configurable` for `max-run`,
    `forbid-escaped-in-run`, and
    `forbid-adjacent-same-delim`.
-5. Register as MDS045 in category `meta`.
+5. Register as MDS047 in category `meta`.
 6. Add fixture tests covering each pattern,
    patterns inside code spans (must not flag),
    patterns inside fenced code blocks (must not

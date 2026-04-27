@@ -49,7 +49,7 @@ independently.
 
 ### What plans 105-111 add
 
-Seven new rules cover MDS039 through MDS045. Each
+Seven new rules cover MDS041 through MDS047. Each
 restricts a different CommonMark ambiguity. Today
 they would each be enabled and configured
 separately:
@@ -108,15 +108,15 @@ Three profiles ship initially. Each names a target.
 
 - **`portable`** — Markdown that renders the same in
   every CommonMark parser. `flavor: commonmark`, all
-  of MDS039-MDS045 enabled with recommended defaults
+  of MDS041-MDS047 enabled with recommended defaults
   (no inline HTML, no reference links, asterisk
   bold, underscore italic, dash HR, dash list
   marker, sequential ordered numbering, max emphasis
   run 2).
 - **`github`** — Markdown that renders well on
-  github.com. `flavor: gfm`, MDS039 enabled with
+  github.com. `flavor: gfm`, MDS041 enabled with
   `<details>` and `<summary>` in the allowlist,
-  MDS040 and MDS043 enabled with defaults, the rest
+  MDS042 and MDS045 enabled with defaults, the rest
   disabled. Targets teams that use GFM for GitHub
   rendering but still want consistent emphasis and
   bullet style.
@@ -124,7 +124,7 @@ Three profiles ship initially. Each names a target.
   rendered output should look about the same as the
   source viewed in a plaintext reader. Same
   activations as `portable` today, plus
-  `allow-comments: false` on MDS039 (HTML comments
+  `allow-comments: false` on MDS041 (HTML comments
   leak through as `<!-- ... -->` in plaintext).
 
 The `plain` profile sits close to `portable` in
@@ -182,7 +182,7 @@ mechanism is a config-layer concern. The reasons:
 - Each rule already owns its detection logic.
   Duplicating into MDS034 would create two places
   that emit the same diagnostic.
-- Tests for MDS039-MDS045 should not depend on
+- Tests for MDS041-MDS047 should not depend on
   MDS034 being enabled.
 - Disabling MDS034 should not silently disable the
   style rules a profile turned on.
@@ -228,13 +228,13 @@ What MDS034 does gain: a `profile` field in its
 ## Acceptance Criteria
 
 - [ ] Setting `profile: portable` enables
-      MDS039-MDS045 with documented preset values.
-- [ ] Setting `profile: github` enables MDS039,
-      MDS040, MDS043 with their documented presets
+      MDS041-MDS047 with documented preset values.
+- [ ] Setting `profile: github` enables MDS041,
+      MDS042, MDS045 with their documented presets
       and leaves the rest disabled.
 - [ ] Setting `profile: plain` enables
-      MDS039-MDS045 with the portable presets plus
-      `allow-comments: false` on MDS039.
+      MDS041-MDS047 with the portable presets plus
+      `allow-comments: false` on MDS041.
 - [ ] User overrides win over profile presets via
       deep-merge (e.g. extending the inline-HTML
       allowlist).
@@ -246,7 +246,7 @@ What MDS034 does gain: a `profile` field in its
       a profile activated and with which settings.
 - [ ] MDS034 itself does not emit new diagnostic
       types; all profile-driven diagnostics come
-      from MDS039-MDS045.
+      from MDS041-MDS047.
 - [ ] Disabling MDS034 does not disable the rules a
       profile turned on (the preset has already
       been applied at config load).

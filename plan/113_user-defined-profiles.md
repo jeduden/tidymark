@@ -35,10 +35,10 @@ a code change.
 
 ### Why inline and not external
 
-[Plan 112's review](#) considered three ways to
-open the system: inline in `.mdsmith.yml`, separate
-profile files, and inheritance via `extends:`. This
-plan ships only the inline form. Reasons:
+Plan 112 considered three ways to open the system:
+inline in `.mdsmith.yml`, separate profile files,
+and inheritance via `extends:`. This plan ships
+only the inline form. Reasons:
 
 - The repo's `.mdsmith.yml` is already the source
   of truth for everything else mdsmith reads.

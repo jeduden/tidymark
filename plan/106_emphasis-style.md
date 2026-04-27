@@ -3,7 +3,7 @@ id: 106
 title: Emphasis style rule
 status: "🔲"
 summary: >-
-  New rule MDS040 that pins one delimiter per role:
+  New rule MDS042 that pins one delimiter per role:
   one of asterisk or underscore for bold, one for
   italic. Removes the bold/italic ambiguity called
   out as "Exhibit A" in the bgslabs.org markdown
@@ -43,7 +43,7 @@ whose delimiter differs from its parent Emphasis.
 ### Why a separate rule from MDS018
 
 MDS018 (no-emphasis-as-heading) flags emphasis used
-*as a heading*. MDS040 flags emphasis with the wrong
+*as a heading*. MDS042 flags emphasis with the wrong
 *delimiter*. The two rules can coexist on the same
 file without overlap.
 
@@ -61,7 +61,7 @@ rules:
 
 Category: `whitespace` is wrong; use a new category
 or reuse `meta`. **Chosen: `meta`**, matching MDS034
-and the new MDS039.
+and the new MDS041.
 
 Disabled by default (opt-in) — existing corpora vary.
 
@@ -131,9 +131,9 @@ mixed emphasis delimiters: {outer} wraps {inner}
 4. Implement `rule.Defaultable` returning `false`.
 5. Implement `Fix()` for bold and italic delimiter
    replacement; skip triple-delimiter runs.
-6. Register as MDS040 in category `meta`.
+6. Register as MDS042 in category `meta`.
 7. Add fixture tests in
-   `internal/rules/MDS040-emphasis-style/` covering
+   `internal/rules/MDS042-emphasis-style/` covering
    each delimiter combination, mixed nesting, triple
    delimiters, and emphasis inside code spans
    (must not flag).
