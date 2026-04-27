@@ -671,6 +671,26 @@ func TestEnsurePreMergeCommitHook_WriteFileFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "writing")
 }
 
+func TestEnsurePreMergeCommitHook_ChmodFails(t *testing.T) {
+	dir := t.TempDir()
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+
+	origExe := executableFunc
+	t.Cleanup(func() { executableFunc = origExe })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	origChmod := chmodFunc
+	t.Cleanup(func() { chmodFunc = origChmod })
+	chmodFunc = func(string, os.FileMode) error {
+		return os.ErrPermission
+	}
+
+	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "setting permissions")
+}
+
 // --- resolveHooksDir ---
 
 func TestResolveHooksDir_NotGitRepo(t *testing.T) {

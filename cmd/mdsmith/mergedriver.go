@@ -494,7 +494,7 @@ func ensurePreMergeCommitHook(repoRoot string, files []string) error {
 	// Explicitly set execute permissions after writing. WriteFile's perm
 	// argument is masked by umask on creation and ignored when the file
 	// already exists, so a separate Chmod ensures the hook is executable.
-	if err := os.Chmod(hookPath, 0o755); err != nil {
+	if err := chmodFunc(hookPath, 0o755); err != nil {
 		return fmt.Errorf("setting permissions on %s: %w", hookPath, err)
 	}
 	return nil
@@ -526,6 +526,10 @@ func registerMergeDriver() error {
 // executableFunc is the function used to locate the current binary.
 // Overridden in tests to exercise the non-temporary-exe branch.
 var executableFunc = os.Executable
+
+// chmodFunc is the function used to set file permissions.
+// Overridden in tests to exercise the Chmod error path.
+var chmodFunc = os.Chmod
 
 // resolveInstalledBinary returns the absolute path to the mdsmith
 // binary to use as the git merge driver. It prefers the current
