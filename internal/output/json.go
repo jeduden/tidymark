@@ -11,15 +11,24 @@ import (
 type JSONFormatter struct{}
 
 type jsonDiagnostic struct {
-	File            string   `json:"file"`
-	Line            int      `json:"line"`
-	Column          int      `json:"column"`
-	Rule            string   `json:"rule"`
-	Name            string   `json:"name"`
-	Severity        string   `json:"severity"`
-	Message         string   `json:"message"`
-	SourceLines     []string `json:"source_lines,omitempty"`
-	SourceStartLine int      `json:"source_start_line,omitempty"`
+	File            string           `json:"file"`
+	Line            int              `json:"line"`
+	Column          int              `json:"column"`
+	Rule            string           `json:"rule"`
+	Name            string           `json:"name"`
+	Severity        string           `json:"severity"`
+	Message         string           `json:"message"`
+	SourceLines     []string         `json:"source_lines,omitempty"`
+	SourceStartLine int              `json:"source_start_line,omitempty"`
+	Explanation     *jsonExplanation `json:"explanation,omitempty"`
+}
+
+// jsonExplanation mirrors lint.Explanation for stable JSON output.
+type jsonExplanation struct {
+	Rule        string            `json:"rule"`
+	Source      string            `json:"source"`
+	Kinds       []string          `json:"kinds,omitempty"`
+	LeafSources map[string]string `json:"leaf_sources,omitempty"`
 }
 
 // Format writes diagnostics as a pretty-printed JSON array.
@@ -37,9 +46,22 @@ func (f *JSONFormatter) Format(w io.Writer, diagnostics []lint.Diagnostic) error
 			Message:         d.Message,
 			SourceLines:     d.SourceLines,
 			SourceStartLine: d.SourceStartLine,
+			Explanation:     toJSONExplanation(d.Explanation),
 		})
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(items)
+}
+
+func toJSONExplanation(e *lint.Explanation) *jsonExplanation {
+	if e == nil {
+		return nil
+	}
+	return &jsonExplanation{
+		Rule:        e.Rule,
+		Source:      e.Source,
+		Kinds:       e.Kinds,
+		LeafSources: e.LeafSources,
+	}
 }

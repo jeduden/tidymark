@@ -63,8 +63,44 @@ func (f *TextFormatter) Format(w io.Writer, diagnostics []lint.Diagnostic) error
 		if err := f.formatSnippet(w, d); err != nil {
 			return err
 		}
+		if err := f.formatExplanation(w, d); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// formatExplanation writes the --explain trailer for a single
+// diagnostic. No-op when d.Explanation is nil. Format:
+//
+//	└─ <rule>=<source> [kinds: a, b]
+func (f *TextFormatter) formatExplanation(w io.Writer, d lint.Diagnostic) error {
+	e := d.Explanation
+	if e == nil {
+		return nil
+	}
+	rule := e.Rule
+	if rule == "" {
+		rule = d.RuleName
+	}
+	if len(e.Kinds) == 0 {
+		_, err := fmt.Fprintf(w, "  └─ %s=%s\n", rule, e.Source)
+		return err
+	}
+	_, err := fmt.Fprintf(w, "  └─ %s=%s [kinds: %s]\n",
+		rule, e.Source, joinKinds(e.Kinds))
+	return err
+}
+
+func joinKinds(kinds []string) string {
+	out := ""
+	for i, k := range kinds {
+		if i > 0 {
+			out += ", "
+		}
+		out += k
+	}
+	return out
 }
 
 // formatSnippet writes the source context lines with a line-number gutter

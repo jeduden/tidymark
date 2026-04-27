@@ -154,31 +154,46 @@ func printVersion() {
 	fmt.Printf("mdsmith %s\n", v)
 }
 
+// checkFixOpts holds flags shared by `check` and `fix`. Helpers
+// produce one of these so the dispatch functions stay short.
+type checkFixOpts struct {
+	configPath     string
+	format         string
+	noColor        bool
+	quiet          bool
+	verbose        bool
+	noGitignore    bool
+	followSymlinks bool
+	maxInputSize   string
+	explain        bool
+}
+
+// registerCheckFixFlags adds the flags shared between `check` and `fix`
+// to fs and returns a pointer to the populated opts struct.
+func registerCheckFixFlags(fs *flag.FlagSet) *checkFixOpts {
+	o := &checkFixOpts{}
+	fs.StringVarP(&o.configPath, "config", "c", "", "Override config file path")
+	fs.StringVarP(&o.format, "format", "f", "text", "Output format: text, json")
+	fs.BoolVar(&o.noColor, "no-color", false, "Disable ANSI colors")
+	fs.BoolVarP(&o.quiet, "quiet", "q", false, "Suppress non-error output")
+	fs.BoolVarP(&o.verbose, "verbose", "v", false,
+		"Show config, files, and rules on stderr")
+	fs.BoolVar(&o.noGitignore, "no-gitignore", false,
+		"Disable .gitignore filtering when walking directories")
+	fs.BoolVar(&o.followSymlinks, "follow-symlinks", false,
+		"Follow symlinks; omitted defers to follow-symlinks config (default skip); "+
+			"=false forces skip over any config opt-in")
+	fs.StringVar(&o.maxInputSize, "max-input-size", "",
+		"Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
+	fs.BoolVar(&o.explain, "explain", false,
+		"Annotate each diagnostic with its config provenance")
+	return o
+}
+
 // runCheck implements the "check" subcommand: lint files.
 func runCheck(args []string) int {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
-	var (
-		configPath     string
-		format         string
-		noColor        bool
-		quiet          bool
-		verbose        bool
-		noGitignore    bool
-		followSymlinks bool
-		maxInputSize   string
-	)
-
-	fs.StringVarP(&configPath, "config", "c", "", "Override config file path")
-	fs.StringVarP(&format, "format", "f", "text", "Output format: text, json")
-	fs.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
-	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
-	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
-	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
-	fs.BoolVar(&followSymlinks, "follow-symlinks", false,
-		"Follow symlinks; omitted defers to follow-symlinks config (default skip); "+
-			"=false forces skip over any config opt-in")
-	fs.StringVar(&maxInputSize, "max-input-size", "", "Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
-
+	o := registerCheckFixFlags(fs)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mdsmith check [flags] [files...]\n\n"+
 			"Lint Markdown files for style issues.\n\n"+
@@ -193,58 +208,33 @@ func runCheck(args []string) int {
 		return 2
 	}
 
-	// --quiet suppresses verbose
-	if quiet {
-		verbose = false
+	if o.quiet {
+		o.verbose = false
 	}
 
 	walk := walkCLI{
-		noGitignore:    noGitignore,
-		followSymlinks: followSymlinksOverride(fs, followSymlinks),
+		noGitignore:    o.noGitignore,
+		followSymlinks: followSymlinksOverride(fs, o.followSymlinks),
 	}
 
-	allArgs := fs.Args()
-
-	// Check for explicit stdin argument "-".
-	hasStdin, fileArgs := splitStdinArg(allArgs)
+	hasStdin, fileArgs := splitStdinArg(fs.Args())
 
 	if hasStdin {
-		return checkStdin(format, noColor, quiet, verbose, configPath, maxInputSize)
+		return checkStdin(o.format, o.noColor, o.quiet, o.verbose,
+			o.configPath, o.maxInputSize, o.explain)
 	}
-
 	if len(fileArgs) > 0 {
-		return checkFiles(fileArgs, configPath, format, noColor, quiet, verbose, walk, maxInputSize)
+		return checkFiles(fileArgs, o.configPath, o.format, o.noColor,
+			o.quiet, o.verbose, walk, o.maxInputSize, o.explain)
 	}
-
-	// No file args and no stdin: discover files from config.
-	return checkDiscovered(configPath, format, noColor, quiet, verbose, walk, maxInputSize)
+	return checkDiscovered(o.configPath, o.format, o.noColor, o.quiet,
+		o.verbose, walk, o.maxInputSize, o.explain)
 }
 
 // runFix implements the "fix" subcommand: auto-fix lint issues in place.
 func runFix(args []string) int {
 	fs := flag.NewFlagSet("fix", flag.ContinueOnError)
-	var (
-		configPath     string
-		format         string
-		noColor        bool
-		quiet          bool
-		verbose        bool
-		noGitignore    bool
-		followSymlinks bool
-		maxInputSize   string
-	)
-
-	fs.StringVarP(&configPath, "config", "c", "", "Override config file path")
-	fs.StringVarP(&format, "format", "f", "text", "Output format: text, json")
-	fs.BoolVar(&noColor, "no-color", false, "Disable ANSI colors")
-	fs.BoolVarP(&quiet, "quiet", "q", false, "Suppress non-error output")
-	fs.BoolVarP(&verbose, "verbose", "v", false, "Show config, files, and rules on stderr")
-	fs.BoolVar(&noGitignore, "no-gitignore", false, "Disable .gitignore filtering when walking directories")
-	fs.BoolVar(&followSymlinks, "follow-symlinks", false,
-		"Follow symlinks; omitted defers to follow-symlinks config (default skip); "+
-			"=false forces skip over any config opt-in")
-	fs.StringVar(&maxInputSize, "max-input-size", "", "Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
-
+	o := registerCheckFixFlags(fs)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: mdsmith fix [flags] [files...]\n\n"+
 			"Auto-fix lint issues in Markdown files.\n\n"+
@@ -259,32 +249,27 @@ func runFix(args []string) int {
 		return 2
 	}
 
-	// --quiet suppresses verbose
-	if quiet {
-		verbose = false
+	if o.quiet {
+		o.verbose = false
 	}
 
 	walk := walkCLI{
-		noGitignore:    noGitignore,
-		followSymlinks: followSymlinksOverride(fs, followSymlinks),
+		noGitignore:    o.noGitignore,
+		followSymlinks: followSymlinksOverride(fs, o.followSymlinks),
 	}
 
-	allArgs := fs.Args()
-
-	// Check for explicit stdin argument "-".
-	hasStdin, fileArgs := splitStdinArg(allArgs)
+	hasStdin, fileArgs := splitStdinArg(fs.Args())
 
 	if hasStdin {
 		fmt.Fprintf(os.Stderr, "mdsmith: cannot fix stdin in place\n")
 		return 2
 	}
-
 	if len(fileArgs) > 0 {
-		return fixFiles(fileArgs, configPath, format, noColor, quiet, verbose, walk, maxInputSize)
+		return fixFiles(fileArgs, o.configPath, o.format, o.noColor,
+			o.quiet, o.verbose, walk, o.maxInputSize, o.explain)
 	}
-
-	// No file args: discover files from config.
-	return fixDiscovered(configPath, format, noColor, quiet, verbose, walk, maxInputSize)
+	return fixDiscovered(o.configPath, o.format, o.noColor, o.quiet,
+		o.verbose, walk, o.maxInputSize, o.explain)
 }
 
 // runQuery implements the "query" subcommand: select files by CUE
@@ -533,7 +518,7 @@ func printRunStats(format string, quiet bool, stats runStats) {
 func checkFiles(
 	fileArgs []string, configPath, format string,
 	noColor, quiet, verbose bool, walk walkCLI,
-	maxInputSize string,
+	maxInputSize string, explain bool,
 ) int {
 	cfg, cfgPath, logger, files, maxBytes, code := loadAndResolve(
 		fileArgs, configPath, verbose, walk, maxInputSize,
@@ -552,6 +537,10 @@ func checkFiles(
 	}
 	result := runner.Run(files)
 	printErrors(result.Errors)
+
+	if explain {
+		attachExplanations(cfg, result.Diagnostics)
+	}
 
 	if !quiet && len(result.Diagnostics) > 0 {
 		if code := formatDiagnostics(result.Diagnostics, format, noColor); code != 0 {
@@ -579,7 +568,7 @@ func checkFiles(
 func fixFiles(
 	fileArgs []string, configPath, format string,
 	noColor, quiet, verbose bool, walk walkCLI,
-	maxInputSize string,
+	maxInputSize string, explain bool,
 ) int {
 	cfg, cfgPath, logger, files, maxBytes, code := loadAndResolve(
 		fileArgs, configPath, verbose, walk, maxInputSize,
@@ -598,6 +587,10 @@ func fixFiles(
 	}
 	fixResult := fixer.Fix(files)
 	printErrors(fixResult.Errors)
+
+	if explain {
+		attachExplanations(cfg, fixResult.Diagnostics)
+	}
 
 	if !quiet && len(fixResult.Diagnostics) > 0 {
 		if code := formatDiagnostics(fixResult.Diagnostics, format, noColor); code != 0 {
@@ -642,7 +635,7 @@ func readStdinLimited(maxBytes int64) ([]byte, error) {
 
 // checkStdin reads from stdin, lints the content, and returns the appropriate
 // exit code. Uses runner.RunSource to ensure Configurable settings are applied.
-func checkStdin(format string, noColor, quiet, verbose bool, configPath, maxInputSize string) int {
+func checkStdin(format string, noColor, quiet, verbose bool, configPath, maxInputSize string, explain bool) int {
 	logger := &vlog.Logger{Enabled: verbose, W: os.Stderr}
 
 	cfg, cfgPath, err := loadConfig(configPath)
@@ -676,6 +669,10 @@ func checkStdin(format string, noColor, quiet, verbose bool, configPath, maxInpu
 	}
 	result := runner.RunSource("<stdin>", source)
 	printErrors(result.Errors)
+
+	if explain {
+		attachExplanations(cfg, result.Diagnostics)
+	}
 
 	if !quiet && len(result.Diagnostics) > 0 {
 		if code := formatDiagnostics(result.Diagnostics, format, noColor); code != 0 {
@@ -792,7 +789,7 @@ func discoverFiles(
 func checkDiscovered(
 	configPath, format string,
 	noColor, quiet, verbose bool, walk walkCLI,
-	maxInputSize string,
+	maxInputSize string, explain bool,
 ) int {
 	cfg, cfgPath, logger, files, code := discoverFiles(configPath, verbose, walk)
 	if code >= 0 {
@@ -815,6 +812,10 @@ func checkDiscovered(
 	}
 	result := runner.Run(files)
 	printErrors(result.Errors)
+
+	if explain {
+		attachExplanations(cfg, result.Diagnostics)
+	}
 
 	if !quiet && len(result.Diagnostics) > 0 {
 		if code := formatDiagnostics(result.Diagnostics, format, noColor); code != 0 {
@@ -843,7 +844,7 @@ func checkDiscovered(
 func fixDiscovered(
 	configPath, format string,
 	noColor, quiet, verbose bool, walk walkCLI,
-	maxInputSize string,
+	maxInputSize string, explain bool,
 ) int {
 	cfg, cfgPath, logger, files, code := discoverFiles(configPath, verbose, walk)
 	if code >= 0 {
@@ -866,6 +867,10 @@ func fixDiscovered(
 	}
 	fixResult := fixer.Fix(files)
 	printErrors(fixResult.Errors)
+
+	if explain {
+		attachExplanations(cfg, fixResult.Diagnostics)
+	}
 
 	if !quiet && len(fixResult.Diagnostics) > 0 {
 		if code := formatDiagnostics(fixResult.Diagnostics, format, noColor); code != 0 {
