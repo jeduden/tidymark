@@ -6,10 +6,9 @@ summary: >-
   Refactor MDS034 from "extension support detector"
   to a flavor orchestrator. Add a profile concept
   that bundles extension policy with style policy.
-  Selecting `flavor: mdsmith-strict` activates
-  MDS039-MDS045 with preset settings, giving teams a
-  single knob for the strict-Markdown subset
-  proposed in the bgslabs.org rant review.
+  Three profiles ship: portable (CommonMark
+  everywhere), github (GFM on github.com), and plain
+  (Markdown that survives `cat`).
 model: ""
 ---
 # Flavor profiles refactor
@@ -74,7 +73,7 @@ these into one.
 ### Why "profile" and not "flavor"
 
 A flavor today corresponds to a renderer. Adding
-`mdsmith-strict` as a flavor would suggest there is
+`portable` as a flavor would suggest there is
 a renderer by that name, which there is not. The
 plan introduces **profiles** as a layer above
 flavors. A profile names a flavor *plus* a set of
@@ -92,7 +91,7 @@ This keeps the existing `flavor:` enum honest
 rules:
   markdown-flavor:
     flavor: commonmark        # renderer grammar
-    profile: mdsmith-strict   # opinionated bundle
+    profile: portable   # opinionated bundle
 ```
 
 Both fields are optional. `flavor` defaults to
@@ -105,20 +104,48 @@ both is allowed only when they agree; a mismatch
 
 ### Built-in profiles
 
-Two profiles ship initially:
+Three profiles ship initially. Each names a target.
 
-- **`mdsmith-strict`** — `flavor: commonmark`, all
-  of MDS039-MDS045 enabled with the recommended
-  defaults (no inline HTML, no reference links,
-  asterisk bold, underscore italic, dash HR, dash
-  list marker, sequential ordered numbering, max
-  emphasis run 2).
-- **`mdsmith-relaxed`** — `flavor: gfm`, MDS039
-  enabled with `<details>` and `<summary>` in the
-  allowlist, MDS040 and MDS043 enabled with
-  defaults, the rest disabled. Targets teams that
-  use GFM for GitHub rendering but still want
-  consistent emphasis and bullet style.
+- **`portable`** — Markdown that renders the same in
+  every CommonMark parser. `flavor: commonmark`, all
+  of MDS039-MDS045 enabled with recommended defaults
+  (no inline HTML, no reference links, asterisk
+  bold, underscore italic, dash HR, dash list
+  marker, sequential ordered numbering, max emphasis
+  run 2).
+- **`github`** — Markdown that renders well on
+  github.com. `flavor: gfm`, MDS039 enabled with
+  `<details>` and `<summary>` in the allowlist,
+  MDS040 and MDS043 enabled with defaults, the rest
+  disabled. Targets teams that use GFM for GitHub
+  rendering but still want consistent emphasis and
+  bullet style.
+- **`plain`** — Markdown that survives `cat`. The
+  rendered output should look about the same as the
+  source viewed in a plaintext reader. Same
+  activations as `portable` today, plus
+  `allow-comments: false` on MDS039 (HTML comments
+  leak through as `<!-- ... -->` in plaintext).
+
+The `plain` profile sits close to `portable` in
+this plan. A truly plaintext-faithful profile would
+need extra rules that do not exist yet:
+
+- **no-emphasis** — forbid `*` and `_` runs entirely.
+  In plaintext readers they appear as literal
+  characters around the word, which is noise.
+- **no-fenced-code** — require indented code blocks
+  rather than fenced ones, since the fence delimiters
+  show up literally.
+- **prefer-bare-urls** — invert MDS012 so
+  `https://example.com` is preferred over
+  `[text](url)`, since the latter renders as
+  `[text](url)` literally in plaintext.
+
+These three rules are out of scope for this plan
+and would land as plans 113-115. When they ship,
+the `plain` profile gains them automatically and
+diverges from `portable`.
 
 Profiles are declared in
 `internal/rules/markdownflavor/profiles.go` as a
@@ -139,7 +166,7 @@ during config load. The flow:
 This piggybacks on the existing deep-merge config
 ([plan 97](97_deep-merge-config.md)). User overrides
 still win — a team can set
-`profile: mdsmith-strict` and then opt back in to
+`profile: portable` and then opt back in to
 inline HTML for `<sub>` and `<sup>` by setting
 `rules.no-inline-html.allow: [sub, sup]`. The
 preset provides the floor.
@@ -189,7 +216,7 @@ What MDS034 does gain: a `profile` field in its
    output ([plan 95](95_kind-rule-resolution-cli.md))
    so `mdsmith kinds --explain` shows which rules a
    profile turned on.
-5. Document the two built-in profiles in
+5. Document the three built-in profiles in
    `docs/guides/directives/enforcing-structure.md`
    or a new `docs/reference/profiles.md`.
 6. Add fixture tests under
@@ -199,8 +226,14 @@ What MDS034 does gain: a `profile` field in its
 
 ## Acceptance Criteria
 
-- [ ] Setting `profile: mdsmith-strict` enables
+- [ ] Setting `profile: portable` enables
       MDS039-MDS045 with documented preset values.
+- [ ] Setting `profile: github` enables MDS039,
+      MDS040, MDS043 with their documented presets
+      and leaves the rest disabled.
+- [ ] Setting `profile: plain` enables
+      MDS039-MDS045 with the portable presets plus
+      `allow-comments: false` on MDS039.
 - [ ] User overrides win over profile presets via
       deep-merge (e.g. extending the inline-HTML
       allowlist).

@@ -70,11 +70,14 @@ Disabled by default (opt-in) — existing corpora vary.
 [Plan 112](112_flavor-profiles.md) ships profiles
 that auto-enable this rule:
 
-- `profile: mdsmith-strict` activates with
+- `profile: portable` activates with
   `bold: asterisk`, `italic: underscore`, and
   `forbid-mixed-nesting: true`.
-- `profile: mdsmith-relaxed` activates with the
+- `profile: github` activates with the
   same defaults.
+- `profile: plain` activates with the same
+  defaults. (A future `no-emphasis` rule would
+  forbid `*` and `_` runs entirely under `plain`.)
 
 User overrides on top of the profile still win via
 deep-merge.

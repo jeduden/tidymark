@@ -65,11 +65,13 @@ Category: `whitespace`. Disabled by default (opt-in).
 [Plan 112](112_flavor-profiles.md) ships profiles
 that auto-enable this rule:
 
-- `profile: mdsmith-strict` activates with
+- `profile: portable` activates with
   `style: dash`, `length: 3`, and
   `require-blank-lines: true`.
-- `profile: mdsmith-relaxed` does not activate
+- `profile: github` does not activate
   this rule.
+- `profile: plain` activates with `style: dash`,
+  `length: 3`, and `require-blank-lines: true`.
 
 User overrides on top of the profile still win via
 deep-merge.

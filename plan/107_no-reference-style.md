@@ -81,10 +81,12 @@ because the number carries no anchor.
 [Plan 112](112_flavor-profiles.md) ships profiles
 that auto-enable this rule:
 
-- `profile: mdsmith-strict` activates with
+- `profile: portable` activates with
   `allow-footnotes: false`.
-- `profile: mdsmith-relaxed` does not activate
+- `profile: github` does not activate
   this rule.
+- `profile: plain` activates with
+  `allow-footnotes: false`.
 
 User overrides on top of the profile still win via
 deep-merge.

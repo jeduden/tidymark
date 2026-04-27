@@ -87,11 +87,13 @@ Category: `meta`. Disabled by default (opt-in).
 [Plan 112](112_flavor-profiles.md) ships profiles
 that auto-enable this rule:
 
-- `profile: mdsmith-strict` activates with
+- `profile: portable` activates with
   `max-run: 2`, `forbid-escaped-in-run: true`, and
   `forbid-adjacent-same-delim: true`.
-- `profile: mdsmith-relaxed` does not activate
+- `profile: github` does not activate
   this rule.
+- `profile: plain` activates with the same
+  settings as `portable`.
 
 User overrides on top of the profile still win via
 deep-merge.

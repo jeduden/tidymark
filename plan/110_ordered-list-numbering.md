@@ -76,10 +76,12 @@ Category: `list`. Disabled by default (opt-in).
 [Plan 112](112_flavor-profiles.md) ships profiles
 that auto-enable this rule:
 
-- `profile: mdsmith-strict` activates with
+- `profile: portable` activates with
   `style: sequential` and `start: 1`.
-- `profile: mdsmith-relaxed` does not activate
+- `profile: github` does not activate
   this rule.
+- `profile: plain` activates with
+  `style: sequential` and `start: 1`.
 
 User overrides on top of the profile still win via
 deep-merge.

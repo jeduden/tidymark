@@ -91,10 +91,13 @@ need.
 [Plan 112](112_flavor-profiles.md) ships profiles
 that auto-enable this rule:
 
-- `profile: mdsmith-strict` activates with empty
+- `profile: portable` activates with empty
   `allow` and `allow-comments: true`.
-- `profile: mdsmith-relaxed` activates with
+- `profile: github` activates with
   `allow: [details, summary, sub, sup, kbd]`.
+- `profile: plain` activates with empty `allow`
+  and `allow-comments: false` (HTML comments leak
+  through as literal text in plaintext readers).
 
 User overrides on top of the profile still win via
 deep-merge.

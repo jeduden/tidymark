@@ -62,10 +62,12 @@ Category: `list`. Disabled by default (opt-in).
 [Plan 112](112_flavor-profiles.md) ships profiles
 that auto-enable this rule:
 
-- `profile: mdsmith-strict` activates with
+- `profile: portable` activates with
   `style: dash` and empty `nested`.
-- `profile: mdsmith-relaxed` activates with the
+- `profile: github` activates with the
   same defaults.
+- `profile: plain` activates with the same
+  defaults.
 
 User overrides on top of the profile still win via
 deep-merge.
