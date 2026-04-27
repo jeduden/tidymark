@@ -20,6 +20,7 @@ mdsmith <command> [flags] [files...]
 | `metrics`      | List and rank shared metrics                   |
 | `merge-driver` | Git merge driver for regenerable sections      |
 | `archetypes`   | Scaffold, list, show, and locate archetypes    |
+| `kinds`        | Inspect declared kinds and per-file resolution |
 | `init`         | Generate `.mdsmith.yml`                        |
 | `version`      | Print version, exit                            |
 
@@ -44,6 +45,7 @@ match, exits 0.
 | `--no-gitignore`    | false   | Skip gitignore                          |
 | `-q`, `--quiet`     | false   | Quiet mode                              |
 | `-v`, `--verbose`   | false   | Verbose output                          |
+| `--explain`         | false   | Add config-provenance trailer per diag  |
 
 Symlinks are skipped by default. This blocks a malicious
 symlink from redirecting `check` or `fix` to files outside
@@ -95,6 +97,116 @@ Archetype roots come from the top-level
 config file; it prints the snippet to add manually.
 `list` exits `1` when no archetypes are discovered;
 `show` and `path` exit `2` on unknown names.
+
+## `kinds` Subcommands
+
+| Subcommand                   | Description                              |
+|------------------------------|------------------------------------------|
+| `list [--json]`              | Declared kinds with merged bodies        |
+| `show <name> [--json]`       | One kind's merged body                   |
+| `path <name>`                | Kind's `required-structure.schema:` path |
+| `resolve <file> [--json]`    | Per-leaf rule provenance for a file      |
+| `why <file> <rule> [--json]` | Full merge chain for one rule, one file  |
+
+`show` exits `2` on unknown name. `path` exits `2` when
+the kind is unknown or carries no
+`required-structure.schema:`. `resolve` and `why`
+validate the file's front-matter `kinds:` against
+declared kinds.
+
+`mdsmith help kinds-cli` prints a one-screen summary;
+`mdsmith help kinds` prints the kinds concept page.
+
+### `--explain` on `check` / `fix`
+
+Adds a one-line provenance trailer to each diagnostic
+naming the rule and the source layer that won:
+
+```text
+plan/foo.md:11:1 MDS022 file too long (305 > 300)
+  └─ max-file-length=default [kinds: plan]
+```
+
+The bracketed `[kinds: ...]` lists the file's effective
+kind list. With `--format=json` the diagnostic carries
+an `explanation` object — schema below.
+
+### JSON schema
+
+`--json` on each `kinds` subcommand emits a stable
+structured form. The same provenance shape powers the
+`explanation` object on `check --explain --format=json`.
+
+`kinds list --json` and `kinds show --json`:
+
+```json
+{ "kinds": [
+    { "name": "plan",
+      "body": { "rules": {}, "categories": {} } } ] }
+```
+
+`kinds resolve <file> --json`:
+
+```json
+{
+  "file": "doc.md",
+  "kinds": [
+    { "name": "plan", "sources": ["kind-assignment[0]"] }
+  ],
+  "rules": {
+    "line-length": {
+      "final": { "max": 80 },
+      "leaves": {
+        "max": {
+          "final": 80,
+          "winning_source": "default",
+          "chain": [
+            { "layer": "default", "source": "default",
+              "value": 80, "touched": true }
+          ]
+        }
+      }
+    }
+  },
+  "categories": { "line": true },
+  "explicit": { "line-length": true }
+}
+```
+
+`kinds why <file> <rule> --json`:
+
+```json
+{
+  "file": "doc.md", "rule": "line-length",
+  "chain": [
+    { "layer": "default", "source": "default",
+      "value": {"max":80}, "touched": true },
+    { "layer": "kind", "source": "kinds.wide",
+      "touched": false }
+  ],
+  "final": { "max": 80 }
+}
+```
+
+`check --explain --format=json` adds per diagnostic:
+
+```json
+{
+  "explanation": {
+    "rule": "line-length",
+    "source": "kinds.wide",
+    "kinds": ["wide"],
+    "leaf_sources": {
+      "enabled": "kinds.wide", "max": "kinds.wide"
+    }
+  }
+}
+```
+
+Source labels: `default`, `kinds.<name>`,
+`overrides[i]`, `front-matter override`.
+Layer labels: `default`, `kind`, `override`,
+`front-matter override`.
 
 ## `--max-input-size`
 
