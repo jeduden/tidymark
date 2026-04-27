@@ -1,111 +1,137 @@
 ---
 id: 99
-title: Screenshot directive and capture command
+title: Capture directive and extensible builder
 status: "🔲"
 summary: >-
-  Add a `<?screenshot?>...<?/screenshot?>` generated
-  section that keeps a Markdown image link in sync
-  with its parameters (URL, selector, output path,
-  alt text), plus a separate `mdsmith screenshot`
-  command that drives a headless browser to
-  regenerate the image bytes. Splits the
-  always-cheap linting layer from the
-  occasionally-expensive capture step so
-  `mdsmith fix` does not need a dev server.
+  A generic `<?capture type:...?>` directive
+  keeps a Markdown image link in sync with its
+  params via the lint layer. Built-in types
+  cover `screenshot` (chromedp) and `vhs`
+  (GIF). Users declare custom types in
+  `.mdsmith.yml` with a command template and
+  param schema; no Go code needed.
 ---
-# Screenshot directive and capture command
+# Capture directive and extensible builder
 
 ## Goal
 
-Make documentation screenshots a build artifact
-of the source they describe, the same way
-[`<?catalog?>`][catalog] makes the file index a
-build artifact of the directory it indexes.
-Authors declare what to capture. Rebuilding
-refreshes the image so docs do not silently
-diverge from the UI.
+Make tool-generated files — screenshots, GIFs,
+diagrams — declared artifacts of the source
+that produces them. Authors state `type`,
+inputs, and `output`. `mdsmith fix` keeps the
+body in sync. `mdsmith capture` drives the
+rebuild.
+
+The built-in types are `screenshot` (headless
+browser) and `vhs` (terminal GIF). Users
+extend the system in `.mdsmith.yml` with a
+command template and a param schema. No Go
+code is required for new types.
 
 ## Context
 
 [interblah.net/self-updating-screenshots][post]
-describes a Rake task that scans Markdown
-help-centre articles for
-`<!-- SCREENSHOT: ... -->` comments. It runs
-Capybara plus Cuprite against the Rails app
-and writes PNGs to disk. The author reports
-the biggest win is killing drift: once capture
-is automatic, screenshots stop diverging from
-the UI.
+describes a Rake task that scans Markdown for
+`<!-- SCREENSHOT: ... -->` comments and drives
+Capybara to capture PNGs. The biggest win is
+killing drift: once capture is automatic,
+images stop diverging from the UI.
 
-mdsmith already ships the moving parts. The
-[generated-section archetype][gensection]
-gives us markers and body regeneration. The
-multi-pass `fix` engine handles fixable rules.
-Two pieces are missing: a directive whose body
-is a Markdown image link, and a way to drive
-a browser without folding it into
-`mdsmith fix`.
+This repo has the same problem twice: browser
+screenshots for feature docs, and `demo.gif`
+driven by VHS from `demo.tape`. Both captures
+are currently manual.
+
+The [generated-section archetype][gensection]
+already handles body sync. Two pieces are
+missing: a directive with a typed capture
+layer, and a separate rebuild command that
+users can extend without writing Go code.
 
 [post]: https://interblah.net/self-updating-screenshots
-[catalog]: ../internal/rules/MDS019-catalog/README.md
 [gensection]: ../docs/background/archetypes/generated-section/README.md
 
 ### Why split linting from capture
 
-Existing directives generate text from cheap
-inputs on disk. Capture needs a running
-target, a browser, network, and time. Folding
-it into `mdsmith fix` would either make the
-linter slow and stateful, or silently no-op
-when the browser is unavailable.
+Capture needs a running target, an external
+tool, and time. Folding it into `mdsmith fix`
+would make the linter slow and stateful.
 
-The split:
-
-- **Lint layer (always on).** Rule MDS039
-  keeps `![alt](output)` in sync with the
-  directive params. `mdsmith fix` rewrites
-  it. No network, no browser.
-- **Capture layer (opt-in command).** A new
-  `mdsmith screenshot` subcommand walks
-  files, finds `<?screenshot?>` directives,
-  drives a headless browser, and writes the
-  image bytes to `output`. Never a side
-  effect of `check`/`fix`.
+- **Lint layer (always on).** MDS039 validates
+  params and keeps `![alt](output)` in sync.
+  `mdsmith fix` rewrites the body. No network,
+  no external tools.
+- **Capture layer (opt-in).** `mdsmith capture`
+  dispatches to the per-type driver. It is
+  never a side effect of `check`/`fix`.
 
 ## Design
 
 ### Directive syntax
 
 ```text
-<?screenshot
+<?capture
+type: screenshot
 url: /inbox
-selector: "#inbox-brand-new-section"
-output: screenshots/inbox-brand-new.png
-alt: The Brand New section of the inbox
+output: docs/inbox.png
+alt: Inbox screenshot
 ?>
-![The Brand New section of the inbox](screenshots/inbox-brand-new.png)
-<?/screenshot?>
+![Inbox screenshot](docs/inbox.png)
+<?/capture?>
 ```
 
-Parameters:
+Common parameters (all types):
 
-| Name       | Type           | Required | Default    | Description                                                               |
-|------------|----------------|----------|------------|---------------------------------------------------------------------------|
-| `url`      | string         | yes      | —          | Target URL. Absolute or path-only (joined with `--base-url` at capture)   |
-| `output`   | string         | yes      | —          | Image path relative to the Markdown file. Must be inside the project root |
-| `alt`      | string         | no       | derived    | Alt text. Defaults to a slug of the file's H1 plus selector, see below    |
-| `selector` | string         | no       | full page  | CSS selector of the element to capture                                    |
-| `viewport` | `WIDTHxHEIGHT` | no       | `1280x800` | Browser viewport size                                                     |
-| `wait`     | int (ms)       | no       | `0`        | Delay after navigation/click before capture                               |
-| `click`    | string         | no       | —          | CSS selector to click before capture                                      |
-| `hide`     | list of string | no       | `[]`       | CSS selectors hidden via `display: none` for the capture                  |
+| Name     | Required | Description                                  |
+|----------|----------|----------------------------------------------|
+| `type`   | yes      | Registered type name                         |
+| `output` | yes      | Artifact path relative to the Markdown file  |
+| `alt`    | no       | Alt text. Derived from type+output if absent |
 
-Out of scope here: `crop`, `torn` (a
-decorative edge effect), auth, and scripted
-multi-step interactions. The
-`Capturer` interface (below) absorbs them
-later without re-shaping the directive
-surface.
+Type-specific parameters are declared by each
+type (built-in or user-defined in config).
+
+### Built-in types
+
+**`screenshot`** captures a URL via
+[chromedp][chromedp]:
+
+| Param      | Required | Default    | Description                     |
+|------------|----------|------------|---------------------------------|
+| `url`      | yes      | —          | Target URL                      |
+| `selector` | no       | full page  | CSS element to capture          |
+| `viewport` | no       | `1280x800` | Browser size (`WIDTHxHEIGHT`)   |
+| `wait`     | no       | `0` ms     | Delay after navigation          |
+| `click`    | no       | —          | CSS selector to click first     |
+| `hide`     | no       | `[]`       | Selectors hidden before capture |
+
+**`vhs`** renders a `.tape` file via the
+[VHS][vhs] binary:
+
+| Param   | Required | Description          |
+|---------|----------|----------------------|
+| `input` | yes      | Path to `.tape` file |
+
+[chromedp]: https://github.com/chromedp/chromedp
+[vhs]: https://github.com/charmbracelet/vhs
+
+### Custom types
+
+Users declare new types in `.mdsmith.yml`:
+
+```yaml
+capture:
+  types:
+    mermaid:
+      command: "mmdc -i {input} -o {output}"
+      params:
+        required: [input, output]
+        optional: [theme]
+```
+
+`{param}` tokens expand to directive parameter
+values at capture time. MDS039 reads the schema
+and validates that `required` params are present.
 
 ### Generated body (lint layer)
 
@@ -115,198 +141,145 @@ The body is exactly one line:
 ![{alt}]({output})
 ```
 
-`{alt}` and `{output}` come from the params.
-MDS039's `Check` compares this against the
-actual body and reports a stale-section
-diagnostic. `Fix` rewrites the body. Reuses
-[`internal/archetype/gensection`][gensection]
-unchanged — same plumbing as `catalog`,
-`include`, and `toc`.
+MDS039 compares this to the actual body and
+reports a stale-section diagnostic on
+divergence. `Fix` rewrites the body. It reuses
+`gensection.Engine` unchanged — same plumbing
+as `catalog` and `include`.
 
-When `alt` is omitted, derive it as
-`Screenshot of {selector or "page"} at {url}`
-so the body always passes MDS032
-(no-empty-alt-text). The validator emits a
-warning suggesting an explicit `alt:`.
+When `alt` is absent, it is derived as
+`"Screenshot of {selector or "page"} at {url}"`
+so the body always passes MDS032.
 
-### Rule: MDS039 (screenshot)
+### Rule: MDS039 (capture)
 
 - ID: `MDS039`
-- Name: `screenshot`
+- Name: `capture`
 - Category: `meta`
 - Default: enabled
 - Fixable: yes (lint layer only)
 
 Validation:
 
-- `url` and `output` required
+- `type` is present and resolves to a known
+  type (built-in or declared in config)
 - `output` is a relative path inside the
-  project root, no `..`, extension in
-  `{.png, .jpg, .jpeg, .webp}`
-- `viewport` matches `^\d+x\d+$`
-- `wait` is a non-negative integer
-- `selector` and `click`, when present, are
-  non-empty strings (no AST-level CSS check)
+  project root, no `..`
+- Type-specific required params are present
+- `output` extension is in the type's allowed
+  set (`{.png,.jpg,.webp}` for `screenshot`,
+  `.gif` for `vhs`, unrestricted for custom)
 
-Lives in `internal/rules/screenshot/`.
-Fixtures under
-`internal/rules/MDS039-screenshot/` with
-`good/`, `bad/`, and `fixed/` cases mirroring
-plan 89.
-
-### `mdsmith screenshot` subcommand
+### `mdsmith capture` subcommand
 
 ```text
-mdsmith screenshot [paths...] [flags]
+mdsmith capture [paths...] [flags]
 ```
 
 Flags:
 
-- `--base-url URL` — prefix joined to relative
-  `url` params. Required when any directive
-  uses a path-only URL.
-- `--dry-run` — print captures; do not launch
-  a browser or write files.
-- `--browser PATH` — override the chromium
-  binary (defaults to autodetect).
-- `--timeout DURATION` — per-screenshot
-  timeout; default `30s`.
+- `--type NAME` — limit to one type
+- `--base-url URL` — prefix for path-only URLs
+  (`screenshot` type)
+- `--dry-run` — list captures; write nothing
+- `--timeout DURATION` — per-artifact timeout
+  (default `30s`)
 
 Behaviour:
 
-1. Discover Markdown files via the same
-   walker `check`/`fix` use (respects
-   `.mdsmith.yml` ignores).
-2. Parse with the existing AST and directive
-   parser, collect every `<?screenshot?>`
-   block. Validate via MDS039; on validation
-   error, abort that file.
-3. Group by `url` host so a single browser
-   context handles all shots for a target,
-   in declaration order.
-4. For each: navigate, optionally click and
-   wait, optionally hide selectors, capture
-   element-or-page, write atomically to
-   `output`.
-5. Exit non-zero if any capture failed; print
-   a per-file `OK | FAIL` summary.
-
-Capture backend: pure-Go [`chromedp`][chromedp].
-No Node toolchain. Wrapped behind a
-`Capturer` interface in `internal/screenshot/`
-so tests can swap in a fake that writes a 1×1
-PNG. Future backends (Playwright, remote
-service) plug in without touching the rule or
-command.
-
-[chromedp]: https://github.com/chromedp/chromedp
-
-### Interaction with existing rules
-
-- **MDS032 (no-empty-alt-text)**: derived alt
-  text is non-empty.
-- **MDS012 (no-bare-urls)**: image link is
-  formatted, not bare.
-- **MDS027 (cross-file-reference-integrity)**:
-  the generated `![...](path)` participates in
-  the existing image-target check. A missing
-  image fires MDS027 and points the user at
-  `mdsmith screenshot`. No special-case
-  needed.
-- **MDS019/MDS021/MDS038**: orthogonal
-  directives, different names.
-- **`merge-driver`**: regenerates the body on
-  conflict via the shared gensection engine.
-  Image bytes are not regenerated by the
-  merge driver.
+1. Walk files the same way `check`/`fix` do.
+2. Collect and validate `<?capture?>` blocks.
+3. Dispatch each block to its type driver in
+   declaration order.
+4. Write artifacts atomically to `output`.
+5. Exit non-zero on any failure and print a
+   per-file `OK | FAIL` summary.
 
 ### Configuration
 
-A new top-level `screenshot:` block holds
-defaults (`base-url`, `viewport`, `wait`)
-that would otherwise repeat on every
-directive. Per-directive params override
-config; `--base-url` overrides both. Reuses
-the deep-merge rules from plan 97.
+```yaml
+capture:
+  base-url: ""       # joined to path-only URLs
+  viewport: 1280x800 # default for screenshot
+  wait: 0            # default delay (ms)
+  types: {}          # custom type declarations
+```
 
-### Out of scope
+Per-directive params override config defaults.
+The `--base-url` CLI flag overrides both.
 
-Animations or video, authenticated sessions,
-image diffing, git LFS / CDN storage, and a
-`--watch` mode.
+### Interaction with existing rules
+
+- **MDS032**: derived alt text is non-empty.
+- **MDS012**: image link is not a bare URL.
+- **MDS027**: a missing artifact file fires
+  MDS027 and points the user at
+  `mdsmith capture`. No special case needed.
+- **`merge-driver`**: regenerates the body on
+  conflict. Artifact bytes are not regenerated.
 
 ## Tasks
 
-1. Add a `Capturer` interface and `chromedp`
-   implementation in `internal/screenshot/`.
-   Unit-test against `httptest.Server`. Skip
-   when no chromium binary resolves.
-2. Create the `<?screenshot?>` directive in
-   `internal/rules/screenshot/` using
+1. Define a `Capturer` interface and type
+   registry in `internal/capture/`. Built-in
+   impls: `screenshot` (chromedp) and `vhs`
+   (exec). Custom-type impl reads the command
+   template from config and shells out via
+   `os/exec`.
+2. Create the `<?capture?>` directive in
+   `internal/rules/capture/` using
    `gensection.Engine`. Register as MDS039,
-   category `meta`, `FixableRule`. `Generate`
-   only renders the image line; never calls
-   the capturer.
+   category `meta`. `Generate` renders only the
+   image line; it never calls the capturer.
 3. Add MDS039 fixtures under
-   `internal/rules/MDS039-screenshot/`:
-   `good/`, `bad/`, `fixed/`. Mirror plan 89.
-4. Wire the rule into
-   [`cmd/mdsmith/main.go`][main].
-5. Add `mdsmith screenshot` subcommand.
-   Reuse the file walker and AST parser.
-   Iterate captures sequentially per host.
-   Wire the flags listed above.
-6. Add the `screenshot:` config block in
-   `internal/config/`. Surface defaults to
-   MDS039 and to the capture command.
-7. Integration test in
-   `internal/integration/`: a
-   `<?screenshot?>` whose `url` points at an
-   `httptest.Server` produces a non-empty
-   PNG with stable MD5 across runs. Skipped
-   without chromium.
-8. Document MDS039 README and a guide
-   `docs/guides/directives/screenshots.md`.
-   Update the gensection archetype doc to
-   list `screenshot`.
-9. Add a demo using a static HTML file in
-   the repo so it runs without a dev server.
-
-[main]: ../cmd/mdsmith/main.go
+   `internal/rules/MDS039-capture/`:
+   `good/`, `bad/`, `fixed/`. Cover built-in
+   types and a custom type declared in config.
+4. Wire the rule into `cmd/mdsmith/main.go`.
+5. Add `mdsmith capture` subcommand. Reuse the
+   file walker and AST parser. Wire all flags.
+6. Add the `capture:` config block in
+   `internal/config/`. Surface defaults and the
+   custom-type registry to MDS039 and the
+   capture command.
+7. Integration test: `<?capture type:screenshot?>`
+   against `httptest.Server` writes a non-empty
+   PNG. A custom type using `cp` writes a stub
+   file. Both skip without their prerequisite.
+8. Document MDS039 README and a user guide at
+   `docs/guides/directives/capture.md`. Update
+   the gensection archetype doc.
+9. Add a demo using a static HTML file so it
+   runs without a dev server.
 
 ## Acceptance Criteria
 
-- [ ] `<?screenshot url:... output:... ?>`
+- [ ] `<?capture type:screenshot url:... output:... ?>`
       regenerates its body to `![alt](output)`
       on `mdsmith fix`
-- [ ] MDS039 reports a stale-section
-      diagnostic on `check` when the body
-      diverges from the params
-- [ ] MDS039 rejects missing `url`, missing
-      `output`, paths with `..`, and
-      non-image extensions
-- [ ] `mdsmith screenshot` against an
-      `httptest.Server` writes a non-empty
-      PNG to the path declared in `output`
-- [ ] `mdsmith screenshot --dry-run` lists
-      every capture without launching a
-      browser or writing files
-- [ ] `mdsmith screenshot` exits non-zero
-      when any capture fails and prints a
-      per-file summary
+- [ ] MDS039 reports stale-section on `check`
+      when the body diverges from params
+- [ ] MDS039 rejects unknown type, missing
+      `output`, path traversal (`..`), and
+      extensions that do not match the type
+- [ ] A custom type declared in config with a
+      `cp` command writes its output file
+- [ ] `mdsmith capture` against `httptest.Server`
+      writes a non-empty PNG
+- [ ] `mdsmith capture --dry-run` lists every
+      capture without running any tool
+- [ ] `mdsmith capture` exits non-zero on
+      failure with a per-file `OK | FAIL` summary
 - [ ] `mdsmith check` does **not** launch a
-      browser or attempt network access for
-      `<?screenshot?>` blocks
-- [ ] `screenshot:` config defaults apply to
+      browser or external tool for
+      `<?capture?>` blocks
+- [ ] `capture:` config defaults apply to
       directives that omit them and are
       overridden by per-directive params
-- [ ] CI without a chromium binary still
-      passes; capture-dependent tests are
-      skipped, not failed
-- [ ] Merge driver regenerates
-      `<?screenshot?>` bodies on conflict,
-      same as `<?catalog?>` (inherited from
-      the shared gensection engine)
+- [ ] CI without chromium still passes; capture
+      tests are skipped, not failed
+- [ ] Merge driver regenerates `<?capture?>`
+      bodies on conflict (gensection engine)
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports
       no issues
