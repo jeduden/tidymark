@@ -573,3 +573,99 @@ func TestShellQuote_ContainsSingleQuote(t *testing.T) {
 func TestShellQuote_PathWithSpaces(t *testing.T) {
 	assert.Equal(t, "'/home/my user/bin/mdsmith'", shellQuote("/home/my user/bin/mdsmith"))
 }
+
+func TestEnsurePreMergeCommitHook_UnreadableHook(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("running as root: permission checks don't apply")
+	}
+	dir := t.TempDir()
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
+	// Write-only: os.ReadFile returns a non-ENOENT error.
+	require.NoError(t, os.WriteFile(hookPath, []byte("#!/bin/sh\n"), 0o200))
+	t.Cleanup(func() { _ = os.Chmod(hookPath, 0o755) })
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reading existing hook")
+}
+
+func TestEnsurePreMergeCommitHook_MkdirAllFails(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("running as root: permission checks don't apply")
+	}
+	dir := t.TempDir()
+	// .git exists but is not writable, so MkdirAll(.git/hooks) fails.
+	gitDir := filepath.Join(dir, ".git")
+	require.NoError(t, os.Mkdir(gitDir, 0o555))
+	t.Cleanup(func() { _ = os.Chmod(gitDir, 0o755) })
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "creating")
+}
+
+func TestEnsurePreMergeCommitHook_WriteFileFails(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("running as root: permission checks don't apply")
+	}
+	dir := t.TempDir()
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	// Remove write permission so os.WriteFile on the hook file fails.
+	require.NoError(t, os.Chmod(hooksDir, 0o555))
+	t.Cleanup(func() { _ = os.Chmod(hooksDir, 0o755) })
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "writing")
+}
+
+// --- resolveHooksDir ---
+
+func TestResolveHooksDir_NotGitRepo(t *testing.T) {
+	// Not a git repo: git fails, falls back to .git/hooks.
+	dir := t.TempDir()
+	got := resolveHooksDir(dir)
+	assert.Equal(t, filepath.Join(dir, ".git", "hooks"), got)
+}
+
+func TestResolveHooksDir_DefaultGitRepo(t *testing.T) {
+	// Real git repo without custom hooksPath: returns .git/hooks.
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+	got := resolveHooksDir(dir)
+	assert.Equal(t, filepath.Join(dir, ".git", "hooks"), got)
+}
+
+func TestResolveHooksDir_CustomRelativeHooksPath(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+	require.NoError(t, exec.Command("git", "-C", dir, "config",
+		"core.hooksPath", "custom-hooks").Run())
+	got := resolveHooksDir(dir)
+	assert.Equal(t, filepath.Join(dir, "custom-hooks"), got)
+}
+
+func TestResolveHooksDir_CustomAbsoluteHooksPath(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+	absPath := filepath.Join(dir, "abs-hooks")
+	require.NoError(t, exec.Command("git", "-C", dir, "config",
+		"core.hooksPath", absPath).Run())
+	got := resolveHooksDir(dir)
+	assert.Equal(t, absPath, got)
+}

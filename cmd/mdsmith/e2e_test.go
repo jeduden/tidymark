@@ -1267,6 +1267,29 @@ func TestE2E_MergeDriver_Install_Idempotent(t *testing.T) {
 	assert.Equal(t, 1, count, "expected 1 PLAN.md entry, got %d; content:\n%s", count, attrs)
 }
 
+func TestE2E_MergeDriver_Install_UnmanagedHook(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run(), "git init")
+
+	// Place a user-authored hook (no mdsmith marker) before running install.
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
+	userHook := "#!/bin/sh\necho user hook\n"
+	require.NoError(t, os.WriteFile(hookPath, []byte(userHook), 0o755))
+
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "merge-driver", "install")
+	assert.Equal(t, 2, exitCode,
+		"expected exit 2 when unmanaged pre-merge-commit hook exists; stderr: %s", stderr)
+	assert.Contains(t, stderr, "pre-merge-commit",
+		"error must reference the hook path; stderr: %s", stderr)
+
+	// Verify the user hook was not clobbered.
+	data, err := os.ReadFile(hookPath)
+	require.NoError(t, err)
+	assert.Equal(t, userHook, string(data), "user hook content must be preserved")
+}
+
 func TestE2E_MergeDriver_Install_CustomFiles(t *testing.T) {
 	dir := t.TempDir()
 

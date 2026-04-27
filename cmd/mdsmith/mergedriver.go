@@ -397,7 +397,7 @@ func runMergeDriverInstall(args []string) int {
 		return 2
 	}
 
-	hookPath := filepath.Join(repoRoot, ".git", "hooks", "pre-merge-commit")
+	hookPath := filepath.Join(resolveHooksDir(repoRoot), "pre-merge-commit")
 	fmt.Fprintf(os.Stderr, "mdsmith: merge driver 'mdsmith' installed\n")
 	fmt.Fprintf(os.Stderr, "  git config: merge.mdsmith.driver\n")
 	fmt.Fprintf(os.Stderr, "  .gitattributes: %s\n", attrPath)
@@ -410,7 +410,24 @@ func runMergeDriverInstall(args []string) int {
 // stomping on a user-authored hook of the same name.
 const preMergeCommitHookMarker = "# mdsmith merge-driver pre-merge-commit hook"
 
-// ensurePreMergeCommitHook writes .git/hooks/pre-merge-commit so
+// resolveHooksDir returns the directory where git hooks should be
+// installed. It respects core.hooksPath if configured so that
+// installations work correctly in repos that redirect hooks to a
+// custom path (e.g. via git config or a repo management tool).
+// Falls back to .git/hooks when git cannot be queried.
+func resolveHooksDir(repoRoot string) string {
+	cmd := exec.Command("git", "-C", repoRoot, "rev-parse", "--git-path", "hooks")
+	if out, err := cmd.Output(); err == nil {
+		p := strings.TrimSpace(string(out))
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(repoRoot, p)
+		}
+		return filepath.Clean(p)
+	}
+	return filepath.Join(repoRoot, ".git", "hooks")
+}
+
+// ensurePreMergeCommitHook writes the pre-merge-commit hook so
 // that after git resolves all per-file merges (including any
 // driver-resolved sections) and before the merge commit is
 // created, mdsmith fix runs once on the registered files.
@@ -427,27 +444,35 @@ func ensurePreMergeCommitHook(repoRoot string, files []string) error {
 		return fmt.Errorf("cannot locate mdsmith binary: %w", err)
 	}
 
-	hooksDir := filepath.Join(repoRoot, ".git", "hooks")
+	hooksDir := resolveHooksDir(repoRoot)
 	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
 
 	// Refuse to clobber a hook the user wrote themselves; replace
-	// only hooks that carry our marker.
-	if existing, err := os.ReadFile(hookPath); err == nil {
+	// only hooks that carry our marker. A non-ENOENT read error is
+	// treated as a safety failure to avoid silently overwriting an
+	// unreadable hook.
+	existing, readErr := os.ReadFile(hookPath)
+	switch {
+	case readErr == nil:
 		if !strings.Contains(string(existing), preMergeCommitHookMarker) {
 			return fmt.Errorf(
 				"%s already exists and is not managed by mdsmith; "+
 					"remove or merge it manually",
 				hookPath)
 		}
+	case os.IsNotExist(readErr):
+		// Hook doesn't exist; safe to create.
+	default:
+		return fmt.Errorf("reading existing hook %s: %w", hookPath, readErr)
 	}
 
-	// Build the per-file fix loop. Files that no longer exist
-	// (e.g. renamed in this branch) are skipped so the hook stays
-	// resilient across schema changes.
-	var fixLoop strings.Builder
+	// Build per-file fix commands as separate lines so that "set -e"
+	// aborts the hook if mdsmith fix or git add fails. Files that no
+	// longer exist (e.g. renamed in this branch) are skipped.
+	var fixCmds strings.Builder
 	for _, f := range files {
-		fmt.Fprintf(&fixLoop,
-			"if [ -e %s ]; then %s fix %s && git add -- %s; fi\n",
+		fmt.Fprintf(&fixCmds,
+			"if [ -e %s ]; then\n  %s fix %s\n  git add -- %s\nfi\n",
 			shellQuote(f), shellQuote(exe), shellQuote(f), shellQuote(f))
 	}
 
@@ -458,7 +483,7 @@ func ensurePreMergeCommitHook(repoRoot string, files []string) error {
 		"# state of every source file. Re-install with:\n" +
 		"#   mdsmith merge-driver install\n" +
 		"set -e\n" +
-		fixLoop.String()
+		fixCmds.String()
 
 	if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 		return fmt.Errorf("creating %s: %w", hooksDir, err)
