@@ -161,13 +161,12 @@ Each `proto.md` file resolves to two kinds.
 
 - The broad `**/proto.md` entry picks up the proto kind.
 - A directory-scoped entry picks up the project-specific
-  kind. The convention globs are exclusion patterns —
-  `plan/[0-9]*_*.md` and `docs/security/[0-9]*.md` match
-  numbered plans and date-prefixed security notes
-  without matching `proto.md`. Each schema kind lists
-  its `proto.md` path explicitly so the file still picks
-  up the kind that supplies its
-  `required-structure.schema:`.
+  kind. The plan and docs/security entries use `*.md`
+  globs that naturally include `proto.md`. The
+  internal/rules and .claude/skills directory globs
+  target a different filename (`MDS*/README.md`,
+  `*/SKILL.md`), so those entries list `proto.md`
+  explicitly alongside the convention glob.
 
 The later schema kind sets `required-structure.schema:`
 to `proto.md` itself. That marks the file as its own
@@ -176,14 +175,19 @@ then stays silent. With deep-merge (plan 97) the schema
 setting from the project kind composes with the proto
 kind's other settings rather than replacing them.
 
-The redundant schema overrides were removed:
+`!`-prefix exclusion (added to the config matcher in
+this plan) is used in the `docs/security/*.md` override
+to keep its content tunings off `proto.md`. It is not
+used in `kind-assignment:` for schema kinds — excluding
+`proto.md` from the project kind would strip the
+schema. See [docs/reference/globs.md](../docs/reference/globs.md)
+for full glob semantics.
 
-- `plan/*.md`
-- `docs/security/*.md`
-- `internal/rules/MDS*/README.md`
-
-Each schema now lives in its kind. Schema attachment
-for a file class lives in one place.
+The redundant schema overrides on `plan/*.md`,
+`docs/security/*.md`, and `internal/rules/MDS*/README.md`
+were removed once the matching kinds covered them.
+Schema attachment for a file class now lives in one
+place.
 
 ## Acceptance Criteria
 

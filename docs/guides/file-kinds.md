@@ -85,25 +85,34 @@ order.
 kind-assignment:
   - files: ["**/proto.md"]
     kinds: [proto]
-  - files: ["plan/proto.md", "plan/[0-9]*_*.md"]
+  - files: ["plan/*.md"]
     kinds: [plan]
-  - files: [".claude/skills/proto.md",
-            ".claude/skills/*/SKILL.md"]
-    kinds: [skill]
+  - files: ["internal/rules/proto.md",
+            "internal/rules/MDS*/README.md"]
+    kinds: [rule-readme]
 ```
 
 Globs use the same matcher as `overrides:` and `ignore:`
 (see [Glob patterns](../reference/globs.md)). The plan
-entry above uses `plan/[0-9]*_*.md` — the leading-digit
-pattern matches every numbered plan file but skips
-`proto.md`, which is then handled separately. A `!`-prefix
-on a pattern re-excludes a path; that's useful in
-`overrides:` (where excluding `proto.md` from
-content-tuning settings is harmless) but not in
-`kind-assignment:` for schema kinds, because excluding
-`proto.md` there would also strip the
-`required-structure.schema` that marks it as its own
-schema.
+entry uses `plan/*.md`, which matches every plan file
+including `proto.md`. The directory glob naturally
+includes `proto.md`, and that is what we want here: the
+proto kind disables structural rules on `proto.md`, while
+the plan kind supplies `required-structure.schema:` so
+the file is recognized as its own schema.
+
+Where the directory glob targets a different filename
+(for example `internal/rules/MDS*/README.md`, which does
+not match `internal/rules/proto.md`), list the schema
+file explicitly alongside the convention glob.
+
+A `!`-prefix on a pattern re-excludes a path. Use it in
+`overrides:` to keep content-tuning settings off
+`proto.md` (the proto kind already handles those
+files). Avoid `!`-exclusion in `kind-assignment:` for a
+schema kind — excluding `proto.md` there would also
+strip the `required-structure.schema:` that marks the
+file as its own schema.
 
 When a file should belong to two kinds, two entries can
 match it. The order of those entries fixes the merge
@@ -111,11 +120,10 @@ order — kinds picked up earlier appear earlier in the
 effective list.
 
 In the example above, `plan/proto.md` matches both
-`**/proto.md` (proto kind) and the explicit `plan/proto.md`
-entry (plan kind), so its effective kind list is
-`[proto, plan]`. A regular plan file like
-`plan/96_kinds-adoption-and-docs.md` only matches the
-`plan/[0-9]*_*.md` glob, so it resolves to `[plan]`.
+`**/proto.md` (proto kind) and `plan/*.md` (plan kind),
+so its effective kind list is `[proto, plan]`. A regular
+plan file like `plan/96_kinds-adoption-and-docs.md` only
+matches `plan/*.md`, so it resolves to `[plan]`.
 
 ## Merge order
 

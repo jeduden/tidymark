@@ -44,8 +44,8 @@ func globMatchAny(patterns []string, filePath string) bool {
 
 // IsIgnored returns true if the file path matches any of the given
 // ignore patterns. It checks the raw path, the cleaned path, and
-// the base name. A pattern prefixed with "!" re-includes a path that
-// would otherwise match an earlier ignore pattern.
+// the base name. A pattern prefixed with "!" excludes a path even if
+// another ignore pattern also matches, regardless of list order.
 func IsIgnored(patterns []string, path string) bool {
 	return globMatchAny(patterns, path)
 }
