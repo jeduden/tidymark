@@ -564,6 +564,45 @@ func TestE2E_Init_RefusesIfExists(t *testing.T) {
 	assert.Contains(t, stderr, "already exists", "expected 'already exists' error, got: %s", stderr)
 }
 
+func TestE2E_Init_NoArchetypesKey(t *testing.T) {
+	dir := t.TempDir()
+
+	_, _, exitCode := runBinaryInDir(t, dir, "", "init")
+	assert.Equal(t, 0, exitCode, "expected exit code 0")
+
+	content, err := os.ReadFile(filepath.Join(dir, ".mdsmith.yml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "archetypes",
+		"generated .mdsmith.yml must not contain 'archetypes' key")
+}
+
+func TestE2E_ArchetypesCommand_UnknownCommand(t *testing.T) {
+	dir := t.TempDir()
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "archetypes")
+	assert.Equal(t, 2, exitCode,
+		"'archetypes' command must exit 2 (unknown command), got %d", exitCode)
+	assert.Contains(t, stderr, "unknown command",
+		"expected 'unknown command' in stderr, got: %s", stderr)
+}
+
+func TestE2E_Config_ArchetypesKeyProducesError(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, ".mdsmith.yml"),
+		[]byte("archetypes:\n  roots:\n    - archetypes\nrules: {}\n"),
+		0o644))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "doc.md"),
+		[]byte("# Title\n"),
+		0o644))
+	_, stderr, exitCode := runBinaryInDir(t, dir, "", "check", "doc.md")
+	assert.Equal(t, 2, exitCode,
+		"config with 'archetypes:' key must exit 2, got %d", exitCode)
+	assert.Contains(t, stderr, "kinds:",
+		"error must direct user to 'kinds:', got: %s", stderr)
+}
+
 // --- Stdin frontmatter and Configurable settings tests ---
 
 func TestE2E_Check_Stdin_FrontMatterLineOffset(t *testing.T) {

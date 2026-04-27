@@ -308,41 +308,22 @@ func TestEffectiveExplicitRulesFrontMatterKinds(t *testing.T) {
 	assert.True(t, result["paragraph-readability"])
 }
 
-// --- InjectArchetypeRoots with kinds ---
+// --- kinds: schema path integration ---
 
-func TestInjectArchetypeRootsInjectsIntoKinds(t *testing.T) {
+func TestKindWithSchemaPath_MergesIntoRule(t *testing.T) {
 	cfg := &Config{
-		Archetypes: ArchetypesCfg{Roots: []string{"archetypes"}},
 		Kinds: map[string]KindBody{
 			"plan": {Rules: map[string]RuleCfg{
-				"required-structure": {Enabled: true},
+				"required-structure": {Enabled: true, Settings: map[string]any{
+					"schema": "plan/proto.md",
+				}},
 			}},
 		},
 	}
-	InjectArchetypeRoots(cfg)
-	roots := cfg.Kinds["plan"].Rules["required-structure"].Settings["archetype-roots"]
-	require.NotNil(t, roots)
-	arr, ok := roots.([]any)
+	merged := Merge(&Config{Rules: map[string]RuleCfg{}}, cfg)
+	schemaVal, ok := merged.Kinds["plan"].Rules["required-structure"].Settings["schema"]
 	require.True(t, ok)
-	assert.Equal(t, []any{"archetypes"}, arr)
-}
-
-func TestInjectArchetypeRootsSkipsKindWithExistingRoots(t *testing.T) {
-	existing := []any{"custom-root"}
-	cfg := &Config{
-		Archetypes: ArchetypesCfg{Roots: []string{"archetypes"}},
-		Kinds: map[string]KindBody{
-			"plan": {Rules: map[string]RuleCfg{
-				"required-structure": {
-					Enabled:  true,
-					Settings: map[string]any{"archetype-roots": existing},
-				},
-			}},
-		},
-	}
-	InjectArchetypeRoots(cfg)
-	roots := cfg.Kinds["plan"].Rules["required-structure"].Settings["archetype-roots"]
-	assert.Equal(t, existing, roots, "existing roots should not be overwritten")
+	assert.Equal(t, "plan/proto.md", schemaVal)
 }
 
 // --- Defensive: kind present in effective list but missing from cfg.Kinds ---
@@ -410,22 +391,25 @@ func TestCopyKindsNilSettingsRemainNil(t *testing.T) {
 }
 
 func TestMergeKindSettingsIsolatedFromLoaded(t *testing.T) {
-	// Verify that InjectArchetypeRoots on the merged config does not mutate
+	// Verify that mutating the merged config's kind Settings does not affect
 	// the loaded config's Settings via shared map references.
 	loaded := &Config{
-		Archetypes: ArchetypesCfg{Roots: []string{"archetypes"}},
 		Kinds: map[string]KindBody{
 			"plan": {Rules: map[string]RuleCfg{
-				"required-structure": {Enabled: true},
+				"required-structure": {Enabled: true, Settings: map[string]any{
+					"schema": "plan/proto.md",
+				}},
 			}},
 		},
 	}
 	merged := Merge(&Config{}, loaded)
-	InjectArchetypeRoots(merged)
+	// Mutate the merged config's settings.
+	merged.Kinds["plan"].Rules["required-structure"].Settings["schema"] = "mutated.md"
 
 	// The original loaded config's Settings must not have been mutated.
-	assert.Nil(t, loaded.Kinds["plan"].Rules["required-structure"].Settings,
-		"InjectArchetypeRoots on merged config must not mutate loaded config's Settings")
+	assert.Equal(t, "plan/proto.md",
+		loaded.Kinds["plan"].Rules["required-structure"].Settings["schema"],
+		"mutation of merged config must not affect loaded config's Settings")
 }
 
 // --- helpers ---
