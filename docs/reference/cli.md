@@ -100,15 +100,6 @@ not the host that pulls it in.
 Each subcommand accepts `--json` for stable structured
 output. Unknown kinds and unresolved schemas exit `2`.
 
-Provenance layer sources:
-
-- `default` — built-ins plus top-level `rules:`.
-- `kinds.<name>` — one per kind in the effective list.
-- `overrides[<i>]` — one per matching glob override
-  (zero-indexed).
-- `front-matter override` — reserved for future
-  per-file rule overrides.
-
 ## `--explain` on `check` / `fix`
 
 `--explain` attaches per-leaf rule provenance to each
@@ -119,76 +110,50 @@ JSON adds an `explanation` field (see schema below).
 ## JSON Schemas
 
 Stable shapes for LSP / tool consumption. `leaves[]`
-always lists every leaf of the final rule config:
-`enabled` plus one entry per `settings.<key>`. Output
-never elides leaves.
+always lists every leaf of the final rule config —
+`enabled` plus one entry per `settings.<key>`; output
+never elides leaves. Source labels: `default`,
+`front-matter override`, `front-matter`,
+`kind-assignment[<i>]`, `kinds.<name>`, or
+`overrides[<i>]`.
 
-`check --explain` adds an `explanation` to each diag
-(omitted without `--explain`):
-
-```json
-"explanation": {
-  "rule": "line-length",
-  "leaves": [
-    {"path": "enabled", "value": true, "source": "default"},
-    {"path": "settings.max", "value": 30, "source": "kinds.short"}
-  ]
-}
-```
-
-`kinds list` → `{"kinds": [<body>...]}`; `show` → one
-body. Body shape: `{"name", "rules", "categories"}`.
-`rules[<name>]` follows the YAML rule-cfg union:
-`false`, `true`, or the settings map.
-
-`kinds resolve <file>`:
+`check --explain` adds an `explanation` field to each
+diag (omitted without `--explain`):
 
 ```json
-{
-  "file": "plan/95.md",
-  "kinds": [{"name": "plan", "source": "kind-assignment[0]"}],
-  "categories": {"meta": true},
-  "rules": {
-    "max-file-length": {
-      "final": {"max": 500},
-      "leaves": [
-        {"path": "enabled", "value": true, "source": "default"},
-        {"path": "settings.max", "value": 500, "source": "kinds.plan"}
-      ]
-    }
-  }
-}
+"explanation": {"rule": "line-length", "leaves": [
+  {"path": "enabled", "value": true, "source": "default"},
+  {"path": "settings.max", "value": 30, "source": "kinds.short"}
+]}
 ```
 
-`kinds[].source` is `front-matter` or
-`kind-assignment[<i>]`.
+`kinds list` → `{"kinds": [<body>...]}`; `show <name>`
+→ one body. Body: `{"name", "rules", "categories"}`
+where `rules[<name>]` follows the YAML rule-cfg union
+(`false`, `true`, or the settings map).
 
-`kinds why <file> <rule>` (`leaves[].chain` records
-every layer that set the leaf):
+`kinds resolve <file>` returns `{file, kinds, categories,
+rules}`. Each rule entry is `{final, leaves}` with a leaf
+per `enabled` and `settings.<key>`.
+
+`kinds why <file> <rule>` adds two arrays. `layers[]`
+lists every applicable layer in chain order. No-op layers
+carry `"set": false` and omit `value`. `leaves[].chain`
+records the layers that set the leaf, in chain order:
 
 ```json
-{
-  "file": "plan/9_big.md",
-  "rule": "max-file-length",
-  "final": {"max": 900},
-  "layers": [
-    {"source": "default", "set": true, "value": {"max": 300}},
-    {"source": "kinds.plan", "set": true, "value": {"max": 500}},
-    {"source": "overrides[0]", "set": true, "value": {"max": 900}}
-  ],
-  "leaves": [
-    {"path": "settings.max", "value": 900,
-     "source": "overrides[0]",
-     "chain": [
-       {"source": "default", "value": 300},
-       {"source": "kinds.plan", "value": 500},
-       {"source": "overrides[0]", "value": 900}
-     ]}
-  ]
-}
+{"file": "plan/9_big.md", "rule": "max-file-length",
+ "final": {"max": 900},
+ "layers": [
+   {"source": "default", "set": true, "value": {"max": 300}},
+   {"source": "kinds.plan", "set": true, "value": {"max": 500}},
+   {"source": "overrides[0]", "set": true, "value": {"max": 900}}],
+ "leaves": [{"path": "settings.max", "value": 900,
+   "source": "overrides[0]", "chain": [
+     {"source": "default", "value": 300},
+     {"source": "kinds.plan", "value": 500},
+     {"source": "overrides[0]", "value": 900}]}]}
 ```
-
-No-op layers carry `"set": false` and omit `value`.
 
 ## `archetypes` Subcommands
 
