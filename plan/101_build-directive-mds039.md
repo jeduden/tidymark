@@ -8,6 +8,7 @@ summary: >-
   declared schema and keeps the body in sync with
   the rendered `body_template` on `mdsmith fix`.
   No external tool runs at lint time.
+model: sonnet
 ---
 # build directive and MDS039 lint rule
 

@@ -9,6 +9,7 @@ summary: >-
   targets. Adds `--force` and `--check-stale` flags
   to `mdsmith build`. Without this, "build system"
   is aspirational; every run does a full rebuild.
+model: opus
 ---
 # Build target staleness and dependency tracking
 

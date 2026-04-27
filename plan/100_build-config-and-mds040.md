@@ -8,6 +8,7 @@ summary: >-
   `command` field: no shell interpreter as first token,
   no shell operators in static parts, no fused
   `{param}` placeholders.
+model: sonnet
 ---
 # build config block and MDS040 recipe-safety rule
 

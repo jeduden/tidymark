@@ -8,6 +8,7 @@ summary: >-
   custom via `os/exec` argv), and the `mdsmith build`
   subcommand that walks files, dispatches to recipe
   drivers, and writes artifacts atomically.
+model: opus
 ---
 # Builder interface and mdsmith build subcommand
 
