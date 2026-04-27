@@ -26,8 +26,7 @@ Refactors silently break Markdown links and anchors.
 flags every missing file and missing heading anchor in PR
 review. Pair it with
 [`required-structure`](internal/rules/MDS020-required-structure/README.md)
-to enforce that each file has the sections it should
-(reusable schemas live under `mdsmith archetypes`), and
+to enforce that each file has the sections it should, and
 [`directory-structure`](internal/rules/MDS033-directory-structure/README.md)
 to keep Markdown in the folders it belongs.
 
@@ -90,7 +89,6 @@ mdsmith <command> [flags] [files...]
 | `help`         | Show help for rules and topics                 |
 | `metrics`      | List and rank Markdown metrics                 |
 | `merge-driver` | Git merge driver for regenerable sections      |
-| `archetypes`   | Discover, show, and locate archetype schemas   |
 | `init`         | Generate `.mdsmith.yml`                        |
 | `version`      | Print version, exit                            |
 
