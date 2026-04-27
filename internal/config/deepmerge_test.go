@@ -196,3 +196,61 @@ func TestEffective_BlockReplacementStillWorks(t *testing.T) {
 	got := Effective(cfg, "wide/foo.md", nil)
 	assert.Equal(t, 200, got["line-length"].Settings["max"])
 }
+
+// --- Backward compatibility regression ---
+
+func TestEffective_BackwardCompatibility_FullBodyOverrideAtEachLayer(t *testing.T) {
+	// Configurations that already specify each rule's body in full at
+	// the latest layer must produce identical effective settings under
+	// deep-merge as they did under block replacement.
+	cfg := &Config{
+		Rules: map[string]RuleCfg{
+			"line-length":        {Enabled: true, Settings: map[string]any{"max": 80}},
+			"first-line-heading": {Enabled: true, Settings: map[string]any{"level": 1}},
+		},
+		Kinds: map[string]KindBody{
+			"plan": {Rules: map[string]RuleCfg{
+				// Plan kind restates each rule's full body.
+				"line-length":        {Enabled: true, Settings: map[string]any{"max": 100}},
+				"first-line-heading": {Enabled: true, Settings: map[string]any{"level": 2}},
+			}},
+		},
+		Overrides: []Override{
+			{
+				Files: []string{"plan/special.md"},
+				Rules: map[string]RuleCfg{
+					"line-length": {Enabled: true, Settings: map[string]any{"max": 120}},
+				},
+			},
+		},
+	}
+	got := Effective(cfg, "plan/special.md", []string{"plan"})
+	// Plan layer wins on first-line-heading.level (block-replaces the default).
+	assert.Equal(t, 2, got["first-line-heading"].Settings["level"])
+	// Override beats kind on line-length.max.
+	assert.Equal(t, 120, got["line-length"].Settings["max"])
+}
+
+// --- noemphasisasheading also declares append for placeholders ---
+
+func TestEffective_NoEmphasisAsHeading_PlaceholdersAppend(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleCfg{
+			"no-emphasis-as-heading": {Enabled: true, Settings: map[string]any{
+				"placeholders": []any{"heading-question"},
+			}},
+		},
+		Kinds: map[string]KindBody{
+			"plan": {Rules: map[string]RuleCfg{
+				"no-emphasis-as-heading": {Enabled: true, Settings: map[string]any{
+					"placeholders": []any{"var-token"},
+				}},
+			}},
+		},
+	}
+	got := Effective(cfg, "doc.md", []string{"plan"})
+	rc := got["no-emphasis-as-heading"]
+	ph, ok := rc.Settings["placeholders"].([]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"heading-question", "var-token"}, ph)
+}

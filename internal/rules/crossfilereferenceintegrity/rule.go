@@ -235,6 +235,16 @@ func (r *Rule) DefaultSettings() map[string]any {
 	}
 }
 
+// MergeModes implements rule.ListMerger. The placeholders list
+// concatenates across config layers; include and exclude lists keep
+// the default replace mode because they define a file-set per layer
+// rather than a vocabulary union.
+func (r *Rule) MergeModes() map[string]rule.MergeMode {
+	return map[string]rule.MergeMode{
+		"placeholders": rule.MergeAppend,
+	}
+}
+
 type targetFile struct {
 	cacheKey string
 	read     func() ([]byte, error)
@@ -626,3 +636,4 @@ func toStringSlice(v any) ([]string, bool) {
 }
 
 var _ rule.Configurable = (*Rule)(nil)
+var _ rule.ListMerger = (*Rule)(nil)
