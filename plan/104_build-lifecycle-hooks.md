@@ -141,7 +141,8 @@ MDS040 (plan 100) already lints recipe
 
 A hook `params` entry must be referenced by at
 least one `{param}` token in its `command`;
-unused params are a warning. (Same as recipes.)
+unused params are a warning. (Same as recipes,
+per plan 100 rule 6.)
 
 ### Flags
 
@@ -190,9 +191,10 @@ explicit opt-in.)
 ## Tasks
 
 1. Extend `BuildConfig` in `internal/config/`
-   with `Hooks: HooksCfg{Before, After
-   []HookCfg}`. Validate each `HookCfg` the
-   same way as `RecipeCfg.command`.
+   with a `Hooks HooksCfg` field. Define
+   `HooksCfg` with `Before []HookCfg` and
+   `After []HookCfg` fields. Validate each
+   `HookCfg` the same way as `RecipeCfg.command`.
 2. Extend MDS040 (plan 100) to lint hook
    `command` strings using the existing rule
    set. Add fixtures covering shell interpreter,

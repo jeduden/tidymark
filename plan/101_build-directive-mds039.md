@@ -186,7 +186,7 @@ introduce a new recipe.
       tool for `<?build?>` blocks
 - [ ] MDS039 rejects an unknown recipe name
 - [ ] MDS039 rejects a missing `output` param
-- [ ] MDS039 rejects a `output` value that contains
+- [ ] MDS039 rejects an `output` value that contains
       `..` components
 - [ ] MDS039 rejects a `<?build recipe:screenshot?>`
       that omits the required `url` param

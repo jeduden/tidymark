@@ -107,6 +107,11 @@ MDS040 validates every `command` in `build.recipes`:
    at build time could produce unexpected values.
 5. **No `..` in executable** — the first token must
    not contain a `..` path component.
+6. **No unused params** (warning, not error) — every
+   entry in `params.required` and `params.optional`
+   must be referenced by at least one `{param}`
+   token in `command`. Catches typos before they
+   waste a build.
 
 `command` is split on whitespace into tokens for
 validation (the same split used at build time by plan
@@ -167,6 +172,9 @@ delimiter (MDS040)
       (e.g. `{a}{b}`)
 - [ ] MDS040 flags a recipe whose executable token
       contains `..`
+- [ ] MDS040 warns (not errors) when a recipe declares
+      a `params.required` or `params.optional` entry
+      that no `{param}` token in `command` references
 - [ ] MDS040 passes a clean command like
       `mmdc -i {input} -o {output}`
 - [ ] A config with no `build:` key passes MDS040
