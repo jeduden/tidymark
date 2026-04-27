@@ -1,17 +1,16 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	flag "github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 
 	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/kindsout"
 	"github.com/jeduden/mdsmith/internal/lint"
 )
 
@@ -78,51 +77,6 @@ func sortedKindNames(cfg *config.Config) []string {
 	return names
 }
 
-// kindBodyForJSON renders a KindBody as a JSON-friendly value with
-// rules and categories separated, using the rule config's marshal
-// form (settings map or bool).
-type kindBodyJSON struct {
-	Name       string                 `json:"name"`
-	Rules      map[string]ruleCfgJSON `json:"rules"`
-	Categories map[string]bool        `json:"categories,omitempty"`
-}
-
-// ruleCfgJSON serializes a RuleCfg to JSON. A disabled rule is the
-// boolean false; an enabled rule with settings is its settings map;
-// an enabled rule without settings is the boolean true.
-type ruleCfgJSON struct {
-	v any
-}
-
-// MarshalJSON implements json.Marshaler for ruleCfgJSON.
-func (r ruleCfgJSON) MarshalJSON() ([]byte, error) {
-	return json.Marshal(r.v)
-}
-
-func makeKindBodyJSON(name string, body config.KindBody) kindBodyJSON {
-	rules := make(map[string]ruleCfgJSON, len(body.Rules))
-	for k, v := range body.Rules {
-		rules[k] = ruleCfgJSON{v: ruleCfgValue(v)}
-	}
-	return kindBodyJSON{
-		Name:       name,
-		Rules:      rules,
-		Categories: body.Categories,
-	}
-}
-
-// ruleCfgValue returns the JSON-friendly value of a RuleCfg, matching
-// its YAML marshalling: false, true, or the settings map.
-func ruleCfgValue(rc config.RuleCfg) any {
-	if !rc.Enabled && rc.Settings == nil {
-		return false
-	}
-	if rc.Enabled && len(rc.Settings) > 0 {
-		return rc.Settings
-	}
-	return true
-}
-
 // runKindsList prints declared kinds with their merged bodies.
 func runKindsList(args []string) int {
 	fs := flag.NewFlagSet("kinds list", flag.ContinueOnError)
@@ -148,10 +102,10 @@ func runKindsList(args []string) int {
 
 	if asJSON {
 		out := struct {
-			Kinds []kindBodyJSON `json:"kinds"`
-		}{Kinds: make([]kindBodyJSON, 0, len(names))}
+			Kinds []kindsout.BodyJSON `json:"kinds"`
+		}{Kinds: make([]kindsout.BodyJSON, 0, len(names))}
 		for _, name := range names {
-			out.Kinds = append(out.Kinds, makeKindBodyJSON(name, cfg.Kinds[name]))
+			out.Kinds = append(out.Kinds, kindsout.MakeBodyJSON(name, cfg.Kinds[name]))
 		}
 		return writeJSON(os.Stdout, out)
 	}
@@ -166,40 +120,11 @@ func runKindsList(args []string) int {
 				return printErr(err)
 			}
 		}
-		if err := writeKindBodyText(os.Stdout, name, cfg.Kinds[name]); err != nil {
+		if err := kindsout.WriteBodyText(os.Stdout, name, cfg.Kinds[name]); err != nil {
 			return printErr(err)
 		}
 	}
 	return 0
-}
-
-// writeKindBodyText renders a kind body as YAML with a header line
-// naming the kind. Useful for both list and show.
-func writeKindBodyText(w *os.File, name string, body config.KindBody) error {
-	if _, err := fmt.Fprintf(w, "%s:\n", name); err != nil {
-		return err
-	}
-	wrap := struct {
-		Rules      map[string]config.RuleCfg `yaml:"rules,omitempty"`
-		Categories map[string]bool           `yaml:"categories,omitempty"`
-	}{
-		Rules:      body.Rules,
-		Categories: body.Categories,
-	}
-	data, err := yaml.Marshal(wrap)
-	if err != nil {
-		return err
-	}
-	if len(data) == 0 || strings.TrimSpace(string(data)) == "{}" {
-		_, err := fmt.Fprintln(w, "  (empty)")
-		return err
-	}
-	for _, line := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
-		if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // runKindsShow prints one kind's merged body.
@@ -231,12 +156,11 @@ func runKindsShow(args []string) int {
 	}
 
 	if asJSON {
-		return writeJSON(os.Stdout, makeKindBodyJSON(name, body))
+		return writeJSON(os.Stdout, kindsout.MakeBodyJSON(name, body))
 	}
 
-	if err := writeKindBodyText(os.Stdout, name, body); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return 2
+	if err := kindsout.WriteBodyText(os.Stdout, name, body); err != nil {
+		return printErr(err)
 	}
 	return 0
 }
@@ -275,7 +199,19 @@ func runKindsPath(args []string) int {
 			"mdsmith: kind %q does not configure required-structure\n", name)
 		return 2
 	}
-	schema, _ := rs.Settings["schema"].(string)
+	rawSchema, hasSchema := rs.Settings["schema"]
+	if !hasSchema {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: kind %q has no required-structure.schema set\n", name)
+		return 2
+	}
+	schema, ok := rawSchema.(string)
+	if !ok {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: kind %q required-structure.schema must be a string, got %T (%v)\n",
+			name, rawSchema, rawSchema)
+		return 2
+	}
 	if schema == "" {
 		fmt.Fprintf(os.Stderr,
 			"mdsmith: kind %q has no required-structure.schema set\n", name)
@@ -289,8 +225,7 @@ func runKindsPath(args []string) int {
 		}
 	}
 	if _, err := fmt.Fprintln(os.Stdout, resolved); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return 2
+		return printErr(err)
 	}
 	return 0
 }
@@ -356,9 +291,12 @@ func runKindsResolve(args []string) int {
 	}
 
 	if asJSON {
-		return writeJSON(os.Stdout, fileResolutionJSON(res))
+		return writeJSON(os.Stdout, kindsout.FileResolution(res))
 	}
-	return writeFileResolutionText(os.Stdout, res)
+	if err := kindsout.WriteFileResolutionText(os.Stdout, res); err != nil {
+		return printErr(err)
+	}
+	return 0
 }
 
 // runKindsWhy prints the full merge chain for one rule on one file.
@@ -391,218 +329,21 @@ func runKindsWhy(args []string) int {
 	}
 
 	if asJSON {
-		return writeJSON(os.Stdout, ruleResolutionJSON(res.File, rr))
+		return writeJSON(os.Stdout, kindsout.RuleResolution(res.File, rr))
 	}
-	return writeRuleResolutionText(os.Stdout, res.File, rr)
+	if err := kindsout.WriteRuleResolutionText(os.Stdout, res.File, rr); err != nil {
+		return printErr(err)
+	}
+	return 0
 }
 
 // writeJSON emits v as pretty-printed JSON. Returns a non-zero exit
 // code on encoding error.
-func writeJSON(w *os.File, v any) int {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(v); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return 2
+func writeJSON(w io.Writer, v any) int {
+	if err := kindsout.WriteJSON(w, v); err != nil {
+		return printErr(err)
 	}
 	return 0
-}
-
-// --- JSON shape for resolve / why ---
-
-type resolvedKindJSON struct {
-	Name   string `json:"name"`
-	Source string `json:"source"`
-}
-
-type leafJSON struct {
-	Path   string          `json:"path"`
-	Value  any             `json:"value"`
-	Source string          `json:"source"`
-	Chain  []leafChainJSON `json:"chain,omitempty"`
-}
-
-type leafChainJSON struct {
-	Source string `json:"source"`
-	Value  any    `json:"value"`
-}
-
-type layerJSON struct {
-	Source string `json:"source"`
-	Set    bool   `json:"set"`
-	Value  any    `json:"value,omitempty"`
-}
-
-type ruleResolutionJSONShape struct {
-	File   string      `json:"file"`
-	Rule   string      `json:"rule"`
-	Final  any         `json:"final"`
-	Layers []layerJSON `json:"layers"`
-	Leaves []leafJSON  `json:"leaves"`
-}
-
-type fileResolutionJSONShape struct {
-	File       string                 `json:"file"`
-	Kinds      []resolvedKindJSON     `json:"kinds"`
-	Categories map[string]bool        `json:"categories,omitempty"`
-	Rules      map[string]ruleSummary `json:"rules"`
-}
-
-type ruleSummary struct {
-	Final  any        `json:"final"`
-	Leaves []leafJSON `json:"leaves"`
-}
-
-func fileResolutionJSON(res *config.FileResolution) fileResolutionJSONShape {
-	out := fileResolutionJSONShape{
-		File:       res.File,
-		Kinds:      make([]resolvedKindJSON, 0, len(res.Kinds)),
-		Categories: res.Categories,
-		Rules:      make(map[string]ruleSummary, len(res.Rules)),
-	}
-	for _, k := range res.Kinds {
-		out.Kinds = append(out.Kinds, resolvedKindJSON{
-			Name: k.Name, Source: string(k.Source),
-		})
-	}
-	for name, rr := range res.Rules {
-		out.Rules[name] = ruleSummary{
-			Final:  ruleCfgValue(rr.Final),
-			Leaves: leavesJSON(rr.Leaves),
-		}
-	}
-	return out
-}
-
-func ruleResolutionJSON(file string, rr config.RuleResolution) ruleResolutionJSONShape {
-	layers := make([]layerJSON, 0, len(rr.Layers))
-	for _, l := range rr.Layers {
-		entry := layerJSON{Source: l.Source, Set: l.Set}
-		if l.Set {
-			entry.Value = ruleCfgValue(l.Value)
-		}
-		layers = append(layers, entry)
-	}
-	return ruleResolutionJSONShape{
-		File:   file,
-		Rule:   rr.Rule,
-		Final:  ruleCfgValue(rr.Final),
-		Layers: layers,
-		Leaves: leavesJSON(rr.Leaves),
-	}
-}
-
-func leavesJSON(leaves []config.Leaf) []leafJSON {
-	out := make([]leafJSON, 0, len(leaves))
-	for _, l := range leaves {
-		entry := leafJSON{
-			Path:   l.Path,
-			Value:  l.Value,
-			Source: l.Source(),
-		}
-		for _, c := range l.Chain {
-			entry.Chain = append(entry.Chain, leafChainJSON{
-				Source: c.Source, Value: c.Value,
-			})
-		}
-		out = append(out, entry)
-	}
-	return out
-}
-
-// --- Text rendering for resolve / why ---
-
-// fpf is a write-with-error-check helper that swallows the byte count
-// from fmt.Fprintf so callers only need to track the error.
-func fpf(w *os.File, format string, args ...any) error {
-	_, err := fmt.Fprintf(w, format, args...)
-	return err
-}
-
-func writeFileResolutionText(w *os.File, res *config.FileResolution) int {
-	if err := fpf(w, "file: %s\n", res.File); err != nil {
-		return printErr(err)
-	}
-	if err := fpf(w, "effective kinds:\n"); err != nil {
-		return printErr(err)
-	}
-	if len(res.Kinds) == 0 {
-		if err := fpf(w, "  (none)\n"); err != nil {
-			return printErr(err)
-		}
-	} else {
-		for _, k := range res.Kinds {
-			if err := fpf(w, "  - %s (from %s)\n", k.Name, k.Source); err != nil {
-				return printErr(err)
-			}
-		}
-	}
-
-	if err := fpf(w, "rules:\n"); err != nil {
-		return printErr(err)
-	}
-	names := make([]string, 0, len(res.Rules))
-	for name := range res.Rules {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		rr := res.Rules[name]
-		if err := fpf(w, "  %s:\n", name); err != nil {
-			return printErr(err)
-		}
-		for _, leaf := range rr.Leaves {
-			if err := fpf(w, "    %s = %s  (from %s)\n",
-				leaf.Path, formatValue(leaf.Value), leaf.Source()); err != nil {
-				return printErr(err)
-			}
-		}
-	}
-	return 0
-}
-
-func writeRuleResolutionText(w *os.File, file string, rr config.RuleResolution) int {
-	if err := fpf(w, "file: %s\nrule: %s\n\nmerge chain (oldest -> newest):\n",
-		file, rr.Rule); err != nil {
-		return printErr(err)
-	}
-	for _, l := range rr.Layers {
-		var line string
-		if l.Set {
-			line = fmt.Sprintf("  %-30s set    %s\n",
-				l.Source, formatValue(ruleCfgValue(l.Value)))
-		} else {
-			line = fmt.Sprintf("  %-30s no-op  (rule untouched)\n", l.Source)
-		}
-		if err := fpf(w, "%s", line); err != nil {
-			return printErr(err)
-		}
-	}
-	if err := fpf(w, "\nper-leaf provenance:\n"); err != nil {
-		return printErr(err)
-	}
-	for _, leaf := range rr.Leaves {
-		if err := fpf(w, "  %s = %s  (winning source: %s)\n",
-			leaf.Path, formatValue(leaf.Value), leaf.Source()); err != nil {
-			return printErr(err)
-		}
-		for _, c := range leaf.Chain {
-			if err := fpf(w, "    %-28s %s\n", c.Source, formatValue(c.Value)); err != nil {
-				return printErr(err)
-			}
-		}
-	}
-	return 0
-}
-
-// formatValue renders a leaf value compactly (JSON-like) so settings
-// maps / lists / scalars all print on one line.
-func formatValue(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%v", v)
-	}
-	return string(b)
 }
 
 func printErr(err error) int {

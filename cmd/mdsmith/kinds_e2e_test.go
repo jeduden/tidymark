@@ -53,6 +53,15 @@ overrides:
         max: 900
 `
 
+func TestKinds_HelpKindsCLITopic(t *testing.T) {
+	dir := kindsTestDir(t, sampleKindsCfg, nil)
+	stdout, _, code := runBinaryInDir(t, dir, "", "help", "kinds-cli")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "Kinds Subcommand")
+	assert.Contains(t, stdout, "resolve <file>")
+	assert.Contains(t, stdout, "why <file> <rule>")
+}
+
 func TestKinds_NoArgsShowsUsage(t *testing.T) {
 	dir := kindsTestDir(t, sampleKindsCfg, nil)
 	_, stderr, code := runBinaryInDir(t, dir, "", "kinds")
@@ -175,6 +184,19 @@ func TestKinds_PathExits2OnUnknownKind(t *testing.T) {
 	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "path", "ghost")
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr, "unknown kind")
+}
+
+func TestKinds_PathExits2WhenSchemaIsNonString(t *testing.T) {
+	cfg := `kinds:
+  plan:
+    rules:
+      required-structure:
+        schema: 42
+`
+	dir := kindsTestDir(t, cfg, nil)
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "path", "plan")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "schema must be a string")
 }
 
 func TestKinds_ResolveTextShowsPerLeafProvenance(t *testing.T) {
