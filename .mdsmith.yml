@@ -153,14 +153,6 @@ overrides:
     rules:
       list-indent:
         spaces: 4
-  - files: ["internal/rules/MDS*/README.md"]
-    rules:
-      required-structure:
-        schema: internal/rules/proto.md
-  - files: ["plan/[0-9]*_*.md"]
-    rules:
-      required-structure:
-        schema: plan/proto.md
   - files: ["docs/background/*.md"]
     rules:
       line-length:

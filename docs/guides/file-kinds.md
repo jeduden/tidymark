@@ -120,31 +120,38 @@ resolves to `[plan]`.
 Rule settings come from four layers, applied in this
 order from lowest to highest precedence:
 
-1. Top-level `rules:` defaults.
-2. Each kind in the file's effective kind list, in order.
-3. Each `overrides:` entry whose `files:` glob matches,
+1. The rule's built-in defaults.
+2. Top-level `rules:` defaults.
+3. Each kind in the file's effective kind list, in order.
+4. Each `overrides:` entry whose `files:` glob matches,
    in config order.
 
-Within each kind and each override, a rule mentioned in
-the layer **replaces the rule's entire config block** —
-nested settings do not deep-merge. This matches today's
-`overrides:` semantics.
+Across all four layers the config is **deep-merged**
+rule by rule:
 
-The block-replace contract has one consequence worth
-spelling out: if a kind sets one setting on a rule, it
-loses the rule's other settings. A kind that wants to add
-a `placeholders:` token to a rule that already had
-`level: 1` configured at the top level must restate
-`level: 1` in the kind body, or the rule will reset to
-its built-in default level.
+- **Maps** merge key by key — a setting from an earlier
+  layer survives if the later layer doesn't touch the
+  same key.
+- **Scalar** values at a leaf replace the earlier value
+  wholesale.
+- **List** settings replace by default. A rule can opt
+  a specific list key into append mode (the
+  `placeholders:` setting is the canonical example).
+- A **bool-only** entry such as `rule-name: false`
+  toggles `enabled` without erasing any other settings
+  the rule inherited from earlier layers.
+
+Because the merge is key-by-key, a kind that sets one
+key on a rule leaves the rule's other settings intact
+from whichever earlier layer configured them.
 
 ## Conflict resolution
 
 When two kinds in the effective list configure the same
-rule, the **later kind wins** — its rule block replaces
-the earlier kind's rule block in full. The same applies
-between kinds and overrides: a matching `overrides:`
-entry replaces whatever the kinds produced for that rule.
+rule, the **later kind wins** — its settings deep-merge
+over the earlier kind's settings for that rule, with
+later scalar values overwriting earlier ones key by key.
+The same applies between kinds and overrides.
 
 Order is list-driven, so the result is stable across
 runs.
@@ -154,9 +161,8 @@ runs.
 For a file resolved as `[proto, plan]` with the kinds
 above:
 
-- `required-structure` comes from `plan` (later kind
-  replaces `proto`'s body, even if `proto` had set the
-  rule).
+- `required-structure` comes from `plan` (the `proto`
+  kind doesn't set it, so `plan`'s setting stands).
 - `paragraph-readability: false` comes from `proto` (the
   `plan` kind doesn't touch it).
 - `first-line-heading: false` comes from `proto` (the
@@ -174,25 +180,23 @@ diagnostic you expected doesn't fire — start with the
 resolved kind list and the merged rule config for that
 file.
 
-`mdsmith kinds resolve <file>` (introduced by the
-`kinds` subcommand) prints both: the effective kind list
-and the merged rule settings, with a per-leaf source so
-you can see which layer set each value. Use it whenever
-the rule config you read in `.mdsmith.yml` doesn't match
-the diagnostics on a file.
+A planned `mdsmith kinds resolve <file>` subcommand
+(tracked in plan 95) will print both: the effective kind
+list and the merged rule settings, with a per-leaf source
+so you can see which layer set each value.
 
-Until that subcommand lands, the same information is
-recoverable by reading `.mdsmith.yml` against the merge
-rules above:
+Until that lands, the same information is recoverable by
+reading `.mdsmith.yml` against the merge rules above:
 
 1. Read the file's front matter for any `kinds:` field.
 2. Walk `kind-assignment:` top to bottom and collect
    every entry whose `files:` glob matches the file.
 3. Concatenate the two lists, dropping duplicates after
    first occurrence — that's the effective kind list.
-4. Apply each kind body in order, then each matching
-   `overrides:` entry. Each layer replaces the rule
-   block it touches.
+4. Apply built-in defaults, then the top-level `rules:`
+   block, then each kind body in order, then each
+   matching `overrides:` entry. Each layer deep-merges
+   its settings over the accumulated config.
 
 For a quick primer on the same model from the CLI, run
 `mdsmith help kinds`.
