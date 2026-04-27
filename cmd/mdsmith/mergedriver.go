@@ -491,6 +491,12 @@ func ensurePreMergeCommitHook(repoRoot string, files []string) error {
 	if err := os.WriteFile(hookPath, []byte(content), 0o755); err != nil {
 		return fmt.Errorf("writing %s: %w", hookPath, err)
 	}
+	// Explicitly set execute permissions after writing. WriteFile's perm
+	// argument is masked by umask on creation and ignored when the file
+	// already exists, so a separate Chmod ensures the hook is executable.
+	if err := os.Chmod(hookPath, 0o755); err != nil {
+		return fmt.Errorf("setting permissions on %s: %w", hookPath, err)
+	}
 	return nil
 }
 
