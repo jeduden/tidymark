@@ -317,6 +317,20 @@ func TestRunKindsResolve_FrontMatterDisabledMissingFileReportsError(t *testing.T
 	assert.Contains(t, strings.ToLower(got), "no such")
 }
 
+// TestRunKindsResolve_FrontMatterDisabledDirectoryReportsError confirms
+// that passing a directory as the file argument is rejected with an
+// error when front-matter is disabled (os.Stat would have accepted it).
+func TestRunKindsResolve_FrontMatterDisabledDirectoryReportsError(t *testing.T) {
+	cfgBody := "front-matter: false\nrules: {}\n"
+	dir := chdirToConfig(t, cfgBody)
+
+	got := captureStderr(func() {
+		var buf bytes.Buffer
+		assert.Equal(t, 2, runKindsResolve(&buf, []string{dir}))
+	})
+	assert.Contains(t, got, "reading ")
+}
+
 // Compile-time assertion that the failing writers implement io.Writer.
 var (
 	_ io.Writer = alwaysFailingWriter{}

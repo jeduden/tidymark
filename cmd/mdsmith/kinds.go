@@ -266,8 +266,9 @@ func readFrontMatterKinds(path string, maxBytes int64) ([]string, error) {
 //
 // When the config disables front matter (`front-matter: false`), front
 // matter is neither parsed nor validated so the resolution mirrors the
-// engine's behavior; the file is still stat'd to surface a clear error
-// for missing or unreadable paths.
+// engine's behavior. The file is still opened and read (and checked
+// against max-input-size) to surface readability errors and to match
+// the engine's rejection of oversized or unreadable paths.
 func resolveFileFromCLI(path string) (*config.FileResolution, *config.Config, int) {
 	cfg, _, code := kindsConfig()
 	if code != 0 {
@@ -290,9 +291,20 @@ func resolveFileFromCLI(path string) (*config.FileResolution, *config.Config, in
 			fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
 			return nil, nil, 2
 		}
-	} else if _, err := os.Stat(path); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: reading %s: %v\n", path, err)
-		return nil, nil, 2
+	} else {
+		// front-matter disabled: no kinds from front matter, but still
+		// attempt an open/read to mirror the engine's readability and
+		// max-input-size checks (os.Stat passes on directories and
+		// unreadable paths).
+		maxBytes, err := resolveMaxInputBytes(cfg, "")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
+			return nil, nil, 2
+		}
+		if _, err := lint.ReadFileLimited(path, maxBytes); err != nil {
+			fmt.Fprintf(os.Stderr, "mdsmith: reading %s: %v\n", path, err)
+			return nil, nil, 2
+		}
 	}
 
 	return config.ResolveFile(cfg, path, fmKinds), cfg, 0
