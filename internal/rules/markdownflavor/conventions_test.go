@@ -62,6 +62,34 @@ func TestLookup_Unknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "portable")
 }
 
+func TestCloneValue_NestedMapsAndSlices(t *testing.T) {
+	// cloneValue handles three shapes: nested maps, slices, and
+	// scalars. The built-in convention table happens not to contain
+	// nested maps, so exercise that branch directly.
+	src := map[string]any{
+		"nested": map[string]any{
+			"deep":  "v",
+			"inner": []any{"a", "b"},
+		},
+		"list":   []any{1, 2, 3},
+		"scalar": "ok",
+	}
+	got := cloneAny(src)
+
+	// Mutating the clone must not bleed back into the source.
+	got["nested"].(map[string]any)["deep"] = "tampered"
+	got["list"].([]any)[0] = 99
+
+	assert.Equal(t, "v", src["nested"].(map[string]any)["deep"],
+		"nested map must be deep-copied")
+	assert.Equal(t, 1, src["list"].([]any)[0],
+		"slice must be deep-copied")
+}
+
+func TestCloneAny_NilReturnsNil(t *testing.T) {
+	assert.Nil(t, cloneAny(nil))
+}
+
 func TestLookup_ReturnsDeepCopy(t *testing.T) {
 	// Mutating the returned Convention must not corrupt the
 	// package-level table. Lookup is exported, so callers could
