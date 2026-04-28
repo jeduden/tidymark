@@ -1,7 +1,7 @@
 ---
 id: 105
 title: No inline HTML rule
-status: "🔲"
+status: "✅"
 summary: >-
   New rule MDS041 that flags raw HTML in Markdown
   (block and inline), with an allowlist for tags
@@ -170,63 +170,63 @@ distinct.
 
 ## Tasks
 
-1. Scaffold `internal/rules/noinlinehtml/` with
+1. [x] Scaffold `internal/rules/noinlinehtml/` with
    `rule.go`, `rule_test.go`, and the `init()`
    `rule.Register` call.
-2. Implement `Check()` walking the AST for
+2. [x] Implement `Check()` walking the AST for
    `*ast.HTMLBlock` and `*ast.RawHTML`.
-3. Add tag-name extraction helper with unit tests
+3. [x] Add tag-name extraction helper with unit tests
    covering opening, closing, self-closing,
    uppercase, hyphenated (`<my-tag>`), and malformed
    inputs.
-4. Implement `rule.Configurable` for `allow` and
+4. [x] Implement `rule.Configurable` for `allow` and
    `allow-comments`; document `allow` as
    replace-mode in the rule's `ApplySettings`
    handler.
-5. Implement `rule.Defaultable` returning `false`
+5. [x] Implement `rule.Defaultable` returning `false`
    so the rule is opt-in.
-6. Register as MDS041 in category `meta`.
-7. Add fixture tests in
+6. [x] Register as MDS041 in category `meta`.
+7. [x] Add fixture tests in
    `internal/rules/MDS041-no-inline-html/` with
    `good/` and `bad/` examples (paragraph with
    `<span>`, block with `<div>`, comment, allowlisted
    tag, directive, autolink — verify the directive
    and autolink fixtures stay clean).
-8. Add rule README following the MDS012 template.
-9. Update the docs catalog and the rule index so
+8. [x] Add rule README following the MDS012 template.
+9. [x] Update the docs catalog and the rule index so
    `<?catalog?>` regenerates the entry.
-10. Run `mdsmith check .` and `go test ./...` until
+10. [x] Run `mdsmith check .` and `go test ./...` until
     both pass.
 
 ## Acceptance Criteria
 
-- [ ] `<div>...</div>` on its own line emits one
+- [x] `<div>...</div>` on its own line emits one
       diagnostic naming the `<div>` tag.
-- [ ] `text <span>x</span> text` inside a paragraph
+- [x] `text <span>x</span> text` inside a paragraph
       emits one diagnostic naming the `<span>` tag.
-- [ ] `<br/>` and `<br>` both emit exactly one
+- [x] `<br/>` and `<br>` both emit exactly one
       diagnostic.
-- [ ] A tag listed in `allow:` emits no diagnostic.
-- [ ] `<!-- comment -->` emits no diagnostic when
+- [x] A tag listed in `allow:` emits no diagnostic.
+- [x] `<!-- comment -->` emits no diagnostic when
       `allow-comments: true`, and one diagnostic
       naming `<!--` when `allow-comments: false`.
-- [ ] `<?include file: foo.md ?>` and
+- [x] `<?include file: foo.md ?>` and
       `<?catalog ... ?>` block directives emit no
       diagnostic.
-- [ ] `text <?inline?> text` inline directive emits
+- [x] `text <?inline?> text` inline directive emits
       no diagnostic.
-- [ ] An inline `<?...?>` directive emits no
+- [x] An inline `<?...?>` directive emits no
       diagnostic even when `allow: []` and
       `allow-comments: false`.
-- [ ] `<https://example.com>` autolink emits no
+- [x] `<https://example.com>` autolink emits no
       diagnostic.
-- [ ] Fenced code blocks containing HTML emit no
+- [x] Fenced code blocks containing HTML emit no
       diagnostic.
-- [ ] Rule is disabled by default; enabling it via
+- [x] Rule is disabled by default; enabling it via
       `rules.no-inline-html: true` activates checking
       with empty allowlist.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
-- [ ] `mdsmith check .` passes on the repo with the
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
+- [x] `mdsmith check .` passes on the repo with the
       rule disabled (no regression for existing
       docs).
