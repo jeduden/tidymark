@@ -16,9 +16,10 @@ import (
 // rules that are not yet registered (presets for upcoming MDS04x
 // rules ship alongside the convention so that adding the rule does
 // not require updating every consumer's config). The config loader
-// treats presets for unregistered rules as a no-op at check time;
-// the settings remain in the merged config and activate
-// automatically once the rule lands.
+// stores those presets in the merged config; the rule engine
+// iterates the registered rules at check time and silently skips
+// any preset that does not name one. The settings activate
+// automatically once the rule lands and registers.
 type Convention struct {
 	// Name is the lowercase identifier used in YAML config.
 	Name string

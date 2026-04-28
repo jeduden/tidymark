@@ -36,8 +36,8 @@ values:
 - `gfm` — GitHub Flavored Markdown; adds tables,
   task lists, strikethrough, and bare-URL
   autolinks.
-- `goldmark` — mdsmith-defined profile; GFM plus
-  heading IDs.
+- `goldmark` — mdsmith-defined flavor variant; GFM
+  plus heading IDs.
 - `pandoc` — Pandoc's default markdown; GFM plus
   footnotes, definition lists, heading IDs,
   superscript, subscript, math block, and inline

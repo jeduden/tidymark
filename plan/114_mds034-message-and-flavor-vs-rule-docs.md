@@ -142,7 +142,11 @@ been updated to match what shipped.
 1. Rewrite the format string and drop
    `Feature.Verb()` plus the test that exercises
    it.
-2. Update the 21 bad fixtures' expected messages.
+2. Update the bad fixtures' expected messages
+   (twenty-one at the time this plan landed; the
+   final count became eighteen after the
+   convention rename removed three rule-level
+   profile fixtures).
 3. Write the
    [concepts doc](../docs/background/concepts/flavor-rule-convention-kind.md).
 4. Add the link from the MDS034 README and the

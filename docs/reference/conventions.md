@@ -88,8 +88,8 @@ Markdown that survives `cat`. The rendered output
 should look about the same as the source viewed in
 a plaintext reader. Same activations as `portable`,
 plus `allow-comments: false` on `no-inline-html` so
-HTML comments do not leak through as literal `<!--
-... -->` text.
+HTML comments do not leak through as literal
+`<!-- ... -->` text.
 
 A truly plaintext-faithful convention needs three
 more rules. One forbids `*` and `_` runs. One

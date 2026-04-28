@@ -164,7 +164,7 @@ func (f Feature) Name() string {
 
 // support maps (flavor, feature) to whether the flavor accepts it.
 // CommonMark rejects every tracked feature. GFM adds tables, task
-// lists, strikethrough, and bare-URL autolinks. The goldmark profile
+// lists, strikethrough, and bare-URL autolinks. The goldmark flavor
 // further adds heading IDs. Pandoc, PHP Markdown Extra, MultiMarkdown,
 // and MyST each pick a different combination of the optional
 // features; FlavorAny is handled specially in Supports.
