@@ -508,6 +508,20 @@ func TestLoadConfigRaw_EmptyPath_ReturnsNonNilConfig(t *testing.T) {
 	assert.NotNil(t, cfg)
 }
 
+// --- run: archetypes subcommand removed ---
+
+func TestRun_ArchetypesExitsTwo(t *testing.T) {
+	old := os.Args
+	os.Args = []string{"mdsmith", "archetypes"}
+	defer func() { os.Args = old }()
+
+	got := captureStderr(func() {
+		code := run()
+		assert.Equal(t, 2, code)
+	})
+	assert.Contains(t, got, "unknown command")
+}
+
 // --- runInit ---
 
 func TestRunInit_ExtraArgs_ExitsTwo(t *testing.T) {
@@ -534,6 +548,9 @@ func TestRunInit_CreatesConfigFile(t *testing.T) {
 	// Verify it's parseable YAML
 	var out map[string]any
 	require.NoError(t, yaml.Unmarshal(data, &out))
+	// Verify no archetypes key is present.
+	_, hasArchetypes := out["archetypes"]
+	assert.False(t, hasArchetypes, "init must not write an 'archetypes:' key")
 }
 
 func TestRunInit_AlreadyExists_ExitsTwo(t *testing.T) {

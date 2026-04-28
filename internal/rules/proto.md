@@ -80,8 +80,8 @@ rules:
 - **Implementation**:
   [source](./)
 - **Category**: CATEGORY
-- **Archetype**:
-  [NAME](../../../docs/background/archetypes/NAME/)
+- **Concept**:
+  [NAME](../../../docs/background/concepts/NAME.md)
 
 <!-- Bullets in this order: ID, Name, Status, Default, Fixable,
      Implementation, Category, Archetype (if applicable).

@@ -48,6 +48,13 @@ func Load(path string) (*Config, error) {
 				"or remove the key")
 	}
 
+	if keys["archetypes"] {
+		return nil, fmt.Errorf(
+			"config key `archetypes` is no longer supported; " +
+				"use `kinds:` with `rules.required-structure.schema:` " +
+				"to associate schema files with file groups")
+	}
+
 	if err := ValidateKinds(&cfg); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
