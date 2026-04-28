@@ -99,6 +99,43 @@ modeled after ESLint. ~3.1k stars.
   v15.2) for AI assistant integration
 - Strong Japanese language support
 
+### [Hugo][]
+
+Go binary. Static site generator, not a linter. ~78k
+stars. Included here because Hugo's templating overlaps
+with mdsmith's directive system, and teams often weigh
+the two when deciding where docs automation should live.
+
+- Reads Markdown plus YAML/TOML/JSON front matter and
+  renders to HTML via Go templates
+- [Shortcodes][hugo-shortcodes] (`{{< ... >}}`) inject
+  generated content (TOC, file inclusion, catalog-like
+  lists) at build time
+- No linting or diagnostics — invalid Markdown either
+  renders silently or fails the build
+- Output lives in `public/` and is typically gitignored;
+  the rendered HTML is the deliverable
+- Front matter is the canonical metadata source for
+  taxonomies, list pages, and template variables
+
+Hugo and mdsmith differ on **where** generated content
+lives:
+
+| Aspect              | Hugo                           | mdsmith                          |
+|---------------------|--------------------------------|----------------------------------|
+| Generated output    | Separate `public/` HTML tree   | In-place inside the source `.md` |
+| Source readability  | Templates obscure final body   | Source always renders as-is      |
+| Validation          | None (build succeeds or fails) | Diagnostics + autofix            |
+| TOC / list-of-files | Shortcodes / list templates    | `<?toc?>` / `<?catalog?>`        |
+| File inclusion      | `{{< readfile >}}` shortcode   | `<?include?>` directive          |
+| Variable syntax     | `{{ .Title }}` (Go template)   | `{title}` (front matter field)   |
+| Merge conflicts     | Re-render at build time        | `merge-driver install` resolves  |
+| Agent friendliness  | Indirect (must run build)      | Direct (file is the source)      |
+
+The placeholder syntax is intentionally close to Hugo
+to ease migration. See the
+[Hugo migration guide][hugo-migration] for the mapping.
+
 ### LLM as Linter
 
 Using language models (GPT-4, Claude, etc.) directly to
@@ -254,6 +291,7 @@ markdownlint fixes structural violations.
 | Include sections     | [MDS021][mds021] | no           | no                              |
 | Catalog generation   | [MDS019][mds019] | no           | no                              |
 | Required structure   | [MDS020][mds020] | no           | no                              |
+| Front-matter query   | `mdsmith query`  | no           | no                              |
 | Git merge driver     | yes              | no           | no                              |
 | Metrics ranking      | yes              | no           | no                              |
 | Gitignore aware      | yes              | yes          | no                              |
@@ -261,7 +299,11 @@ markdownlint fixes structural violations.
 
 mdsmith has the strongest cross-file and project-level
 features. The merge driver and regenerable sections are
-unique to mdsmith.
+unique to mdsmith. The `query` subcommand
+([plan 78][plan78]) selects files by a CUE expression
+over front matter (e.g.
+`mdsmith query 'status: "✅"' plan/`), which no other
+tool in this comparison offers natively.
 
 ### Renderer Portability
 
@@ -457,6 +499,90 @@ Teams using Slidev alongside standard Markdown docs
 should use separate config overrides (e.g. ignore or
 relaxed rules) for presentation files.
 
+## Security Posture
+
+A Markdown linter parses untrusted input from any
+contributor. It also walks the repo file tree.
+Adversarial input has caused OOMs, YAML
+billion-laughs expansion, ANSI escape injection,
+symlink escapes, and path traversal in the wider
+linter ecosystem.
+
+mdsmith ran a
+[10-finding adversarial review][mdsmith-sec]. It
+covered the parser, front-matter loader, terminal
+output, file walker, include directive, and CUE
+schemas. Findings were addressed in
+[plan 83][plan83] (security hardening batch) and
+[plan 84][plan84] (symlink default-deny). The
+current posture:
+
+| Hardening                          | mdsmith                | markdownlint    | remark-lint      | Prettier         | Vale      |
+|------------------------------------|------------------------|-----------------|------------------|------------------|-----------|
+| File-size cap on input             | yes                    | no              | no               | no               | no        |
+| YAML billion-laughs guard          | yes (anchor cap)       | n/a (no FM)     | parser-dependent | parser-dependent | n/a       |
+| ANSI escape sanitisation           | yes                    | no              | no               | n/a              | no        |
+| Symlinks denied by default         | yes                    | follows         | follows          | follows          | follows   |
+| Cross-file links sandboxed to repo | yes ([MDS027][mds027]) | n/a             | plugin-dependent | n/a              | n/a       |
+| Include size cap                   | yes                    | n/a             | n/a              | n/a              | n/a       |
+| Schema/CUE path validation         | yes ([MDS020][mds020]) | n/a             | n/a              | n/a              | n/a       |
+| Atomic writes in fix mode          | yes                    | n/a             | n/a              | yes              | n/a       |
+| Network access at runtime          | none                   | none            | none             | none             | none      |
+| Dependency surface                 | Go stdlib + goldmark   | Node + npm tree | Node + npm tree  | Node + npm tree  | Go stdlib |
+
+Two structural properties reduce the attack surface
+relative to Node.js linters:
+
+- **Single static binary.** No runtime package
+  resolution, no `node_modules` to audit.
+  Supply-chain risk is the Go module graph in
+  `go.mod`, reviewed at upgrade time.
+- **No network calls.** Rule docs, schemas, and
+  tokenizers ship inside the binary. CI does not need
+  outbound network for linting, and adversarial
+  Markdown cannot exfiltrate via SSRF.
+
+Teams handling untrusted Markdown (PRs from external
+contributors, user-submitted content) should treat the
+linter as a parser of untrusted input. mdsmith aims to
+fail safely on adversarial input rather than crash or
+escape the repo root.
+
+## Future Plans
+
+Open work is tracked in [PLAN.md](../../PLAN.md). The
+items most relevant to this comparison are:
+
+- **Build subsystem** (plans
+  [101][plan101], [102][plan102], [103][plan103],
+  [104][plan104]) — a `mdsmith build` subcommand with
+  a `<?build?>` directive, staleness tracking, and
+  lifecycle hooks. This will close part of the gap
+  with Hugo: deriving artefacts from Markdown sources
+  without leaving the linter.
+- **Closing rule gaps with markdownlint** — plans
+  [105][plan105] (no-inline-html / MD033),
+  [106][plan106] (emphasis style / MD049, MD050),
+  [107][plan107] (no reference-style links),
+  [108][plan108] (horizontal rule style / MD035),
+  [109][plan109] (list marker style / MD004), and
+  [111][plan111] (ambiguous emphasis / MD037).
+- **User-defined Markdown conventions**
+  ([plan 113][plan113]) — let teams package their own
+  rule presets the way the built-in conventions
+  ([reference][conventions]) do today.
+- **Glob unification** ([plan 120][plan120]) — one
+  glob matcher across config, directives, and CLI
+  arguments.
+- **Recipe-safety rule MDS040 and a build-config
+  block** ([plan 100][plan100]) — guard rails on the
+  forthcoming build directive so it cannot run
+  arbitrary commands without explicit opt-in.
+
+Pin a version (`go install
+github.com/jeduden/mdsmith/cmd/mdsmith@vX.Y.Z`) if
+you need a stable rule set while these land.
+
 <!-- mdsmith rule links -->
 [mds001]: ../../internal/rules/MDS001-line-length/README.md
 [mds003]: ../../internal/rules/MDS003-heading-increment/README.md
@@ -565,3 +691,26 @@ relaxed rules) for presentation files.
 [claude-action]: https://github.com/anthropics/claude-code-action
 [CoEdIT]: https://github.com/vipulraheja/coedit
 [coedit-paper]: https://arxiv.org/abs/2305.09857
+<!-- hugo links -->
+[Hugo]: https://gohugo.io/
+[hugo-shortcodes]: https://gohugo.io/content-management/shortcodes/
+[hugo-migration]: ../guides/directives/hugo-migration.md
+<!-- mdsmith plan + security + reference links -->
+[mdsmith-sec]: ../security/2026-04-05-adversarial-markdown.md
+[conventions]: ../reference/conventions.md
+[plan78]: ../../plan/78_query-command.md
+[plan83]: ../../plan/83_security-hardening-batch.md
+[plan84]: ../../plan/84_symlink-default-deny.md
+[plan100]: ../../plan/100_build-config-and-mds040.md
+[plan101]: ../../plan/101_build-directive-mds039.md
+[plan102]: ../../plan/102_build-subcommand.md
+[plan103]: ../../plan/103_build-staleness-and-deps.md
+[plan104]: ../../plan/104_build-lifecycle-hooks.md
+[plan105]: ../../plan/105_no-inline-html.md
+[plan106]: ../../plan/106_emphasis-style.md
+[plan107]: ../../plan/107_no-reference-style.md
+[plan108]: ../../plan/108_horizontal-rule-style.md
+[plan109]: ../../plan/109_list-marker-style.md
+[plan111]: ../../plan/111_ambiguous-emphasis.md
+[plan113]: ../../plan/113_user-defined-profiles.md
+[plan120]: ../../plan/120_glob-unification.md
