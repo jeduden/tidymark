@@ -438,7 +438,8 @@ func TestWriteFileResolutionText_ShowsConventionLayer(t *testing.T) {
 		Rules: map[string]config.RuleCfg{
 			"line-length": {Enabled: true, Settings: map[string]any{"max": 120}},
 		},
-		Convention: "portable",
+		ExplicitRules: map[string]bool{"line-length": true},
+		Convention:    "portable",
 		ConventionPreset: map[string]config.RuleCfg{
 			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
 		},
@@ -447,10 +448,10 @@ func TestWriteFileResolutionText_ShowsConventionLayer(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, WriteFileResolutionText(&buf, res))
 	out := buf.String()
-	// User's max=120 wins; provenance shows default as winning source
-	// because cfg.Rules sits above the convention layer.
+	// User's max=120 wins because the user layer sits above the
+	// convention layer in the merge chain.
 	assert.Contains(t, out, "settings.max = 120")
-	assert.Contains(t, out, "(from default)")
+	assert.Contains(t, out, "(from user)")
 }
 
 func TestWriteRuleResolutionText_ShowsConventionLayer(t *testing.T) {
@@ -458,7 +459,8 @@ func TestWriteRuleResolutionText_ShowsConventionLayer(t *testing.T) {
 		Rules: map[string]config.RuleCfg{
 			"line-length": {Enabled: true, Settings: map[string]any{"max": 120}},
 		},
-		Convention: "portable",
+		ExplicitRules: map[string]bool{"line-length": true},
+		Convention:    "portable",
 		ConventionPreset: map[string]config.RuleCfg{
 			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
 		},
@@ -470,6 +472,6 @@ func TestWriteRuleResolutionText_ShowsConventionLayer(t *testing.T) {
 	out := buf.String()
 	assert.Contains(t, out, "convention.portable",
 		"convention layer must appear in chain")
-	assert.Contains(t, out, "winning source: default",
+	assert.Contains(t, out, "winning source: user",
 		"user value wins over convention preset")
 }

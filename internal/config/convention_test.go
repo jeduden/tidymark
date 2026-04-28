@@ -88,6 +88,7 @@ func TestEffectiveRules_ConventionIsBaseLayerUnderUserRules(t *testing.T) {
 				Settings: map[string]any{"allow": []any{"sub", "sup"}},
 			},
 		},
+		ExplicitRules: map[string]bool{"no-inline-html": true},
 	}
 	require.NoError(t, applyConvention(cfg))
 
@@ -123,6 +124,7 @@ func TestEffectiveRules_UserSettingDeepMergesOverConvention(t *testing.T) {
 				Settings: map[string]any{"length": 5},
 			},
 		},
+		ExplicitRules: map[string]bool{"horizontal-rule-style": true},
 	}
 	require.NoError(t, applyConvention(cfg))
 
@@ -157,11 +159,11 @@ func TestProvenance_ConventionLayerVisible(t *testing.T) {
 		"convention is the winning source when no later layer touches the rule")
 }
 
-func TestProvenance_DefaultLayerWinsOverConvention(t *testing.T) {
+func TestProvenance_UserLayerWinsOverConvention(t *testing.T) {
 	// User explicitly sets horizontal-rule-style.length to 5; the
-	// convention layer's value (3) should appear earlier in the chain
-	// and the default layer should be the winning source for that
-	// leaf.
+	// convention layer's value (3) should appear earlier in the
+	// chain and the user layer should be the winning source for
+	// that leaf.
 	cfg := &Config{
 		Convention: "portable",
 		Rules: map[string]RuleCfg{
@@ -170,6 +172,7 @@ func TestProvenance_DefaultLayerWinsOverConvention(t *testing.T) {
 				Settings: map[string]any{"length": 5},
 			},
 		},
+		ExplicitRules: map[string]bool{"horizontal-rule-style": true},
 	}
 	require.NoError(t, applyConvention(cfg))
 
@@ -178,13 +181,13 @@ func TestProvenance_DefaultLayerWinsOverConvention(t *testing.T) {
 	leaf := rr.LeafByPath("settings.length")
 	require.NotNil(t, leaf)
 	assert.Equal(t, 5, leaf.Value)
-	assert.Equal(t, "default", leaf.Source(),
+	assert.Equal(t, "user", leaf.Source(),
 		"user's explicit setting should win over convention")
 	require.Len(t, leaf.Chain, 2,
-		"chain should record convention then default")
+		"chain should record convention then user")
 	assert.Equal(t, "convention.portable", leaf.Chain[0].Source)
 	assert.Equal(t, 3, leaf.Chain[0].Value, "convention contributed 3 first")
-	assert.Equal(t, "default", leaf.Chain[1].Source)
+	assert.Equal(t, "user", leaf.Chain[1].Source)
 }
 
 func TestApplyConvention_DisablingMarkdownFlavorPreservesPresetForOtherRules(t *testing.T) {
@@ -263,6 +266,37 @@ func TestApplyConvention_NonStringFlavorErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rules.markdown-flavor.flavor")
 	assert.Contains(t, err.Error(), "must be a string")
+}
+
+// TestConvention_EnablesOptInRuleEndToEnd is a regression test for
+// the "convention preset can override built-in defaults" contract.
+// Goes through the full Load + Merge(defaults, loaded) pipeline so
+// it exercises the same path the CLI uses.
+//
+// MDS034 (markdown-flavor) is opt-in (EnabledByDefault returns
+// false). Setting `convention: portable` in YAML must enable it
+// because the convention preset includes
+// `markdown-flavor: { Enabled: true }`. An earlier implementation
+// applied cfg.ConventionPreset *under* cfg.Rules, which after
+// Merge contained the default's `Enabled: false` for every
+// registered rule — so the convention's `Enabled: true` got
+// silently overwritten by the default's `Enabled: false`.
+func TestConvention_EnablesOptInRuleEndToEnd(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	require.NoError(t, os.WriteFile(path, []byte("convention: portable\n"), 0o600))
+
+	loaded, err := Load(path)
+	require.NoError(t, err)
+	merged := Merge(Defaults(), loaded)
+
+	got := Effective(merged, "doc.md", nil)
+	mf, ok := got["markdown-flavor"]
+	require.True(t, ok, "markdown-flavor must be present after merge")
+	assert.True(t, mf.Enabled,
+		"convention: portable must enable markdown-flavor (opt-in by default)")
+	assert.Equal(t, "commonmark", mf.Settings["flavor"],
+		"convention preset must populate flavor on MDS034")
 }
 
 func TestMerge_PreservesConvention(t *testing.T) {

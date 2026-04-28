@@ -101,20 +101,33 @@ diverges from `portable`.
 
 ## How presets layer with user config
 
-Convention presets are a **base layer** beneath
-your top-level `rules:` block. The merge order,
+Convention presets sit between built-in defaults
+and your explicit top-level rules. The merge order,
 oldest → newest, is:
 
-1. `convention.<name>` — the preset table
-2. `default` — built-in defaults plus your top-level rules
-3. `kinds.<name>` — each kind in the file's effective list
-4. `overrides[i]` — each matching override entry
+1. `default` — built-in defaults: rules in
+   `cfg.Rules` that you did not set
+2. `convention.<name>` — the preset table
+3. `user` — your top-level rules block (rules you
+   explicitly set in `.mdsmith.yml`)
+4. `kinds.<name>` — each kind in the file's
+   effective list
+5. `overrides[i]` — each matching override entry
 
 Each layer deep-merges onto the previous one.
 Scalars at a leaf are replaced by the later layer;
 maps recurse key by key; lists replace by default.
-So a convention preset provides the floor, and your
-config overrides on top.
+A convention preset provides the floor; your
+explicit `rules:` block overrides on top.
+
+The `default` and `user` layers come from the same
+`cfg.Rules` map. mdsmith splits them around the
+convention so a convention can enable a rule that
+is opt-in by default (e.g. `convention: portable`
+turns on MDS034). Without the split, the default's
+`Enabled: false` would land on top of the
+convention's `Enabled: true` and silently disable
+the rule.
 
 For example, the `github` convention sets
 `no-inline-html.allow: [details, summary]`. To

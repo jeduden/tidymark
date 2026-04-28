@@ -15,13 +15,13 @@ than one — should read this page first.
 
 ## TL;DR
 
-| Axis              | Flavor                             | Rule                         | Convention                         | Kind                              |
-|-------------------|------------------------------------|------------------------------|------------------------------------|-----------------------------------|
-| What it is        | A renderer's grammar               | A single lint check          | A project-wide bundle of rules     | A per-file role tag with rules    |
-| Source of truth   | An external spec or implementation | An mdsmith rule package      | The codebase or `.mdsmith.yml`     | The user's `.mdsmith.yml`         |
-| Question answered | Will the renderer interpret this?  | Does this match this rule?   | What kind of Markdown do we write? | What role does this file play?    |
-| Scope             | Project-wide (one)                 | Per-feature                  | Project-wide (one)                 | Per-file (zero or many composed)  |
-| Example           | `flavor: gfm` on MDS034            | MDS044 horizontal-rule-style | `convention: portable`             | `kinds: { plan: { rules: ... } }` |
+| Axis              | Flavor                             | Rule                         | Convention                                               | Kind                              |
+|-------------------|------------------------------------|------------------------------|----------------------------------------------------------|-----------------------------------|
+| What it is        | A renderer's grammar               | A single lint check          | A project-wide bundle of rules                           | A per-file role tag with rules    |
+| Source of truth   | An external spec or implementation | An mdsmith rule package      | The codebase (built-ins; user-defined ships in plan 113) | The user's `.mdsmith.yml`         |
+| Question answered | Will the renderer interpret this?  | Does this match this rule?   | What kind of Markdown do we write?                       | What role does this file play?    |
+| Scope             | Project-wide (one)                 | Per-feature                  | Project-wide (one)                                       | Per-file (zero or many composed)  |
+| Example           | `flavor: gfm` on MDS034            | MDS044 horizontal-rule-style | `convention: portable`                                   | `kinds: { plan: { rules: ... } }` |
 
 ## What each concept does
 
@@ -49,8 +49,12 @@ A convention is a named bundle that pairs a flavor
 with a set of rule presets. Selecting a convention
 applies both: MDS034 runs against the named flavor,
 and the named rule presets are applied as a base
-layer beneath the user's own rule config. Built-in
-conventions: `portable`, `github`, `plain`. See
+layer beneath the user's own rule config. Three
+built-in conventions ship today: `portable`,
+`github`, `plain`. User-defined conventions are
+deferred to [plan 113](../../../plan/113_user-defined-profiles.md);
+in this codebase, conventions live in the binary,
+not in `.mdsmith.yml`. See
 [conventions.md](../../reference/conventions.md).
 
 ### Kind
@@ -132,12 +136,15 @@ auto-link.
 
 The merge order, oldest → newest:
 
-1. `convention.<name>` — the convention preset
-2. `default` — built-in defaults plus the user's
-   top-level rules
-3. `kinds.<name>` — each kind in the file's
+1. `default` — built-in defaults: rules in
+   `cfg.Rules` that the user did not explicitly
+   set
+2. `convention.<name>` — the convention preset
+3. `user` — the user's top-level rules block:
+   rules with an entry in `cfg.ExplicitRules`
+4. `kinds.<name>` — each kind in the file's
    effective kind list
-4. `overrides[i]` — each matching override entry
+5. `overrides[i]` — each matching override entry
 
 A team can write:
 
@@ -149,10 +156,16 @@ kinds:
       max-file-length: { max-bytes: 50000 }
 ```
 
-Plan-tagged files get portable's preset, then
-default rules, then the plan-specific cap on top.
-Deep-merge handles the rest. Convention gives the
-floor; kinds adjust per file class.
+Plan-tagged files get portable's preset (over
+defaults), the plan-specific cap on top, then
+overrides. Deep-merge handles the rest. The split
+of `default` and `user` around `convention` is what
+lets a convention enable an opt-in rule like MDS034
+that is `EnabledByDefault: false`. Without the
+split, the default's `Enabled: false` would land on
+top of the convention's `Enabled: true` and
+silently disable the rule the user just asked the
+convention to enable.
 
 ## Practical guidance
 

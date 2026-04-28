@@ -255,9 +255,25 @@ func EffectiveAll(
 }
 
 func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]RuleCfg {
+	// Layer order, oldest → newest:
+	//   1. defaults     (cfg.Rules entries the user did not explicitly set)
+	//   2. convention   (cfg.ConventionPreset, when set)
+	//   3. user         (cfg.Rules entries the user explicitly set)
+	//   4. kinds        (each kind body in the file's effective list)
+	//   5. overrides    (each matching override entry)
+	//
+	// Splitting cfg.Rules into "default" and "user" layers around
+	// the convention is the only way a convention preset can flip
+	// a rule that is disabled by default (e.g. MDS034 markdown-flavor
+	// is opt-in; `convention: portable` should enable it). Without
+	// the split, the default's `Enabled: false` would land on top of
+	// the convention's `Enabled: true` and silently disable the rule
+	// the user just asked the convention to enable.
 	result := make(map[string]RuleCfg, len(cfg.Rules))
-	for k, v := range cfg.ConventionPreset {
-		result[k] = copyRuleCfg(v)
+	for k, v := range cfg.Rules {
+		if !cfg.ExplicitRules[k] {
+			result[k] = copyRuleCfg(v)
+		}
 	}
 	apply := func(name string, layer RuleCfg) {
 		if existing, ok := result[name]; ok {
@@ -266,8 +282,13 @@ func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]Rul
 		}
 		result[name] = copyRuleCfg(layer)
 	}
-	for k, v := range cfg.Rules {
+	for k, v := range cfg.ConventionPreset {
 		apply(k, v)
+	}
+	for k, v := range cfg.Rules {
+		if cfg.ExplicitRules[k] {
+			apply(k, v)
+		}
 	}
 	for _, kindName := range kinds {
 		body, ok := cfg.Kinds[kindName]
