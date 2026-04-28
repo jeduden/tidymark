@@ -229,47 +229,55 @@ func (r *Rule) adjacentSameDelimDiags(f *lint.File, lineNum int, line []byte, ru
 		char   byte
 		length int
 	}
+	type adjacentRunState struct {
+		first emphRun
+		last  emphRun
+		count int
+	}
+
 	emitted := map[key]bool{}
+	states := make(map[key]adjacentRunState)
 	var diags []lint.Diagnostic
-	for i, r1 := range runs {
-		k := key{char: r1.char, length: r1.length()}
+
+	for _, curr := range runs {
+		k := key{char: curr.char, length: curr.length()}
 		if emitted[k] {
 			continue
 		}
-		var r2 emphRun
-		for j := i + 1; j < len(runs); j++ {
-			rj := runs[j]
-			if rj.char != k.char || rj.length() != k.length {
-				continue
+
+		state, ok := states[k]
+		if !ok {
+			states[k] = adjacentRunState{
+				first: curr,
+				last:  curr,
+				count: 1,
 			}
-			if !gapNonEmptyAllNonWhitespace(line[r1.end:rj.start]) {
-				continue
-			}
-			r2 = rj
-			startK := j + 1
-			for m := startK; m < len(runs); m++ {
-				rm := runs[m]
-				if rm.char != k.char || rm.length() != k.length {
-					continue
-				}
-				if !gapNonEmptyAllNonWhitespace(line[r2.end:rm.start]) {
-					continue
-				}
+			continue
+		}
+
+		if gapNonEmptyAllNonWhitespace(line[state.last.end:curr.start]) {
+			state.last = curr
+			state.count++
+			if state.count >= 3 {
 				emitted[k] = true
 				diags = append(diags, lint.Diagnostic{
 					File:     f.Path,
 					Line:     lineNum,
-					Column:   r1.start + 1,
+					Column:   state.first.start + 1,
 					RuleID:   r.ID(),
 					RuleName: r.Name(),
 					Severity: lint.Warning,
 					Message:  "adjacent same-delimiter emphasis is ambiguous",
 				})
-				break
 			}
-			if emitted[k] {
-				break
-			}
+			states[k] = state
+			continue
+		}
+
+		states[k] = adjacentRunState{
+			first: curr,
+			last:  curr,
+			count: 1,
 		}
 	}
 	return diags
