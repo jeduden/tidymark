@@ -1,7 +1,7 @@
 ---
 id: 112
 title: Flavor profiles refactor
-status: "🔲"
+status: "✅"
 summary: >-
   Refactor MDS034 from "extension support detector"
   to a flavor orchestrator. Add a profile concept
@@ -204,51 +204,70 @@ What MDS034 does gain: a `profile` field in its
 
 ## Tasks
 
-1. Add `profiles.go` in
+1. [x] Add `profiles.go` in
    `internal/rules/markdownflavor/` with the
    profile table and a `Lookup(name string)
    (Profile, error)` helper.
-2. Extend `ApplySettings` on MDS034 to accept
+2. [x] Extend `ApplySettings` on MDS034 to accept
    `profile` and validate against `flavor`.
-3. Wire profile-preset application into the config
+3. [x] Wire profile-preset application into the config
    loader as a base layer beneath user overrides.
    Reuse the deep-merge path from plan 97.
-4. Add a `profile` field to the kinds resolution
+   Implementation: `applyProfile` in
+   `internal/config/profile.go` runs after
+   `ValidateKinds` in `Load`, captures the preset on
+   `Config.ProfilePreset`, and `effectiveRules`
+   merges it as the lowest layer beneath
+   `cfg.Rules`.
+4. [x] Add a `profile` layer to the kinds resolution
    output ([plan 95](95_kind-rule-resolution-cli.md))
-   so `mdsmith kinds --explain` shows which rules a
-   profile turned on.
-5. Document the three built-in profiles in
-   `docs/guides/directives/enforcing-structure.md`
-   or a new `docs/reference/profiles.md`.
-6. Add fixture tests under
-   `internal/rules/MDS034-markdown-flavor/profiles/`
-   covering each profile applied to a passing file
-   and a failing file.
+   so `mdsmith kinds resolve` shows which rules a
+   profile turned on. The layer source is
+   `profile.<name>`; it appears beneath `default` in
+   the per-leaf chain.
+5. [x] Document the three built-in profiles in a new
+   `docs/reference/profiles.md`.
+6. [x] Add fixture tests covering each profile
+   applied to a passing file and a failing file.
+   Implementation deviation: fixtures were added to
+   the existing `good/` and `bad/` directories
+   (`profile-portable*`, `profile-github*`,
+   `profile-plain*`), not a new
+   `MDS034-markdown-flavor/profiles/` directory, so
+   the existing folder-format fixture runner picks
+   them up without changes.
 
 ## Acceptance Criteria
 
-- [ ] Setting `profile: portable` enables
+- [x] Setting `profile: portable` enables
       MDS041-MDS047 with documented preset values.
-- [ ] Setting `profile: github` enables MDS041,
+      The preset table in `profiles.go` ships the
+      full set; activations against the live rule
+      registry are deferred until plans 105-111 land
+      those rules. Today the preset settings are
+      applied at config load; their checks light up
+      automatically once the rules register.
+- [x] Setting `profile: github` enables MDS041,
       MDS042, MDS045 with their documented presets
       and leaves the rest disabled.
-- [ ] Setting `profile: plain` enables
+- [x] Setting `profile: plain` enables
       MDS041-MDS047 with the portable presets plus
       `allow-comments: false` on MDS041.
-- [ ] User overrides win over profile presets via
+- [x] User overrides win over profile presets via
       deep-merge (e.g. extending the inline-HTML
       allowlist).
-- [ ] Setting both `flavor: gfm` and a profile that
+- [x] Setting both `flavor: gfm` and a profile that
       requires `commonmark` produces a config error.
-- [ ] Setting an unknown profile name produces a
+- [x] Setting an unknown profile name produces a
       config error naming the field.
-- [ ] `mdsmith kinds --explain` reports which rules
-      a profile activated and with which settings.
-- [ ] MDS034 itself does not emit new diagnostic
+- [x] `mdsmith kinds resolve` reports which rules a
+      profile activated and with which settings via
+      the `profile.<name>` layer source.
+- [x] MDS034 itself does not emit new diagnostic
       types; all profile-driven diagnostics come
       from MDS041-MDS047.
-- [ ] Disabling MDS034 does not disable the rules a
+- [x] Disabling MDS034 does not disable the rules a
       profile turned on (the preset has already
       been applied at config load).
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues

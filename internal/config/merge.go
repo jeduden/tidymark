@@ -10,25 +10,14 @@ func Merge(defaults, loaded *Config) *Config {
 		return copyConfig(defaults)
 	}
 
-	rules := make(map[string]RuleCfg, len(defaults.Rules))
-	for k, v := range defaults.Rules {
-		rules[k] = v
-	}
-
-	// Apply loaded rules on top.
-	for k, v := range loaded.Rules {
-		rules[k] = v
-	}
+	rules, explicit := mergeRules(defaults, loaded)
 
 	fm := defaults.FrontMatter
 	if loaded.FrontMatter != nil {
 		fm = loaded.FrontMatter
 	}
-
-	// Merge categories: start with defaults, apply loaded on top.
 	cats := mergeCategories(defaults.Categories, loaded.Categories)
 
-	// Merge files: loaded overrides defaults if explicitly set.
 	files := copyStrings(defaults.Files)
 	filesExplicit := false
 	if loaded.FilesExplicit {
@@ -36,17 +25,10 @@ func Merge(defaults, loaded *Config) *Config {
 		filesExplicit = true
 	}
 
-	// Track which rules were explicitly set in the loaded config.
-	explicit := make(map[string]bool, len(loaded.Rules))
-	for k := range loaded.Rules {
-		explicit[k] = true
-	}
-
 	maxInputSize := defaults.MaxInputSize
 	if loaded.MaxInputSize != "" {
 		maxInputSize = loaded.MaxInputSize
 	}
-
 	archetypes := defaults.Archetypes
 	if len(loaded.Archetypes.Roots) > 0 {
 		archetypes = ArchetypesCfg{Roots: copyStrings(loaded.Archetypes.Roots)}
@@ -68,7 +50,27 @@ func Merge(defaults, loaded *Config) *Config {
 		Archetypes:             archetypes,
 		Kinds:                  copyKinds(loaded.Kinds),
 		KindAssignment:         copyKindAssignment(loaded.KindAssignment),
+		Profile:                loaded.Profile,
+		ProfilePreset:          copyProfilePreset(loaded.ProfilePreset),
 	}
+}
+
+// mergeRules combines the defaults' rule map with the loaded config's
+// rules and reports which rules were explicitly set by the loaded
+// layer (used downstream for category override resolution).
+func mergeRules(defaults, loaded *Config) (map[string]RuleCfg, map[string]bool) {
+	rules := make(map[string]RuleCfg, len(defaults.Rules))
+	for k, v := range defaults.Rules {
+		rules[k] = v
+	}
+	for k, v := range loaded.Rules {
+		rules[k] = v
+	}
+	explicit := make(map[string]bool, len(loaded.Rules))
+	for k := range loaded.Rules {
+		explicit[k] = true
+	}
+	return rules, explicit
 }
 
 // copyConfig returns a shallow copy of a Config with copied slices and
@@ -100,6 +102,8 @@ func copyConfig(cfg *Config) *Config {
 		Archetypes:             ArchetypesCfg{Roots: copyStrings(cfg.Archetypes.Roots)},
 		Kinds:                  copyKinds(cfg.Kinds),
 		KindAssignment:         copyKindAssignment(cfg.KindAssignment),
+		Profile:                cfg.Profile,
+		ProfilePreset:          copyProfilePreset(cfg.ProfilePreset),
 	}
 }
 
@@ -252,7 +256,7 @@ func EffectiveAll(
 
 func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]RuleCfg {
 	result := make(map[string]RuleCfg, len(cfg.Rules))
-	for k, v := range cfg.Rules {
+	for k, v := range cfg.ProfilePreset {
 		result[k] = copyRuleCfg(v)
 	}
 	apply := func(name string, layer RuleCfg) {
@@ -261,6 +265,9 @@ func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]Rul
 			return
 		}
 		result[name] = copyRuleCfg(layer)
+	}
+	for k, v := range cfg.Rules {
+		apply(k, v)
 	}
 	for _, kindName := range kinds {
 		body, ok := cfg.Kinds[kindName]

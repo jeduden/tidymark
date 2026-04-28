@@ -62,6 +62,22 @@ type Config struct {
 	// them to stderr.
 	// Not serialized to YAML.
 	Deprecations []string `yaml:"-"`
+
+	// Profile is the markdown-flavor profile name applied at config
+	// load time, or "" if no profile was selected. Stored so per-file
+	// resolution can label the profile-preset layer in provenance
+	// output (`mdsmith kinds resolve --explain`).
+	// Not serialized to YAML.
+	Profile string `yaml:"-"`
+
+	// ProfilePreset is the profile's rule preset table, captured at
+	// config load time. It is applied as a base layer beneath the
+	// user's top-level rules: in effective-rule resolution, the
+	// preset is merged first, the user's cfg.Rules wins via
+	// deep-merge, then kinds and overrides apply on top. Empty when
+	// no profile is selected.
+	// Not serialized to YAML.
+	ProfilePreset map[string]RuleCfg `yaml:"-"`
 }
 
 // ArchetypesCfg configures archetype discovery. Roots are directories

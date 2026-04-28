@@ -10,13 +10,17 @@ import (
 // identifier that names one step in the rule-config merge pipeline.
 //
 //   - "default"               built-in defaults plus the user's top-level rules:
+//   - "profile.<name>"        the markdown-flavor profile preset, when set
 //   - "kinds.<name>"          a kind body in the file's effective kind list
 //   - "overrides[<i>]"        the i-th override entry that matched this file
 //   - "front-matter override" the file's own front-matter rule overrides
 //
 // "default" collapses built-in defaults and the user's top-level rules:
-// block, since cfg.Rules already has them merged. "front-matter override"
-// is reserved for the future per-file front-matter rules: feature.
+// block, since cfg.Rules already has them merged. The profile layer
+// sits beneath default so the user's top-level rules win via
+// deep-merge; the preset is the floor a profile installs.
+// "front-matter override" is reserved for the future per-file
+// front-matter rules: feature.
 const (
 	layerSourceDefault     = "default"
 	layerSourceFrontMatter = "front-matter override"
@@ -128,9 +132,14 @@ type layerInfo struct {
 }
 
 func buildLayers(cfg *Config, filePath string, kinds []ResolvedKind) []layerInfo {
-	layers := []layerInfo{
-		{Source: layerSourceDefault, Rules: cfg.Rules},
+	layers := make([]layerInfo, 0, 1+len(kinds)+len(cfg.Overrides))
+	if cfg.Profile != "" && len(cfg.ProfilePreset) > 0 {
+		layers = append(layers, layerInfo{
+			Source: "profile." + cfg.Profile,
+			Rules:  cfg.ProfilePreset,
+		})
 	}
+	layers = append(layers, layerInfo{Source: layerSourceDefault, Rules: cfg.Rules})
 	for _, k := range kinds {
 		body, ok := cfg.Kinds[k.Name]
 		if !ok {

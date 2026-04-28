@@ -42,6 +42,7 @@ row: "- [{summary}](../{filename})"
 - [Trade-offs and threshold guidance for readability, structure, length, and token budgets.](../docs/guides/metrics-tradeoffs.md)
 - [CLI commands, flags, exit codes, and output format.](../docs/reference/cli.md)
 - [Glob pattern syntax across mdsmith config, directives, and CLI argument expansion, with the supported exclusion semantics for each surface.](../docs/reference/globs.md)
+- [Built-in markdown-flavor profiles, the rule presets each one applies, and how user config layers on top via deep-merge.](../docs/reference/profiles.md)
 <?/catalog?>
 
 ### Development Workflow
