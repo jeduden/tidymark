@@ -221,6 +221,11 @@ func (r *Rule) escapedInRunDiags(f *lint.File, lineNum int, runs []emphRun, esca
 	return diags
 }
 
+// minAdjacentRunsForAmbiguity is the minimum number of same-shape
+// delimiter runs separated by non-whitespace before the pattern is
+// considered ambiguous.
+const minAdjacentRunsForAmbiguity = 3
+
 // adjacentSameDelimDiags emits one diagnostic per unique (char,
 // length) where three runs of that shape appear on the line with at
 // least one non-whitespace byte between consecutive occurrences.
@@ -258,7 +263,8 @@ func (r *Rule) adjacentSameDelimDiags(f *lint.File, lineNum int, line []byte, ru
 		if gapNonEmptyAllNonWhitespace(line[state.last.end:curr.start]) {
 			state.last = curr
 			state.count++
-			if state.count >= 3 {
+			states[k] = state
+			if state.count >= minAdjacentRunsForAmbiguity {
 				emitted[k] = true
 				diags = append(diags, lint.Diagnostic{
 					File:     f.Path,
@@ -270,7 +276,6 @@ func (r *Rule) adjacentSameDelimDiags(f *lint.File, lineNum int, line []byte, ru
 					Message:  "adjacent same-delimiter emphasis is ambiguous",
 				})
 			}
-			states[k] = state
 			continue
 		}
 
