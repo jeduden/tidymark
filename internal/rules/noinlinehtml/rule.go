@@ -164,11 +164,7 @@ func isClosingTag(raw []byte) bool {
 }
 
 func htmlBlockBytes(n *ast.HTMLBlock, source []byte) []byte {
-	lines := n.Lines()
-	if lines == nil || lines.Len() == 0 {
-		return nil
-	}
-	seg := lines.At(0)
+	seg := n.Lines().At(0)
 	return seg.Value(source)
 }
 
@@ -182,27 +178,13 @@ func rawHTMLBytes(n *ast.RawHTML, source []byte) []byte {
 }
 
 func blockLine(n *ast.HTMLBlock, f *lint.File) int {
-	lines := n.Lines()
-	if lines == nil || lines.Len() == 0 {
-		return 1
-	}
-	seg := lines.At(0)
+	seg := n.Lines().At(0)
 	return f.LineOfOffset(seg.Start)
 }
 
 func inlineLine(n *ast.RawHTML, f *lint.File) int {
-	if n.Segments.Len() > 0 {
-		seg := n.Segments.At(0)
-		return f.LineOfOffset(seg.Start)
-	}
-	for p := n.Parent(); p != nil; p = p.Parent() {
-		lines := p.Lines()
-		if lines != nil && lines.Len() > 0 {
-			seg := lines.At(0)
-			return f.LineOfOffset(seg.Start)
-		}
-	}
-	return 1
+	seg := n.Segments.At(0)
+	return f.LineOfOffset(seg.Start)
 }
 
 var (

@@ -172,6 +172,13 @@ func TestCheck_DisabledByDefault(t *testing.T) {
 	assert.False(t, r.EnabledByDefault())
 }
 
+func TestMetadata(t *testing.T) {
+	r := &Rule{}
+	assert.Equal(t, "MDS041", r.ID())
+	assert.Equal(t, "no-inline-html", r.Name())
+	assert.Equal(t, "meta", r.Category())
+}
+
 func TestCheck_NoHTML_NoDiag(t *testing.T) {
 	r := newRule(t, nil)
 	f := parse(t, "# Title\n\nJust plain text.\n")
