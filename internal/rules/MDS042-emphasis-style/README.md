@@ -92,9 +92,25 @@ Opening and closing delimiter bytes are replaced
 in the source. The fix is byte-for-byte
 substitution.
 
-Triple-delimiter runs such as `***x***` are
-detected as diagnostics but skipped during
-auto-fix. The nesting boundary is ambiguous.
+The following cases emit diagnostics but are
+**not** auto-fixed:
+
+- **Triple-delimiter runs** such as `***x***` —
+  the nesting boundary is ambiguous.
+- **Emphasis with a non-text first child** (e.g.
+  `**[link](url)**`) — the opening delimiter
+  position cannot be determined reliably; no
+  diagnostic is emitted either, so these are
+  silently skipped.
+- **Emphasis with a non-text last child** (e.g.
+  `**text [link](url)**`) — the closing delimiter
+  position cannot be determined. A diagnostic is
+  still reported; only the fix is suppressed.
+- **`forbid-mixed-nesting` only** — when neither
+  `bold` nor `italic` is configured, mixed-nesting
+  diagnostics are emitted but the rule has no
+  replacement delimiter to apply, so `fix` leaves
+  those diagnostics unchanged.
 
 ## Meta-Information
 
@@ -102,7 +118,7 @@ auto-fix. The nesting boundary is ambiguous.
 - **Name**: `emphasis-style`
 - **Status**: ready
 - **Default**: disabled
-- **Fixable**: yes (except triple-delimiter runs)
+- **Fixable**: yes (with exceptions; see Auto-fix)
 - **Implementation**:
   [source](./)
 - **Category**: meta
