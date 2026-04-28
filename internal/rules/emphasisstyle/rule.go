@@ -2,7 +2,6 @@ package emphasisstyle
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
@@ -163,39 +162,7 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		if !ok {
 			return ast.WalkContinue, nil
 		}
-
-		want := r.wantChar(em.Level)
-		if want == 0 {
-			return ast.WalkContinue, nil
-		}
-
-		delim := emphDelim(em, f.Source)
-		if delim == 0 || delim == want {
-			return ast.WalkContinue, nil
-		}
-
-		// Triple-delimiter runs (e.g. ***x*** or ___x___) are ambiguous;
-		// skip auto-fix for the outer and any directly nested inner emphasis.
-		if isTripleRun(em, f.Source) {
-			return ast.WalkContinue, nil
-		}
-		if parent, ok := em.Parent().(*ast.Emphasis); ok && isTripleRun(parent, f.Source) {
-			return ast.WalkContinue, nil
-		}
-
-		openStart := emphOpenStart(em, f.Source)
-		closeStart := emphCloseStart(em)
-		if openStart < 0 || closeStart < 0 {
-			return ast.WalkContinue, nil
-		}
-
-		newDelim := make([]byte, em.Level)
-		for i := range newDelim {
-			newDelim[i] = want
-		}
-		reps = append(reps, replacement{openStart, openStart + em.Level, newDelim})
-		reps = append(reps, replacement{closeStart, closeStart + em.Level, newDelim})
-
+		reps = append(reps, r.emphReplacements(em, f.Source)...)
 		return ast.WalkContinue, nil
 	})
 
@@ -203,15 +170,52 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		return f.Source
 	}
 
-	sort.Slice(reps, func(i, j int) bool { return reps[i].start < reps[j].start })
-
+	// All replacements are same-length (em.Level bytes → em.Level bytes),
+	// so in-place writes on a copied buffer are correct regardless of order.
 	result := make([]byte, len(f.Source))
 	copy(result, f.Source)
-	for i := len(reps) - 1; i >= 0; i-- {
-		rep := reps[i]
-		result = append(result[:rep.start], append(rep.newText, result[rep.end:]...)...)
+	for _, rep := range reps {
+		copy(result[rep.start:rep.end], rep.newText)
 	}
 	return result
+}
+
+// emphReplacements returns the open/close replacements needed to fix em, or nil
+// if em should be skipped.
+func (r *Rule) emphReplacements(em *ast.Emphasis, source []byte) []replacement {
+	want := r.wantChar(em.Level)
+	if want == 0 {
+		return nil
+	}
+	delim := emphDelim(em, source)
+	if delim == 0 || delim == want {
+		return nil
+	}
+	// Triple-delimiter runs (e.g. ***x*** or ___x___) are ambiguous;
+	// skip auto-fix for the outer and any directly nested inner emphasis.
+	if isTripleRun(em, source) {
+		return nil
+	}
+	if parent, ok := em.Parent().(*ast.Emphasis); ok && isTripleRun(parent, source) {
+		return nil
+	}
+	openStart := emphOpenStart(em, source)
+	closeStart := emphCloseStart(em)
+	if openStart < 0 || closeStart < 0 {
+		return nil
+	}
+	// Safety: verify closing delimiter span before overwriting.
+	if !isDelimRun(source, closeStart, em.Level, delim) {
+		return nil
+	}
+	newDelim := make([]byte, em.Level)
+	for i := range newDelim {
+		newDelim[i] = want
+	}
+	return []replacement{
+		{openStart, openStart + em.Level, newDelim},
+		{closeStart, closeStart + em.Level, newDelim},
+	}
 }
 
 // ApplySettings implements rule.Configurable.
@@ -261,6 +265,11 @@ func (r *Rule) DefaultSettings() map[string]any {
 // emphInfo returns the delimiter byte and open-start index for em.
 // It walks down the leftmost emphasis-or-text chain.
 // Returns (0, -1) if the delimiter cannot be determined.
+//
+// After computing the candidate position, it validates that
+// source[pos:pos+em.Level] is a run of the same '*' or '_' byte.
+// This guards against non-text first children (e.g. links) where the
+// offset arithmetic lands inside markup rather than on the delimiter.
 func emphInfo(em *ast.Emphasis, source []byte) (delim byte, openStart int) {
 	totalLevels := em.Level
 	child := em.FirstChild()
@@ -269,7 +278,10 @@ func emphInfo(em *ast.Emphasis, source []byte) (delim byte, openStart int) {
 		case *ast.Text:
 			pos := v.Segment.Start - totalLevels
 			if pos >= 0 && pos < len(source) {
-				return source[pos], pos
+				c := source[pos]
+				if (c == '*' || c == '_') && isDelimRun(source, pos, em.Level, c) {
+					return c, pos
+				}
 			}
 			return 0, -1
 		case *ast.Emphasis:
@@ -282,7 +294,10 @@ func emphInfo(em *ast.Emphasis, source []byte) (delim byte, openStart int) {
 			}
 			pos := start - totalLevels
 			if pos >= 0 && pos < len(source) {
-				return source[pos], pos
+				c := source[pos]
+				if (c == '*' || c == '_') && isDelimRun(source, pos, em.Level, c) {
+					return c, pos
+				}
 			}
 			return 0, -1
 		}
@@ -358,6 +373,19 @@ func isTripleRun(em *ast.Emphasis, source []byte) bool {
 	}
 	for i := 1; i < total; i++ {
 		if source[openStart+i] != c {
+			return false
+		}
+	}
+	return true
+}
+
+// isDelimRun reports whether source[start:start+length] consists entirely of c.
+func isDelimRun(source []byte, start, length int, c byte) bool {
+	if start < 0 || start+length > len(source) {
+		return false
+	}
+	for i := 0; i < length; i++ {
+		if source[start+i] != c {
 			return false
 		}
 	}

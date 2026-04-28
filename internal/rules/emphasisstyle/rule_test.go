@@ -91,6 +91,14 @@ func TestItalicAsterisk_Underscore_Diag(t *testing.T) {
 
 // --- mixed nesting ----------------------------------------------------------
 
+func TestMixedNesting_SameDelimiterNested_NoDiag(t *testing.T) {
+	// ***x*** = outer italic(*) wrapping inner bold(*); parent and child use
+	// the same delimiter, so no mixed-nesting diagnostic.
+	r := newRule("", "", true)
+	f := parseFile(t, "# Heading\n\n***x***\n")
+	assert.Empty(t, r.Check(f))
+}
+
 func TestMixedNesting_UnderscoreWrapsAsterisk_Diag(t *testing.T) {
 	r := newRule("", "", true)
 	f := parseFile(t, "# Heading\n\n_*x*_\n")
@@ -149,6 +157,12 @@ func TestTripleUnderscore_DiagNoFix(t *testing.T) {
 	assert.Equal(t, string(f.Source), string(r.Fix(f)))
 }
 
+// --- metadata ---------------------------------------------------------------
+
+func TestCategory(t *testing.T) {
+	assert.Equal(t, "meta", (&Rule{}).Category())
+}
+
 // --- code span / fenced code (must not flag) --------------------------------
 
 func TestCodeSpan_NoFlag(t *testing.T) {
@@ -164,7 +178,66 @@ func TestFencedCode_NoFlag(t *testing.T) {
 	assert.Empty(t, r.Check(f))
 }
 
+// --- Check: emphasis containing link/image (emphInfo default branch) --------
+
+func TestCheck_BoldWithLinkFirstChild(t *testing.T) {
+	// Emphasis wrapping a link as first child: source[pos:pos+2] = "*[" which
+	// fails isDelimRun, so emphInfo returns (0,-1) and no diagnostic is emitted.
+	r := newRule("underscore", "", false)
+	f := parseFile(t, "# Heading\n\n**[link](url)**\n")
+	assert.Empty(t, r.Check(f))
+}
+
+func TestCheck_UndetectableDelimiter_NoDiag(t *testing.T) {
+	// Image with empty alt text produces an emphasis child with no text
+	// leaf — emphDelim returns 0 and checkEmphasis returns nil.
+	r := newRule("underscore", "", false)
+	f := parseFile(t, "# Heading\n\n**![](img.png)**\n")
+	// No diagnostic expected because delimiter is undetectable.
+	assert.Empty(t, r.Check(f))
+}
+
+func TestFix_LinkFirstChild_NoChange(t *testing.T) {
+	// emphDelim returns 0 for **[link](url)** because the inferred offset
+	// lands on "*[" not "**"; Fix must leave source unchanged.
+	r := newRule("underscore", "", false)
+	f := parseFile(t, "# Heading\n\n**[link](url)**\n")
+	assert.Equal(t, string(f.Source), string(r.Fix(f)))
+}
+
+func TestFix_UnderscoreLinkFirstChild_NoChange(t *testing.T) {
+	// __[link](url)__ similarly has source[pos:pos+2] = "_["; undetectable.
+	r := newRule("asterisk", "", false)
+	f := parseFile(t, "# Heading\n\n__[link](url)__\n")
+	assert.Equal(t, string(f.Source), string(r.Fix(f)))
+}
+
 // --- Fix -------------------------------------------------------------------
+
+func TestFix_Unconfigured_NoChange(t *testing.T) {
+	r := &Rule{}
+	f := parseFile(t, "# Heading\n\n__bold__ and *italic*\n")
+	assert.Equal(t, string(f.Source), string(r.Fix(f)))
+}
+
+func TestFix_WantZeroSkipsUnconfiredRole(t *testing.T) {
+	// Only bold configured; italic emphasis in source must be skipped.
+	r := newRule("asterisk", "", false)
+	f := parseFile(t, "# Heading\n\n__bold__ and *italic*\n")
+	got := string(r.Fix(f))
+	assert.Equal(t, "# Heading\n\n**bold** and *italic*\n", got)
+}
+
+func TestFix_NestedEmphasisClose(t *testing.T) {
+	// _**x**_ has outer italic using underscore and inner bold using asterisk.
+	// With italic:asterisk the outer is fixed; this exercises the
+	// emphCloseStart inner-emphasis branch.
+	r := newRule("", "asterisk", false)
+	f := parseFile(t, "# Heading\n\n_**x**_\n")
+	require.Len(t, r.Check(f), 1)
+	got := string(r.Fix(f))
+	assert.Equal(t, "# Heading\n\n***x***\n", got)
+}
 
 func TestFix_UnderscoreBold_ToAsterisk(t *testing.T) {
 	r := newRule("asterisk", "", false)
@@ -211,6 +284,13 @@ func TestApplySettings_Valid(t *testing.T) {
 	assert.True(t, r.ForbidMixedNesting)
 }
 
+func TestApplySettings_BoldNotString(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{"bold": 42})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bold must be a string")
+}
+
 func TestApplySettings_InvalidBold(t *testing.T) {
 	r := &Rule{}
 	err := r.ApplySettings(map[string]any{"bold": "wrong"})
@@ -218,11 +298,18 @@ func TestApplySettings_InvalidBold(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid bold")
 }
 
-func TestApplySettings_InvalidItalic(t *testing.T) {
+func TestApplySettings_ItalicNotString(t *testing.T) {
 	r := &Rule{}
 	err := r.ApplySettings(map[string]any{"italic": 42})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "italic must be a string")
+}
+
+func TestApplySettings_InvalidItalic(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{"italic": "wrong"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid italic")
 }
 
 func TestApplySettings_InvalidForbid(t *testing.T) {
