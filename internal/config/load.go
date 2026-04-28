@@ -29,6 +29,12 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
+	// Catch non-string `convention:` values before yaml.Unmarshal
+	// silently coerces them into the string field.
+	if err := validateConventionScalar(data); err != nil {
+		return nil, fmt.Errorf("parsing config file: %w", err)
+	}
+
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config file: %w", err)
@@ -54,6 +60,10 @@ func Load(path string) (*Config, error) {
 
 	if err := ValidateBuildConfig(&cfg); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
+	}
+
+	if err := applyConvention(&cfg); err != nil {
+		return nil, fmt.Errorf("applying convention: %w", err)
 	}
 
 	return &cfg, nil

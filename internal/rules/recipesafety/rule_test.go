@@ -172,6 +172,20 @@ func TestApplySettings_Recipes_NonStringParam(t *testing.T) {
 	assert.Contains(t, err.Error(), "element 1 must be a string")
 }
 
+func TestApplySettings_Recipes_NonStringOptionalParam(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"bad": map[string]any{
+				"command": "tool {x}",
+				"params":  map[string]any{"optional": []any{"x", 99}},
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "element 1 must be a string")
+}
+
 // --- toStringSlice ---
 
 func TestToStringSlice_Nil(t *testing.T) {
