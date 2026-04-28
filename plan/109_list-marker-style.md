@@ -1,7 +1,7 @@
 ---
 id: 109
 title: List marker style rule
-status: "🔲"
+status: "🔳"
 summary: >-
   New rule MDS045 that pins one of `-`, `*`, or `+`
   as the bullet for unordered lists. Removes the
