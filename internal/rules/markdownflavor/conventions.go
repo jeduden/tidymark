@@ -165,6 +165,10 @@ var conventions = map[string]Convention{
 // Lookup returns the convention table entry for name. It returns an
 // error naming the field and listing valid names when name is not a
 // known convention, matching the failure-mode contract in plan 112.
+//
+// The returned Convention is a deep copy of the package-level table
+// entry. Callers may mutate the result without corrupting the
+// shared built-in table.
 func Lookup(name string) (Convention, error) {
 	c, ok := conventions[name]
 	if !ok {
@@ -173,7 +177,58 @@ func Lookup(name string) (Convention, error) {
 			name, strings.Join(ConventionNames(), ", "),
 		)
 	}
-	return c, nil
+	return cloneConvention(c), nil
+}
+
+// cloneConvention returns a deep copy of c. Each rule preset's
+// Settings map is cloned recursively so callers cannot mutate the
+// package-level table by writing through the returned value.
+func cloneConvention(c Convention) Convention {
+	rules := make(map[string]RulePreset, len(c.Rules))
+	for k, v := range c.Rules {
+		rules[k] = RulePreset{
+			Enabled:  v.Enabled,
+			Settings: cloneAny(v.Settings),
+		}
+	}
+	return Convention{
+		Name:   c.Name,
+		Flavor: c.Flavor,
+		Rules:  rules,
+	}
+}
+
+// cloneAny deep-copies a settings map, recursing into nested maps
+// and slices. Scalar leaf values are returned as-is. Returns nil if
+// the input is nil.
+func cloneAny(v map[string]any) map[string]any {
+	if v == nil {
+		return nil
+	}
+	out := make(map[string]any, len(v))
+	for k, val := range v {
+		out[k] = cloneValue(val)
+	}
+	return out
+}
+
+func cloneValue(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, val := range x {
+			out[k] = cloneValue(val)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = cloneValue(e)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 // ConventionNames returns the sorted list of built-in convention

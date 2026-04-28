@@ -8,7 +8,7 @@ summary: >-
   add a concept doc that distinguishes "flavor"
   (what the renderer recognizes) from "rule" (what
   the team prefers). Link the doc from the MDS034
-  README and the profiles reference.
+  README and the conventions reference.
 model: sonnet
 ---
 # MDS034 message clarity and flavor-vs-rule docs
@@ -77,23 +77,28 @@ divergence.
 
 ### Fixture updates
 
-Twenty-one [`bad/`
-fixtures](../internal/rules/MDS034-markdown-flavor/bad/)
+The
+[bad fixtures](../internal/rules/MDS034-markdown-flavor/bad/)
 encode the old diagnostic text in their YAML
-frontmatter `diagnostics:` block. Each file gets its
-expected message rewritten. Three of those fixtures
-are the `profile-*` files added by plan 112; they
-get the same treatment.
+frontmatter `diagnostics:` block. Each file gets
+its expected message rewritten.
+
+Three `profile-*` fixtures landed alongside this
+plan during plan 112's first iteration. They were
+removed in the later convention rename, so the
+final fixture count is eighteen.
 
 ### Concept doc
 
-A new file at
-`docs/background/concepts/flavor-vs-rules.md`
+A new
+[concepts doc](../docs/background/concepts/flavor-rule-convention-kind.md)
 covers, in this order:
 
 1. **TL;DR table** — flavor vs rule across four
    axes: source of truth, who owns it, what it
-   answers, what its diagnostic asserts.
+   answers, what its diagnostic asserts. (The doc
+   later grew to cover convention and kind too;
+   see the implementation note below.)
 2. **Why both exist** — flavors are external (a spec
    or a renderer's behavior); rules are internal
    (your team's preference among equally-valid
@@ -106,30 +111,42 @@ covers, in this order:
    (`flavor: commonmark` won't auto-link them) and
    rule (`no-bare-urls` rejects them on style
    grounds) overlap legitimately.
-4. **Profiles as the bridge** — short pointer to
-   [profiles.md](../../reference/profiles.md) for
-   how the two get bundled together for users.
+4. **Conventions as the bridge** — short pointer
+   to the
+   [conventions reference](../docs/reference/conventions.md)
+   for how the two get bundled together for users.
 
 Length target: under 100 lines. The doc is reference
 material, not a tutorial.
 
+Implementation note: the concept doc shipped first
+under the working name `flavor-vs-rules.md` with
+just two concepts. After the convention rename
+(see [plan 112](112_flavor-profiles.md)) it was
+renamed to `flavor-rule-convention-kind.md` and
+expanded to four. The references in this plan have
+been updated to match what shipped.
+
 ### Links
 
 - The new concept doc gets a one-paragraph mention
-  in the MDS034 README (after the lead) and in
-  `docs/reference/profiles.md` (one new short
-  section near the top).
+  in the MDS034 README (after the lead) and in the
+  conventions reference at
+  [docs/reference/conventions.md](../docs/reference/conventions.md)
+  (one new short section near the top).
 - `CLAUDE.md`'s catalog auto-picks up the new file
   on `mdsmith fix CLAUDE.md`.
 
 ## Tasks
 
 1. Rewrite the format string and drop
-   `Feature.Verb()` plus the test that exercises it.
+   `Feature.Verb()` plus the test that exercises
+   it.
 2. Update the 21 bad fixtures' expected messages.
-3. Write `docs/background/concepts/flavor-vs-rules.md`.
-4. Add the link from the MDS034 README and
-   `docs/reference/profiles.md`.
+3. Write the
+   [concepts doc](../docs/background/concepts/flavor-rule-convention-kind.md).
+4. Add the link from the MDS034 README and the
+   [conventions reference](../docs/reference/conventions.md).
 5. Run `mdsmith fix CLAUDE.md PLAN.md` to refresh
    catalogs.
 6. Run `go test ./...` and `go tool golangci-lint
@@ -138,16 +155,19 @@ material, not a tutorial.
 ## Acceptance Criteria
 
 - [x] MDS034 emits the new message format for every
-      tracked feature; old wording does not appear in
-      source or fixtures.
+      tracked feature; old wording does not appear
+      in source or fixtures.
 - [x] `Feature.Verb()` is removed and no caller
       references it.
-- [x] All 21 `bad/` fixtures pass with the new
+- [x] All `bad/` fixtures pass with the new
       expected messages.
-- [x] `docs/background/concepts/flavor-vs-rules.md`
-      exists and is reachable from the MDS034 README
-      and `docs/reference/profiles.md`.
+- [x] The
+      [concepts doc](../docs/background/concepts/flavor-rule-convention-kind.md)
+      exists and is reachable from the MDS034
+      README and the
+      [conventions reference](../docs/reference/conventions.md).
 - [x] `mdsmith check .` reports no diagnostics
       across the repo.
 - [x] `go test ./...` passes.
-- [x] `go tool golangci-lint run` reports no issues.
+- [x] `go tool golangci-lint run` reports no
+      issues.

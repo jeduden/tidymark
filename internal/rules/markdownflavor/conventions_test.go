@@ -62,6 +62,29 @@ func TestLookup_Unknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "portable")
 }
 
+func TestLookup_ReturnsDeepCopy(t *testing.T) {
+	// Mutating the returned Convention must not corrupt the
+	// package-level table. Lookup is exported, so callers could
+	// otherwise rewrite the built-ins by accident.
+	first, err := Lookup("portable")
+	require.NoError(t, err)
+	first.Rules["markdown-flavor"].Settings["flavor"] = "tampered"
+	first.Rules["new-rule"] = RulePreset{Enabled: true}
+
+	if allow, ok := first.Rules["no-inline-html"]; ok && allow.Settings != nil {
+		allow.Settings["allow"] = []any{"tampered"}
+	}
+
+	second, err := Lookup("portable")
+	require.NoError(t, err)
+	assert.Equal(t, "commonmark",
+		second.Rules["markdown-flavor"].Settings["flavor"],
+		"second Lookup must return the original flavor")
+	_, hasNewRule := second.Rules["new-rule"]
+	assert.False(t, hasNewRule,
+		"new entries on the first copy must not leak into the table")
+}
+
 func TestConventionNamesSorted(t *testing.T) {
 	names := ConventionNames()
 	assert.True(t, sort.StringsAreSorted(names),
