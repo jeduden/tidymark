@@ -300,11 +300,28 @@ func scanFootnoteDefinitions(
 }
 
 // isFootnoteDefinitionAt reports whether the `[^...]` token at offset
-// `start` is followed by `:` after the closing `]`, making it a
-// definition rather than a reference. The caller has already matched
-// `[^...]` at `start`, so `]` is guaranteed to appear later.
+// `start` is a footnote definition rather than a reference. Definitions
+// must begin a line with at most three leading spaces and be followed by
+// `:` after the closing `]`. A mid-line `[^slug]:` is a reference, not
+// a definition.
 func isFootnoteDefinitionAt(source []byte, start int) bool {
+	// bytes.LastIndexByte returns -1 when no '\n' precedes start (first
+	// line), so lineStart correctly becomes 0.
+	lineStart := bytes.LastIndexByte(source[:start], '\n') + 1
+	indent := 0
+	for i := lineStart; i < start; i++ {
+		if source[i] != ' ' {
+			return false
+		}
+		indent++
+		if indent > 3 {
+			return false
+		}
+	}
 	close := bytes.IndexByte(source[start:], ']')
+	if close < 0 {
+		return false
+	}
 	pos := start + close + 1
 	return pos < len(source) && source[pos] == ':'
 }

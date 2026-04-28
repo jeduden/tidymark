@@ -361,6 +361,17 @@ func TestFix_LinkTextWithEscapedBracket(t *testing.T) {
 	assert.NotContains(t, string(got), "[s]:")
 }
 
+func TestCheck_MidLineFootnoteLikeNotDefinition(t *testing.T) {
+	// A `[^slug]:` that appears mid-line (not at the start of a line
+	// with ≤3 spaces of indent) must be treated as a footnote
+	// reference, not a definition. The rule should fire.
+	src := "Some text.[^note]: more text.\n"
+	r := &Rule{AllowFootnotes: false}
+	diags := r.Check(f(t, src))
+	require.Len(t, diags, 1)
+	assert.Equal(t, msgFootnote, diags[0].Message)
+}
+
 func TestRegistration(t *testing.T) {
 	// init() registered an instance; verify it's the *Rule type and
 	// configurable.
