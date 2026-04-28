@@ -33,7 +33,7 @@ type ParamCfg struct {
 // recipe command may write to an output path declared as a regular parameter.
 var reservedParams = map[string]bool{"alt": true}
 
-// placeholderRe matches a single {name} token.
+// placeholderRe matches a {name} placeholder substring within a command token.
 var placeholderRe = regexp.MustCompile(`\{([^{}]+)\}`)
 
 // ValidateBuildConfig returns an error if any recipe command references

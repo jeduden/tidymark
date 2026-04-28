@@ -309,6 +309,32 @@ func TestSerializeRecipes_BothParams(t *testing.T) {
 	assert.Equal(t, []any{"b"}, params["optional"])
 }
 
+// --- copyBuildConfig isolation ---
+
+func TestCopyBuildConfig_MutationDoesNotAliasOriginal(t *testing.T) {
+	orig := BuildConfig{
+		BaseURL: "https://example.com",
+		Recipes: map[string]RecipeCfg{
+			"x": {Command: "tool {a}", Params: ParamCfg{Required: []string{"a"}}},
+		},
+	}
+	cp := copyBuildConfig(orig)
+
+	// Mutate the copy's map and slice.
+	cp.Recipes["x"] = RecipeCfg{Command: "changed"}
+	cp.Recipes["new"] = RecipeCfg{Command: "other"}
+
+	// Original must be unaffected.
+	assert.Equal(t, "tool {a}", orig.Recipes["x"].Command)
+	assert.NotContains(t, orig.Recipes, "new")
+}
+
+func TestCopyBuildConfig_Empty(t *testing.T) {
+	cp := copyBuildConfig(BuildConfig{})
+	assert.Empty(t, cp.Recipes)
+	assert.Equal(t, "", cp.BaseURL)
+}
+
 // --- Build survives Merge ---
 
 func TestMerge_PreservesBuild(t *testing.T) {

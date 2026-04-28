@@ -144,6 +144,20 @@ func TestApplySettings_Recipes_NonStringCommand(t *testing.T) {
 	assert.Contains(t, err.Error(), `recipe "bad": command must be a string`)
 }
 
+func TestApplySettings_Recipes_NonMapParams(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"bad": map[string]any{
+				"command": "tool {x}",
+				"params":  "not a map",
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "params must be a map")
+}
+
 func TestApplySettings_Recipes_NonStringParam(t *testing.T) {
 	r := &Rule{}
 	err := r.ApplySettings(map[string]any{

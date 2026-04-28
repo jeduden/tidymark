@@ -39,7 +39,7 @@ var shellOperators = []string{
 	"&&", "||", ";", "|", ">>", "2>", ">", "<", "`", "$(", "${",
 }
 
-// placeholderRe matches an entire {name} placeholder.
+// placeholderRe matches a {name} placeholder substring.
 var placeholderRe = regexp.MustCompile(`\{([^{}]+)\}`)
 
 // fusedRe matches two or more adjacent placeholders in one token,
@@ -122,7 +122,11 @@ func parseRecipesSettings(v any) (map[string]recipe, error) {
 			return nil, fmt.Errorf("recipe %q: command must be a string, got %T", name, rawCommand)
 		}
 		rec := recipe{Command: cmd}
-		if params, ok := rm["params"].(map[string]any); ok {
+		if rawParams, hasParams := rm["params"]; hasParams {
+			params, ok := rawParams.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("recipe %q: params must be a map, got %T", name, rawParams)
+			}
 			req, err := toStringSlice(params["required"])
 			if err != nil {
 				return nil, fmt.Errorf("recipe %q: params.required: %w", name, err)
@@ -180,7 +184,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 }
 
 // validateRecipes runs all six checks on every recipe and returns diagnostics.
-// Results are sorted by recipe name then message for deterministic output.
+// Results are in recipe-name order; within a recipe the check order is fixed.
 func (r *Rule) validateRecipes(filePath string) []lint.Diagnostic {
 	names := make([]string, 0, len(r.Recipes))
 	for name := range r.Recipes {
