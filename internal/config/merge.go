@@ -50,6 +50,7 @@ func Merge(defaults, loaded *Config) *Config {
 		Archetypes:             archetypes,
 		Kinds:                  copyKinds(loaded.Kinds),
 		KindAssignment:         copyKindAssignment(loaded.KindAssignment),
+		Build:                  copyBuildConfig(loaded.Build),
 		Convention:             loaded.Convention,
 		ConventionPreset:       copyConventionPreset(loaded.ConventionPreset),
 	}
@@ -102,9 +103,31 @@ func copyConfig(cfg *Config) *Config {
 		Archetypes:             ArchetypesCfg{Roots: copyStrings(cfg.Archetypes.Roots)},
 		Kinds:                  copyKinds(cfg.Kinds),
 		KindAssignment:         copyKindAssignment(cfg.KindAssignment),
+		Build:                  copyBuildConfig(cfg.Build),
 		Convention:             cfg.Convention,
 		ConventionPreset:       copyConventionPreset(cfg.ConventionPreset),
 	}
+}
+
+// copyBuildConfig returns a deep copy of a BuildConfig, duplicating the
+// Recipes map and each recipe's Params slices so callers can mutate them
+// independently.
+func copyBuildConfig(b BuildConfig) BuildConfig {
+	if len(b.Recipes) == 0 {
+		return BuildConfig{BaseURL: b.BaseURL}
+	}
+	recipes := make(map[string]RecipeCfg, len(b.Recipes))
+	for name, r := range b.Recipes {
+		recipes[name] = RecipeCfg{
+			Command:      r.Command,
+			BodyTemplate: r.BodyTemplate,
+			Params: ParamCfg{
+				Required: copyStrings(r.Params.Required),
+				Optional: copyStrings(r.Params.Optional),
+			},
+		}
+	}
+	return BuildConfig{BaseURL: b.BaseURL, Recipes: recipes}
 }
 
 // copyKinds returns a deep copy of a kinds map, including each RuleCfg's

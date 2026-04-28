@@ -1,7 +1,7 @@
 ---
 id: 100
 title: build config block and MDS040 recipe-safety rule
-status: "🔲"
+status: "✅"
 summary: >-
   Add a `build:` config section that declares `base-url`
   and user-defined `recipes`. MDS040 lints each recipe's
@@ -41,13 +41,13 @@ build:
   recipes:            # user-defined recipes (map)
     mermaid:
       command: "mmdc -i {input} -o {output}"
-      body_template: "![{alt}]({output})"
+      body-template: "![{alt}]({output})"
       params:
         required: [input]
         optional: [theme]
     api-spec:
       command: "redocly bundle {input} -o {output}"
-      body_template: "[API spec]({output})"
+      body-template: "[API spec]({output})"
       params:
         required: [input]
 ```
@@ -68,7 +68,7 @@ Map from recipe name to a recipe declaration:
 | Field             | Required | Description                                                                 |
 |-------------------|----------|-----------------------------------------------------------------------------|
 | `command`         | yes      | Argv template; `{param}` tokens expand at build time                        |
-| `body_template`   | no       | Markdown body rendered by `mdsmith fix`; defaults to `[{output}]({output})` |
+| `body-template`   | no       | Markdown body rendered by `mdsmith fix`; defaults to `[{output}]({output})` |
 | `params.required` | no       | Param names the directive must supply                                       |
 | `params.optional` | no       | Param names the directive may supply                                        |
 
@@ -77,10 +77,11 @@ Map from recipe name to a recipe declaration:
 token (one not in `required` or `optional`) is a
 config error.
 
-`{alt}` and `{output}` are reserved template variables
-available in `body_template`. `{alt}` defaults to
-`"{recipe} output: {output}"`. They must not appear
-in `command`.
+`{alt}` is a reserved template variable available in
+`body-template`; it maps to the Markdown image alt-text
+and must not appear in `command`. `{output}` is NOT
+reserved — it may be declared as a regular recipe
+parameter and used in `command`.
 
 ### Rule: MDS040 (recipe-safety)
 
@@ -139,8 +140,8 @@ delimiter (MDS040)
    are `omitempty`. Validate that `{param}` tokens in
    `command` are all declared in `required` or
    `optional`; emit a config error for unknowns.
-   Validate that `{alt}` and `{output}` do not appear
-   in `command`.
+   Validate that `{alt}` does not appear
+   in `command` (it is reserved for body-template only).
 2. Add MDS040 (`recipe-safety`) implementation in
    `internal/rules/recipesafety/` (Go package).
    Implement the six checks above (the five
@@ -155,31 +156,31 @@ delimiter (MDS040)
 
 ## Acceptance Criteria
 
-- [ ] `build:` parses correctly with both keys absent,
+- [x] `build:` parses correctly with both keys absent,
       one present, or both present
-- [ ] A recipe with `command: "mmdc -i {input} -o {output}"`,
+- [x] A recipe with `command: "mmdc -i {input} -o {output}"`,
       `params.required: [input]`, and
-      `params.optional: [theme]` round-trips through
+      `params.optional: [output]` round-trips through
       config parse without error
-- [ ] A `{param}` token in `command` that is not in
+- [x] A `{param}` token in `command` that is not in
       `required` or `optional` produces a config error
-- [ ] `{alt}` or `{output}` appearing in `command`
-      produces a config error
-- [ ] MDS040 flags a recipe whose `command` starts with
+- [x] `{alt}` appearing in `command` produces a config error;
+      `{output}` is a valid declared parameter name
+- [x] MDS040 flags a recipe whose `command` starts with
       `bash`, `sh`, `/bin/bash`, or `/bin/sh`
-- [ ] MDS040 flags a recipe whose `command` contains a
+- [x] MDS040 flags a recipe whose `command` contains a
       shell operator token (`&&`, `||`, `;`, `|`, `>`, etc.)
-- [ ] MDS040 flags a recipe whose `command` token
+- [x] MDS040 flags a recipe whose `command` token
       contains fused adjacent `{param}` placeholders
       (e.g. `{a}{b}`)
-- [ ] MDS040 flags a recipe whose executable token
+- [x] MDS040 flags a recipe whose executable token
       contains `..`
-- [ ] MDS040 warns (not errors) when a recipe declares
+- [x] MDS040 warns (not errors) when a recipe declares
       a `params.required` or `params.optional` entry
       that no `{param}` token in `command` references
-- [ ] MDS040 passes a clean command like
+- [x] MDS040 passes a clean command like
       `mmdc -i {input} -o {output}`
-- [ ] A config with no `build:` key passes MDS040
+- [x] A config with no `build:` key passes MDS040
       without error
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues

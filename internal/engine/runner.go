@@ -31,6 +31,10 @@ type Runner struct {
 	// Explain, when true, attaches per-leaf rule provenance to each
 	// diagnostic so output formatters can render an explanation trailer.
 	Explain bool
+	// ConfigPath is the path to the loaded .mdsmith.yml. When set,
+	// config-target rules (rule.ConfigTarget) are run once against a
+	// synthetic lint.File for this path before per-file processing.
+	ConfigPath string
 	// gitignoreCache caches GitignoreMatchers by directory to avoid
 	// re-walking the filesystem for each file.
 	gitignoreCache map[string]*lint.GitignoreMatcher
@@ -48,6 +52,11 @@ type Result struct {
 // all diagnostics (sorted by file, line, column) and any errors encountered.
 func (r *Runner) Run(paths []string) *Result {
 	res := &Result{}
+
+	// Run config-target rules once against the config file before per-file
+	// markdown processing. These rules (e.g. recipe-safety / MDS040) validate
+	// the project config rather than individual Markdown files.
+	r.runConfigTargetRules(res)
 
 	for _, path := range paths {
 		if config.IsIgnored(r.Config.Ignore, path) {
@@ -93,7 +102,7 @@ func (r *Runner) Run(paths []string) *Result {
 
 		r.logRules(effective)
 
-		diags, errs := CheckRules(f, r.Rules, effective)
+		diags, errs := CheckRules(f, r.markdownRules(), effective)
 		if r.Explain {
 			explain.Attach(diags, r.Config, path, fmKinds)
 		}
@@ -117,6 +126,10 @@ func (r *Runner) Run(paths []string) *Result {
 // on stdin since the include rule requires FS to be non-nil.
 func (r *Runner) RunSource(path string, source []byte) *Result {
 	res := &Result{FilesChecked: 1}
+
+	// Run config-target rules once before processing the in-memory source,
+	// matching the behavior of Run() so config diagnostics surface via stdin.
+	r.runConfigTargetRules(res)
 
 	r.log().Printf("file: %s", path)
 
@@ -142,7 +155,7 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 
 	r.logRules(effective)
 
-	diags, errs := CheckRules(f, r.Rules, effective)
+	diags, errs := CheckRules(f, r.markdownRules(), effective)
 	if r.Explain {
 		explain.Attach(diags, r.Config, path, fmKinds)
 	}
@@ -151,6 +164,24 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 
 	sortDiagnostics(res.Diagnostics)
 	return res
+}
+
+// markdownRules returns the subset of rules to run against individual Markdown
+// files. When ConfigPath is set, config-target rules are excluded because they
+// have already run once (via runConfigTargetRules) and their Check method
+// returns nil for any non-config path anyway.
+func (r *Runner) markdownRules() []rule.Rule {
+	if r.ConfigPath == "" {
+		return r.Rules
+	}
+	filtered := make([]rule.Rule, 0, len(r.Rules))
+	for _, rl := range r.Rules {
+		if ct, ok := rl.(rule.ConfigTarget); ok && ct.IsConfigFileRule() {
+			continue
+		}
+		filtered = append(filtered, rl)
+	}
+	return filtered
 }
 
 // parseFrontMatterKinds parses and validates the kinds list from a file's
@@ -228,9 +259,45 @@ func ruleCategoryLookup(rules []rule.Rule) func(string) string {
 	}
 }
 
-// sortDiagnostics sorts diagnostics by file, line, column.
+// runConfigTargetRules runs rules that implement rule.ConfigTarget once
+// against a synthetic lint.File for the config file. These rules validate
+// the project config rather than individual Markdown files. They are skipped
+// in the normal per-file loop because their Check method returns nil for
+// non-config file paths.
+func (r *Runner) runConfigTargetRules(res *Result) {
+	if r.ConfigPath == "" {
+		return
+	}
+	effective := r.effectiveWithCategories(r.ConfigPath, nil)
+	f, err := lint.NewFile(r.ConfigPath, []byte{})
+	if err != nil {
+		res.Errors = append(res.Errors, fmt.Errorf("creating config lint.File: %w", err))
+		return
+	}
+	for _, rl := range r.Rules {
+		configTarget, ok := rl.(rule.ConfigTarget)
+		if !ok || !configTarget.IsConfigFileRule() {
+			continue
+		}
+		cfg, ok := effective[rl.Name()]
+		if !ok || !cfg.Enabled {
+			continue
+		}
+		configured, err := ConfigureRule(rl, cfg)
+		if err != nil {
+			res.Errors = append(res.Errors, err)
+			continue
+		}
+		diags := configured.Check(f)
+		res.Diagnostics = append(res.Diagnostics, diags...)
+	}
+}
+
+// sortDiagnostics sorts diagnostics by file, line, column, then message.
+// sort.SliceStable preserves the input order only for diagnostics that are
+// equal on all compared fields, including Message.
 func sortDiagnostics(diags []lint.Diagnostic) {
-	sort.Slice(diags, func(i, j int) bool {
+	sort.SliceStable(diags, func(i, j int) bool {
 		di, dj := diags[i], diags[j]
 		if di.File != dj.File {
 			return di.File < dj.File
@@ -238,6 +305,9 @@ func sortDiagnostics(diags []lint.Diagnostic) {
 		if di.Line != dj.Line {
 			return di.Line < dj.Line
 		}
-		return di.Column < dj.Column
+		if di.Column != dj.Column {
+			return di.Column < dj.Column
+		}
+		return di.Message < dj.Message
 	})
 }

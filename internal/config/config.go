@@ -35,6 +35,7 @@ type Config struct {
 	Archetypes     ArchetypesCfg         `yaml:"archetypes"`
 	Kinds          map[string]KindBody   `yaml:"kinds,omitempty"`
 	KindAssignment []KindAssignmentEntry `yaml:"kind-assignment,omitempty"`
+	Build          BuildConfig           `yaml:"build,omitempty"`
 
 	// Convention names a Markdown convention bundle. Built-in
 	// values: "portable", "github", "plain". Empty means no
