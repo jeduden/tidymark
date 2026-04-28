@@ -58,4 +58,5 @@ row: "| [{id}]({filename}) | `{name}` | {status} | {description} |"
 | [MDS037](MDS037-duplicated-content/README.md)                 | `duplicated-content`                 | ready     | Paragraphs should not repeat verbatim across Markdown files.                                                        |
 | [MDS038](MDS038-toc/README.md)                                | `toc`                                | ready     | Keep toc generated heading lists in sync with document headings.                                                    |
 | [MDS042](MDS042-emphasis-style/README.md)                     | `emphasis-style`                     | ready     | Enforces a single delimiter character for bold and italic emphasis, and optionally forbids cross-delimiter nesting. |
+| [MDS046](MDS046-ordered-list-numbering/README.md)             | `ordered-list-numbering`             | ready     | Ordered list items must be numbered in the configured style.                                                        |
 <?/catalog?>
