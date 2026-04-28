@@ -475,6 +475,55 @@ func TestCheck_BlockquoteInListItem(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+func TestFix_WidthGrowth_AdjustsClosingFence(t *testing.T) {
+	// Regression: when a list item's marker grows (1. → 10.), the indent
+	// shift must extend to the closing fence of any fenced code block
+	// inside that item. Goldmark's FencedCodeBlock.Lines() covers only
+	// content lines, so naively using the last segment's Start would
+	// stop the shift before the closing fence, outdenting it and breaking
+	// the block.
+	src := []byte("" +
+		"1. one\n" +
+		"1. two\n" +
+		"1. three\n" +
+		"1. four\n" +
+		"1. five\n" +
+		"1. six\n" +
+		"1. seven\n" +
+		"1. eight\n" +
+		"1. nine\n" +
+		"1. ten\n" +
+		"\n" +
+		"   ```\n" +
+		"   code\n" +
+		"   ```\n" +
+		"\n" +
+		"1. eleven\n",
+	)
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{Style: StyleSequential, Start: 1}
+	got := r.Fix(f)
+	want := "" +
+		"1. one\n" +
+		"2. two\n" +
+		"3. three\n" +
+		"4. four\n" +
+		"5. five\n" +
+		"6. six\n" +
+		"7. seven\n" +
+		"8. eight\n" +
+		"9. nine\n" +
+		"10. ten\n" +
+		"\n" +
+		"    ```\n" +
+		"    code\n" +
+		"    ```\n" +
+		"\n" +
+		"11. eleven\n"
+	assert.Equal(t, want, string(got))
+}
+
 func TestFix_BlockquoteInListItem(t *testing.T) {
 	// Same scenario for Fix: blockFirstLine recursion must correctly
 	// locate the outer list marker so the fix leaves it unchanged

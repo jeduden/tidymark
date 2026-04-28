@@ -12,6 +12,7 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/jeduden/mdsmith/internal/rules/fencedcodestyle"
 	"github.com/jeduden/mdsmith/internal/rules/settings"
 	"github.com/yuin/goldmark/ast"
 )
@@ -379,6 +380,14 @@ func blockFirstLine(f *lint.File, n ast.Node) int {
 }
 
 func blockLastLine(f *lint.File, n ast.Node) int {
+	// FencedCodeBlock.Lines() covers only the content lines; the closing
+	// fence sits on the line after the last content segment's Stop. Use
+	// the shared helper so the indent shift covers the closing fence
+	// when a marker digit-width changes (otherwise the fence outdents
+	// and breaks the block).
+	if fcb, ok := n.(*ast.FencedCodeBlock); ok {
+		return fencedcodestyle.FenceCloseLine(f, fcb)
+	}
 	if n.Lines().Len() > 0 {
 		return f.LineOfOffset(n.Lines().At(n.Lines().Len() - 1).Start)
 	}
