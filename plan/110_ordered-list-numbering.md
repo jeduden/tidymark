@@ -132,8 +132,9 @@ ordered list item {position} numbered {actual}; expected {expected}
 6. [x] Register as MDS046 in category `list`.
 7. [x] Add fixture tests covering each style, the
    width-change case (single-digit to double-digit),
-   wrong start, nested ordered lists, and unordered
-   lists (must not flag).
+   wrong start, nested ordered lists (each nested list
+   is checked independently), and unordered lists
+   (which the rule must not flag).
 8. [x] Add rule README.
 
 ## Acceptance Criteria

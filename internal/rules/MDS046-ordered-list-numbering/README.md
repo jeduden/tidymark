@@ -124,8 +124,22 @@ wrap: markdown
 
 When the fix changes a marker's digit width (for example, item 10
 growing from `1.` to `10.`), the rule re-indents the item's
-continuation lines so the content column still aligns with the
-new marker prefix.
+continuation lines and any nested blocks so the content column
+still aligns with the new marker prefix. Blank lines inside the
+item are left unchanged so the fix does not introduce trailing
+whitespace.
+
+Each list is checked independently. A nested ordered
+list inside a list item is treated as its own list. The
+outer list's style does not exempt the nested list.
+
+When a list's first item starts at a number different
+from the configured `start`, the rule emits only the
+start-mismatch diagnostic for that list. Per-item
+diagnostics would use the configured `start` as their
+baseline, matching what auto-fix produces. Reporting
+them alongside "wrong start" would name renumbering
+that the start fix already covers.
 
 ## Meta-Information
 

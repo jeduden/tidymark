@@ -48,10 +48,6 @@ func (r *Rule) EnabledByDefault() bool { return false }
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
-	configStart := r.Start
-	if configStart < 0 {
-		configStart = 1
-	}
 
 	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -61,41 +57,39 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		if !ok || !list.IsOrdered() {
 			return ast.WalkContinue, nil
 		}
-		diags = append(diags, r.checkList(f, list, configStart)...)
+		diags = append(diags, r.checkList(f, list)...)
 		return ast.WalkContinue, nil
 	})
 
 	return diags
 }
 
-// checkList emits diagnostics for one ordered list.
-func (r *Rule) checkList(f *lint.File, list *ast.List, configStart int) []lint.Diagnostic {
-	firstItem, _ := firstChildListItem(list)
-	if firstItem == nil {
-		return nil
-	}
-	firstLine := firstLineOfListItem(f, firstItem)
-	if firstLine < 1 {
-		return nil
-	}
-
+// checkList emits diagnostics for one ordered list. Nested ordered
+// lists are checked independently — each list owns its own item
+// numbering. When the list's start does not match the configured
+// start, the start-mismatch diagnostic is the only one emitted: per
+// item-numbering diagnostics use the configured start as their
+// baseline (matching what Fix produces), so reporting them alongside
+// "wrong start" would tell the user to renumber items that the start
+// fix would already correct.
+func (r *Rule) checkList(f *lint.File, list *ast.List) []lint.Diagnostic {
 	var diags []lint.Diagnostic
-	actualStart := list.Start
-	startMismatch := actualStart != configStart
-	if startMismatch {
-		diags = append(diags, r.diag(f, firstLine, fmt.Sprintf(
-			"ordered list starts at %d; configured start is %d",
-			actualStart, configStart,
-		)))
-	}
-
+	startMismatch := list.Start != r.Start
 	i := 0
 	for c := list.FirstChild(); c != nil; c = c.NextSibling() {
-		item, ok := c.(*ast.ListItem)
-		if !ok {
+		item := c.(*ast.ListItem)
+		line := firstLineOfListItem(f, item)
+		if i == 0 && startMismatch {
+			diags = append(diags, r.diag(f, line, fmt.Sprintf(
+				"ordered list starts at %d; configured start is %d",
+				list.Start, r.Start,
+			)))
+		}
+		if startMismatch {
+			i++
 			continue
 		}
-		if d, ok := r.checkItem(f, item, i, actualStart, startMismatch); ok {
+		if d, ok := r.checkItem(f, line, i); ok {
 			diags = append(diags, d)
 		}
 		i++
@@ -103,27 +97,12 @@ func (r *Rule) checkList(f *lint.File, list *ast.List, configStart int) []lint.D
 	return diags
 }
 
-// checkItem produces a diagnostic for one list item when its literal
-// number does not match the expected number under the configured style.
-// The first item is suppressed when the list-start mismatch already
-// fired there.
-func (r *Rule) checkItem(
-	f *lint.File, item *ast.ListItem,
-	i, baseStart int, startMismatch bool,
-) (lint.Diagnostic, bool) {
-	line := firstLineOfListItem(f, item)
-	if line < 1 || line > len(f.Lines) {
-		return lint.Diagnostic{}, false
-	}
-	literal, _, _, _, parseOK := parseListItemNumber(f.Lines[line-1])
-	if !parseOK {
-		return lint.Diagnostic{}, false
-	}
-	expected := expectedNumber(r.Style, baseStart, i)
+// checkItem produces a diagnostic when an item's literal number does
+// not match the expected number under the configured style and start.
+func (r *Rule) checkItem(f *lint.File, line, i int) (lint.Diagnostic, bool) {
+	literal, _, _, _, _ := parseListItemNumber(f.Lines[line-1])
+	expected := expectedNumber(r.Style, r.Start, i)
 	if literal == expected {
-		return lint.Diagnostic{}, false
-	}
-	if i == 0 && startMismatch {
 		return lint.Diagnostic{}, false
 	}
 	return r.diag(f, line, fmt.Sprintf(
@@ -151,11 +130,6 @@ type markerEdit struct {
 
 // Fix implements rule.FixableRule.
 func (r *Rule) Fix(f *lint.File) []byte {
-	configStart := r.Start
-	if configStart < 0 {
-		configStart = 1
-	}
-
 	markerEdits := map[int]markerEdit{}
 	indentDeltas := map[int]int{}
 
@@ -167,7 +141,7 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		if !ok || !list.IsOrdered() {
 			return ast.WalkContinue, nil
 		}
-		r.collectListEdits(f, list, configStart, markerEdits, indentDeltas)
+		r.collectListEdits(f, list, markerEdits, indentDeltas)
 		return ast.WalkContinue, nil
 	})
 
@@ -194,16 +168,13 @@ func (r *Rule) Fix(f *lint.File) []byte {
 // collectListEdits records marker rewrites and continuation-indent
 // shifts for one ordered list.
 func (r *Rule) collectListEdits(
-	f *lint.File, list *ast.List, configStart int,
+	f *lint.File, list *ast.List,
 	markerEdits map[int]markerEdit, indentDeltas map[int]int,
 ) {
 	i := 0
 	for c := list.FirstChild(); c != nil; c = c.NextSibling() {
-		item, ok := c.(*ast.ListItem)
-		if !ok {
-			continue
-		}
-		r.collectItemEdits(f, item, i, configStart, markerEdits, indentDeltas)
+		item := c.(*ast.ListItem)
+		r.collectItemEdits(f, item, i, markerEdits, indentDeltas)
 		i++
 	}
 }
@@ -211,18 +182,12 @@ func (r *Rule) collectListEdits(
 // collectItemEdits records the marker rewrite and the indent delta on
 // continuation lines for one list item.
 func (r *Rule) collectItemEdits(
-	f *lint.File, item *ast.ListItem, i, configStart int,
+	f *lint.File, item *ast.ListItem, i int,
 	markerEdits map[int]markerEdit, indentDeltas map[int]int,
 ) {
 	line := firstLineOfListItem(f, item)
-	if line < 1 || line > len(f.Lines) {
-		return
-	}
-	literal, _, _, _, parseOK := parseListItemNumber(f.Lines[line-1])
-	if !parseOK {
-		return
-	}
-	expected := expectedNumber(r.Style, configStart, i)
+	literal, _, _, _, _ := parseListItemNumber(f.Lines[line-1])
+	expected := expectedNumber(r.Style, r.Start, i)
 	if literal != expected {
 		markerEdits[line] = markerEdit{newDigits: expected}
 	}
@@ -230,20 +195,19 @@ func (r *Rule) collectItemEdits(
 	if delta == 0 {
 		return
 	}
-	lastLine := lastLineOfNode(f, item)
-	if lastLine < line {
-		lastLine = line
-	}
+	lastLine := lastLineOfListItem(f, item)
 	for ln := line + 1; ln <= lastLine; ln++ {
 		indentDeltas[ln] += delta
 	}
 }
 
 // applyIndentShift adjusts the leading-whitespace width of a line by
-// shift bytes. Negative shifts that exceed the existing leading
-// whitespace are ignored to avoid eating non-space content.
+// shift bytes. Blank lines are left alone — padding a blank line
+// would create trailing whitespace. Negative shifts that exceed the
+// existing leading whitespace are ignored to avoid eating non-space
+// content.
 func applyIndentShift(line []byte, shift int) []byte {
-	if shift == 0 {
+	if shift == 0 || isBlank(line) {
 		return line
 	}
 	if shift > 0 {
@@ -255,6 +219,15 @@ func applyIndentShift(line []byte, shift int) []byte {
 		return line
 	}
 	return line[n:]
+}
+
+func isBlank(line []byte) bool {
+	for _, b := range line {
+		if b != ' ' && b != '\t' {
+			return false
+		}
+	}
+	return true
 }
 
 // replaceLeadingDigits replaces a run of digits at the start of a line
@@ -315,15 +288,13 @@ func parseListItemNumber(line []byte) (number int, digitStart, digitEnd int, mar
 
 func isDigit(b byte) bool { return b >= '0' && b <= '9' }
 
+// digitWidth returns the number of decimal digits in n. n is always
+// non-negative in this rule's call sites (item numbers).
 func digitWidth(n int) int {
 	if n == 0 {
 		return 1
 	}
 	w := 0
-	if n < 0 {
-		w = 1
-		n = -n
-	}
 	for n > 0 {
 		n /= 10
 		w++
@@ -334,108 +305,65 @@ func digitWidth(n int) int {
 func countLeadingSpaces(line []byte) int {
 	n := 0
 	for _, b := range line {
-		if b == ' ' {
-			n++
-			continue
+		if b != ' ' {
+			break
 		}
-		break
+		n++
 	}
 	return n
 }
 
-func firstChildListItem(list *ast.List) (*ast.ListItem, int) {
-	idx := 0
-	for c := list.FirstChild(); c != nil; c = c.NextSibling() {
-		if li, ok := c.(*ast.ListItem); ok {
-			return li, idx
-		}
-		idx++
-	}
-	return nil, 0
-}
-
+// firstLineOfListItem returns the 1-based source line of an item's
+// marker. ListItem.Lines() is empty in goldmark; the marker line lives
+// on the first block child (paragraph, code block, nested list).
 func firstLineOfListItem(f *lint.File, li *ast.ListItem) int {
-	if li.Lines().Len() > 0 {
-		return f.LineOfOffset(li.Lines().At(0).Start)
-	}
-	if li.HasChildren() {
-		for c := li.FirstChild(); c != nil; c = c.NextSibling() {
-			line := lineOfNode(f, c)
-			if line > 0 {
-				return line
-			}
+	for c := li.FirstChild(); c != nil; c = c.NextSibling() {
+		if line := blockFirstLine(f, c); line > 0 {
+			return line
 		}
 	}
 	return 0
 }
 
-func lineOfNode(f *lint.File, n ast.Node) int {
-	if t, ok := n.(*ast.Text); ok {
-		return f.LineOfOffset(t.Segment.Start)
-	}
-	if isInlineNode(n) {
-		if n.HasChildren() {
-			for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-				if l := lineOfNode(f, c); l > 0 {
-					return l
-				}
-			}
-		}
-		return 0
-	}
-	if n.Lines().Len() > 0 {
-		return f.LineOfOffset(n.Lines().At(0).Start)
-	}
-	if n.HasChildren() {
-		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-			if l := lineOfNode(f, c); l > 0 {
-				return l
-			}
-		}
-	}
-	return 0
-}
-
-func lastLineOfNode(f *lint.File, n ast.Node) int {
-	if t, ok := n.(*ast.Text); ok {
-		stop := t.Segment.Stop
-		if stop > 0 {
-			stop--
-		}
-		return f.LineOfOffset(stop)
-	}
-	if isInlineNode(n) {
-		if n.HasChildren() {
-			for c := n.LastChild(); c != nil; c = c.PreviousSibling() {
-				if l := lastLineOfNode(f, c); l > 0 {
-					return l
-				}
-			}
-		}
-		return 0
-	}
+// lastLineOfListItem returns the 1-based source line of the item's
+// last descendant block.
+func lastLineOfListItem(f *lint.File, li *ast.ListItem) int {
 	last := 0
-	if n.Lines().Len() > 0 {
-		seg := n.Lines().At(n.Lines().Len() - 1)
-		last = f.LineOfOffset(seg.Start)
-	}
-	if n.HasChildren() {
-		for c := n.LastChild(); c != nil; c = c.PreviousSibling() {
-			if l := lastLineOfNode(f, c); l > last {
-				last = l
-			}
+	for c := li.FirstChild(); c != nil; c = c.NextSibling() {
+		if l := blockLastLine(f, c); l > last {
+			last = l
 		}
 	}
 	return last
 }
 
-func isInlineNode(n ast.Node) bool {
-	switch n.(type) {
-	case *ast.Text, *ast.String, *ast.CodeSpan, *ast.Emphasis,
-		*ast.Link, *ast.Image, *ast.AutoLink, *ast.RawHTML:
-		return true
+// blockFirstLine returns the first source line of a block node.
+// Recurses only through container blocks (whose Lines() is empty),
+// which are themselves block children — inline children whose Lines()
+// would panic are never reached.
+func blockFirstLine(f *lint.File, n ast.Node) int {
+	if n.Lines().Len() > 0 {
+		return f.LineOfOffset(n.Lines().At(0).Start)
 	}
-	return false
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if l := blockFirstLine(f, c); l > 0 {
+			return l
+		}
+	}
+	return 0
+}
+
+func blockLastLine(f *lint.File, n ast.Node) int {
+	if n.Lines().Len() > 0 {
+		return f.LineOfOffset(n.Lines().At(n.Lines().Len() - 1).Start)
+	}
+	last := 0
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if l := blockLastLine(f, c); l > last {
+			last = l
+		}
+	}
+	return last
 }
 
 // ApplySettings implements rule.Configurable.
