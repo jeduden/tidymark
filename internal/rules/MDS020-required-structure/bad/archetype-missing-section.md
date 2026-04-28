@@ -1,15 +1,13 @@
 ---
 settings:
-  archetype: story
-  archetype-roots:
-    - ../../internal/rules/MDS020-required-structure/bad/data/archetypes
+  schema: ../../internal/rules/MDS020-required-structure/bad/data/tmpl.md
 diagnostics:
   - line: 1
     column: 1
-    message: 'missing required section "## Acceptance Criteria"'
+    message: 'missing required section "## Tasks"'
 ---
 # Ship the thing
 
-## Background
+## Goal
 
 We need to ship the thing.
