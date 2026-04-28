@@ -290,6 +290,26 @@ func TestFix_DefinitionWithTitle(t *testing.T) {
 	assert.Contains(t, string(got), `[t](https://example.com "My title")`)
 }
 
+func TestCheck_FootnoteRefInMultiLineParagraph(t *testing.T) {
+	// The reference is on the first line of a multi-line paragraph;
+	// the definition follows the paragraph. paragraphEndLine has to
+	// scan past the second line.
+	src := "Some prose with[^note]\nmore prose continues.\n[^note]: A note.\n"
+	r := &Rule{AllowFootnotes: true}
+	diags := r.Check(f(t, src))
+	assert.Empty(t, diags)
+}
+
+func TestCheck_FootnoteWithUnrelatedDefinition(t *testing.T) {
+	// Two definitions exist; one matches the slug, one does not.
+	// The placement check iterates past the unrelated def.
+	src := "Use [^note]\n\n[^other]: Other note.\n[^note]: A note.\n"
+	r := &Rule{AllowFootnotes: true}
+	diags := r.Check(f(t, src))
+	require.Len(t, diags, 1)
+	assert.Equal(t, msgFootnotePlace, diags[0].Message)
+}
+
 func TestCheck_FootnoteAcrossBlankLineFails(t *testing.T) {
 	// allow-footnotes: true and a definition exists, but it sits two
 	// blank lines after — placement message fires (not "missing").
@@ -309,6 +329,16 @@ func TestCheck_FootnoteDefinitionInsideCodeBlock(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, msgFootnote, diags[0].Message)
 	assert.Equal(t, 1, diags[0].Line)
+}
+
+func TestFix_EmphasizedLinkText(t *testing.T) {
+	// Link text contains *foo* — the first text descendant is at the
+	// `f` byte, several bytes inside the `[`. linkSourceSpan must
+	// walk back past the `*` to reach the opening `[`.
+	src := "See [*foo*][s].\n\n[s]: https://example.com\n"
+	got := (&Rule{}).Fix(f(t, src))
+	assert.Contains(t, string(got), "[*foo*](https://example.com)")
+	assert.NotContains(t, string(got), "[s]:")
 }
 
 func TestFix_LinkTextWithEscapedBracket(t *testing.T) {

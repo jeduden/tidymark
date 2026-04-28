@@ -191,22 +191,33 @@ func collectReferenceDefinitions(source []byte) []referenceDefinition {
 	ctx := parser.NewContext()
 	lint.NewParser().Parse(text.NewReader(source), parser.WithContext(ctx))
 
-	refs := ctx.References()
-	if len(refs) == 0 {
+	wanted := map[string]bool{}
+	for _, ref := range ctx.References() {
+		wanted[string(ref.Label())] = true
+	}
+	if len(wanted) == 0 {
 		return nil
 	}
 
 	var out []referenceDefinition
-	usedSpans := map[int]bool{}
-	for _, ref := range refs {
-		def, ok := findReferenceDefinitionInSource(
-			source, string(ref.Label()), usedSpans,
-		)
-		if !ok {
+	for _, m := range refDefRE.FindAllSubmatchIndex(source, -1) {
+		raw := source[m[2]:m[3]]
+		if !wanted[util.ToLinkReference(raw)] {
 			continue
 		}
-		usedSpans[def.start] = true
-		out = append(out, def)
+		end := m[1]
+		// Include the trailing newline so a fix can drop the line cleanly.
+		if end < len(source) && source[end] == '\n' {
+			end++
+		}
+		bracketAbs := m[2] - 1
+		out = append(out, referenceDefinition{
+			label: string(raw),
+			line:  lineOfOffset(source, bracketAbs),
+			col:   columnOfOffset(source, bracketAbs),
+			start: m[0],
+			end:   end,
+		})
 	}
 	return out
 }
@@ -216,42 +227,6 @@ func collectReferenceDefinitions(source []byte) []referenceDefinition {
 // Used only for *locating* a definition after goldmark already
 // confirmed it exists, so a permissive regex is safe.
 var refDefRE = regexp.MustCompile(`(?m)^[ ]{0,3}\[([^\]\n]+)\]:[ \t]*\S+.*$`)
-
-// findReferenceDefinitionInSource locates a definition whose
-// normalised label matches `label`. The `seen` set prevents the same
-// source line from matching two definitions in the rare case the
-// parser stored duplicate labels.
-func findReferenceDefinitionInSource(
-	source []byte, label string, seen map[int]bool,
-) (referenceDefinition, bool) {
-	matches := refDefRE.FindAllSubmatchIndex(source, -1)
-	for _, m := range matches {
-		start := m[0]
-		if seen[start] {
-			continue
-		}
-		raw := source[m[2]:m[3]]
-		if util.ToLinkReference(raw) != label {
-			continue
-		}
-		end := m[1]
-		// Include the trailing newline so a fix can drop the line cleanly.
-		if end < len(source) && source[end] == '\n' {
-			end++
-		}
-		bracketAbs := m[2] - 1 // m[2] starts the label, so `[` is the byte before
-		line := lineOfOffset(source, bracketAbs)
-		col := columnOfOffset(source, bracketAbs)
-		return referenceDefinition{
-			label: string(raw),
-			line:  line,
-			col:   col,
-			start: start,
-			end:   end,
-		}, true
-	}
-	return referenceDefinition{}, false
-}
 
 // footnoteOccurrence records one `[^slug]` reference in source.
 type footnoteOccurrence struct {
@@ -375,18 +350,8 @@ func footnotePlacementMessage(
 func paragraphEndLine(source []byte, line int, defLines map[int]bool) int {
 	lines := bytes.Split(source, []byte("\n"))
 	end := line
-	for end < len(lines) {
-		next := end + 1
-		if next > len(lines) {
-			break
-		}
-		if isBlankLine(lines[next-1]) {
-			break
-		}
-		if defLines[next] {
-			break
-		}
-		end = next
+	for end < len(lines) && !isBlankLine(lines[end]) && !defLines[end+1] {
+		end++
 	}
 	return end
 }
@@ -441,9 +406,6 @@ func collectCodeSpanRanges(root ast.Node, source []byte) []byteRange {
 		}
 		seg := firstSegment(span)
 		last := lastSegment(span)
-		if seg.Start == 0 && seg.Stop == 0 {
-			return ast.WalkContinue, nil
-		}
 		// Extend backwards to include opening backticks; extend
 		// forwards across closing backticks.
 		start := seg.Start
@@ -485,11 +447,7 @@ func lastSegment(n ast.Node) text.Segment {
 // opening `[`.
 func nodePosition(n ast.Node, source []byte) (int, int) {
 	seg := firstDescendantText(n)
-	if seg.Start == 0 && seg.Stop == 0 {
-		return 1, 1
-	}
 	start := seg.Start
-	// Walk back to the most recent `[` on the same line.
 	for start > 0 && source[start-1] != '\n' && source[start-1] != '[' {
 		start--
 	}
@@ -500,18 +458,15 @@ func nodePosition(n ast.Node, source []byte) (int, int) {
 }
 
 func firstDescendantText(n ast.Node) text.Segment {
-	var seg text.Segment
-	_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		if t, ok := c.(*ast.Text); ok {
-			seg = t.Segment
-			return ast.WalkStop, nil
+			return t.Segment
 		}
-		return ast.WalkContinue, nil
-	})
-	return seg
+		if seg := firstDescendantText(c); seg != (text.Segment{}) {
+			return seg
+		}
+	}
+	return text.Segment{}
 }
 
 func lineOfOffset(source []byte, off int) int {
@@ -565,10 +520,7 @@ func collectLinkRewrites(f *lint.File) ([]fixCut, map[string]bool) {
 		if !ok || link.Reference == nil {
 			return ast.WalkContinue, nil
 		}
-		start, end, txt, ok := linkSourceSpan(link, f.Source)
-		if !ok {
-			return ast.WalkContinue, nil
-		}
+		start, end, txt := linkSourceSpan(link, f.Source)
 		usedLabels[util.ToLinkReference(link.Reference.Value)] = true
 		cuts = append(cuts, fixCut{
 			start: start,
@@ -617,63 +569,52 @@ func applyCuts(source []byte, cuts []fixCut) []byte {
 }
 
 // linkSourceSpan returns the byte span of an entire link expression
-// (`[text](...)` or `[text][id]` etc.), and the inner text. For
+// (`[text](...)` or `[text][id]` etc.) and the inner text. For
 // reference links the closing bracket is followed by either nothing
-// (shortcut), `[]` (collapsed) or `[id]` (full).
-func linkSourceSpan(link *ast.Link, source []byte) (int, int, string, bool) {
+// (shortcut), `[]` (collapsed), or `[id]` (full). The link's
+// existence is guaranteed by the AST walk, so we can rely on
+// well-formed bracketing.
+func linkSourceSpan(link *ast.Link, source []byte) (int, int, string) {
 	seg := firstDescendantText(link)
-	if seg.Start == 0 && seg.Stop == 0 {
-		return 0, 0, "", false
+	textStart := seg.Start
+	for textStart > 0 && source[textStart-1] != '\n' && source[textStart-1] != '[' {
+		textStart--
 	}
-	// Extend backward to opening `[`.
-	start := seg.Start
-	for start > 0 && source[start-1] != '\n' && source[start-1] != '[' {
-		start--
-	}
-	if start == 0 || source[start-1] != '[' {
-		return 0, 0, "", false
-	}
-	openBracket := start - 1
-	// Find matching closing `]` for the link text. Allow nested
-	// brackets only via simple depth tracking — sufficient for
-	// CommonMark link text which forbids unescaped `[` inside.
-	pos := start
-	depth := 1
-	for pos < len(source) && depth > 0 {
+	openBracket := textStart - 1
+	textEnd := findClosingBracket(source, textStart)
+	end := skipReferenceLabel(source, textEnd+1)
+	return openBracket, end, string(source[textStart:textEnd])
+}
+
+// findClosingBracket scans from `pos` for the `]` that closes the
+// link text, honoring backslash escapes. CommonMark forbids
+// unescaped `[` inside link text, so a depth counter is unnecessary.
+func findClosingBracket(source []byte, pos int) int {
+	for ; pos < len(source); pos++ {
 		switch source[pos] {
 		case '\\':
 			pos++
-		case '[':
-			depth++
 		case ']':
-			depth--
+			return pos
 		}
-		if depth == 0 {
-			break
-		}
-		pos++
 	}
-	if pos >= len(source) {
-		return 0, 0, "", false
-	}
-	textEnd := pos // offset of the closing `]`
-	innerText := string(source[start:textEnd])
-	end := textEnd + 1 // offset just past the closing `]`
+	return pos
+}
 
-	// Skip optional whitespace then a `[label]` for full or `[]` for
-	// collapsed reference. A shortcut reference has nothing after.
+// skipReferenceLabel advances past optional whitespace and any
+// trailing `[label]` (full reference) or `[]` (collapsed reference).
+// A shortcut reference has nothing after the link text.
+func skipReferenceLabel(source []byte, end int) int {
 	scan := end
 	for scan < len(source) && (source[scan] == ' ' || source[scan] == '\t') {
 		scan++
 	}
 	if scan < len(source) && source[scan] == '[' {
-		closeIdx := bytes.IndexByte(source[scan:], ']')
-		if closeIdx >= 0 {
-			end = scan + closeIdx + 1
+		if closeIdx := bytes.IndexByte(source[scan:], ']'); closeIdx >= 0 {
+			return scan + closeIdx + 1
 		}
 	}
-
-	return openBracket, end, innerText, true
+	return end
 }
 
 // buildInlineLink renders `[text](dest "title")`.
