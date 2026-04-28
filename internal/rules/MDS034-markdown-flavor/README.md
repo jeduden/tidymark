@@ -11,6 +11,14 @@ description: >-
 Flags Markdown syntax that the declared target
 flavor does not render.
 
+MDS034 is the *flavor gate*: it answers "will the
+target renderer interpret this syntax as the named
+feature?" Style choices among equally-valid forms
+(emphasis style, list marker, horizontal rule) live
+in separate rules. See
+[flavor vs rule](../../../docs/background/concepts/flavor-vs-rules.md)
+for the distinction and where the two overlap.
+
 ## Settings
 
 | Key    | Type   | Description                     |

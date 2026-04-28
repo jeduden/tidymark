@@ -135,13 +135,13 @@ func TestRuleFlavorPHPExtra(t *testing.T) {
 	for _, d := range diags {
 		byMsg[d.Message] = true
 	}
-	assert.False(t, byMsg["footnotes are not supported by phpextra"],
+	assert.False(t, byMsg["phpextra does not interpret footnotes as a feature"],
 		"phpextra accepts footnotes")
-	assert.False(t, byMsg["abbreviations are not supported by phpextra"],
+	assert.False(t, byMsg["phpextra does not interpret abbreviations as a feature"],
 		"phpextra accepts abbreviations")
-	assert.True(t, byMsg["strikethrough is not supported by phpextra"],
+	assert.True(t, byMsg["phpextra does not interpret strikethrough as a feature"],
 		"phpextra rejects strikethrough")
-	assert.True(t, byMsg["inline math is not supported by phpextra"],
+	assert.True(t, byMsg["phpextra does not interpret inline math as a feature"],
 		"phpextra rejects inline math")
 }
 
@@ -184,11 +184,11 @@ func TestRuleCheckCommonMark(t *testing.T) {
 	for _, d := range diags {
 		got[d.Message] = true
 	}
-	assert.True(t, got["heading IDs are not supported by commonmark"])
-	assert.True(t, got["task lists are not supported by commonmark"])
-	assert.True(t, got["tables are not supported by commonmark"])
-	assert.True(t, got["strikethrough is not supported by commonmark"])
-	assert.True(t, got["bare-URL autolinks are not supported by commonmark"])
+	assert.True(t, got["commonmark does not interpret heading IDs as a feature"])
+	assert.True(t, got["commonmark does not interpret task lists as a feature"])
+	assert.True(t, got["commonmark does not interpret tables as a feature"])
+	assert.True(t, got["commonmark does not interpret strikethrough as a feature"])
+	assert.True(t, got["commonmark does not interpret bare-URL autolinks as a feature"])
 }
 
 func TestRuleCheckGFM(t *testing.T) {
@@ -210,7 +210,7 @@ func TestRuleCheckGFM(t *testing.T) {
 	// GFM rejects heading IDs.
 	found := false
 	for _, d := range diags {
-		if d.Message == "heading IDs are not supported by gfm" {
+		if d.Message == "gfm does not interpret heading IDs as a feature" {
 			found = true
 		}
 	}
@@ -255,7 +255,7 @@ func TestRuleFootnotesDiagnostic(t *testing.T) {
 	// First footnote-related diagnostic must name the feature.
 	found := false
 	for _, d := range diags {
-		if d.Message == "footnotes are not supported by gfm" {
+		if d.Message == "gfm does not interpret footnotes as a feature" {
 			found = true
 		}
 	}
@@ -268,7 +268,7 @@ func TestRuleDefinitionListsDiagnostic(t *testing.T) {
 	f := mkFile(t, "term\n:   definition\n")
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
-	assert.Equal(t, "definition lists are not supported by gfm", diags[0].Message)
+	assert.Equal(t, "gfm does not interpret definition lists as a feature", diags[0].Message)
 }
 
 func TestRuleCheckGFMAcceptsAlerts(t *testing.T) {
@@ -286,7 +286,7 @@ func TestRuleCheckCommonMarkRejectsAlerts(t *testing.T) {
 	diags := r.Check(f)
 	found := false
 	for _, d := range diags {
-		if d.Message == "github alerts are not supported by commonmark" {
+		if d.Message == "commonmark does not interpret github alerts as a feature" {
 			found = true
 		}
 	}
@@ -300,7 +300,7 @@ func TestRuleCheckGoldmarkRejectsAlerts(t *testing.T) {
 	diags := r.Check(f)
 	found := false
 	for _, d := range diags {
-		if d.Message == "github alerts are not supported by goldmark" {
+		if d.Message == "goldmark does not interpret github alerts as a feature" {
 			found = true
 		}
 	}
@@ -371,7 +371,7 @@ func TestRuleCheckNestedAlert(t *testing.T) {
 	diags := r.Check(f)
 	found := false
 	for _, d := range diags {
-		if d.Message == "github alerts are not supported by commonmark" {
+		if d.Message == "commonmark does not interpret github alerts as a feature" {
 			found = true
 		}
 	}

@@ -126,8 +126,8 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 			RuleID:   r.ID(),
 			RuleName: r.Name(),
 			Severity: lint.Warning,
-			Message: fmt.Sprintf("%s %s not supported by %s",
-				found.Feature.Name(), found.Feature.Verb(), r.Flavor),
+			Message: fmt.Sprintf("%s does not interpret %s as a feature",
+				r.Flavor, found.Feature.Name()),
 		})
 	}
 	return diags

@@ -16,6 +16,12 @@ as a base layer beneath your own rule config.
 Profiles answer "what subset of Markdown does this
 project use?" with one config knob instead of eight.
 
+Profiles bridge two distinct ideas in mdsmith. A
+flavor is a property of the *renderer*; a rule is a
+property of the *team*. See
+[flavor vs rule](../background/concepts/flavor-vs-rules.md)
+for the conceptual split and where the two overlap.
+
 ## Selecting a profile
 
 ```yaml

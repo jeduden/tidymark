@@ -93,8 +93,7 @@ func ParseFlavor(s string) (Flavor, bool) {
 // across flavors.
 type Feature int
 
-// Feature constants. Keep in sync with AllFeatures, Feature.Name,
-// and Feature.Verb.
+// Feature constants. Keep in sync with AllFeatures and Feature.Name.
 const (
 	FeatureTables Feature = iota
 	FeatureTaskLists
@@ -128,20 +127,6 @@ func AllFeatures() []Feature {
 		FeatureAbbreviations,
 		FeatureGitHubAlerts,
 	}
-}
-
-// Verb returns "is" or "are" so diagnostic messages read naturally
-// for both singular (strikethrough, inline math) and plural
-// (tables, task lists) feature names.
-func (f Feature) Verb() string {
-	switch f {
-	case FeatureStrikethrough, FeatureSuperscript, FeatureSubscript,
-		FeatureMathInline:
-		return "is"
-	case FeatureGitHubAlerts:
-		return "are"
-	}
-	return "are"
 }
 
 // Name returns the human-readable feature name used in diagnostics.
