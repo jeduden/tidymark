@@ -77,10 +77,11 @@ Map from recipe name to a recipe declaration:
 token (one not in `required` or `optional`) is a
 config error.
 
-`{alt}` and `{output}` are reserved template variables
-available in `body_template`. `{alt}` defaults to
-`"{recipe} output: {output}"`. They must not appear
-in `command`.
+`{alt}` is a reserved template variable available in
+`body_template`; it maps to the Markdown image alt-text
+and must not appear in `command`. `{output}` is NOT
+reserved — it may be declared as a regular recipe
+parameter and used in `command`.
 
 ### Rule: MDS040 (recipe-safety)
 
@@ -139,8 +140,8 @@ delimiter (MDS040)
    are `omitempty`. Validate that `{param}` tokens in
    `command` are all declared in `required` or
    `optional`; emit a config error for unknowns.
-   Validate that `{alt}` and `{output}` do not appear
-   in `command`.
+   Validate that `{alt}` does not appear
+   in `command` (it is reserved for body_template only).
 2. Add MDS040 (`recipe-safety`) implementation in
    `internal/rules/recipesafety/` (Go package).
    Implement the six checks above (the five
@@ -159,12 +160,12 @@ delimiter (MDS040)
       one present, or both present
 - [x] A recipe with `command: "mmdc -i {input} -o {output}"`,
       `params.required: [input]`, and
-      `params.optional: [theme]` round-trips through
+      `params.optional: [output]` round-trips through
       config parse without error
 - [x] A `{param}` token in `command` that is not in
       `required` or `optional` produces a config error
-- [x] `{alt}` or `{output}` appearing in `command`
-      produces a config error
+- [x] `{alt}` appearing in `command` produces a config error;
+      `{output}` is a valid declared parameter name
 - [x] MDS040 flags a recipe whose `command` starts with
       `bash`, `sh`, `/bin/bash`, or `/bin/sh`
 - [x] MDS040 flags a recipe whose `command` contains a

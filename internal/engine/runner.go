@@ -127,6 +127,10 @@ func (r *Runner) Run(paths []string) *Result {
 func (r *Runner) RunSource(path string, source []byte) *Result {
 	res := &Result{FilesChecked: 1}
 
+	// Run config-target rules once before processing the in-memory source,
+	// matching the behavior of Run() so config diagnostics surface via stdin.
+	r.runConfigTargetRules(res)
+
 	r.log().Printf("file: %s", path)
 
 	f, err := lint.NewFileFromSource(path, source, r.StripFrontMatter)
@@ -253,7 +257,8 @@ func (r *Runner) runConfigTargetRules(res *Result) {
 		return
 	}
 	for _, rl := range r.Rules {
-		if _, ok := rl.(rule.ConfigTarget); !ok {
+		configTarget, ok := rl.(rule.ConfigTarget)
+		if !ok || !configTarget.IsConfigFileRule() {
 			continue
 		}
 		cfg, ok := effective[rl.Name()]
@@ -271,8 +276,8 @@ func (r *Runner) runConfigTargetRules(res *Result) {
 }
 
 // sortDiagnostics sorts diagnostics by file, line, column, then message.
-// sort.SliceStable preserves the pre-sorted order of same-position diagnostics
-// from rules that already emit in deterministic order (e.g. MDS040).
+// sort.SliceStable preserves the input order only for diagnostics that are
+// equal on all compared fields, including Message.
 func sortDiagnostics(diags []lint.Diagnostic) {
 	sort.SliceStable(diags, func(i, j int) bool {
 		di, dj := diags[i], diags[j]

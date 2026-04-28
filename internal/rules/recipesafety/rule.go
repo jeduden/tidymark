@@ -101,7 +101,7 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 
 // parseRecipesSettings deserialises the recipes map from map[string]any.
 // It handles both the serialised form from InjectBuildConfig and the
-// YAML-decoded form from fixture settings:.
+// YAML-decoded form from fixture settings.
 func parseRecipesSettings(v any) (map[string]recipe, error) {
 	rawMap, ok := v.(map[string]any)
 	if !ok {
@@ -113,11 +113,26 @@ func parseRecipesSettings(v any) (map[string]recipe, error) {
 		if !ok {
 			return nil, fmt.Errorf("recipe %q must be a map, got %T", name, rawRecipe)
 		}
-		cmd, _ := rm["command"].(string)
+		rawCommand, ok := rm["command"]
+		if !ok {
+			return nil, fmt.Errorf("recipe %q: missing required 'command' field", name)
+		}
+		cmd, ok := rawCommand.(string)
+		if !ok {
+			return nil, fmt.Errorf("recipe %q: command must be a string, got %T", name, rawCommand)
+		}
 		rec := recipe{Command: cmd}
 		if params, ok := rm["params"].(map[string]any); ok {
-			rec.Required = toStringSlice(params["required"])
-			rec.Optional = toStringSlice(params["optional"])
+			req, err := toStringSlice(params["required"])
+			if err != nil {
+				return nil, fmt.Errorf("recipe %q: params.required: %w", name, err)
+			}
+			opt, err := toStringSlice(params["optional"])
+			if err != nil {
+				return nil, fmt.Errorf("recipe %q: params.optional: %w", name, err)
+			}
+			rec.Required = req
+			rec.Optional = opt
 		}
 		out[name] = rec
 	}
@@ -125,23 +140,27 @@ func parseRecipesSettings(v any) (map[string]recipe, error) {
 }
 
 // toStringSlice converts []any or []string to []string.
-func toStringSlice(v any) []string {
+// It returns an error if any element in a []any slice is not a string,
+// or if the input is not a string slice type.
+func toStringSlice(v any) ([]string, error) {
 	if v == nil {
-		return nil
+		return nil, nil
 	}
 	switch s := v.(type) {
 	case []string:
-		return s
+		return s, nil
 	case []any:
 		out := make([]string, 0, len(s))
-		for _, item := range s {
-			if str, ok := item.(string); ok {
-				out = append(out, str)
+		for i, item := range s {
+			str, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("element %d must be a string, got %T", i, item)
 			}
+			out = append(out, str)
 		}
-		return out
+		return out, nil
 	}
-	return nil
+	return nil, fmt.Errorf("must be a string slice, got %T", v)
 }
 
 // Check implements rule.Rule.

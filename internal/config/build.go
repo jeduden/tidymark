@@ -27,7 +27,11 @@ type ParamCfg struct {
 }
 
 // reservedParams are variables available in body_template but forbidden in command.
-var reservedParams = map[string]bool{"alt": true, "output": true}
+// {alt} is reserved because it maps to the Markdown image alt-text field, which
+// the framework injects from the surrounding Markdown syntax; it is not a
+// user-supplied build parameter. {output} is intentionally NOT reserved — a
+// recipe command may write to an output path declared as a regular parameter.
+var reservedParams = map[string]bool{"alt": true}
 
 // placeholderRe matches a single {name} token.
 var placeholderRe = regexp.MustCompile(`\{([^{}]+)\}`)

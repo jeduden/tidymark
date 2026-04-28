@@ -77,21 +77,19 @@ func TestValidateBuildConfig_ReservedAlt(t *testing.T) {
 	assert.Contains(t, err.Error(), "{alt}")
 }
 
-func TestValidateBuildConfig_ReservedOutput(t *testing.T) {
+func TestValidateBuildConfig_OutputParam_Allowed(t *testing.T) {
+	// {output} is NOT reserved — a recipe command may write to a declared output param.
 	cfg := &Config{
 		Build: BuildConfig{
 			Recipes: map[string]RecipeCfg{
 				"x": {
-					Command: "tool {output}",
+					Command: "tool -o {output}",
 					Params:  ParamCfg{Required: []string{"output"}},
 				},
 			},
 		},
 	}
-	err := ValidateBuildConfig(cfg)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "reserved placeholder")
-	assert.Contains(t, err.Error(), "{output}")
+	assert.NoError(t, ValidateBuildConfig(cfg))
 }
 
 func TestValidateBuildConfig_RequiredParam_Allowed(t *testing.T) {
@@ -309,4 +307,33 @@ func TestSerializeRecipes_BothParams(t *testing.T) {
 	params := m["params"].(map[string]any)
 	assert.Equal(t, []any{"a"}, params["required"])
 	assert.Equal(t, []any{"b"}, params["optional"])
+}
+
+// --- Build survives Merge ---
+
+func TestMerge_PreservesBuild(t *testing.T) {
+	defaults := &Config{
+		Rules: map[string]RuleCfg{
+			"recipe-safety": {Enabled: true},
+		},
+	}
+	loaded := &Config{
+		Rules: map[string]RuleCfg{
+			"recipe-safety": {Enabled: true},
+		},
+		Build: BuildConfig{
+			BaseURL: "https://example.com",
+			Recipes: map[string]RecipeCfg{
+				"mermaid": {
+					Command: "mmdc -i {input}",
+					Params:  ParamCfg{Required: []string{"input"}},
+				},
+			},
+		},
+	}
+	merged := Merge(defaults, loaded)
+	require.NotNil(t, merged)
+	assert.Equal(t, "https://example.com", merged.Build.BaseURL)
+	require.Contains(t, merged.Build.Recipes, "mermaid")
+	assert.Equal(t, "mmdc -i {input}", merged.Build.Recipes["mermaid"].Command)
 }

@@ -120,29 +120,77 @@ func TestApplySettings_Recipes_NoParams(t *testing.T) {
 	assert.Nil(t, r.Recipes["simple"].Optional)
 }
 
+func TestApplySettings_Recipes_MissingCommand(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"bad": map[string]any{
+				"params": map[string]any{"required": []any{"input"}},
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `recipe "bad": missing required 'command' field`)
+}
+
+func TestApplySettings_Recipes_NonStringCommand(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"bad": map[string]any{"command": 42},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `recipe "bad": command must be a string`)
+}
+
+func TestApplySettings_Recipes_NonStringParam(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"bad": map[string]any{
+				"command": "tool {x}",
+				"params":  map[string]any{"required": []any{"x", 99}},
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "element 1 must be a string")
+}
+
 // --- toStringSlice ---
 
 func TestToStringSlice_Nil(t *testing.T) {
-	assert.Nil(t, toStringSlice(nil))
+	result, err := toStringSlice(nil)
+	require.NoError(t, err)
+	assert.Nil(t, result)
 }
 
 func TestToStringSlice_StringSlice(t *testing.T) {
 	in := []string{"a", "b"}
-	assert.Equal(t, []string{"a", "b"}, toStringSlice(in))
+	result, err := toStringSlice(in)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, result)
 }
 
 func TestToStringSlice_AnySlice(t *testing.T) {
 	in := []any{"a", "b"}
-	assert.Equal(t, []string{"a", "b"}, toStringSlice(in))
+	result, err := toStringSlice(in)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, result)
 }
 
-func TestToStringSlice_AnySlice_SkipsNonString(t *testing.T) {
+func TestToStringSlice_AnySlice_NonStringReturnsError(t *testing.T) {
 	in := []any{"a", 42, "b"}
-	assert.Equal(t, []string{"a", "b"}, toStringSlice(in))
+	_, err := toStringSlice(in)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "element 1 must be a string")
 }
 
 func TestToStringSlice_UnknownType(t *testing.T) {
-	assert.Nil(t, toStringSlice(42))
+	_, err := toStringSlice(42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string slice")
 }
 
 // --- Check — dual-mode gating ---
