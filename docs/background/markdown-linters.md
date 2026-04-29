@@ -132,9 +132,9 @@ lives:
 | Merge conflicts     | Re-render at build time        | `merge-driver install` resolves  |
 | Agent friendliness  | Indirect (must run build)      | Direct (file is the source)      |
 
-The placeholder syntax is intentionally close to Hugo
-to ease migration. See the
-[Hugo migration guide][hugo-migration] for the mapping.
+To ease migration, mdsmith maps common Hugo template
+fields to placeholders. See the
+[Hugo migration guide][hugo-migration] for that mapping.
 
 ### LLM as Linter
 
@@ -576,8 +576,7 @@ items most relevant to this comparison are:
   forthcoming build directive so it cannot run
   arbitrary commands without explicit opt-in.
 
-Pin a version (`go install
-github.com/jeduden/mdsmith/cmd/mdsmith@vX.Y.Z`) if
+Pin a version (`go install github.com/jeduden/mdsmith/cmd/mdsmith@vX.Y.Z`) if
 you need a stable rule set while these land.
 
 <!-- mdsmith rule links -->
