@@ -79,7 +79,7 @@ func (r *Rule) checkLinks(f *lint.File) ([]lint.Diagnostic, bool) {
 			return ast.WalkContinue, nil
 		}
 		hasRef = true
-		line, col := nodePosition(link, f.Source)
+		line, col := nodePosition(link, f)
 		diags = append(diags, lint.Diagnostic{
 			File:     f.Path,
 			Line:     line,
@@ -105,7 +105,7 @@ func (r *Rule) checkUnusedDefinitions(
 	if hasRefLinks {
 		return nil
 	}
-	defs := collectReferenceDefinitions(f.Source)
+	defs := collectReferenceDefinitions(f)
 	var diags []lint.Diagnostic
 	for _, d := range defs {
 		diags = append(diags, lint.Diagnostic{
@@ -129,8 +129,8 @@ func (r *Rule) checkUnusedDefinitions(
 func (r *Rule) checkFootnotes(f *lint.File) []lint.Diagnostic {
 	codeLines := lint.CollectCodeBlockLines(f)
 	codeSpans := collectCodeSpanRanges(f.AST, f.Source)
-	refs := scanFootnoteReferences(f.Source, codeLines, codeSpans)
-	defs := scanFootnoteDefinitions(f.Source, codeLines)
+	refs := scanFootnoteReferences(f, codeLines, codeSpans)
+	defs := scanFootnoteDefinitions(f, codeLines)
 
 	var diags []lint.Diagnostic
 	for _, ref := range refs {
@@ -187,7 +187,8 @@ type referenceDefinition struct {
 // pick up reference definitions (which are consumed at parse time and
 // never appear in the document AST), then locates each in source so
 // the rule can report a precise position.
-func collectReferenceDefinitions(source []byte) []referenceDefinition {
+func collectReferenceDefinitions(f *lint.File) []referenceDefinition {
+	source := f.Source
 	ctx := parser.NewContext()
 	lint.NewParser().Parse(text.NewReader(source), parser.WithContext(ctx))
 
@@ -213,8 +214,8 @@ func collectReferenceDefinitions(source []byte) []referenceDefinition {
 		bracketAbs := m[2] - 1
 		out = append(out, referenceDefinition{
 			label: string(raw),
-			line:  lineOfOffset(source, bracketAbs),
-			col:   columnOfOffset(source, bracketAbs),
+			line:  f.LineOfOffset(bracketAbs),
+			col:   f.ColumnOfOffset(bracketAbs),
 			start: m[0],
 			end:   end,
 		})
@@ -249,8 +250,9 @@ var footnoteRefRE = regexp.MustCompile(`\[\^([^\]\n]+)\]`)
 var footnoteDefRE = regexp.MustCompile(`(?m)^[ ]{0,3}\[\^([^\]\n]+)\]:`)
 
 func scanFootnoteReferences(
-	source []byte, codeLines map[int]bool, codeSpans []byteRange,
+	f *lint.File, codeLines map[int]bool, codeSpans []byteRange,
 ) []footnoteOccurrence {
+	source := f.Source
 	matches := footnoteRefRE.FindAllSubmatchIndex(source, -1)
 	var out []footnoteOccurrence
 	for _, m := range matches {
@@ -259,7 +261,7 @@ func scanFootnoteReferences(
 		if isFootnoteDefinitionAt(source, start) {
 			continue
 		}
-		line := lineOfOffset(source, start)
+		line := f.LineOfOffset(start)
 		if codeLines[line] {
 			continue
 		}
@@ -269,7 +271,7 @@ func scanFootnoteReferences(
 		out = append(out, footnoteOccurrence{
 			slug:  string(source[m[2]:m[3]]),
 			line:  line,
-			col:   columnOfOffset(source, start),
+			col:   f.ColumnOfOffset(start),
 			start: start,
 			end:   m[1],
 		})
@@ -278,20 +280,21 @@ func scanFootnoteReferences(
 }
 
 func scanFootnoteDefinitions(
-	source []byte, codeLines map[int]bool,
+	f *lint.File, codeLines map[int]bool,
 ) []footnoteOccurrence {
+	source := f.Source
 	matches := footnoteDefRE.FindAllSubmatchIndex(source, -1)
 	var out []footnoteOccurrence
 	for _, m := range matches {
 		start := m[0]
-		line := lineOfOffset(source, start)
+		line := f.LineOfOffset(start)
 		if codeLines[line] {
 			continue
 		}
 		out = append(out, footnoteOccurrence{
 			slug:  string(source[m[2]:m[3]]),
 			line:  line,
-			col:   columnOfOffset(source, start),
+			col:   f.ColumnOfOffset(start),
 			start: start,
 			end:   m[1],
 		})
@@ -462,7 +465,8 @@ func lastSegment(n ast.Node) text.Segment {
 // position of `n`. For inline link nodes goldmark records the inner
 // text segment, so we walk back from the first text child to the
 // opening `[`.
-func nodePosition(n ast.Node, source []byte) (int, int) {
+func nodePosition(n ast.Node, f *lint.File) (int, int) {
+	source := f.Source
 	seg := firstDescendantText(n)
 	start := seg.Start
 	for start > 0 && source[start-1] != '\n' && source[start-1] != '[' {
@@ -471,7 +475,7 @@ func nodePosition(n ast.Node, source []byte) (int, int) {
 	if start > 0 && source[start-1] == '[' {
 		start--
 	}
-	return lineOfOffset(source, start), columnOfOffset(source, start)
+	return f.LineOfOffset(start), f.ColumnOfOffset(start)
 }
 
 func firstDescendantText(n ast.Node) text.Segment {
@@ -486,24 +490,6 @@ func firstDescendantText(n ast.Node) text.Segment {
 	return text.Segment{}
 }
 
-func lineOfOffset(source []byte, off int) int {
-	line := 1
-	for i := 0; i < off; i++ {
-		if source[i] == '\n' {
-			line++
-		}
-	}
-	return line
-}
-
-func columnOfOffset(source []byte, off int) int {
-	start := off
-	for start > 0 && source[start-1] != '\n' {
-		start--
-	}
-	return off - start + 1
-}
-
 // fixCut is a single byte-range replacement in source. `repl` may be
 // nil (pure removal) or hold the rewritten text for that span.
 type fixCut struct {
@@ -516,7 +502,7 @@ type fixCut struct {
 // definitions. Footnotes are not auto-fixed.
 func (r *Rule) Fix(f *lint.File) []byte {
 	linkCuts, usedLabels := collectLinkRewrites(f)
-	defCuts := collectDefinitionCuts(f.Source, usedLabels)
+	defCuts := collectDefinitionCuts(f, usedLabels)
 	cuts := append(linkCuts, defCuts...)
 	if len(cuts) == 0 {
 		out := make([]byte, len(f.Source))
@@ -549,8 +535,9 @@ func collectLinkRewrites(f *lint.File) ([]fixCut, map[string]bool) {
 	return cuts, usedLabels
 }
 
-func collectDefinitionCuts(source []byte, usedLabels map[string]bool) []fixCut {
-	defs := collectReferenceDefinitions(source)
+func collectDefinitionCuts(f *lint.File, usedLabels map[string]bool) []fixCut {
+	source := f.Source
+	defs := collectReferenceDefinitions(f)
 	var cuts []fixCut
 	for _, d := range defs {
 		if !usedLabels[util.ToLinkReference([]byte(d.label))] {
