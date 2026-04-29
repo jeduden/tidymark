@@ -31,33 +31,20 @@ already labelled "stable for LSP consumption". Plan
 95 designed `kinds resolve --json` and `check
 --explain` for the same audience.
 
-What's missing is the wire that connects the binary
-to the editor. Two surfaces are needed:
-
-- A **server** that speaks LSP over stdio and
-  reuses the lint pipeline rather than shelling out
-  to `mdsmith check` per keystroke.
-- A **client** — a VS Code extension — that knows
-  how to find the binary and start it.
-
-Shipping both preserves the single-binary install
-story. VS Code users install the extension. The
-extension finds `mdsmith` on `$PATH` or prompts the
-user to download a pinned release. No Node runtime
-ever runs the lint engine.
+Two surfaces are needed: a server that speaks LSP
+over stdio and reuses the lint pipeline, and a VS
+Code extension that knows how to find the binary
+and start it. The Node runtime never touches the
+lint engine.
 
 ## Non-Goals
 
-- A standalone Visual Studio (Windows IDE) extension.
-  VS Code is the immediate target; Visual Studio
-  proper would be a follow-up plan that reuses the
-  same LSP server.
+- A standalone Visual Studio (Windows IDE)
+  extension — follow-up plan if demand surfaces.
 - New rules or new fix logic. The plan wires the
-  existing pipeline through LSP; rule behavior must
-  not change.
-- Publishing to the VS Code Marketplace as part of
-  this plan. Marketplace publication is gated on a
-  separate release decision (see Open Questions).
+  existing pipeline through LSP unchanged.
+- Marketplace publication — gated on release
+  planning (see Open Questions).
 
 ## Design
 
@@ -282,16 +269,21 @@ then.
 
 ## Open Questions
 
-- **Excluding TypeScript from `mdsmith check`.**
-  The new `editors/vscode/**/*.ts` files must not
-  be linted as Markdown. CLAUDE.md forbids
-  modifying `.mdsmith.yml` without explicit user
-  consent. Resolve before implementation: either
-  the user authorises an `ignore:` entry, or the
-  extension lives outside the repo (separate
-  `mdsmith-vscode` repository). The acceptance
-  criterion `mdsmith check .` cannot be verified
-  until this is decided.
+- **Markdown docs under `editors/vscode/`.**
+  `mdsmith check` only lints `.md` and `.markdown`
+  files
+  ([`internal/lint/files.go`](../internal/lint/files.go)
+  `isMarkdown`), so the new TypeScript sources are
+  not a blocker. The real question is whether
+  Markdown files added under `editors/vscode/`
+  (for example `README.md`) should be authored to
+  pass the repo's existing rules as-is, or whether
+  the user wants explicit `.mdsmith.yml` ignore /
+  rule overrides for that subtree. CLAUDE.md
+  forbids modifying `.mdsmith.yml` without
+  explicit user consent, so this only needs a
+  decision once such Markdown files are
+  introduced.
 - **Marketplace publication.** Publishing to the
   VS Code Marketplace requires an Azure DevOps
   publisher account and a `VSCE_PAT` secret in CI.

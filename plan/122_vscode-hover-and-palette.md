@@ -65,14 +65,18 @@ position. When the position falls inside a
 diagnostic range, the server returns Markdown:
 
 - The diagnostic message (one line).
-- The rule's `help` body, loaded the same way
-  `mdsmith help <rule>` loads it.
+- The rule's docs, loaded the same way
+  `mdsmith help rule <id|name>` loads them via
+  [`internal/rules.LookupRule`](../internal/rules/ruledocs.go).
 
 When no diagnostic covers the position, the server
 checks for a `<?directive?>` block. If one is
 under the cursor, the hover returns that
-directive's docs. The source is the same body
-`mdsmith help directives` prints.
+directive's docs, sourced from the existing files
+under [docs/guides/directives/](../docs/guides/directives/).
+This plan does not add a new `mdsmith help
+directives` CLI topic; the directive content is
+loaded directly by the LSP server.
 
 Hover does not link to `kinds why`. Reviewers
 flagged that link as part of the over-surfaced
@@ -143,12 +147,13 @@ feedback.
 
 ## Tasks
 
-1. Expose a `Help(ruleID) (string, bool)` entry
-   point on
-   [`internal/rules`](../internal/rules) returning
-   the same Markdown the CLI prints. Cover known
-   rules, unknown rules, and rules with no help
-   body.
+1. Wire hover's rule lookup through the existing
+   [`internal/rules`](../internal/rules) APIs
+   (`LookupRule(query) (string, error)` and
+   `ListRules()`) so the hover body matches what
+   `mdsmith help rule <id|name>` prints. Cover
+   known rules, unknown rules, and rules whose
+   docs have no rule-specific body.
 2. Add `textDocument/hover` to the LSP server.
    Match the position against active diagnostic
    ranges. Fall through to the directive index
