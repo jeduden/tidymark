@@ -27,9 +27,11 @@ func init() {
 }
 
 // Rule flags ambiguous emphasis sequences. Each detector is gated by
-// its own setting and contributes at most one diagnostic per
-// (char, length) shape per line, so symmetric openers and closers
-// collapse into a single report.
+// its own setting. The long-run and adjacent-same-delim detectors
+// dedupe per (char, length) shape per line so symmetric openers and
+// closers collapse into one report; the escaped-in-run detector emits
+// one diagnostic per matching escape so each ambiguous source position
+// is reported.
 type Rule struct {
 	MaxRun                  int
 	ForbidEscapedInRun      bool
@@ -196,16 +198,18 @@ func (r *Rule) longRunDiags(f *lint.File, lineNum int, runs []emphRun) []lint.Di
 // escapedInRunDiags emits one diagnostic for each escaped delimiter
 // that sits immediately after an unescaped run of the same character.
 func (r *Rule) escapedInRunDiags(f *lint.File, lineNum int, runs []emphRun, escapes []escape) []lint.Diagnostic {
+	type runEndKey struct {
+		char byte
+		end  int
+	}
+	runEnds := make(map[runEndKey]struct{}, len(runs))
+	for _, run := range runs {
+		runEnds[runEndKey{char: run.char, end: run.end}] = struct{}{}
+	}
+
 	var diags []lint.Diagnostic
 	for _, e := range escapes {
-		matched := false
-		for _, run := range runs {
-			if run.char == e.char && run.end == e.pos {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+		if _, ok := runEnds[runEndKey{char: e.char, end: e.pos}]; !ok {
 			continue
 		}
 		diags = append(diags, lint.Diagnostic{
@@ -305,8 +309,8 @@ func gapNonEmptyAllNonWhitespace(b []byte) bool {
 	return true
 }
 
-// codeSpanRange records the inclusive byte range of one CodeSpan's
-// delimited content within f.Source.
+// codeSpanRange records the half-open [start, end) byte range of one
+// CodeSpan's delimited content within f.Source.
 type codeSpanRange struct {
 	start int // absolute byte offset in source, inclusive
 	end   int // absolute byte offset in source, exclusive
