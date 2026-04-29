@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jeduden/mdsmith/internal/archetypes"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 
