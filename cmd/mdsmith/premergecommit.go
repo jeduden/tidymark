@@ -111,6 +111,13 @@ func runPreMergeCommitInstall(args []string) int {
 		return 2
 	}
 
+	// Enable git-hook-sync rule in config
+	if err := enableGitHookSyncRule(repoRoot); err != nil {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: warning: could not enable git-hook-sync rule: %v\n", err)
+		// Don't return error - hook is still installed
+	}
+
 	hookPath := filepath.Join(resolveHooksDir(repoRoot), "pre-merge-commit")
 	fmt.Fprintf(os.Stderr, "mdsmith: pre-merge-commit hook installed\n")
 	fmt.Fprintf(os.Stderr, "  hook path: %s\n", hookPath)

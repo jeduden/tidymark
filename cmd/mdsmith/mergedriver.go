@@ -409,6 +409,13 @@ func runMergeDriverInstall(args []string) int {
 		return 2
 	}
 
+	// Enable git-hook-sync rule in config
+	if err := enableGitHookSyncRule(repoRoot); err != nil {
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: warning: could not enable git-hook-sync rule: %v\n", err)
+		// Don't return error - hooks are still installed
+	}
+
 	hookPath := filepath.Join(resolveHooksDir(repoRoot), "pre-merge-commit")
 	fmt.Fprintf(os.Stderr, "mdsmith: merge driver 'mdsmith' installed\n")
 	fmt.Fprintf(os.Stderr, "  git config: merge.mdsmith.driver\n")
