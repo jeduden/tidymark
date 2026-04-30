@@ -355,6 +355,35 @@ func hasConflictMarkers(content []byte) bool {
 	return false
 }
 
+// resolveManagedFiles returns the canonical (repo-relative,
+// forward-slash) list of files to manage for an install command. If
+// args is non-empty, those paths are normalized via
+// githooks.NormalizeManagedPaths. Otherwise discovery walks the repo
+// for files with generated-section directives. The second return is
+// the process exit code: 0 on success, 2 on a user-facing error
+// (already printed to stderr).
+func resolveManagedFiles(repoRoot string, args []string) ([]string, int) {
+	if len(args) > 0 {
+		normalized, err := githooks.NormalizeManagedPaths(repoRoot, args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
+			return nil, 2
+		}
+		return normalized, 0
+	}
+	cfg, _, err := loadConfig("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mdsmith: loading config: %v\n", err)
+		return nil, 2
+	}
+	maxBytes, err := resolveMaxInputBytes(cfg, "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
+		return nil, 2
+	}
+	return discoverFilesWithGeneratedContent(repoRoot, maxBytes), 0
+}
+
 // runMergeDriverInstall registers the mdsmith merge driver in
 // the local git config and ensures .gitattributes assigns it.
 func runMergeDriverInstall(args []string) int {
@@ -377,24 +406,9 @@ func runMergeDriverInstall(args []string) int {
 		return 2
 	}
 
-	// Determine file list: use args if given, else discover files
-	// with generated content.
-	var files []string
-	if len(args) > 0 {
-		files = args
-	} else {
-		// Resolve max input size from config.
-		cfg, _, err := loadConfig("")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "mdsmith: loading config: %v\n", err)
-			return 2
-		}
-		maxBytes, err := resolveMaxInputBytes(cfg, "")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-			return 2
-		}
-		files = discoverFilesWithGeneratedContent(repoRoot, maxBytes)
+	files, rc := resolveManagedFiles(repoRoot, args)
+	if rc != 0 {
+		return rc
 	}
 
 	attrPath := filepath.Join(repoRoot, ".gitattributes")

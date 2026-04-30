@@ -87,24 +87,9 @@ func runPreMergeCommitInstall(args []string) int {
 	}
 	repoRoot := strings.TrimSpace(string(out))
 
-	// Determine file list: use args if given, else discover files
-	// with generated content.
-	var files []string
-	if len(args) > 0 {
-		files = args
-	} else {
-		// Resolve max input size from config.
-		cfg, _, err := loadConfig("")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "mdsmith: loading config: %v\n", err)
-			return 2
-		}
-		maxBytes, err := resolveMaxInputBytes(cfg, "")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-			return 2
-		}
-		files = discoverFilesWithGeneratedContent(repoRoot, maxBytes)
+	files, rc := resolveManagedFiles(repoRoot, args)
+	if rc != 0 {
+		return rc
 	}
 
 	if err := ensurePreMergeCommitHook(repoRoot, files); err != nil {

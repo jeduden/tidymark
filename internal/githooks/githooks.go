@@ -197,6 +197,16 @@ func ExtractHookFiles(content string) []string {
 // pathname token from a line of the form `<pathname> merge=mdsmith`.
 // Comment lines (`#`) and lines without a `merge=mdsmith` attribute
 // are ignored.
+// ExtractGitattributesFiles returns the list of paths assigned to the
+// mdsmith merge driver in .gitattributes content. Each entry is the
+// pathname token from a line of the form `<pathname> merge=mdsmith`.
+// Comment lines (`#`) and lines without a `merge=mdsmith` attribute
+// are ignored.
+//
+// The parser splits on whitespace, so it does not support pathnames
+// that themselves contain whitespace. NormalizeManagedPath rejects
+// such paths at install time so the installer and the drift checker
+// stay consistent.
 func ExtractGitattributesFiles(content string) []string {
 	var files []string
 	for _, line := range strings.Split(content, "\n") {
@@ -220,6 +230,57 @@ func ExtractGitattributesFiles(content string) []string {
 		}
 	}
 	return files
+}
+
+// NormalizeManagedPath converts p (which may be absolute, relative,
+// or use OS-specific separators) into the canonical form used in
+// .gitattributes and the pre-merge-commit hook: a non-empty
+// repo-relative path with forward-slash separators that does not
+// escape repoRoot.
+//
+// Whitespace inside paths is rejected because .gitattributes splits
+// attributes on whitespace and the rule's Fields-based parser cannot
+// recover the original token; tab and newline are likewise rejected.
+// Allowing them would make the installer and the drift checker
+// disagree on what was installed.
+func NormalizeManagedPath(repoRoot, p string) (string, error) {
+	if strings.TrimSpace(p) == "" {
+		return "", fmt.Errorf("empty path")
+	}
+	if strings.ContainsAny(p, " \t\n\r") {
+		return "", fmt.Errorf("path %q contains whitespace, which is not supported in managed file lists", p)
+	}
+
+	abs := p
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(repoRoot, abs)
+	}
+	absClean := filepath.Clean(abs)
+	rootClean := filepath.Clean(repoRoot)
+
+	rel, err := filepath.Rel(rootClean, absClean)
+	if err != nil {
+		return "", fmt.Errorf("path %q is not relative to repo root %q: %w", p, repoRoot, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("path %q escapes repository root", p)
+	}
+	return filepath.ToSlash(rel), nil
+}
+
+// NormalizeManagedPaths normalizes each entry via NormalizeManagedPath.
+// It returns the first error encountered, so callers can surface a
+// single clear message rather than a list of failures.
+func NormalizeManagedPaths(repoRoot string, paths []string) ([]string, error) {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		norm, err := NormalizeManagedPath(repoRoot, p)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, norm)
+	}
+	return out, nil
 }
 
 // HasMdsmithMergeDriver reports whether the repository's local git

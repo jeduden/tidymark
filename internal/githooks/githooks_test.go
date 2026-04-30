@@ -214,6 +214,40 @@ func TestHasMdsmithMergeDriver(t *testing.T) {
 	assert.True(t, HasMdsmithMergeDriver(dir))
 }
 
+func TestNormalizeManagedPath_RelativeForwardSlashes(t *testing.T) {
+	got, err := NormalizeManagedPath("/repo", filepath.Join("docs", "guide.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "docs/guide.md", got)
+}
+
+func TestNormalizeManagedPath_AbsoluteResolvesToRelative(t *testing.T) {
+	got, err := NormalizeManagedPath("/repo", "/repo/docs/guide.md")
+	require.NoError(t, err)
+	assert.Equal(t, "docs/guide.md", got)
+}
+
+func TestNormalizeManagedPath_RejectsEmpty(t *testing.T) {
+	_, err := NormalizeManagedPath("/repo", "   ")
+	assert.Error(t, err)
+}
+
+func TestNormalizeManagedPath_RejectsWhitespace(t *testing.T) {
+	_, err := NormalizeManagedPath("/repo", "doc with space.md")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "whitespace")
+}
+
+func TestNormalizeManagedPath_RejectsEscape(t *testing.T) {
+	_, err := NormalizeManagedPath("/repo", "../outside.md")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes")
+}
+
+func TestNormalizeManagedPaths_FailFast(t *testing.T) {
+	_, err := NormalizeManagedPaths("/repo", []string{"good.md", "bad name.md"})
+	assert.Error(t, err)
+}
+
 func TestEnableRuleSnippet(t *testing.T) {
 	got := EnableRuleSnippet("git-hook-sync")
 	assert.Equal(t, "rules:\n  git-hook-sync: true\n", got)
