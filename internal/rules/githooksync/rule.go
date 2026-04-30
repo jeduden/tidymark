@@ -116,14 +116,19 @@ func (r *Rule) markReported(repoRoot string) bool {
 //
 // An empty `merge=mdsmith` assignment list with the driver registered
 // and discovered files present is treated as drift: the merge driver
-// will not run for any file, defeating the registration.
+// will not run for any file, defeating the registration. A non-ENOENT
+// read error is surfaced as drift too rather than silently passing,
+// so permission/IO failures cannot mask real misconfiguration.
 func (r *Rule) mergeDriverDrift(repoRoot string, discovered []string) string {
 	if !githooks.HasMdsmithMergeDriver(repoRoot) {
 		return ""
 	}
 	data, err := os.ReadFile(filepath.Join(repoRoot, ".gitattributes"))
 	if err != nil && !os.IsNotExist(err) {
-		return ""
+		return fmt.Sprintf(
+			"cannot verify merge-driver assignments because .gitattributes could not be read: %v",
+			err,
+		)
 	}
 	installed := githooks.ExtractGitattributesFiles(string(data))
 	if githooks.FilesMatch(installed, discovered) {
@@ -145,12 +150,20 @@ func (r *Rule) mergeDriverDrift(repoRoot string, discovered []string) string {
 // preMergeCommitHookDrift returns a human-readable description of any
 // drift between the installed pre-merge-commit hook and the discovered
 // file list. Returns an empty string if no hook is installed, the
-// hook is not mdsmith-managed, or the file list matches.
+// hook is not mdsmith-managed, or the file list matches. A non-ENOENT
+// read error is surfaced rather than silently passing so permission
+// or IO failures cannot mask real drift.
 func (r *Rule) preMergeCommitHookDrift(repoRoot string, discovered []string) string {
 	hookPath := filepath.Join(githooks.ResolveHooksDir(repoRoot), "pre-merge-commit")
 	data, err := os.ReadFile(hookPath)
 	if err != nil {
-		return ""
+		if os.IsNotExist(err) {
+			return ""
+		}
+		return fmt.Sprintf(
+			"cannot verify pre-merge-commit hook because %s could not be read: %v",
+			hookPath, err,
+		)
 	}
 	hook := string(data)
 	if !strings.Contains(hook, githooks.PreMergeCommitMarker) {
@@ -160,9 +173,13 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string, discovered []string) str
 	if githooks.FilesMatch(installed, discovered) {
 		return ""
 	}
+	hasDesc := strings.Join(installed, ", ")
+	if len(installed) == 0 {
+		hasDesc = "(none)"
+	}
 	return fmt.Sprintf(
 		"pre-merge-commit hook is out of sync (has: %s, should have: %s)",
-		strings.Join(installed, ", "),
+		hasDesc,
 		strings.Join(discovered, ", "),
 	)
 }

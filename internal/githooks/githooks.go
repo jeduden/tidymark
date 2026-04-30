@@ -197,11 +197,6 @@ func ExtractHookFiles(content string) []string {
 // pathname token from a line of the form `<pathname> merge=mdsmith`.
 // Comment lines (`#`) and lines without a `merge=mdsmith` attribute
 // are ignored.
-// ExtractGitattributesFiles returns the list of paths assigned to the
-// mdsmith merge driver in .gitattributes content. Each entry is the
-// pathname token from a line of the form `<pathname> merge=mdsmith`.
-// Comment lines (`#`) and lines without a `merge=mdsmith` attribute
-// are ignored.
 //
 // The parser splits on whitespace, so it does not support pathnames
 // that themselves contain whitespace. NormalizeManagedPath rejects

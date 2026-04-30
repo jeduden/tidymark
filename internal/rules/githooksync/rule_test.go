@@ -215,6 +215,81 @@ func TestRule_Check_CombinesBothDriftSourcesIntoOneDiagnostic(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "pre-merge-commit hook is out of sync")
 }
 
+func TestRule_Check_HookListsNoFilesRendersNone(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
+		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+
+	// Hook bears the mdsmith marker but has no `fix --` lines, so
+	// ExtractHookFiles returns an empty slice. The drift message
+	// should render `(none)` rather than a blank list.
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
+		[]byte("#!/bin/sh\n"+githooks.PreMergeCommitMarker+"\n"), 0o755))
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+	}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "has: (none)")
+}
+
+func TestRule_Check_HookReadErrorIsReported(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
+		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+
+	// Make hookPath a directory so os.ReadFile returns a non-ENOENT
+	// error. The rule should surface that as drift instead of
+	// silently passing.
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(filepath.Join(hooksDir, "pre-merge-commit"), 0o755))
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+	}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message,
+		"cannot verify pre-merge-commit hook")
+}
+
+func TestRule_Check_GitattributesReadErrorIsReported(t *testing.T) {
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
+		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+
+	// Make .gitattributes a directory so reading it returns a
+	// non-ENOENT error. With merge.mdsmith.driver registered, the
+	// rule must surface that as drift.
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".gitattributes"), 0o755))
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+	}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message,
+		"cannot verify merge-driver assignments")
+}
+
 func TestRule_Check_OncePerRepo(t *testing.T) {
 	dir := t.TempDir()
 	initRepoWithDriver(t, dir)
