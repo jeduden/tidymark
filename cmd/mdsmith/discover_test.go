@@ -14,10 +14,10 @@ func TestDiscoverFilesWithGeneratedContent(t *testing.T) {
 
 	// Create test markdown files.
 	files := map[string]string{
-		"README.md": "# Test\n\n<?catalog?>\n<?/catalog?>\n",
-		"PLAN.md":   "# Plan\n\n<?include file: foo.md ?>\n",
-		"doc.md":    "# Normal file\n\nNo directives here.\n",
-		"guide.md":  "# Guide\n\n<?toc?>\n<?/toc?>\n",
+		"README.md":         "# Test\n\n<?catalog?>\n<?/catalog?>\n",
+		"PLAN.md":           "# Plan\n\n<?include file: foo.md ?>\n",
+		"doc.md":            "# Normal file\n\nNo directives here.\n",
+		"guide.md":          "# Guide\n\n<?toc?>\n<?/toc?>\n",
 		".hidden/secret.md": "# Hidden\n\n<?catalog?>\n",
 	}
 

@@ -79,7 +79,7 @@ func TestPreMergeCommitInstall_CreatesHook(t *testing.T) {
 	os.Stderr = w
 	t.Cleanup(func() {
 		os.Stderr = origStderr
-		w.Close()
+		_ = w.Close()
 	})
 
 	// Change to temp git repo so git commands work.
@@ -134,7 +134,7 @@ func TestPreMergeCommitUninstall_RemovesHook(t *testing.T) {
 	os.Stderr = w
 	t.Cleanup(func() {
 		os.Stderr = origStderr
-		w.Close()
+		_ = w.Close()
 	})
 
 	code := runPreMergeCommitUninstall(nil)
@@ -167,7 +167,7 @@ func TestPreMergeCommitUninstall_RefusesUserHook(t *testing.T) {
 	os.Stderr = w
 	t.Cleanup(func() {
 		os.Stderr = origStderr
-		w.Close()
+		_ = w.Close()
 	})
 
 	code := runPreMergeCommitUninstall(nil)

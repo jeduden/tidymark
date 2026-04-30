@@ -59,54 +59,71 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	discoveredFiles := discoverFilesWithGeneratedContent(repoRoot, f.MaxInputBytes)
 
 	var diags []lint.Diagnostic
+	diags = append(diags, r.checkMergeDriverHook(f, repoRoot, discoveredFiles)...)
+	diags = append(diags, r.checkPreMergeCommitHook(f, repoRoot, discoveredFiles)...)
+	return diags
+}
 
-	// Check merge-driver hook.
+// checkMergeDriverHook checks if the merge-driver hook is in sync.
+func (r *Rule) checkMergeDriverHook(f *lint.File, repoRoot string, discoveredFiles []string) []lint.Diagnostic {
 	mergeDriverPath := filepath.Join(repoRoot, ".git", "config")
-	if content, err := os.ReadFile(mergeDriverPath); err == nil {
-		installedFiles := extractMergeDriverFiles(string(content))
-		if len(installedFiles) > 0 && !filesMatch(installedFiles, discoveredFiles) {
-			diags = append(diags, lint.Diagnostic{
-				File:     f.Path,
-				Line:     1,
-				Column:   1,
-				RuleID:   r.ID(),
-				RuleName: r.Name(),
-				Severity: lint.Warning,
-				Message: fmt.Sprintf(
-					"merge-driver hook is out of sync (has: %s, should have: %s)",
-					strings.Join(installedFiles, ", "),
-					strings.Join(discoveredFiles, ", "),
-				),
-			})
-		}
+	content, err := os.ReadFile(mergeDriverPath)
+	if err != nil {
+		return nil
 	}
 
-	// Check pre-merge-commit hook.
+	installedFiles := extractMergeDriverFiles(string(content))
+	if len(installedFiles) == 0 || filesMatch(installedFiles, discoveredFiles) {
+		return nil
+	}
+
+	return []lint.Diagnostic{{
+		File:     f.Path,
+		Line:     1,
+		Column:   1,
+		RuleID:   r.ID(),
+		RuleName: r.Name(),
+		Severity: lint.Warning,
+		Message: fmt.Sprintf(
+			"merge-driver hook is out of sync (has: %s, should have: %s)",
+			strings.Join(installedFiles, ", "),
+			strings.Join(discoveredFiles, ", "),
+		),
+	}}
+}
+
+// checkPreMergeCommitHook checks if the pre-merge-commit hook is in sync.
+func (r *Rule) checkPreMergeCommitHook(f *lint.File, repoRoot string, discoveredFiles []string) []lint.Diagnostic {
 	hooksDir := resolveHooksDir(repoRoot)
 	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
-	if content, err := os.ReadFile(hookPath); err == nil {
-		hookContent := string(content)
-		if strings.Contains(hookContent, "# mdsmith pre-merge-commit hook") {
-			installedFiles := extractHookFiles(hookContent)
-			if len(installedFiles) > 0 && !filesMatch(installedFiles, discoveredFiles) {
-				diags = append(diags, lint.Diagnostic{
-					File:     f.Path,
-					Line:     1,
-					Column:   1,
-					RuleID:   r.ID(),
-					RuleName: r.Name(),
-					Severity: lint.Warning,
-					Message: fmt.Sprintf(
-						"pre-merge-commit hook is out of sync (has: %s, should have: %s)",
-						strings.Join(installedFiles, ", "),
-						strings.Join(discoveredFiles, ", "),
-					),
-				})
-			}
-		}
+	content, err := os.ReadFile(hookPath)
+	if err != nil {
+		return nil
 	}
 
-	return diags
+	hookContent := string(content)
+	if !strings.Contains(hookContent, "# mdsmith pre-merge-commit hook") {
+		return nil
+	}
+
+	installedFiles := extractHookFiles(hookContent)
+	if len(installedFiles) == 0 || filesMatch(installedFiles, discoveredFiles) {
+		return nil
+	}
+
+	return []lint.Diagnostic{{
+		File:     f.Path,
+		Line:     1,
+		Column:   1,
+		RuleID:   r.ID(),
+		RuleName: r.Name(),
+		Severity: lint.Warning,
+		Message: fmt.Sprintf(
+			"pre-merge-commit hook is out of sync (has: %s, should have: %s)",
+			strings.Join(installedFiles, ", "),
+			strings.Join(discoveredFiles, ", "),
+		),
+	}}
 }
 
 // Fix implements rule.FixableRule.

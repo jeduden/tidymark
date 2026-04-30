@@ -2,19 +2,26 @@
 id: MDS048
 name: git-hook-sync
 status: ready
-description: Git hooks (merge-driver and pre-merge-commit) must be in sync with files containing generated content directives.
+description: Git hooks must be in sync with files containing generated content directives.
 ---
 # MDS048: git-hook-sync
 
-Git hooks (merge-driver and pre-merge-commit) must be in sync with files containing generated content directives.
+Git hooks must be in sync with files containing generated
+content directives.
 
 ## Rationale
 
-When markdown files contain generated sections (<?catalog?>, <?include?>, <?toc?>), they need special handling during git merges to regenerate content and avoid conflicts. The mdsmith git hooks automate this process.
+When markdown files contain generated sections (`<?catalog?>`,
+`<?include?>`, `<?toc?>`), they need special handling during
+git merges to regenerate content and avoid conflicts. The
+mdsmith git hooks automate this process.
 
 This rule detects when:
-- The merge-driver hook is installed but configured for different files than those currently containing directives
-- The pre-merge-commit hook is installed but configured for different files than those currently containing directives
+
+- The merge-driver hook is installed but configured for
+  different files than those currently containing directives
+- The pre-merge-commit hook is installed but configured for
+  different files than those currently containing directives
 
 ## Settings
 
@@ -39,12 +46,17 @@ rules:
 ## How It Works
 
 The rule:
-1. Scans the repository for markdown files containing generated section directives
-2. Checks if merge-driver entries in `.git/config` match the discovered files
-3. Checks if the pre-merge-commit hook processes the discovered files
+
+1. Scans the repository for markdown files containing
+   generated section directives
+2. Checks if merge-driver entries in `.git/config` match
+   the discovered files
+3. Checks if the pre-merge-commit hook processes the
+   discovered files
 4. Reports a warning if either hook is out of sync
 
-The rule only checks once per run (when processing README.md or PLAN.md) to avoid duplicate diagnostics.
+The rule only checks once per run (when processing
+README.md or PLAN.md) to avoid duplicate diagnostics.
 
 ## Fix
 
@@ -100,7 +112,8 @@ Hooks are installed but for different files:
     driver = mdsmith merge-driver -- 'PLAN.md' %O %A %B %P
 ```
 
-**Diagnostic**: `git-hook-sync: merge-driver hook is out of sync (has: PLAN.md, should have: test.md)`
+**Diagnostic**: `git-hook-sync: merge-driver hook is out
+of sync (has: PLAN.md, should have: test.md)`
 
 ## Meta-Information
 
@@ -109,5 +122,5 @@ Hooks are installed but for different files:
 - **Status**: ready
 - **Default**: disabled
 - **Fixable**: yes (but requires manual reinstall)
-- **Implementation**: [source](./rule.go)
+- **Implementation**: [source](../githooksync/rule.go)
 - **Category**: meta
