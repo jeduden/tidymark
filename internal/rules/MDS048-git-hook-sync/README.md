@@ -89,8 +89,13 @@ mdsmith merge-driver install
 mdsmith pre-merge-commit install
 ```
 
-Both commands discover files with generated content and
-overwrite the previous configuration.
+`pre-merge-commit install` rewrites the hook script in
+place. Reinstalling clears stale entries from the hook.
+
+`merge-driver install` is append-only: it adds missing
+`merge=mdsmith` lines to `.gitattributes` and does not
+remove stale ones. After dropping a managed file, edit
+`.gitattributes` by hand to delete the obsolete line.
 
 ## Examples
 

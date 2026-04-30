@@ -61,7 +61,7 @@ func TestRule_Check_HooksInSync(t *testing.T) {
 		[]byte(gitattrs), 0o644))
 
 	// pre-merge-commit hook lists both files.
-	hooksDir := filepath.Join(dir, ".git", "hooks")
+	hooksDir := githooks.ResolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
 	hookContent := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"mdsmith fix -- 'PLAN.md'\ngit add -- 'PLAN.md'\n" +
@@ -94,7 +94,7 @@ func TestRule_Check_PreMergeCommitOutOfSync(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
 		[]byte(gitattrs), 0o644))
 
-	hooksDir := filepath.Join(dir, ".git", "hooks")
+	hooksDir := githooks.ResolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
 	hookContent := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"mdsmith fix -- 'README.md'\ngit add -- 'README.md'\n"
@@ -173,7 +173,7 @@ func TestRule_Check_HookWithoutMdsmithMarker(t *testing.T) {
 		[]byte("README.md merge=mdsmith\n"), 0o644))
 
 	// User-authored hook lacking the mdsmith marker — must be ignored.
-	hooksDir := filepath.Join(dir, ".git", "hooks")
+	hooksDir := githooks.ResolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
 		[]byte("#!/bin/sh\necho user hook\n"), 0o755))
@@ -197,7 +197,7 @@ func TestRule_Check_CombinesBothDriftSourcesIntoOneDiagnostic(t *testing.T) {
 	// different file and the hook lists yet another file.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
 		[]byte("OTHER.md merge=mdsmith\n"), 0o644))
-	hooksDir := filepath.Join(dir, ".git", "hooks")
+	hooksDir := githooks.ResolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
 	hookContent := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"mdsmith fix -- 'STALE.md'\n"
@@ -226,7 +226,7 @@ func TestRule_Check_HookListsNoFilesRendersNone(t *testing.T) {
 	// Hook bears the mdsmith marker but has no `fix --` lines, so
 	// ExtractHookFiles returns an empty slice. The drift message
 	// should render `(none)` rather than a blank list.
-	hooksDir := filepath.Join(dir, ".git", "hooks")
+	hooksDir := githooks.ResolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
 		[]byte("#!/bin/sh\n"+githooks.PreMergeCommitMarker+"\n"), 0o755))
@@ -252,7 +252,7 @@ func TestRule_Check_HookReadErrorIsReported(t *testing.T) {
 	// Make hookPath a directory so os.ReadFile returns a non-ENOENT
 	// error. The rule should surface that as drift instead of
 	// silently passing.
-	hooksDir := filepath.Join(dir, ".git", "hooks")
+	hooksDir := githooks.ResolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(filepath.Join(hooksDir, "pre-merge-commit"), 0o755))
 
 	r := &Rule{}

@@ -298,11 +298,16 @@ func toSet(s []string) map[string]struct{} {
 // ExtractHookFiles parses a pre-merge-commit hook script and returns
 // the list of files it invokes `mdsmith fix --` on. Files appear in
 // the order they occur in the hook. Each `fix --` line contributes at
-// most one entry: the first single-quoted token that follows.
+// most one entry: the first single-quoted token that follows. Comment
+// and blank lines are skipped so a commented-out example or note in
+// the hook does not produce a false managed-file entry.
 func ExtractHookFiles(content string) []string {
 	var files []string
 	for _, line := range strings.Split(content, "\n") {
 		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
 		if !strings.Contains(trimmed, "fix --") {
 			continue
 		}

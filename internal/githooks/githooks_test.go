@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -81,6 +82,14 @@ func TestExtractHookFiles_OneFilePerLine(t *testing.T) {
 
 func TestExtractHookFiles_NoMatch(t *testing.T) {
 	assert.Nil(t, ExtractHookFiles("#!/bin/sh\necho hi\n"))
+}
+
+func TestExtractHookFiles_IgnoresCommentLines(t *testing.T) {
+	// A commented-out example must not produce a managed-file entry.
+	content := "#!/bin/sh\n" +
+		"# example: mdsmith fix -- 'commented.md'\n" +
+		"mdsmith fix -- 'real.md'\n"
+	assert.Equal(t, []string{"real.md"}, ExtractHookFiles(content))
 }
 
 func TestExtractGitattributesFiles(t *testing.T) {
@@ -276,9 +285,20 @@ func TestResolveHooksDir_Default(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, exec.Command("git", "init", dir).Run())
 
+	// Ask git itself where hooks should live so the test does not
+	// hard-code .git/hooks. A developer with a non-default
+	// core.hooksPath set globally would otherwise see this test
+	// fail even though ResolveHooksDir is correct.
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--git-path", "hooks").Output()
+	require.NoError(t, err)
+	want := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(want) {
+		want = filepath.Join(dir, want)
+	}
+
 	got := ResolveHooksDir(dir)
 	gotResolved, _ := filepath.EvalSymlinks(got)
-	wantResolved, _ := filepath.EvalSymlinks(filepath.Join(dir, ".git", "hooks"))
+	wantResolved, _ := filepath.EvalSymlinks(filepath.Clean(want))
 	assert.Equal(t, wantResolved, gotResolved)
 }
 
