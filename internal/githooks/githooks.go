@@ -361,6 +361,13 @@ func ExtractGitattributesFiles(content string) []string {
 // repo whose own path contains whitespace (e.g. a Windows or macOS
 // home dir with spaces) is still accepted, as long as the
 // repo-relative tail is whitespace-free.
+//
+// Glob and pathspec metacharacters (`*`, `?`, `[`) are also
+// rejected. The install commands write each managed entry into a
+// `[ -e <path> ]` guard inside the pre-merge-commit hook script, and
+// `[ -e ]` treats its argument as a literal filename rather than a
+// glob, so a pattern like `docs/*.md` would always be skipped even
+// when files match. The drift checker likewise compares exact paths.
 func NormalizeManagedPath(repoRoot, p string) (string, error) {
 	if strings.TrimSpace(p) == "" {
 		return "", fmt.Errorf("empty path")
@@ -383,6 +390,13 @@ func NormalizeManagedPath(repoRoot, p string) (string, error) {
 	out := filepath.ToSlash(rel)
 	if strings.ContainsAny(out, " \t\n\r") {
 		return "", fmt.Errorf("path %q contains whitespace, which is not supported in managed file lists", p)
+	}
+	if strings.ContainsAny(out, "*?[") {
+		return "", fmt.Errorf(
+			"path %q contains a glob/pathspec character (*, ?, [); "+
+				"managed file lists must be exact paths",
+			p,
+		)
 	}
 	return out, nil
 }

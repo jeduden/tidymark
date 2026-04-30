@@ -325,6 +325,14 @@ func TestNormalizeManagedPath_RejectsWhitespace(t *testing.T) {
 	assert.Contains(t, err.Error(), "whitespace")
 }
 
+func TestNormalizeManagedPath_RejectsGlob(t *testing.T) {
+	for _, p := range []string{"docs/*.md", "?ile.md", "alt[abc].md"} {
+		_, err := NormalizeManagedPath("/repo", p)
+		require.Errorf(t, err, "path %q should be rejected as a glob", p)
+		assert.Contains(t, err.Error(), "glob/pathspec")
+	}
+}
+
 func TestNormalizeManagedPath_AcceptsRepoRootWithSpaces(t *testing.T) {
 	// The whitespace check must inspect the repo-relative result,
 	// not the raw input, so a repo whose own path contains spaces
