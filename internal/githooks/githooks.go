@@ -1,0 +1,221 @@
+// Package githooks provides utilities shared between the mdsmith CLI
+// and the git-hook-sync rule for managing the pre-merge-commit hook,
+// merge-driver assignments in .gitattributes, and discovery of files
+// that contain generated-section directives.
+package githooks
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/jeduden/mdsmith/internal/archetype/gensection"
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
+)
+
+// PreMergeCommitMarker is the comment line written into the
+// pre-merge-commit hook so that mdsmith (and the git-hook-sync rule)
+// can recognise hooks it manages without stomping on user-authored
+// hooks of the same name.
+const PreMergeCommitMarker = "# mdsmith merge-driver pre-merge-commit hook"
+
+// GitRepoRoot returns the absolute path of the git repository that
+// contains dir. The lookup runs `git -C dir rev-parse --show-toplevel`
+// so it works correctly when invoked from any subdirectory or when
+// linting an absolute path outside the process working directory.
+func GitRepoRoot(dir string) (string, error) {
+	if dir == "" {
+		dir = "."
+	}
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// ResolveHooksDir returns the directory where git hooks live for the
+// repository at repoRoot. It uses `git rev-parse --git-path hooks` so
+// that worktrees, submodules, and core.hooksPath all resolve correctly.
+// Falls back to <repoRoot>/.git/hooks when git cannot be queried.
+func ResolveHooksDir(repoRoot string) string {
+	out, err := exec.Command("git", "-C", repoRoot, "rev-parse", "--git-path", "hooks").Output()
+	if err == nil {
+		p := strings.TrimSpace(string(out))
+		if p != "" {
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(repoRoot, p)
+			}
+			return filepath.Clean(p)
+		}
+	}
+	return filepath.Join(repoRoot, ".git", "hooks")
+}
+
+// DiscoverFiles scans repoRoot for Markdown files containing a
+// generated-section directive (catalog, include, toc, …). Returned
+// paths are relative to repoRoot and use forward-slash separators on
+// every platform so they compare correctly against entries written
+// into .gitattributes and the pre-merge-commit hook.
+//
+// Hidden directories (names starting with ".") are skipped, matching
+// the behavior of the original CLI helper. Falls back to
+// ["PLAN.md", "README.md"] when discovery yields no files.
+func DiscoverFiles(repoRoot string, maxBytes int64) []string {
+	directiveNames := make(map[string]bool)
+	for _, r := range rule.All() {
+		if d, ok := r.(gensection.Directive); ok {
+			directiveNames[d.Name()] = true
+		}
+	}
+
+	var files []string
+	err := filepath.Walk(repoRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			if path != repoRoot && strings.HasPrefix(info.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := info.Name()
+		if !strings.HasSuffix(name, ".md") && !strings.HasSuffix(name, ".markdown") {
+			return nil
+		}
+		content, err := lint.ReadFileLimited(path, maxBytes)
+		if err != nil {
+			return nil
+		}
+		for n := range directiveNames {
+			if bytes.Contains(content, []byte("<?"+n)) {
+				rel, err := filepath.Rel(repoRoot, path)
+				if err == nil {
+					files = append(files, filepath.ToSlash(rel))
+				}
+				break
+			}
+		}
+		return nil
+	})
+
+	if err != nil || len(files) == 0 {
+		return []string{"PLAN.md", "README.md"}
+	}
+	return files
+}
+
+// FilesMatch reports whether a and b contain the same set of files,
+// ignoring order and duplicates.
+func FilesMatch(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := make(map[string]struct{}, len(a))
+	for _, f := range a {
+		set[f] = struct{}{}
+	}
+	for _, f := range b {
+		if _, ok := set[f]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// ExtractHookFiles parses a pre-merge-commit hook script and returns
+// the list of files it invokes `mdsmith fix --` on. Files appear in
+// the order they occur in the hook. Each `fix --` line contributes at
+// most one entry: the first single-quoted token that follows.
+func ExtractHookFiles(content string) []string {
+	var files []string
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.Contains(trimmed, "fix --") {
+			continue
+		}
+		if f, ok := firstQuotedAfter(trimmed, "fix --"); ok {
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
+// ExtractGitattributesFiles returns the list of paths assigned to the
+// mdsmith merge driver in .gitattributes content. Each entry is the
+// pathname token from a line of the form `<pathname> merge=mdsmith`.
+// Comment lines (`#`) and lines without a `merge=mdsmith` attribute
+// are ignored.
+func ExtractGitattributesFiles(content string) []string {
+	var files []string
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 {
+			continue
+		}
+		hasDriver := false
+		for _, f := range fields[1:] {
+			if f == "merge=mdsmith" {
+				hasDriver = true
+				break
+			}
+		}
+		if hasDriver {
+			files = append(files, fields[0])
+		}
+	}
+	return files
+}
+
+// HasMdsmithMergeDriver reports whether the repository's local git
+// config defines `merge.mdsmith.driver` (i.e. the merge driver itself
+// has been registered). A missing driver is reported as false rather
+// than as an error so callers can treat the merge-driver setup as
+// "not installed".
+func HasMdsmithMergeDriver(repoRoot string) bool {
+	out, err := exec.Command("git", "-C", repoRoot, "config", "--get", "merge.mdsmith.driver").Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) != ""
+}
+
+// EnableRuleSnippet returns the YAML the user can paste into
+// .mdsmith.yml to enable the given rule. mdsmith never rewrites the
+// user's config file automatically; the snippet is printed instead.
+func EnableRuleSnippet(ruleName string) string {
+	return fmt.Sprintf("rules:\n  %s: true\n", ruleName)
+}
+
+// firstQuotedAfter returns the first single-quoted token that appears
+// after marker in line. Returns ok=false if the marker is missing or
+// no quoted token follows it.
+func firstQuotedAfter(line, marker string) (string, bool) {
+	idx := strings.Index(line, marker)
+	if idx == -1 {
+		return "", false
+	}
+	rest := strings.TrimSpace(line[idx+len(marker):])
+	if rest == "" || rest[0] != '\'' {
+		return "", false
+	}
+	rest = rest[1:]
+	end := strings.IndexByte(rest, '\'')
+	if end == -1 {
+		return "", false
+	}
+	tok := rest[:end]
+	if tok == "" {
+		return "", false
+	}
+	return tok, true
+}

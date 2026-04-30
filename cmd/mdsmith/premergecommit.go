@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/jeduden/mdsmith/internal/githooks"
 )
 
 const preMergeCommitUsage = `Usage: mdsmith pre-merge-commit <subcommand> [args]
@@ -111,19 +113,15 @@ func runPreMergeCommitInstall(args []string) int {
 		return 2
 	}
 
-	// Enable git-hook-sync rule in config
-	if err := enableGitHookSyncRule(repoRoot); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: warning: could not enable git-hook-sync rule: %v\n", err)
-		// Don't return error - hook is still installed
-	}
-
 	hookPath := filepath.Join(resolveHooksDir(repoRoot), "pre-merge-commit")
 	fmt.Fprintf(os.Stderr, "mdsmith: pre-merge-commit hook installed\n")
 	fmt.Fprintf(os.Stderr, "  hook path: %s\n", hookPath)
 	fmt.Fprintf(os.Stderr, "  files: %s\n", strings.Join(files, ", "))
 	fmt.Fprintf(os.Stderr, "\nThe hook will run 'mdsmith fix' on these files during merges\n")
 	fmt.Fprintf(os.Stderr, "and stage them with 'git add' to clear any conflict markers.\n")
+	fmt.Fprintf(os.Stderr,
+		"\nTo also enable drift detection, add this to your .mdsmith.yml:\n\n%s\n",
+		githooks.EnableRuleSnippet("git-hook-sync"))
 	return 0
 }
 
@@ -245,55 +243,14 @@ func runPreMergeCommitStatus(args []string) int {
 }
 
 // extractFilesFromHook parses the hook content to extract the list
-// of files it processes. Returns nil if parsing fails.
+// of files it processes. Implementation lives in internal/githooks so
+// the CLI and the git-hook-sync rule cannot drift.
 func extractFilesFromHook(content string) []string {
-	// Look for lines like: '/path/to/mdsmith' fix -- 'FILE.md'
-	// This is a simple heuristic extraction.
-	var files []string
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.Contains(line, "fix --") {
-			continue
-		}
-		// Extract the file after 'fix --'
-		parts := strings.Split(line, "fix --")
-		if len(parts) < 2 {
-			continue
-		}
-		// The file is the last argument, typically in single quotes.
-		after := strings.TrimSpace(parts[1])
-		// Remove trailing 'git add' command if present on same line
-		if idx := strings.Index(after, "\n"); idx != -1 {
-			after = after[:idx]
-		}
-		// Strip quotes and extract filename.
-		after = strings.Trim(after, "' \t")
-		if after != "" && !strings.Contains(after, "fi") {
-			files = append(files, after)
-		}
-	}
-	return files
+	return githooks.ExtractHookFiles(content)
 }
 
-// filesMatch checks if two file lists contain the same files,
-// regardless of order. Returns true if they match, false otherwise.
+// filesMatch reports whether a and b contain the same set of files,
+// regardless of order. Implementation lives in internal/githooks.
 func filesMatch(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	// Create a map to track files in list a.
-	filesInA := make(map[string]bool)
-	for _, f := range a {
-		filesInA[f] = true
-	}
-
-	// Check that all files in b are also in a.
-	for _, f := range b {
-		if !filesInA[f] {
-			return false
-		}
-	}
-
-	return true
+	return githooks.FilesMatch(a, b)
 }

@@ -6,14 +6,33 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/jeduden/mdsmith/internal/githooks"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	// Register the directive-bearing rules so DiscoverFiles can find
+	// real catalog/include/toc markers in test fixtures.
+	_ "github.com/jeduden/mdsmith/internal/rules/catalog"
+	_ "github.com/jeduden/mdsmith/internal/rules/include"
+	_ "github.com/jeduden/mdsmith/internal/rules/toc"
 )
+
+// initRepoWithDriver initialises a git repo at dir and registers the
+// mdsmith merge driver in its local config so the rule will read
+// .gitattributes (the real source of truth).
+func initRepoWithDriver(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+	require.NoError(t, exec.Command(
+		"git", "-C", dir, "config", "merge.mdsmith.driver",
+		"mdsmith merge-driver run %O %A %B %P",
+	).Run())
+}
 
 func TestRule_Check_NotInGitRepo(t *testing.T) {
 	dir := t.TempDir()
-	// No git init - not a git repository
+	// No git init - the directory is not inside a git repository.
 
 	r := &Rule{configured: true}
 	f := &lint.File{
@@ -22,7 +41,6 @@ func TestRule_Check_NotInGitRepo(t *testing.T) {
 		MaxInputBytes: 1048576,
 	}
 
-	// Should return no diagnostics when not in a git repo
 	diags := r.Check(f)
 	assert.Empty(t, diags)
 }
@@ -38,42 +56,36 @@ func TestRule_Check_NotConfigured(t *testing.T) {
 		MaxInputBytes: 1048576,
 	}
 
-	// Should return no diagnostics when not configured
 	diags := r.Check(f)
 	assert.Empty(t, diags)
 }
 
 func TestRule_Check_HooksInSync(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initRepoWithDriver(t, dir)
 
-	// Create README.md with generated content
-	readmeFile := filepath.Join(dir, "README.md")
-	require.NoError(t, os.WriteFile(readmeFile,
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
 		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
-
-	// Create PLAN.md with generated content
-	planFile := filepath.Join(dir, "PLAN.md")
-	require.NoError(t, os.WriteFile(planFile,
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "PLAN.md"),
 		[]byte("# Plan\n\n<?include file=\"test.md\"?><?/include?>\n"), 0o644))
 
-	// Create pre-merge-commit hook with BOTH files (matching discovery)
+	// .gitattributes assigns both files to the mdsmith merge driver.
+	gitattrs := "PLAN.md merge=mdsmith\nREADME.md merge=mdsmith\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte(gitattrs), 0o644))
+
+	// pre-merge-commit hook lists both files.
 	hooksDir := filepath.Join(dir, ".git", "hooks")
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
-	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
-	hookContent := "#!/bin/sh\n# mdsmith pre-merge-commit hook\n" +
+	hookContent := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"mdsmith fix -- 'PLAN.md'\ngit add -- 'PLAN.md'\n" +
 		"mdsmith fix -- 'README.md'\ngit add -- 'README.md'\n"
-	require.NoError(t, os.WriteFile(hookPath, []byte(hookContent), 0o755))
-
-	// Change to git repo directory so git commands work
-	origWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	t.Cleanup(func() { _ = os.Chdir(origWd) })
+	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
+		[]byte(hookContent), 0o755))
 
 	r := &Rule{configured: true}
 	f := &lint.File{
-		Path:          "README.md",
+		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"),
 		MaxInputBytes: 1048576,
 	}
@@ -84,34 +96,28 @@ func TestRule_Check_HooksInSync(t *testing.T) {
 
 func TestRule_Check_PreMergeCommitOutOfSync(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initRepoWithDriver(t, dir)
 
-	// Only create one file with generated content
-	testFile := filepath.Join(dir, "test.md")
-	require.NoError(t, os.WriteFile(testFile,
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.md"),
 		[]byte("# Test\n\n<?catalog?>\nlist\n<?/catalog?>\n"), 0o644))
-
-	// Create README.md (with generated content) so we can check hooks from it
-	readmeFile := filepath.Join(dir, "README.md")
-	require.NoError(t, os.WriteFile(readmeFile,
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
 		[]byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"), 0o644))
 
-	// Create pre-merge-commit hook with only ONE file (not all discovered files)
+	// .gitattributes is in sync with discovery so only the hook drifts.
+	gitattrs := "README.md merge=mdsmith\ntest.md merge=mdsmith\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte(gitattrs), 0o644))
+
 	hooksDir := filepath.Join(dir, ".git", "hooks")
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
-	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
-	hookContent := "#!/bin/sh\n# mdsmith pre-merge-commit hook\n" +
+	hookContent := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"mdsmith fix -- 'README.md'\ngit add -- 'README.md'\n"
-	require.NoError(t, os.WriteFile(hookPath, []byte(hookContent), 0o755))
-
-	// Change to git repo directory
-	origWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	t.Cleanup(func() { _ = os.Chdir(origWd) })
+	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
+		[]byte(hookContent), 0o755))
 
 	r := &Rule{configured: true}
 	f := &lint.File{
-		Path:          "README.md",
+		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"),
 		MaxInputBytes: 1048576,
 	}
@@ -120,8 +126,63 @@ func TestRule_Check_PreMergeCommitOutOfSync(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message, "pre-merge-commit hook is out of sync")
 	assert.Contains(t, diags[0].Message, "has: README.md")
-	// Discovery should find both README.md and test.md
 	assert.Contains(t, diags[0].Message, "should have:")
+}
+
+func TestRule_Check_GitattributesOutOfSync(t *testing.T) {
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.md"),
+		[]byte("# Test\n\n<?catalog?>\nlist\n<?/catalog?>\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
+		[]byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"), 0o644))
+
+	// .gitattributes only lists README.md but discovery will find both.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte("README.md merge=mdsmith\n"), 0o644))
+
+	r := &Rule{configured: true}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"),
+		MaxInputBytes: 1048576,
+	}
+
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "merge-driver assignments in .gitattributes are out of sync")
+	assert.Contains(t, diags[0].Message, "has: README.md")
+}
+
+func TestRule_Check_OncePerRepo(t *testing.T) {
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.md"),
+		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
+		[]byte("# README\n\n<?include file=\"x.md\"?><?/include?>\n"), 0o644))
+	// .gitattributes lists only README.md, so drift is real.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte("README.md merge=mdsmith\n"), 0o644))
+
+	r := &Rule{configured: true}
+	f1 := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# README\n"),
+		MaxInputBytes: 1048576,
+	}
+	f2 := &lint.File{
+		Path:          filepath.Join(dir, "test.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+	}
+
+	diags1 := r.Check(f1)
+	diags2 := r.Check(f2)
+	assert.Len(t, diags1, 1, "first file should report drift")
+	assert.Empty(t, diags2, "second file in same repo should not duplicate the diagnostic")
 }
 
 func TestRule_ApplySettings(t *testing.T) {
@@ -138,60 +199,4 @@ func TestRule_ApplySettings_UnknownSetting(t *testing.T) {
 	err := r.ApplySettings(map[string]any{"unknown": "value"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown setting")
-}
-
-func TestFilesMatch(t *testing.T) {
-	tests := []struct {
-		name string
-		a    []string
-		b    []string
-		want bool
-	}{
-		{"empty lists", []string{}, []string{}, true},
-		{"same files same order", []string{"a", "b"}, []string{"a", "b"}, true},
-		{"same files different order", []string{"a", "b"}, []string{"b", "a"}, true},
-		{"different lengths", []string{"a"}, []string{"a", "b"}, false},
-		{"different files", []string{"a", "b"}, []string{"a", "c"}, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := filesMatch(tt.a, tt.b)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestExtractHookFiles(t *testing.T) {
-	content := `#!/bin/sh
-# mdsmith pre-merge-commit hook
-
-if [ -e 'PLAN.md' ]; then
-  mdsmith fix -- 'PLAN.md'
-  git add -- 'PLAN.md'
-fi
-
-if [ -e 'README.md' ]; then
-  mdsmith fix -- 'README.md'
-  git add -- 'README.md'
-fi
-`
-	files := extractHookFiles(content)
-	assert.Equal(t, []string{"PLAN.md", "README.md"}, files)
-}
-
-func TestExtractMergeDriverFiles(t *testing.T) {
-	gitConfig := `[core]
-	repositoryformatversion = 0
-
-[merge "mdsmith-PLAN.md"]
-	driver = mdsmith merge-driver -- 'PLAN.md' %O %A %B %P
-	name = mdsmith merge driver for PLAN.md
-
-[merge "mdsmith-README.md"]
-	driver = mdsmith merge-driver -- 'README.md' %O %A %B %P
-	name = mdsmith merge driver for README.md
-`
-	files := extractMergeDriverFiles(gitConfig)
-	assert.Equal(t, []string{"PLAN.md", "README.md"}, files)
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	fixpkg "github.com/jeduden/mdsmith/internal/fix"
+	"github.com/jeduden/mdsmith/internal/githooks"
 	"github.com/jeduden/mdsmith/internal/lint"
 	vlog "github.com/jeduden/mdsmith/internal/log"
 	"github.com/jeduden/mdsmith/internal/rule"
@@ -409,41 +410,30 @@ func runMergeDriverInstall(args []string) int {
 		return 2
 	}
 
-	// Enable git-hook-sync rule in config
-	if err := enableGitHookSyncRule(repoRoot); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: warning: could not enable git-hook-sync rule: %v\n", err)
-		// Don't return error - hooks are still installed
-	}
-
 	hookPath := filepath.Join(resolveHooksDir(repoRoot), "pre-merge-commit")
 	fmt.Fprintf(os.Stderr, "mdsmith: merge driver 'mdsmith' installed\n")
 	fmt.Fprintf(os.Stderr, "  git config: merge.mdsmith.driver\n")
 	fmt.Fprintf(os.Stderr, "  .gitattributes: %s\n", attrPath)
 	fmt.Fprintf(os.Stderr, "  pre-merge-commit hook: %s\n", hookPath)
+	fmt.Fprintf(os.Stderr,
+		"\nTo also enable drift detection, add this to your .mdsmith.yml:\n\n%s\n",
+		githooks.EnableRuleSnippet("git-hook-sync"))
 	return 0
 }
 
 // preMergeCommitHookMarker identifies the hook as managed by
 // mdsmith so re-running install can safely replace it without
-// stomping on a user-authored hook of the same name.
-const preMergeCommitHookMarker = "# mdsmith merge-driver pre-merge-commit hook"
+// stomping on a user-authored hook of the same name. The canonical
+// constant lives in internal/githooks; this alias keeps existing
+// references in this package and its tests stable.
+const preMergeCommitHookMarker = githooks.PreMergeCommitMarker
 
 // resolveHooksDir returns the directory where git hooks should be
-// installed. It respects core.hooksPath if configured so that
-// installations work correctly in repos that redirect hooks to a
-// custom path (e.g. via git config or a repo management tool).
-// Falls back to .git/hooks when git cannot be queried.
+// installed for the repo at repoRoot. The implementation lives in
+// internal/githooks so the CLI and the git-hook-sync rule resolve
+// the same path.
 func resolveHooksDir(repoRoot string) string {
-	cmd := exec.Command("git", "-C", repoRoot, "rev-parse", "--git-path", "hooks")
-	if out, err := cmd.Output(); err == nil {
-		p := strings.TrimSpace(string(out))
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(repoRoot, p)
-		}
-		return filepath.Clean(p)
-	}
-	return filepath.Join(repoRoot, ".git", "hooks")
+	return githooks.ResolveHooksDir(repoRoot)
 }
 
 // ensurePreMergeCommitHook writes the pre-merge-commit hook so

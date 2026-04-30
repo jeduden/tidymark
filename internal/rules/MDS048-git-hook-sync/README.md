@@ -18,10 +18,11 @@ mdsmith git hooks automate this process.
 
 This rule detects when:
 
-- The merge-driver hook is installed but configured for
-  different files than those currently containing directives
-- The pre-merge-commit hook is installed but configured for
-  different files than those currently containing directives
+- The merge-driver assignments in `.gitattributes` cover a
+  different set of files than those currently containing
+  directives
+- The pre-merge-commit hook is configured for a different set
+  of files than those currently containing directives
 
 ## Settings
 
@@ -49,34 +50,41 @@ The rule:
 
 1. Scans the repository for markdown files containing
    generated section directives
-2. Checks if merge-driver entries in `.git/config` match
-   the discovered files
-3. Checks if the pre-merge-commit hook processes the
-   discovered files
-4. Reports a warning if either hook is out of sync
+2. If `merge.mdsmith.driver` is registered in git config,
+   compares the file list in `.gitattributes` (lines of the
+   form `<file> merge=mdsmith`) against the discovered files
+3. Reads the pre-merge-commit hook (when it carries the
+   mdsmith marker) and compares the file list extracted from
+   `mdsmith fix --` lines against the discovered files
+4. Reports a warning if either source is out of sync
 
-The rule only checks once per run (when processing
-README.md or PLAN.md) to avoid duplicate diagnostics.
+The rule emits at most one diagnostic per repository per
+lint run regardless of how many files in that repository are
+linted.
 
 ## Fix
 
-This rule is marked as fixable but does not automatically fix the issue. To fix out-of-sync hooks:
+This rule is not auto-fixable. Git hook installation is a
+side-effecting operation. To bring the hooks back into
+sync, re-run the install commands. They pick up the
+current set of files with generated directives:
 
 ```bash
-# Update merge-driver for all files
+# Re-install the merge driver and refresh .gitattributes
 mdsmith merge-driver install
 
-# Update pre-merge-commit hook for all files
+# Re-install the pre-merge-commit hook
 mdsmith pre-merge-commit install
 ```
 
-Both commands will discover files with generated content and update the hooks accordingly.
+Both commands discover files with generated content and
+overwrite the previous configuration.
 
 ## Examples
 
 ### Good
 
-Hooks are installed and match the files with generated content:
+Hooks match the files with generated content:
 
 ```markdown
 # README.md
@@ -85,35 +93,39 @@ Hooks are installed and match the files with generated content:
 <?/catalog?>
 ```
 
-```bash
-# .git/config contains:
-[merge "mdsmith-README.md"]
-    driver = mdsmith merge-driver -- 'README.md' %O %A %B %P
+```text
+# .gitattributes contains:
+README.md merge=mdsmith
+
+# git config (local) contains:
+merge.mdsmith.driver=mdsmith merge-driver run %O %A %B %P
 
 # .git/hooks/pre-merge-commit contains:
+# mdsmith merge-driver pre-merge-commit hook
 mdsmith fix -- 'README.md'
 git add -- 'README.md'
 ```
 
 ### Bad
 
-Hooks are installed but for different files:
+`.gitattributes` is configured for `PLAN.md` but the file
+that actually contains a directive is `test.md`:
 
 ```markdown
-# test.md (has generated content)
+# test.md
 <?catalog?>
 - [File 1](file1.md)
 <?/catalog?>
 ```
 
-```bash
-# .git/config contains merge driver for PLAN.md (wrong file)
-[merge "mdsmith-PLAN.md"]
-    driver = mdsmith merge-driver -- 'PLAN.md' %O %A %B %P
+```text
+# .gitattributes contains:
+PLAN.md merge=mdsmith
 ```
 
-**Diagnostic**: `git-hook-sync: merge-driver hook is out
-of sync (has: PLAN.md, should have: test.md)`
+**Diagnostic**: `git-hook-sync: merge-driver assignments in
+.gitattributes are out of sync (has: PLAN.md, should have:
+test.md)`
 
 ## Meta-Information
 
@@ -121,6 +133,7 @@ of sync (has: PLAN.md, should have: test.md)`
 - **Name**: `git-hook-sync`
 - **Status**: ready
 - **Default**: disabled
-- **Fixable**: yes (but requires manual reinstall)
+- **Fixable**: no (re-run `mdsmith merge-driver install` /
+  `mdsmith pre-merge-commit install`)
 - **Implementation**: [source](../githooksync/rule.go)
 - **Category**: meta
