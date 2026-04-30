@@ -255,7 +255,9 @@ Weaknesses:
 | Required headings   | [MDS020][mds020] (via schema)  | [MD043][md043]                           | no                                                |
 | Single H1           | planned ([plan 127][plan127])  | [MD047][md047]                           | no                                                |
 | Link fragments      | [MDS027][mds027] (cross-file)  | [MD051][md051]                           | no                                                |
-| Reference links     | planned ([plan 107][plan107])  | [MD052][md052], [MD053][md053]           | no                                                |
+| Forbid ref-style    | planned ([plan 107][plan107])  | no                                       | no                                                |
+| Undefined ref label | planned ([plan 128][plan128])  | [MD052][md052]                           | no                                                |
+| Unused/dup ref def  | planned ([plan 129][plan129])  | [MD053][md053]                           | no                                                |
 
 All three cover core structural rules. markdownlint has
 the broadest rule set. Plans cover inline HTML
@@ -267,8 +269,10 @@ emphasis ([plan 111][plan111]), reference-style links
 ([plan 107][plan107]), no-space-in-code-spans
 ([plan 124][plan124]), no-space-in-link-text
 ([plan 125][plan125]), proper names
-([plan 126][plan126]), and single H1
-([plan 127][plan127]).
+([plan 126][plan126]), single H1
+([plan 127][plan127]), undefined reference labels
+([plan 128][plan128]), and unused link reference
+definitions ([plan 129][plan129]).
 Image alt text ([MDS032][mds032]) and OL numbering
 ([MDS046][mds046]) are already implemented.
 
@@ -753,3 +757,5 @@ you need a stable rule set while these land.
 [plan125]: ../../plan/125_no-space-in-link-text.md
 [plan126]: ../../plan/126_proper-names.md
 [plan127]: ../../plan/127_single-h1.md
+[plan128]: ../../plan/128_no-undefined-reference-labels.md
+[plan129]: ../../plan/129_no-unused-link-definitions.md
