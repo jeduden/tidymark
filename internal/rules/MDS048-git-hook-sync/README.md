@@ -70,11 +70,12 @@ The install commands (`mdsmith merge-driver install` and
 fallback is install-only. Stale entries from it can still
 trip the rule above.
 
-The rule reports drift for every file linted in a repository
-to enable auto-fix (the fixer only calls `Fix()` when
-`Check()` returns diagnostics). A once-per-repo guard in
-`Fix()` ensures `.gitattributes` is written only once per
-mdsmith process.
+Drift is computed from repository-wide discovery of files
+containing generated section directives. When `mdsmith fix`
+applies the `.gitattributes` fix, it regenerates that file
+once per repository run from the current discovered file
+list. Check() reports drift at most once per repository per
+process to avoid noisy output when checking many files.
 
 ## Fix
 
