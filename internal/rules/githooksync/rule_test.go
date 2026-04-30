@@ -8,6 +8,7 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/githooks"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -290,6 +291,45 @@ func TestRule_Check_GitattributesReadErrorIsReported(t *testing.T) {
 		"cannot verify merge-driver assignments")
 }
 
+func TestRule_Check_OncePerRepoAcrossClones(t *testing.T) {
+	// Simulate the engine's clone-per-file path: when the rule is
+	// enabled with a settings mapping (even an empty {}), the engine
+	// clones the rule per file. The "at most one diagnostic per
+	// repo" guarantee must still hold across clones.
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.md"),
+		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
+		[]byte("# README\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte("README.md merge=mdsmith\n"), 0o644))
+
+	t.Cleanup(resetReportedForTest)
+	resetReportedForTest()
+
+	clone1 := rule.CloneRule(&Rule{}).(*Rule)
+	clone2 := rule.CloneRule(&Rule{}).(*Rule)
+
+	f1 := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# README\n"),
+		MaxInputBytes: 1048576,
+	}
+	f2 := &lint.File{
+		Path:          filepath.Join(dir, "test.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+	}
+
+	diags1 := clone1.Check(f1)
+	diags2 := clone2.Check(f2)
+	assert.Len(t, diags1, 1, "first clone reports drift once")
+	assert.Empty(t, diags2,
+		"second clone in the same repo must not duplicate the diagnostic")
+}
+
 func TestRule_Check_OncePerRepo(t *testing.T) {
 	dir := t.TempDir()
 	initRepoWithDriver(t, dir)
@@ -301,6 +341,9 @@ func TestRule_Check_OncePerRepo(t *testing.T) {
 	// .gitattributes lists only README.md, so drift is real.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
 		[]byte("README.md merge=mdsmith\n"), 0o644))
+
+	t.Cleanup(resetReportedForTest)
+	resetReportedForTest()
 
 	r := &Rule{}
 	f1 := &lint.File{

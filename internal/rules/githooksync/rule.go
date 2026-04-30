@@ -28,14 +28,22 @@ func init() {
 // true`. ApplySettings is still implemented to validate unknown keys
 // when the user provides a mapping, but execution does not depend on
 // it being called.
-type Rule struct {
-	// reportedMu guards reported.
-	reportedMu sync.Mutex
-	// reported tracks repositories already reported against during
-	// this lint run so the rule emits at most one diagnostic per
-	// repository regardless of which file triggered the check.
-	reported map[string]bool
-}
+//
+// "At most one diagnostic per repository" is enforced via package-
+// level state rather than per-Rule state, because the engine clones
+// Configurable rules per file when the rule is enabled with a
+// settings mapping (even an empty `{}`). With per-instance state,
+// each clone would re-emit the diagnostic for every file in the
+// repo.
+type Rule struct{}
+
+// reportedRepos tracks repositories already reported against during
+// the lifetime of this process, guarded by reportedMu. The set lives
+// at package scope so per-file Rule clones share the same state.
+var (
+	reportedMu    sync.Mutex
+	reportedRepos = make(map[string]bool)
+)
 
 // ID implements rule.Rule.
 func (r *Rule) ID() string { return "MDS048" }
@@ -90,21 +98,28 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	}}
 }
 
-// markReported returns true exactly once per repoRoot for the lifetime
-// of this Rule instance. Subsequent calls for the same repo return
+// markReported returns true exactly once per repoRoot for the
+// lifetime of the process. Subsequent calls for the same repo return
 // false so duplicate diagnostics are not emitted while linting many
-// files in the same repo.
+// files in the same repo. Shared via package-level state so the
+// guarantee holds even when the engine clones the rule per file.
 func (r *Rule) markReported(repoRoot string) bool {
-	r.reportedMu.Lock()
-	defer r.reportedMu.Unlock()
-	if r.reported == nil {
-		r.reported = make(map[string]bool)
-	}
-	if r.reported[repoRoot] {
+	reportedMu.Lock()
+	defer reportedMu.Unlock()
+	if reportedRepos[repoRoot] {
 		return false
 	}
-	r.reported[repoRoot] = true
+	reportedRepos[repoRoot] = true
 	return true
+}
+
+// resetReportedForTest clears the package-level reported set. Tests
+// call it via t.Cleanup so independent cases do not leak state into
+// each other.
+func resetReportedForTest() {
+	reportedMu.Lock()
+	defer reportedMu.Unlock()
+	reportedRepos = make(map[string]bool)
 }
 
 // mergeDriverDrift returns a human-readable description of any drift
