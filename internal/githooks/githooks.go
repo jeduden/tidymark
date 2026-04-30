@@ -208,10 +208,11 @@ func EnableRuleSnippet(ruleName string) string {
 // firstQuotedAfter returns the first POSIX single-quoted token that
 // appears after marker in line, decoding shell-quote escapes so a
 // filename containing a single quote round-trips correctly. The
-// installer uses POSIX `'…'` quoting where a literal quote is
-// emitted as `'\''` (close-quote, backslash-escaped quote, re-open
-// quote). For example `a'b.md` is written as `'a'\''b.md'` and is
-// decoded back to `a'b.md` here.
+// installer encodes a literal single quote inside a single-quoted
+// string by closing the quote, emitting a backslash-escaped quote,
+// and reopening the quote. The decoder reverses that pattern when
+// it sees an unmatched continuation immediately after a closing
+// quote.
 //
 // Returns ok=false if the marker is missing or no quoted token
 // follows it.
