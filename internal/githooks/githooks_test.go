@@ -208,9 +208,20 @@ func TestDiscoverFiles_SortedAndDeduplicated(t *testing.T) {
 	assert.Equal(t, []string{"a.md", "m.md", "z.md"}, got)
 }
 
-func TestDiscoverFiles_FallbackOnEmpty(t *testing.T) {
+func TestDiscoverFiles_EmptyWhenNoDirectives(t *testing.T) {
 	dir := t.TempDir()
+	// Plain markdown file with no directives — DiscoverFiles must
+	// return an empty slice rather than the install-time fallback.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plain.md"),
+		[]byte("# Plain\n\nNo directives here.\n"), 0o644))
+
 	got := DiscoverFiles(dir, 1024*1024)
+	assert.Empty(t, got)
+}
+
+func TestDiscoverFilesForInstall_FallsBackOnEmpty(t *testing.T) {
+	dir := t.TempDir()
+	got := DiscoverFilesForInstall(dir, 1024*1024)
 	assert.Equal(t, []string{"PLAN.md", "README.md"}, got)
 }
 

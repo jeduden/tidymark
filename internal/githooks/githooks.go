@@ -63,9 +63,10 @@ func ResolveHooksDir(repoRoot string) string {
 // every platform so they compare correctly against entries written
 // into .gitattributes and the pre-merge-commit hook.
 //
-// Hidden directories (names starting with ".") are skipped, matching
-// the behavior of the original CLI helper. Falls back to
-// ["PLAN.md", "README.md"] when discovery yields no files.
+// Hidden directories (names starting with ".") are skipped. The
+// returned slice is sorted and may be empty: the caller decides
+// whether to apply a fallback (the install commands do; the
+// git-hook-sync rule does not).
 func DiscoverFiles(repoRoot string, maxBytes int64) []string {
 	directiveNames := make([]string, 0)
 	for _, r := range rule.All() {
@@ -76,7 +77,7 @@ func DiscoverFiles(repoRoot string, maxBytes int64) []string {
 
 	seen := make(map[string]struct{})
 	var files []string
-	err := filepath.Walk(repoRoot, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(repoRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -120,14 +121,29 @@ func DiscoverFiles(repoRoot string, maxBytes int64) []string {
 		return nil
 	})
 
-	if err != nil || len(files) == 0 {
-		return []string{"PLAN.md", "README.md"}
-	}
 	// Sort so the file list is stable across platforms and
 	// filesystems; the result is printed to users and embedded into
 	// the pre-merge-commit hook and .gitattributes, where churn
 	// hurts review diffs.
 	sort.Strings(files)
+	return files
+}
+
+// DiscoverFilesForInstall is the install-time variant of DiscoverFiles
+// that supplies a sensible default file list when the repository has
+// no directive-bearing files. It returns ["PLAN.md", "README.md"] in
+// that case so a fresh repo still gets a useful hook/.gitattributes
+// configuration after `mdsmith merge-driver install` or
+// `mdsmith pre-merge-commit install`.
+//
+// The git-hook-sync rule must not use this variant: when the user
+// has no directive-bearing files, the rule should report nothing
+// rather than reference fictional PLAN.md/README.md paths.
+func DiscoverFilesForInstall(repoRoot string, maxBytes int64) []string {
+	files := DiscoverFiles(repoRoot, maxBytes)
+	if len(files) == 0 {
+		return []string{"PLAN.md", "README.md"}
+	}
 	return files
 }
 

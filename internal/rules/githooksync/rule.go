@@ -157,10 +157,14 @@ func (r *Rule) mergeDriverDrift(repoRoot string, discovered []string) string {
 			strings.Join(discovered, ", "),
 		)
 	}
+	shouldDesc := strings.Join(discovered, ", ")
+	if len(discovered) == 0 {
+		shouldDesc = "(none)"
+	}
 	return fmt.Sprintf(
 		"merge-driver assignments in .gitattributes are out of sync (has: %s, should have: %s)",
 		strings.Join(installed, ", "),
-		strings.Join(discovered, ", "),
+		shouldDesc,
 	)
 }
 
@@ -194,10 +198,14 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string, discovered []string) str
 	if len(installed) == 0 {
 		hasDesc = "(none)"
 	}
+	shouldDesc := strings.Join(discovered, ", ")
+	if len(discovered) == 0 {
+		shouldDesc = "(none)"
+	}
 	return fmt.Sprintf(
 		"pre-merge-commit hook is out of sync (has: %s, should have: %s)",
 		hasDesc,
-		strings.Join(discovered, ", "),
+		shouldDesc,
 	)
 }
 

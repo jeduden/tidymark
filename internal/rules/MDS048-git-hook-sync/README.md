@@ -58,6 +58,15 @@ The rule:
    `mdsmith fix --` lines against the discovered files
 4. Reports a warning if either source is out of sync
 
+If the repository has no directive-bearing files, the rule
+emits no diagnostic.
+
+The install commands (`mdsmith merge-driver install` and
+`mdsmith pre-merge-commit install`) apply a fallback list
+of `PLAN.md` and `README.md` when discovery is empty. That
+fallback is install-only. The rule itself never compares
+against fictional defaults.
+
 The rule emits at most one diagnostic per repository. The
 guard lives for the lifetime of the mdsmith process, so
 linting many files in the same repo will not duplicate it.
@@ -123,9 +132,8 @@ that actually contains a directive is `test.md`:
 PLAN.md merge=mdsmith
 ```
 
-**Diagnostic**: `git-hook-sync: merge-driver assignments in
-.gitattributes are out of sync (has: PLAN.md, should have:
-test.md)`
+**Diagnostic**: `merge-driver assignments in .gitattributes
+are out of sync (has: PLAN.md, should have: test.md)`
 
 ## Meta-Information
 
