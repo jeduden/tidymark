@@ -25,7 +25,8 @@ Subcommands:
         clear the conflict state from the git index.
 
         When no files are specified, automatically discovers
-        files with generated content (catalog, include, toc).
+        files with generated content (catalog, include, toc),
+        falling back to PLAN.md and README.md if none are found.
 
   uninstall
         Remove the pre-merge-commit hook if it was installed

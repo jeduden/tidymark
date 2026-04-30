@@ -364,22 +364,17 @@ func TestPreMergeCommitInstall_CreatesHook(t *testing.T) {
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	// Capture stderr during install.
-	origStderr := os.Stderr
-	_, w, _ := os.Pipe()
-	os.Stderr = w
-	t.Cleanup(func() {
-		os.Stderr = origStderr
-		_ = w.Close()
-	})
-
 	// Change to temp git repo so git commands work.
 	origWd, _ := os.Getwd()
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
 
-	code := runPreMergeCommitInstall([]string{"PLAN.md", "README.md"})
-	assert.Equal(t, 0, code)
+	// captureStderr wraps the call so the pipe's read end is
+	// drained — an unconsumed os.Pipe could block writes once the
+	// kernel buffer fills, and would leak FDs on test cleanup.
+	captureStderr(func() {
+		assert.Equal(t, 0, runPreMergeCommitInstall([]string{"PLAN.md", "README.md"}))
+	})
 
 	hookPath := filepath.Join(resolveHooksDir(dir), "pre-merge-commit")
 	info, err := os.Stat(hookPath)
@@ -419,17 +414,9 @@ func TestPreMergeCommitUninstall_RemovesHook(t *testing.T) {
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
 
-	// Capture stderr.
-	origStderr := os.Stderr
-	_, w, _ := os.Pipe()
-	os.Stderr = w
-	t.Cleanup(func() {
-		os.Stderr = origStderr
-		_ = w.Close()
+	captureStderr(func() {
+		assert.Equal(t, 0, runPreMergeCommitUninstall(nil))
 	})
-
-	code := runPreMergeCommitUninstall(nil)
-	assert.Equal(t, 0, code)
 
 	// Hook should be removed.
 	_, err := os.Stat(hookPath)
@@ -452,17 +439,10 @@ func TestPreMergeCommitUninstall_RefusesUserHook(t *testing.T) {
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
 
-	// Capture stderr.
-	origStderr := os.Stderr
-	_, w, _ := os.Pipe()
-	os.Stderr = w
-	t.Cleanup(func() {
-		os.Stderr = origStderr
-		_ = w.Close()
+	captureStderr(func() {
+		assert.Equal(t, 2, runPreMergeCommitUninstall(nil),
+			"should fail with exit code 2")
 	})
-
-	code := runPreMergeCommitUninstall(nil)
-	assert.Equal(t, 2, code, "should fail with exit code 2")
 
 	// Hook should still exist.
 	data, err := os.ReadFile(hookPath)
@@ -479,17 +459,10 @@ func TestPreMergeCommitStatus_NotInstalled(t *testing.T) {
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
 
-	// Capture stderr.
-	origStderr := os.Stderr
-	_, w, _ := os.Pipe()
-	os.Stderr = w
-	t.Cleanup(func() {
-		os.Stderr = origStderr
-		_ = w.Close()
+	captureStderr(func() {
+		assert.Equal(t, 1, runPreMergeCommitStatus(nil),
+			"should exit 1 when not installed")
 	})
-
-	code := runPreMergeCommitStatus(nil)
-	assert.Equal(t, 1, code, "should exit 1 when not installed")
 }
 
 func TestPreMergeCommitStatus_Installed(t *testing.T) {
@@ -513,17 +486,9 @@ func TestPreMergeCommitStatus_Installed(t *testing.T) {
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
 
-	// Capture stderr.
-	origStderr := os.Stderr
-	_, w, _ := os.Pipe()
-	os.Stderr = w
-	t.Cleanup(func() {
-		os.Stderr = origStderr
-		_ = w.Close()
+	captureStderr(func() {
+		assert.Equal(t, 0, runPreMergeCommitStatus(nil))
 	})
-
-	code := runPreMergeCommitStatus(nil)
-	assert.Equal(t, 0, code)
 }
 
 // --- extractFilesFromHook ---

@@ -30,7 +30,8 @@ Subcommands:
         .gitattributes assigns it to the listed files.
 
         When no files are specified, automatically discovers
-        files with generated content (catalog, include, toc).
+        files with generated content (catalog, include, toc),
+        falling back to PLAN.md and README.md if none are found.
 
 Git config (set by install):
   merge.mdsmith.driver = '/absolute/path/to/mdsmith' merge-driver run %O %A %B %P
