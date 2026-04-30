@@ -34,22 +34,7 @@ func TestRule_Check_NotInGitRepo(t *testing.T) {
 	dir := t.TempDir()
 	// No git init - the directory is not inside a git repository.
 
-	r := &Rule{configured: true}
-	f := &lint.File{
-		Path:          filepath.Join(dir, "README.md"),
-		Source:        []byte("# Test\n"),
-		MaxInputBytes: 1048576,
-	}
-
-	diags := r.Check(f)
-	assert.Empty(t, diags)
-}
-
-func TestRule_Check_NotConfigured(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
-
-	r := &Rule{configured: false}
+	r := &Rule{}
 	f := &lint.File{
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n"),
@@ -83,7 +68,7 @@ func TestRule_Check_HooksInSync(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
 		[]byte(hookContent), 0o755))
 
-	r := &Rule{configured: true}
+	r := &Rule{}
 	f := &lint.File{
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"),
@@ -115,7 +100,7 @@ func TestRule_Check_PreMergeCommitOutOfSync(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
 		[]byte(hookContent), 0o755))
 
-	r := &Rule{configured: true}
+	r := &Rule{}
 	f := &lint.File{
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"),
@@ -142,7 +127,7 @@ func TestRule_Check_GitattributesOutOfSync(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
 		[]byte("README.md merge=mdsmith\n"), 0o644))
 
-	r := &Rule{configured: true}
+	r := &Rule{}
 	f := &lint.File{
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"),
@@ -164,7 +149,7 @@ func TestRule_Check_DriverRegisteredButNoGitattributes(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
 		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
 
-	r := &Rule{configured: true}
+	r := &Rule{}
 	f := &lint.File{
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"),
@@ -188,7 +173,7 @@ func TestRule_Check_HookWithoutMdsmithMarker(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
 		[]byte("#!/bin/sh\necho user hook\n"), 0o755))
 
-	r := &Rule{configured: true}
+	r := &Rule{}
 	f := &lint.File{
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"),
@@ -209,7 +194,7 @@ func TestRule_Check_OncePerRepo(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
 		[]byte("README.md merge=mdsmith\n"), 0o644))
 
-	r := &Rule{configured: true}
+	r := &Rule{}
 	f1 := &lint.File{
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n"),
@@ -238,11 +223,26 @@ func TestRule_Metadata(t *testing.T) {
 
 func TestRule_ApplySettings(t *testing.T) {
 	r := &Rule{}
-	assert.False(t, r.configured)
-
 	err := r.ApplySettings(map[string]any{})
 	assert.NoError(t, err)
-	assert.True(t, r.configured)
+}
+
+func TestRule_Check_RunnableInZeroState(t *testing.T) {
+	// The rule must run when enabled via the bool form
+	// (`git-hook-sync: true`), which doesn't call ApplySettings.
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+	}
+	// No diagnostics yet (no .gitattributes / no hook installed),
+	// but the call must reach the body of Check rather than bailing
+	// on a "not configured" gate.
+	assert.Empty(t, r.Check(f))
 }
 
 func TestRule_ApplySettings_UnknownSetting(t *testing.T) {

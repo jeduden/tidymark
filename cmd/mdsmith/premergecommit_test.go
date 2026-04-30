@@ -514,7 +514,7 @@ func TestPreMergeCommitStatus_ShowsWarningWhenOutOfSync(t *testing.T) {
 
 	// Create .mdsmith.yml to avoid config load errors.
 	configPath := filepath.Join(dir, ".mdsmith.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte("max-input-bytes: 1048576\n"), 0o644))
+	require.NoError(t, os.WriteFile(configPath, []byte("max-input-size: 1048576\n"), 0o644))
 
 	// Change to temp git repo.
 	origWd, _ := os.Getwd()
@@ -555,7 +555,7 @@ func TestPreMergeCommitStatus_NoWarningWhenInSync(t *testing.T) {
 
 	// Create .mdsmith.yml.
 	configPath := filepath.Join(dir, ".mdsmith.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte("max-input-bytes: 1048576\n"), 0o644))
+	require.NoError(t, os.WriteFile(configPath, []byte("max-input-size: 1048576\n"), 0o644))
 
 	// Change to temp git repo.
 	origWd, _ := os.Getwd()

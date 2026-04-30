@@ -111,21 +111,30 @@ func DiscoverFiles(repoRoot string, maxBytes int64) []string {
 }
 
 // FilesMatch reports whether a and b contain the same set of files,
-// ignoring order and duplicates.
+// ignoring order and duplicates. A repeated entry on either side is
+// treated the same as a single occurrence so that a `.gitattributes`
+// or hook script that lists the same path twice still compares equal
+// to a deduplicated list.
 func FilesMatch(a, b []string) bool {
-	if len(a) != len(b) {
+	setA := toSet(a)
+	setB := toSet(b)
+	if len(setA) != len(setB) {
 		return false
 	}
-	set := make(map[string]struct{}, len(a))
-	for _, f := range a {
-		set[f] = struct{}{}
-	}
-	for _, f := range b {
-		if _, ok := set[f]; !ok {
+	for f := range setA {
+		if _, ok := setB[f]; !ok {
 			return false
 		}
 	}
 	return true
+}
+
+func toSet(s []string) map[string]struct{} {
+	m := make(map[string]struct{}, len(s))
+	for _, v := range s {
+		m[v] = struct{}{}
+	}
+	return m
 }
 
 // ExtractHookFiles parses a pre-merge-commit hook script and returns

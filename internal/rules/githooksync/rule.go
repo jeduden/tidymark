@@ -22,9 +22,13 @@ func init() {
 
 // Rule checks that mdsmith-managed git hooks and .gitattributes are
 // in sync with the files that contain generated-section directives.
+//
+// The rule is runnable in its zero value: it has no required runtime
+// settings, so users can opt in via the bool form `git-hook-sync:
+// true`. ApplySettings is still implemented to validate unknown keys
+// when the user provides a mapping, but execution does not depend on
+// it being called.
 type Rule struct {
-	configured bool
-
 	// reportedMu guards reported.
 	reportedMu sync.Mutex
 	// reported tracks repositories already reported against during
@@ -47,10 +51,6 @@ func (r *Rule) EnabledByDefault() bool { return false }
 
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
-	if !r.configured {
-		return nil
-	}
-
 	// Resolve the repo root from the directory of the file being
 	// linted so the rule does not depend on the process working
 	// directory. When a file is not inside a git repo, skip silently.
@@ -152,12 +152,14 @@ func (r *Rule) checkPreMergeCommitHook(f *lint.File, repoRoot string, discovered
 	}}
 }
 
-// ApplySettings implements rule.Configurable.
+// ApplySettings implements rule.Configurable. The rule has no runtime
+// settings, so this only rejects unknown keys when a user supplies a
+// mapping. The rule executes regardless of whether ApplySettings is
+// invoked, so a bool-only enable (`git-hook-sync: true`) also works.
 func (r *Rule) ApplySettings(settings map[string]any) error {
 	for k := range settings {
 		return fmt.Errorf("git-hook-sync: unknown setting %q", k)
 	}
-	r.configured = true
 	return nil
 }
 
