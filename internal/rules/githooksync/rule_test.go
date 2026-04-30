@@ -20,10 +20,10 @@ import (
 )
 
 // initTestRepo runs `git init` on dir and pins core.hooksPath to
-// dir/.git/hooks in the repo-local config. The pin keeps tests
+// dir/.git/hooks in the dir-local config. The pin keeps tests
 // hermetic: a developer with a non-default core.hooksPath set
 // globally cannot have the rule (or its tests) read or write to
-// files outside the temp repo.
+// files outside the temp dir.
 func initTestRepo(t *testing.T, dir string) {
 	t.Helper()
 	require.NoError(t, exec.Command("git", "init", dir).Run())
@@ -33,7 +33,7 @@ func initTestRepo(t *testing.T, dir string) {
 	).Run())
 }
 
-// initRepoWithDriver initialises a git repo at dir, pins
+// initRepoWithDriver initialises a git dir at dir, pins
 // core.hooksPath, and registers the mdsmith merge driver in its
 // local config so the rule will read .gitattributes (the real
 // source of truth).
@@ -49,11 +49,11 @@ func initRepoWithDriver(t *testing.T, dir string) {
 func TestRule_Check_SkipsWhenNoSourceOptedIn(t *testing.T) {
 	// Neither the merge driver nor an mdsmith-managed
 	// pre-merge-commit hook is installed. The rule must not run
-	// the repo-wide discovery walk and must emit no diagnostics.
+	// the dir-wide discovery walk and must emit no diagnostics.
 	dir := t.TempDir()
 	initTestRepo(t, dir)
 
-	// Put a directive file in the repo to confirm the rule does
+	// Put a directive file in the dir to confirm the rule does
 	// not attempt drift comparison against it.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
 		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
@@ -70,7 +70,7 @@ func TestRule_Check_SkipsWhenNoSourceOptedIn(t *testing.T) {
 
 func TestRule_Check_SkipsWhenFSIsNil(t *testing.T) {
 	// stdin and other in-memory inputs leave f.FS == nil. The rule
-	// must short-circuit so it does not scan whatever git repo
+	// must short-circuit so it does not scan whatever git dir
 	// happens to be the process working directory.
 	r := &Rule{}
 	f := &lint.File{
@@ -268,7 +268,7 @@ func TestRule_Check_CombinesBothDriftSourcesIntoOneDiagnostic(t *testing.T) {
 		FS:            os.DirFS(dir),
 	}
 	diags := r.Check(f)
-	require.Len(t, diags, 1, "rule must emit at most one diagnostic per repo")
+	require.Len(t, diags, 1, "rule must emit at most one diagnostic per dir")
 	assert.Contains(t, diags[0].Message, "merge-driver assignments in .gitattributes")
 	assert.Contains(t, diags[0].Message, "pre-merge-commit hook is out of sync")
 }
@@ -355,7 +355,7 @@ func TestRule_Check_OncePerRepoAcrossClones(t *testing.T) {
 	// Simulate the engine's clone-per-file path: when the rule is
 	// enabled with a settings mapping (even an empty {}), the engine
 	// clones the rule per file. The "at most one diagnostic per
-	// repo" guarantee must still hold across clones.
+	// dir" guarantee must still hold across clones.
 	dir := t.TempDir()
 	initRepoWithDriver(t, dir)
 
@@ -386,7 +386,7 @@ func TestRule_Check_OncePerRepoAcrossClones(t *testing.T) {
 	diags2 := clone2.Check(f2)
 	assert.Len(t, diags1, 1, "first clone reports drift")
 	assert.Len(t, diags2, 1,
-		"second clone in the same repo also reports drift (needed for auto-fix)")
+		"second clone in the same dir also reports drift (needed for auto-fix)")
 }
 
 func TestRule_Check_MultipleFilesReportDrift(t *testing.T) {
@@ -460,4 +460,208 @@ func TestRule_ApplySettings_UnknownSetting(t *testing.T) {
 	err := r.ApplySettings(map[string]any{"unknown": "value"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown setting")
+}
+
+func TestRule_Fix_SkipsWhenFSIsNil(t *testing.T) {
+	r := &Rule{}
+	f := &lint.File{
+		FS:     nil,
+		Path:   "<stdin>",
+		Source: []byte("# Test\n"),
+	}
+	result := r.Fix(f)
+	assert.Equal(t, f.Source, result)
+}
+
+func TestRule_Fix_SkipsWhenNotInGitRepo(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "test.md")
+	require.NoError(t, os.WriteFile(mdFile, []byte("# Test\n"), 0644))
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 10000,
+	}
+
+	result := r.Fix(f)
+	assert.Equal(t, f.Source, result)
+}
+
+func TestRule_Fix_SkipsWhenDriverNotRegistered(t *testing.T) {
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	mdFile := filepath.Join(dir, "test.md")
+	require.NoError(t, os.WriteFile(mdFile, []byte("# Test\n"), 0644))
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 10000,
+	}
+
+	result := r.Fix(f)
+	assert.Equal(t, f.Source, result)
+}
+
+func TestRule_Fix_RegeneratesGitattributes(t *testing.T) {
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	// Register merge driver
+	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	require.NoError(t, cmd.Run())
+
+	// Create markdown file with directive
+	mdFile := filepath.Join(dir, "test.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0644))
+
+	// Create .gitattributes with wrong content
+	attrPath := filepath.Join(dir, ".gitattributes")
+	initial := "# Custom header\nold.md merge=mdsmith\n"
+	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+
+	result := r.Fix(f)
+	assert.Equal(t, f.Source, result) // Fix doesn't change the markdown file
+
+	// Verify .gitattributes was updated
+	content, err := os.ReadFile(attrPath)
+	require.NoError(t, err)
+
+	expected := "# Custom header\ntest.md merge=mdsmith\n"
+	assert.Equal(t, expected, string(content))
+}
+
+func TestRule_Fix_OnlyFixesOncePerRepo(t *testing.T) {
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	// Register merge driver
+	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	require.NoError(t, cmd.Run())
+
+	// Create two markdown files with directives
+	mdFile1 := filepath.Join(dir, "a.md")
+	mdFile2 := filepath.Join(dir, "b.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile1, []byte(mdContent), 0644))
+	require.NoError(t, os.WriteFile(mdFile2, []byte(mdContent), 0644))
+
+	// Create .gitattributes with wrong content
+	attrPath := filepath.Join(dir, ".gitattributes")
+	initial := "# Header\nold.md merge=mdsmith\n"
+	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
+
+	r := &Rule{}
+	f1 := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile1,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+	f2 := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile2,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+
+	// First fix should update .gitattributes
+	r.Fix(f1)
+	content1, err := os.ReadFile(attrPath)
+	require.NoError(t, err)
+	expected := "# Header\na.md merge=mdsmith\nb.md merge=mdsmith\n"
+	assert.Equal(t, expected, string(content1))
+
+	// Corrupt .gitattributes again
+	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
+
+	// Second fix should NOT update it (once per dir)
+	r.Fix(f2)
+	content2, err := os.ReadFile(attrPath)
+	require.NoError(t, err)
+	assert.Equal(t, initial, string(content2)) // Should still be corrupted
+}
+
+func TestRule_Fix_SkipsWhenAlreadyInSync(t *testing.T) {
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	// Register merge driver
+	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	require.NoError(t, cmd.Run())
+
+	// Create markdown file with directive
+	mdFile := filepath.Join(dir, "test.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0644))
+
+	// Create .gitattributes with correct content
+	attrPath := filepath.Join(dir, ".gitattributes")
+	correct := "# Header\ntest.md merge=mdsmith\n"
+	require.NoError(t, os.WriteFile(attrPath, []byte(correct), 0644))
+
+	// Record modification time
+	info, err := os.Stat(attrPath)
+	require.NoError(t, err)
+	modTimeBefore := info.ModTime()
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+
+	r.Fix(f)
+
+	// Verify .gitattributes wasn't modified
+	info, err = os.Stat(attrPath)
+	require.NoError(t, err)
+	assert.Equal(t, modTimeBefore, info.ModTime())
+}
+
+func TestRule_Fix_ReturnsOriginalOnWriteError(t *testing.T) {
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	// Register merge driver
+	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	require.NoError(t, cmd.Run())
+
+	// Create markdown file with directive
+	mdFile := filepath.Join(dir, "test.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0644))
+
+	// Create .gitattributes as a directory (cannot write to it)
+	attrPath := filepath.Join(dir, ".gitattributes")
+	require.NoError(t, os.Mkdir(attrPath, 0755))
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+
+	result := r.Fix(f)
+	// Should return original source when write fails
+	assert.Equal(t, f.Source, result)
 }
