@@ -294,7 +294,7 @@ func runBadFolderFile(
 	settings, expected, content := parseFixtureFrontMatter(t, raw, true)
 	applySettingsToRule(t, r, settings)
 
-	f, err := lint.NewFile(filepath.Base(filePath), content)
+	f, err := lint.NewFile(fixtureFilePath(t, r, filePath), content)
 	require.NoError(t, err, "parsing %s: %v", filepath.Base(filePath), err)
 	f.FS = os.DirFS(filepath.Dir(filePath))
 	diags := filterByRule(r.Check(f), ruleID)
@@ -324,7 +324,8 @@ func runFixFolderFile(
 	settings, _, badContent := parseFixtureFrontMatter(t, badRaw, false)
 	applySettingsToRule(t, r, settings)
 
-	f, err := lint.NewFile(filepath.Base(fixedPath), badContent)
+	fPath := fixtureFilePath(t, r, fixedPath)
+	f, err := lint.NewFile(fPath, badContent)
 	require.NoError(t, err, "parsing %s: %v", filepath.Base(fixedPath), err)
 	f.FS = os.DirFS(filepath.Dir(fixedPath))
 
@@ -343,9 +344,7 @@ func runFixFolderFile(
 	}
 
 	// Verify that the fixed output produces no diagnostics.
-	fixedFile, err := lint.NewFile(
-		filepath.Base(fixedPath), want,
-	)
+	fixedFile, err := lint.NewFile(fPath, want)
 	require.NoError(t, err, "parsing fixed output: %v", err)
 	fixedFile.FS = os.DirFS(filepath.Dir(fixedPath))
 	diags := checkAllRules(fixedFile, r)

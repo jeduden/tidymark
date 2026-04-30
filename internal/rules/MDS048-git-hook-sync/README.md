@@ -65,7 +65,7 @@ If discovery is empty:
   those entries as stale (drift against an empty set).
 
 The install commands (`mdsmith merge-driver install` and
-`pre-merge-commit install`) apply a fallback list of
+`mdsmith pre-merge-commit install`) apply a fallback list of
 `PLAN.md` and `README.md` when discovery is empty. The
 fallback is install-only. Stale entries from it can still
 trip the rule above.
@@ -89,12 +89,13 @@ mdsmith merge-driver install
 mdsmith pre-merge-commit install
 ```
 
-`pre-merge-commit install` rewrites the hook script in
-place. Reinstalling clears stale entries from the hook.
+`mdsmith pre-merge-commit install` rewrites the hook
+script in place. Reinstalling clears stale entries from
+the hook.
 
-`merge-driver install` is append-only: it adds missing
-`merge=mdsmith` lines to `.gitattributes` and does not
-remove stale ones. After dropping a managed file, edit
+`mdsmith merge-driver install` is append-only: it adds
+missing `merge=mdsmith` lines to `.gitattributes` and does
+not remove stale ones. After dropping a managed file, edit
 `.gitattributes` by hand to delete the obsolete line.
 
 ## Examples
