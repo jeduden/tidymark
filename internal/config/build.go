@@ -26,11 +26,12 @@ type ParamCfg struct {
 	Optional []string `yaml:"optional,omitempty"`
 }
 
-// reservedParams are variables available in body_template but forbidden in command.
-// {alt} is reserved because it maps to the Markdown image alt-text field, which
-// the framework injects from the surrounding Markdown syntax; it is not a
-// user-supplied build parameter. {output} is intentionally NOT reserved — a
-// recipe command may write to an output path declared as a regular parameter.
+// reservedParams are variables available in body-template but forbidden in command
+// and in params declarations. {alt} is reserved because it maps to the Markdown
+// image alt-text field, which the framework injects from the surrounding Markdown
+// syntax; it is not a user-supplied build parameter. {output} is intentionally
+// NOT reserved — a recipe command may write to an output path declared as a
+// regular parameter.
 var reservedParams = map[string]bool{"alt": true}
 
 // placeholderRe matches a {name} placeholder substring within a command token.
@@ -55,9 +56,23 @@ func ValidateBuildConfig(cfg *Config) error {
 		}
 		allowed := make(map[string]bool)
 		for _, p := range recipe.Params.Required {
+			if reservedParams[p] {
+				return fmt.Errorf(
+					"build.recipes.%s: params.required contains reserved name %q; "+
+						"reserved names are only available in body-template",
+					name, p,
+				)
+			}
 			allowed[p] = true
 		}
 		for _, p := range recipe.Params.Optional {
+			if reservedParams[p] {
+				return fmt.Errorf(
+					"build.recipes.%s: params.optional contains reserved name %q; "+
+						"reserved names are only available in body-template",
+					name, p,
+				)
+			}
 			allowed[p] = true
 		}
 		tokens := strings.Fields(recipe.Command)
@@ -67,7 +82,7 @@ func ValidateBuildConfig(cfg *Config) error {
 				if reservedParams[param] {
 					return fmt.Errorf(
 						"build.recipes.%s: command uses reserved placeholder {%s}; "+
-							"reserved placeholders are only available in body_template",
+							"reserved placeholders are only available in body-template",
 						name, param,
 					)
 				}

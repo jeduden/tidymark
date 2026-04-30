@@ -60,14 +60,12 @@ func TestValidateBuildConfig_UndeclaredPlaceholder(t *testing.T) {
 	assert.Contains(t, err.Error(), "{unknown}")
 }
 
-func TestValidateBuildConfig_ReservedAlt(t *testing.T) {
+func TestValidateBuildConfig_ReservedAlt_InCommand(t *testing.T) {
+	// {alt} used in command without being declared in params.
 	cfg := &Config{
 		Build: BuildConfig{
 			Recipes: map[string]RecipeCfg{
-				"x": {
-					Command: "tool {alt}",
-					Params:  ParamCfg{Optional: []string{"alt"}},
-				},
+				"x": {Command: "tool {alt}"},
 			},
 		},
 	}
@@ -75,6 +73,40 @@ func TestValidateBuildConfig_ReservedAlt(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reserved placeholder")
 	assert.Contains(t, err.Error(), "{alt}")
+}
+
+func TestValidateBuildConfig_ReservedAlt_InRequired(t *testing.T) {
+	cfg := &Config{
+		Build: BuildConfig{
+			Recipes: map[string]RecipeCfg{
+				"x": {
+					Command: "tool",
+					Params:  ParamCfg{Required: []string{"alt"}},
+				},
+			},
+		},
+	}
+	err := ValidateBuildConfig(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reserved name")
+	assert.Contains(t, err.Error(), "alt")
+}
+
+func TestValidateBuildConfig_ReservedAlt_InOptional(t *testing.T) {
+	cfg := &Config{
+		Build: BuildConfig{
+			Recipes: map[string]RecipeCfg{
+				"x": {
+					Command: "tool",
+					Params:  ParamCfg{Optional: []string{"alt"}},
+				},
+			},
+		},
+	}
+	err := ValidateBuildConfig(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reserved name")
+	assert.Contains(t, err.Error(), "alt")
 }
 
 func TestValidateBuildConfig_OutputParam_Allowed(t *testing.T) {
