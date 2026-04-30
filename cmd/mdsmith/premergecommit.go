@@ -199,33 +199,50 @@ func runPreMergeCommitStatus(args []string) int {
 	fmt.Fprintf(os.Stderr, "pre-merge-commit hook: installed\n")
 	fmt.Fprintf(os.Stderr, "  path: %s\n", hookPath)
 	if managed {
-		fmt.Fprintf(os.Stderr, "  managed by: mdsmith\n")
-
-		// Extract file list from hook content.
-		files := extractFilesFromHook(content)
-		if len(files) > 0 {
-			fmt.Fprintf(os.Stderr, "  files: %s\n", strings.Join(files, ", "))
-		}
-
-		// Check if hook files are in sync with discovered files.
-		cfg, _, err := loadConfig("")
-		if err == nil {
-			maxBytes, err := resolveMaxInputBytes(cfg, "")
-			if err == nil {
-				discoveredFiles := discoverFilesWithGeneratedContent(repoRoot, maxBytes)
-				if !filesMatch(files, discoveredFiles) {
-					fmt.Fprintf(os.Stderr, "\nWarning: hook files are out of sync with repository\n")
-					fmt.Fprintf(os.Stderr, "  discovered files: %s\n", strings.Join(discoveredFiles, ", "))
-					fmt.Fprintf(os.Stderr, "\nRun 'mdsmith pre-merge-commit install' to update the hook.\n")
-				}
-			}
-		}
+		printManagedHookStatus(repoRoot, content)
 	} else {
 		fmt.Fprintf(os.Stderr, "  managed by: user (not mdsmith)\n")
 		fmt.Fprintf(os.Stderr, "\nThis hook was not installed by mdsmith.\n")
 	}
 
 	return 0
+}
+
+// printManagedHookStatus prints details for a hook that bears the
+// mdsmith marker: the file list, and whether it is in sync with the
+// files currently discovered in the repo. When config or
+// max-input-size resolution fails, a warning is printed so the
+// caller knows drift detection was skipped rather than silently
+// passing.
+func printManagedHookStatus(repoRoot, content string) {
+	fmt.Fprintf(os.Stderr, "  managed by: mdsmith\n")
+
+	files := extractFilesFromHook(content)
+	if len(files) > 0 {
+		fmt.Fprintf(os.Stderr, "  files: %s\n", strings.Join(files, ", "))
+	}
+
+	cfg, _, err := loadConfig("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"\nWarning: could not load config for hook drift detection: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  skipped comparing hook files with repository files\n")
+		return
+	}
+	maxBytes, err := resolveMaxInputBytes(cfg, "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"\nWarning: could not resolve max-input-size for hook drift detection: %v\n", err)
+		fmt.Fprintf(os.Stderr, "  skipped comparing hook files with repository files\n")
+		return
+	}
+	discoveredFiles := discoverFilesWithGeneratedContent(repoRoot, maxBytes)
+	if filesMatch(files, discoveredFiles) {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "\nWarning: hook files are out of sync with repository\n")
+	fmt.Fprintf(os.Stderr, "  discovered files: %s\n", strings.Join(discoveredFiles, ", "))
+	fmt.Fprintf(os.Stderr, "\nRun 'mdsmith pre-merge-commit install' to update the hook.\n")
 }
 
 // extractFilesFromHook parses the hook content to extract the list

@@ -59,6 +59,16 @@ func (r *Rule) EnabledByDefault() bool { return false }
 
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
+	// Skip when there is no on-disk file to anchor repo discovery.
+	// stdin and other in-memory inputs have f.FS == nil and a
+	// synthetic f.Path like "<stdin>"; if we used filepath.Dir on
+	// that, the rule would scan whatever git repo happens to be
+	// the process working directory and emit drift unrelated to
+	// the content being linted.
+	if f.FS == nil {
+		return nil
+	}
+
 	// Resolve the repo root from the directory of the file being
 	// linted so the rule does not depend on the process working
 	// directory. When a file is not inside a git repo, skip silently.

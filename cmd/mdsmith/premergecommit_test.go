@@ -568,6 +568,66 @@ func TestFilesMatch_OneEmpty(t *testing.T) {
 
 // --- sync detection integration ---
 
+func TestPreMergeCommitStatus_WarnsOnConfigLoadError(t *testing.T) {
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	hooksDir := resolveHooksDir(dir)
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	hookContent := "#!/bin/sh\n" + preMergeCommitHookMarker + "\n" +
+		"'/usr/local/bin/mdsmith' fix -- 'PLAN.md'\ngit add -- 'PLAN.md'\n"
+	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
+		[]byte(hookContent), 0o755))
+
+	// Malformed .mdsmith.yml so loadConfig fails: status should
+	// warn that drift detection was skipped instead of silently
+	// passing.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
+		[]byte("not: [valid: yaml\n"), 0o644))
+
+	origWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	t.Cleanup(func() { _ = os.Chdir(origWd) })
+
+	got := captureStderr(func() {
+		assert.Equal(t, 0, runPreMergeCommitStatus(nil))
+	})
+	assert.Contains(t, got, "could not load config for hook drift detection")
+	assert.Contains(t, got, "skipped comparing hook files")
+}
+
+func TestPreMergeCommitStatus_WarnsOnBadMaxInputSize(t *testing.T) {
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	orig := executableFunc
+	t.Cleanup(func() { executableFunc = orig })
+	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
+
+	hooksDir := resolveHooksDir(dir)
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	hookContent := "#!/bin/sh\n" + preMergeCommitHookMarker + "\n" +
+		"'/usr/local/bin/mdsmith' fix -- 'PLAN.md'\ngit add -- 'PLAN.md'\n"
+	require.NoError(t, os.WriteFile(filepath.Join(hooksDir, "pre-merge-commit"),
+		[]byte(hookContent), 0o755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
+		[]byte("max-input-size: nonsense\n"), 0o644))
+
+	origWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	t.Cleanup(func() { _ = os.Chdir(origWd) })
+
+	got := captureStderr(func() {
+		assert.Equal(t, 0, runPreMergeCommitStatus(nil))
+	})
+	assert.Contains(t, got, "could not resolve max-input-size for hook drift detection")
+}
+
 func TestPreMergeCommitStatus_ShowsWarningWhenOutOfSync(t *testing.T) {
 	dir := t.TempDir()
 	initTestRepo(t, dir)

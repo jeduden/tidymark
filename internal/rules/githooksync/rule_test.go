@@ -46,6 +46,19 @@ func initRepoWithDriver(t *testing.T, dir string) {
 	).Run())
 }
 
+func TestRule_Check_SkipsWhenFSIsNil(t *testing.T) {
+	// stdin and other in-memory inputs leave f.FS == nil. The rule
+	// must short-circuit so it does not scan whatever git repo
+	// happens to be the process working directory.
+	r := &Rule{}
+	f := &lint.File{
+		Path:          "<stdin>",
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+	}
+	assert.Empty(t, r.Check(f))
+}
+
 func TestRule_Check_NotInGitRepo(t *testing.T) {
 	dir := t.TempDir()
 	// No git init - the directory is not inside a git repository.
@@ -55,6 +68,7 @@ func TestRule_Check_NotInGitRepo(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 
 	diags := r.Check(f)
@@ -89,6 +103,7 @@ func TestRule_Check_HooksInSync(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 
 	diags := r.Check(f)
@@ -121,6 +136,7 @@ func TestRule_Check_PreMergeCommitOutOfSync(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 
 	diags := r.Check(f)
@@ -148,6 +164,7 @@ func TestRule_Check_GitattributesOutOfSync(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n\n<?include file=\"test.md\"?><?/include?>\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 
 	diags := r.Check(f)
@@ -171,6 +188,7 @@ func TestRule_Check_DriverRegisteredButNoGitattributes(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
@@ -198,6 +216,7 @@ func TestRule_Check_HookWithoutMdsmithMarker(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	assert.Empty(t, r.Check(f))
 }
@@ -224,6 +243,7 @@ func TestRule_Check_CombinesBothDriftSourcesIntoOneDiagnostic(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	diags := r.Check(f)
 	require.Len(t, diags, 1, "rule must emit at most one diagnostic per repo")
@@ -251,6 +271,7 @@ func TestRule_Check_HookListsNoFilesRendersNone(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
@@ -275,6 +296,7 @@ func TestRule_Check_HookReadErrorIsReported(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
@@ -299,6 +321,7 @@ func TestRule_Check_GitattributesReadErrorIsReported(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
@@ -331,11 +354,13 @@ func TestRule_Check_OncePerRepoAcrossClones(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	f2 := &lint.File{
 		Path:          filepath.Join(dir, "test.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 
 	diags1 := clone1.Check(f1)
@@ -365,11 +390,13 @@ func TestRule_Check_OncePerRepo(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# README\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	f2 := &lint.File{
 		Path:          filepath.Join(dir, "test.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 
 	diags1 := r.Check(f1)
@@ -404,6 +431,7 @@ func TestRule_Check_RunnableInZeroState(t *testing.T) {
 		Path:          filepath.Join(dir, "README.md"),
 		Source:        []byte("# Test\n"),
 		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
 	}
 	// No diagnostics yet (no .gitattributes / no hook installed),
 	// but the call must reach the body of Check rather than bailing
