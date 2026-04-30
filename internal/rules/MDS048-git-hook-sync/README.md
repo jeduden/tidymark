@@ -104,6 +104,13 @@ The pre-merge-commit hook remains manual-only because
 modifying executable files during automated fixes could be
 surprising or unsafe.
 
+**Note**: When `mdsmith fix` updates `.gitattributes`, you
+must manually stage the change with `git add .gitattributes`.
+The fix happens as a side effect of linting markdown files
+and cannot automatically stage `.gitattributes` into the
+commit. In pre-merge-commit hook workflows, the hook only
+stages the markdown files it processes, not `.gitattributes`.
+
 ### Manual Installation
 
 If the merge driver is not registered, or to update the
