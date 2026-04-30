@@ -195,21 +195,22 @@ func hasDirectiveMarker(content []byte, names []string) bool {
 }
 
 // isIndentedCodeBlock reports whether line begins an indented code
-// block per CommonMark: a tab character or four or more spaces of
-// indentation. internal/lint.pi_parser uses the same rule, so this
-// keeps discovery aligned with the actual mdsmith parser.
+// block per CommonMark: four or more spaces of indentation, or a tab
+// character within the first four columns (optionally preceded by
+// up to three spaces). internal/lint.pi_parser uses the same rule,
+// so this keeps discovery aligned with the actual mdsmith parser.
 func isIndentedCodeBlock(line []byte) bool {
 	if len(line) == 0 {
 		return false
-	}
-	if line[0] == '\t' {
-		return true
 	}
 	spaces := 0
 	for spaces < len(line) && line[spaces] == ' ' {
 		spaces++
 	}
-	return spaces >= 4
+	if spaces >= 4 {
+		return true
+	}
+	return spaces < len(line) && line[spaces] == '\t'
 }
 
 // openingFence reports the fence character and run length of a line

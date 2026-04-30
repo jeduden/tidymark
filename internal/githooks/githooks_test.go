@@ -171,11 +171,16 @@ func TestDiscoverFiles_IgnoresDirectivesInIndentedCodeBlocks(t *testing.T) {
 	dir := t.TempDir()
 	// Indented (4-space) and tab-indented blocks are CommonMark
 	// indented code blocks; mdsmith's PI parser refuses them too.
+	// A line with up to three leading spaces followed by a tab is
+	// also an indented block, so the directive markers there must
+	// not count either.
 	indented := "# Examples\n\n" +
 		"    <?catalog glob: plan/*.md ?>\n" +
 		"    <?/catalog?>\n\n" +
 		"\t<?include file: x.md ?>\n" +
-		"\t<?/include?>\n"
+		"\t<?/include?>\n\n" +
+		"   \t<?toc?>\n" +
+		"   \t<?/toc?>\n"
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "docs"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "docs", "guide.md"),
 		[]byte(indented), 0o644))
