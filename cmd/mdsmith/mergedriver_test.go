@@ -315,7 +315,7 @@ func TestRunMergeDriverInstall_NotInRepo(t *testing.T) {
 
 func TestRunMergeDriverInstall_LoadConfigError(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
 		[]byte("not: [valid: yaml\n"), 0o644))
 
@@ -335,7 +335,7 @@ func TestRunMergeDriverInstall_LoadConfigError(t *testing.T) {
 
 func TestRunMergeDriverInstall_BadMaxInputSize(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
 		[]byte("max-input-size: nonsense\n"), 0o644))
 
@@ -355,7 +355,7 @@ func TestRunMergeDriverInstall_BadMaxInputSize(t *testing.T) {
 
 func TestRunMergeDriverInstall_RejectsWhitespacePath(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
@@ -373,7 +373,7 @@ func TestRunMergeDriverInstall_RejectsWhitespacePath(t *testing.T) {
 
 func TestRunMergeDriverInstall_NoArgsUsesDiscovery(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	// Generate a markdown file with a directive so discovery returns
 	// it instead of the PLAN.md/README.md fallback.
@@ -801,7 +801,7 @@ func TestResolveHooksDir_DefaultGitRepo(t *testing.T) {
 	// Derive expected path from git itself so the test is resilient
 	// against a global core.hooksPath set in the developer's git config.
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	out, err := exec.Command("git", "-C", dir, "rev-parse", "--git-path", "hooks").Output()
 	require.NoError(t, err)
 	expected := strings.TrimSpace(string(out))
@@ -814,7 +814,7 @@ func TestResolveHooksDir_DefaultGitRepo(t *testing.T) {
 
 func TestResolveHooksDir_CustomRelativeHooksPath(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	require.NoError(t, exec.Command("git", "-C", dir, "config",
 		"core.hooksPath", "custom-hooks").Run())
 	got := resolveHooksDir(dir)
@@ -823,7 +823,7 @@ func TestResolveHooksDir_CustomRelativeHooksPath(t *testing.T) {
 
 func TestResolveHooksDir_CustomAbsoluteHooksPath(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	absPath := filepath.Join(dir, "abs-hooks")
 	require.NoError(t, exec.Command("git", "-C", dir, "config",
 		"core.hooksPath", absPath).Run())

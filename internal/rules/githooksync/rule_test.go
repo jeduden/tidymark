@@ -19,12 +19,27 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/toc"
 )
 
-// initRepoWithDriver initialises a git repo at dir and registers the
-// mdsmith merge driver in its local config so the rule will read
-// .gitattributes (the real source of truth).
-func initRepoWithDriver(t *testing.T, dir string) {
+// initTestRepo runs `git init` on dir and pins core.hooksPath to
+// dir/.git/hooks in the repo-local config. The pin keeps tests
+// hermetic: a developer with a non-default core.hooksPath set
+// globally cannot have the rule (or its tests) read or write to
+// files outside the temp repo.
+func initTestRepo(t *testing.T, dir string) {
 	t.Helper()
 	require.NoError(t, exec.Command("git", "init", dir).Run())
+	require.NoError(t, exec.Command(
+		"git", "-C", dir, "config", "core.hooksPath",
+		filepath.Join(dir, ".git", "hooks"),
+	).Run())
+}
+
+// initRepoWithDriver initialises a git repo at dir, pins
+// core.hooksPath, and registers the mdsmith merge driver in its
+// local config so the rule will read .gitattributes (the real
+// source of truth).
+func initRepoWithDriver(t *testing.T, dir string) {
+	t.Helper()
+	initTestRepo(t, dir)
 	require.NoError(t, exec.Command(
 		"git", "-C", dir, "config", "merge.mdsmith.driver",
 		"mdsmith merge-driver run %O %A %B %P",
@@ -218,7 +233,7 @@ func TestRule_Check_CombinesBothDriftSourcesIntoOneDiagnostic(t *testing.T) {
 
 func TestRule_Check_HookListsNoFilesRendersNone(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
 		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
@@ -244,7 +259,7 @@ func TestRule_Check_HookListsNoFilesRendersNone(t *testing.T) {
 
 func TestRule_Check_HookReadErrorIsReported(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
 		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
@@ -382,7 +397,7 @@ func TestRule_Check_RunnableInZeroState(t *testing.T) {
 	// The rule must run when enabled via the bool form
 	// (`git-hook-sync: true`), which doesn't call ApplySettings.
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	r := &Rule{}
 	f := &lint.File{

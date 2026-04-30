@@ -36,6 +36,20 @@ func chdirToNonRepo(t *testing.T) string {
 	return dir
 }
 
+// initTestRepo runs `git init` on dir and pins core.hooksPath to
+// dir/.git/hooks in the repo-local config. The pin makes the test
+// hermetic: a developer with a non-default core.hooksPath set
+// globally cannot have install/uninstall/status commands write into
+// or remove files outside the temp repo.
+func initTestRepo(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, exec.Command(
+		"git", "-C", dir, "config", "core.hooksPath", hooksDir,
+	).Run())
+}
+
 // --- runPreMergeCommit dispatch ---
 
 func TestRunPreMergeCommit_DispatchInstall(t *testing.T) {
@@ -89,7 +103,7 @@ func TestRunPreMergeCommitStatus_NotInRepo(t *testing.T) {
 // read-error branch.
 func TestRunPreMergeCommitUninstall_ReadError(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	hooksDir := resolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(filepath.Join(hooksDir, "pre-merge-commit"), 0o755))
 
@@ -107,7 +121,7 @@ func TestRunPreMergeCommitUninstall_ReadError(t *testing.T) {
 // the status command.
 func TestRunPreMergeCommitStatus_ReadError(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	hooksDir := resolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(filepath.Join(hooksDir, "pre-merge-commit"), 0o755))
 
@@ -131,7 +145,7 @@ func TestRunPreMergeCommitStatus_ReadError(t *testing.T) {
 // against the locked directory still succeeds.
 func TestRunPreMergeCommitUninstall_RemoveError(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	hooksDir := resolveHooksDir(dir)
 	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
@@ -169,7 +183,7 @@ func removeWillSucceed(path string) bool {
 
 func TestRunPreMergeCommitUninstall_HookNotPresent(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	origWd, _ := os.Getwd()
 	require.NoError(t, os.Chdir(dir))
 	t.Cleanup(func() { _ = os.Chdir(origWd) })
@@ -182,7 +196,7 @@ func TestRunPreMergeCommitUninstall_HookNotPresent(t *testing.T) {
 
 func TestPreMergeCommitInstall_LoadConfigError(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
 		[]byte("not: [valid: yaml\n"), 0o644))
 
@@ -198,7 +212,7 @@ func TestPreMergeCommitInstall_LoadConfigError(t *testing.T) {
 
 func TestPreMergeCommitInstall_BadMaxInputSize(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
 		[]byte("max-input-size: nonsense\n"), 0o644))
 
@@ -214,7 +228,7 @@ func TestPreMergeCommitInstall_BadMaxInputSize(t *testing.T) {
 
 func TestPreMergeCommitInstall_RejectsWhitespacePath(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	origWd, _ := os.Getwd()
 	require.NoError(t, os.Chdir(dir))
@@ -228,7 +242,7 @@ func TestPreMergeCommitInstall_RejectsWhitespacePath(t *testing.T) {
 
 func TestPreMergeCommitInstall_RefusesUserHook(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
@@ -251,7 +265,7 @@ func TestPreMergeCommitInstall_RefusesUserHook(t *testing.T) {
 
 func TestPreMergeCommitInstall_NoArgsUsesDiscovery(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	// Generate a markdown file with a directive so discovery finds
 	// something concrete instead of falling back to defaults.
@@ -274,7 +288,7 @@ func TestPreMergeCommitInstall_NoArgsUsesDiscovery(t *testing.T) {
 
 func TestPreMergeCommitStatus_UnmanagedHook(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	hooksDir := resolveHooksDir(dir)
 	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
@@ -346,7 +360,7 @@ func TestRunPreMergeCommitStatus_HelpFlag_ExitsZero(t *testing.T) {
 
 func TestPreMergeCommitInstall_CreatesHook(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
@@ -384,7 +398,7 @@ func TestPreMergeCommitInstall_CreatesHook(t *testing.T) {
 
 func TestPreMergeCommitUninstall_RemovesHook(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
@@ -413,7 +427,7 @@ func TestPreMergeCommitUninstall_RemovesHook(t *testing.T) {
 
 func TestPreMergeCommitUninstall_RefusesUserHook(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	// Create a user hook without our marker.
 	hooksDir := resolveHooksDir(dir)
@@ -440,7 +454,7 @@ func TestPreMergeCommitUninstall_RefusesUserHook(t *testing.T) {
 
 func TestPreMergeCommitStatus_NotInstalled(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	// Change to temp git repo.
 	origWd, _ := os.Getwd()
@@ -455,7 +469,7 @@ func TestPreMergeCommitStatus_NotInstalled(t *testing.T) {
 
 func TestPreMergeCommitStatus_Installed(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
@@ -556,7 +570,7 @@ func TestFilesMatch_OneEmpty(t *testing.T) {
 
 func TestPreMergeCommitStatus_ShowsWarningWhenOutOfSync(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
@@ -597,7 +611,7 @@ func TestPreMergeCommitStatus_ShowsWarningWhenOutOfSync(t *testing.T) {
 
 func TestPreMergeCommitStatus_NoWarningWhenInSync(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, exec.Command("git", "init", dir).Run())
+	initTestRepo(t, dir)
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
