@@ -97,23 +97,33 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return nil
 	}
 
-	// Discovery is cached per repo so the cost is paid once per
-	// process; the diagnostic itself is emitted whenever drift
-	// exists. The fixer pipeline calls Check before deciding whether
-	// to run Fix, so suppressing the diagnostic here would prevent
-	// `mdsmith fix` from regenerating .gitattributes. Output noise
-	// is bounded: once Fix runs, the on-disk state matches the
-	// discovered set and subsequent Check calls return nil.
-	discovered := r.getDiscovered(repoRoot, f.MaxInputBytes)
+	// Discovery is cached per repo and only consumed by the drift
+	// functions once they get past their own IO short-circuits.
+	// Wrap it in a lazy getter so the (potentially expensive) walk
+	// is skipped entirely on the unreadable-only path: when the user
+	// has not registered the merge driver and the hook file is
+	// unreadable, preMergeCommitHookDrift returns the IO diagnostic
+	// before reaching the FilesMatch check, and the walk is wasted.
+	var (
+		discovered    []string
+		haveDiscovery bool
+	)
+	getDiscovered := func() []string {
+		if !haveDiscovery {
+			discovered = r.getDiscovered(repoRoot, f.MaxInputBytes)
+			haveDiscovery = true
+		}
+		return discovered
+	}
 
 	// Collect drift descriptions from both sources. A blank
 	// description from a source means it is in sync (or the user
 	// has not opted into that source at all).
 	var parts []string
-	if msg := r.mergeDriverDrift(repoRoot, discovered); msg != "" {
+	if msg := r.mergeDriverDrift(repoRoot, getDiscovered); msg != "" {
 		parts = append(parts, msg)
 	}
-	if msg := r.preMergeCommitHookDrift(repoRoot, discovered); msg != "" {
+	if msg := r.preMergeCommitHookDrift(repoRoot, getDiscovered); msg != "" {
 		parts = append(parts, msg)
 	}
 	// A previous Fix may have written .gitattributes but failed to
@@ -185,7 +195,7 @@ func peekHookSource(repoRoot string) hookSource {
 // will not run for any file, defeating the registration. A non-ENOENT
 // read error is surfaced as drift too rather than silently passing,
 // so permission/IO failures cannot mask real misconfiguration.
-func (r *Rule) mergeDriverDrift(repoRoot string, discovered []string) string {
+func (r *Rule) mergeDriverDrift(repoRoot string, getDiscovered func() []string) string {
 	if !githooks.HasMdsmithMergeDriver(repoRoot) {
 		return ""
 	}
@@ -196,6 +206,7 @@ func (r *Rule) mergeDriverDrift(repoRoot string, discovered []string) string {
 			err,
 		)
 	}
+	discovered := getDiscovered()
 	installed := githooks.ExtractGitattributesFiles(string(data))
 	if githooks.FilesMatch(installed, discovered) {
 		return ""
@@ -223,7 +234,7 @@ func (r *Rule) mergeDriverDrift(repoRoot string, discovered []string) string {
 // hook is not mdsmith-managed, or the file list matches. A non-ENOENT
 // read error is surfaced rather than silently passing so permission
 // or IO failures cannot mask real drift.
-func (r *Rule) preMergeCommitHookDrift(repoRoot string, discovered []string) string {
+func (r *Rule) preMergeCommitHookDrift(repoRoot string, getDiscovered func() []string) string {
 	hookPath := filepath.Join(githooks.ResolveHooksDir(repoRoot), "pre-merge-commit")
 	data, err := os.ReadFile(hookPath)
 	if err != nil {
@@ -240,6 +251,7 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string, discovered []string) str
 		return ""
 	}
 	installed := githooks.ExtractHookFiles(hook)
+	discovered := getDiscovered()
 	if githooks.FilesMatch(installed, discovered) {
 		return ""
 	}

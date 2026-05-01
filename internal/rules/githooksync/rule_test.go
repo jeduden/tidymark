@@ -1,6 +1,7 @@
 package githooksync
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -445,6 +446,50 @@ func TestRule_Check_HookReadErrorIsReported(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message,
 		"cannot verify pre-merge-commit hook")
+}
+
+func TestRule_Check_UnreadableHookSkipsDiscovery(t *testing.T) {
+	// When the merge driver is not registered and the hook file is
+	// merely unreadable, Check emits an IO diagnostic without ever
+	// needing the discovered set. Discovery (a repo-wide walk) must
+	// not run in that path. We verify by leaving the cache primed
+	// only after the first eager call would have populated it: a
+	// post-Check getDiscovered observation finds the cache empty,
+	// proving Check didn't trigger discovery.
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	// Markdown file that, if discovered, would carry a directive.
+	mdPath := filepath.Join(dir, "README.md")
+	require.NoError(t, os.WriteFile(mdPath,
+		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+
+	// Make the hook unreadable (a directory at the hook path).
+	hooksDir := githooks.ResolveHooksDir(dir)
+	require.NoError(t, os.MkdirAll(filepath.Join(hooksDir, "pre-merge-commit"), 0o755))
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          mdPath,
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
+	}
+
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message,
+		"cannot verify pre-merge-commit hook")
+
+	// Probe the cache: if Check had triggered discovery, the cache
+	// would already hold an entry for (dir, MaxInputBytes). Since
+	// the unreadable-only path must skip discovery, the cache is
+	// empty and only this probe populates it.
+	discoveredMu.Lock()
+	_, populated := discoveredCache[fmt.Sprintf("%s:%d", dir, int64(1048576))]
+	discoveredMu.Unlock()
+	assert.False(t, populated,
+		"Check must not run the repo-wide DiscoverFiles walk when only the unreadable-hook IO diagnostic can fire")
 }
 
 func TestRule_Check_GitattributesReadErrorIsReported(t *testing.T) {

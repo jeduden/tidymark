@@ -578,9 +578,24 @@ func WriteGitattributes(path string, files []string) error {
 // `mdsmith fix`, leaving the regenerated .gitattributes in the working
 // tree but absent from the resulting merge commit. Errors are surfaced
 // so callers can decide whether to roll back; the working-tree write
-// itself is already done at the point this is called.
+// itself is already done at the point this is called. CombinedOutput
+// is used so git's stderr (e.g. `fatal: Unable to create
+// '/.../.git/index.lock': File exists.`) is preserved in the error
+// returned to the caller — without it MDS048's "staging failed"
+// diagnostic would only carry an `exit status N` and nothing
+// actionable.
 func StageGitattributes(repoRoot string) error {
-	return exec.Command("git", "-C", repoRoot, "add", "--", ".gitattributes").Run()
+	out, err := exec.Command(
+		"git", "-C", repoRoot, "add", "--", ".gitattributes",
+	).CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	msg := strings.TrimSpace(string(out))
+	if msg == "" {
+		return fmt.Errorf("stage .gitattributes: %w", err)
+	}
+	return fmt.Errorf("stage .gitattributes: %w: %s", err, msg)
 }
 
 // HasMdsmithMergeDriver reports whether the repository's local git
