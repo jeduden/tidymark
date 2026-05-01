@@ -465,10 +465,15 @@ func stripStaleMergeMdsmithLines(content string) string {
 
 // findManagedBlockLines returns the half-open line range
 // [startLine, endLineExclusive) covering the managed block in lines.
-// A block is recognized only when the BEGIN and END markers appear as
-// standalone trimmed lines (not embedded in another comment), with the
-// END marker at or after the BEGIN marker. Returns (-1, -1) when no
-// valid block exists.
+// The BEGIN and END markers are matched only as standalone trimmed
+// lines (not embedded in another comment).
+//
+// When BEGIN is present but END is missing — for example, after a
+// partial edit or an aborted merge that left half a managed block
+// behind — the range runs from BEGIN to EOF. The writer then replaces
+// the incomplete block instead of appending a duplicate one and
+// leaving the stray BEGIN behind. Returns (-1, -1) only when no
+// BEGIN marker exists.
 func findManagedBlockLines(lines []string) (int, int) {
 	startLine := -1
 	for i, line := range lines {
@@ -485,7 +490,7 @@ func findManagedBlockLines(lines []string) (int, int) {
 			return startLine, i + 1
 		}
 	}
-	return -1, -1
+	return startLine, len(lines)
 }
 
 // WriteGitattributes updates .gitattributes to register the given files

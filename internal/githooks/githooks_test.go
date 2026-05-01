@@ -664,6 +664,34 @@ func TestWriteGitattributes_HandlesEndMarkerWithoutTrailingNewline(t *testing.T)
 	assert.Equal(t, expected, string(content))
 }
 
+func TestWriteGitattributes_ReplacesTruncatedBlockMissingEndMarker(t *testing.T) {
+	// A partial edit or aborted merge can leave a BEGIN marker without
+	// the matching END marker. The writer must treat the orphan BEGIN
+	// (and everything after it) as the managed block to replace, not
+	// append a second managed block that leaves the stray BEGIN line
+	// behind.
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
+
+	initial := "*.txt text eol=lf\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"old.md merge=mdsmith\n" +
+		"# (END marker truncated by a partial edit)\n"
+	require.NoError(t, os.WriteFile(path, []byte(initial), 0644))
+
+	require.NoError(t, WriteGitattributes(path, []string{"new.md"}))
+
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	expected := "*.txt text eol=lf\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"new.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver\n"
+	assert.Equal(t, expected, string(content),
+		"truncated block (BEGIN with no END) must be replaced wholesale, not duplicated")
+}
+
 func TestWriteGitattributes_DoesNotMatchMarkerInsideOtherComment(t *testing.T) {
 	// The BEGIN/END strings must be matched as standalone trimmed
 	// lines, not substrings. If a comment elsewhere mentions the

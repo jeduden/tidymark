@@ -132,7 +132,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	if err := stagingError(repoRoot); err != nil {
 		parts = append(parts, fmt.Sprintf(
 			".gitattributes was regenerated but `git add` failed: %v "+
-				"(run `git add .gitattributes` or re-run mdsmith fix to retry)",
+				"(run `git add -- .gitattributes` or re-run mdsmith fix to retry)",
 			err,
 		))
 	}
