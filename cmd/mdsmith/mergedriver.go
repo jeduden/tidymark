@@ -35,7 +35,12 @@ Subcommands:
         Optional positional args replace the default include set
         when callers want to scope the merge driver to a custom
         pattern (e.g. docs/**/*.md); .mdsmith.yml ignore
-        patterns still apply on top via -merge overrides.
+        patterns still apply on top via -merge overrides. Custom
+        include globs are not compatible with the MDS048
+        git-hook-sync rule's auto-fix, which restores the
+        canonical default include set plus ignore-derived
+        excludes; do not enable git-hook-sync if you rely on a
+        custom include set.
 
 Git config (set by install):
   merge.mdsmith.driver = '/absolute/path/to/mdsmith' merge-driver run %O %A %B %P

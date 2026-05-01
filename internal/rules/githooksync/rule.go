@@ -254,34 +254,11 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string) string {
 	// glob-based fix invocation pattern) keeps drift detection
 	// hermetic across machines while still catching missing or
 	// outdated hook content.
-	if hookMatchesCanonical(hook) {
+	if githooks.HookMatchesCanonical(hook) {
 		return ""
 	}
 	return "pre-merge-commit hook is out of sync with the glob-based template " +
 		"(re-run `mdsmith pre-merge-commit install` to update it)"
-}
-
-// hookMatchesCanonical reports whether the installed hook script
-// looks like the current glob-based template. The mdsmith binary
-// path is repo-specific, so canonical comparison checks for the
-// stable lines that carry the runtime behaviour (cd to the repo
-// root, run `mdsmith fix .` with the exit-1-tolerant guard, stage
-// modified markdown files).
-func hookMatchesCanonical(hook string) bool {
-	if !strings.Contains(hook, "cd \"$(git rev-parse --show-toplevel)\"") {
-		return false
-	}
-	if !strings.Contains(hook, "fix .; then") {
-		return false
-	}
-	if !strings.Contains(hook, `if [ "$status" -ne 1 ]; then`) {
-		return false
-	}
-	if !strings.Contains(hook,
-		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --") {
-		return false
-	}
-	return true
 }
 
 // Fix implements rule.FixableRule. It regenerates the .gitattributes

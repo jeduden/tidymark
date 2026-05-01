@@ -799,6 +799,31 @@ func BuildHookScript(exe string) string {
 		"xargs -0 -r git add --\n"
 }
 
+// HookMatchesCanonical reports whether hook content looks like the
+// current glob-based pre-merge-commit template. The mdsmith binary
+// path is repo-specific, so canonical comparison checks for the
+// stable lines that carry the runtime behaviour: cd to the repo
+// root, run `mdsmith fix .` inside the exit-1-tolerant guard, and
+// stage modified markdown files. Both the CLI status output and
+// the git-hook-sync rule call this so they cannot disagree on what
+// counts as in-sync.
+func HookMatchesCanonical(hook string) bool {
+	if !strings.Contains(hook, "cd \"$(git rev-parse --show-toplevel)\"") {
+		return false
+	}
+	if !strings.Contains(hook, "fix .; then") {
+		return false
+	}
+	if !strings.Contains(hook, `if [ "$status" -ne 1 ]; then`) {
+		return false
+	}
+	if !strings.Contains(hook,
+		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --") {
+		return false
+	}
+	return true
+}
+
 // shellQuote single-quotes s for use in a POSIX shell, encoding any
 // embedded single quote as `'\”` (close quote, escaped quote,
 // reopen quote) so the result round-trips through the shell's

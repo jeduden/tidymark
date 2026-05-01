@@ -219,31 +219,9 @@ func printManagedHookStatus(_, content string) {
 	fmt.Fprintf(os.Stderr, "  managed by: mdsmith\n")
 	fmt.Fprintf(os.Stderr, "  scope: `mdsmith fix .` (.mdsmith.yml ignore patterns apply)\n")
 
-	if hookMatchesCanonical(content) {
+	if githooks.HookMatchesCanonical(content) {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "\nWarning: pre-merge-commit hook is out of sync with the glob-based template.\n")
 	fmt.Fprintf(os.Stderr, "Run 'mdsmith pre-merge-commit install' to update it.\n")
-}
-
-// hookMatchesCanonical mirrors the rule's drift check so the CLI
-// status output and the git-hook-sync rule agree on what counts as
-// in-sync. The mdsmith binary path is repo-specific, so canonical
-// comparison checks for the stable lines that carry the runtime
-// behaviour.
-func hookMatchesCanonical(hook string) bool {
-	if !strings.Contains(hook, "cd \"$(git rev-parse --show-toplevel)\"") {
-		return false
-	}
-	if !strings.Contains(hook, "fix .; then") {
-		return false
-	}
-	if !strings.Contains(hook, `if [ "$status" -ne 1 ]; then`) {
-		return false
-	}
-	if !strings.Contains(hook,
-		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --") {
-		return false
-	}
-	return true
 }
