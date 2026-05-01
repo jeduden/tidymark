@@ -722,58 +722,101 @@ func TestRule_Fix_StagesGitattributes(t *testing.T) {
 		"Fix must stage the regenerated .gitattributes")
 }
 
-func TestRule_Fix_OnlyFixesOncePerRepo(t *testing.T) {
+func TestRule_Fix_RetriesAfterTransientWriteFailure(t *testing.T) {
+	// markFixed only fires after a successful WriteGitattributes, so
+	// a transient write failure does not lock subsequent Fix calls
+	// out of retrying within the same process.
 	dir := t.TempDir()
 	initTestRepo(t, dir)
 
-	// Register merge driver
 	cmd := exec.Command(
 		"git", "-C", dir, "config", "--local",
 		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
 	)
 	require.NoError(t, cmd.Run())
 
-	// Create two markdown files with directives
-	mdFile1 := filepath.Join(dir, "a.md")
-	mdFile2 := filepath.Join(dir, "b.md")
+	mdFile := filepath.Join(dir, "test.md")
 	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
-	require.NoError(t, os.WriteFile(mdFile1, []byte(mdContent), 0644))
-	require.NoError(t, os.WriteFile(mdFile2, []byte(mdContent), 0644))
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0644))
 
-	// Create .gitattributes with wrong content
+	attrPath := filepath.Join(dir, ".gitattributes")
+	// Make .gitattributes a directory so the first WriteGitattributes
+	// call fails. Discovery still runs, drift is detected, but the
+	// write returns an error.
+	require.NoError(t, os.Mkdir(attrPath, 0755))
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+	r.Fix(f)
+	info, err := os.Stat(attrPath)
+	require.NoError(t, err)
+	require.True(t, info.IsDir(), "first call: write must fail (path is a directory)")
+
+	// Replace the directory with a regular (out-of-sync) file so the
+	// next write can succeed.
+	require.NoError(t, os.Remove(attrPath))
+	initial := "# BEGIN mdsmith merge-driver\nold.md merge=mdsmith\n# END mdsmith merge-driver\n"
+	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
+
+	// Second Fix must retry: the prior failure must not have locked
+	// fixedRepos[dir] = true.
+	r.Fix(f)
+	content, err := os.ReadFile(attrPath)
+	require.NoError(t, err)
+	expected := "# BEGIN mdsmith merge-driver\ntest.md merge=mdsmith\n# END mdsmith merge-driver\n"
+	assert.Equal(t, expected, string(content),
+		"Fix must retry after a prior write failure within the same process")
+}
+
+func TestRule_Fix_DoesNotReStageOnSecondCall(t *testing.T) {
+	// After a successful first fix, a second Fix call in the same
+	// process must not redundantly re-stage .gitattributes. The first
+	// call records markFixed and stages; subsequent calls see the
+	// file as in sync (FilesMatch true) and short-circuit before
+	// reaching markFixed/stage.
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	cmd := exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
+	)
+	require.NoError(t, cmd.Run())
+
+	mdFile := filepath.Join(dir, "test.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0644))
+
 	attrPath := filepath.Join(dir, ".gitattributes")
 	initial := "# BEGIN mdsmith merge-driver\nold.md merge=mdsmith\n# END mdsmith merge-driver\n"
 	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
 
 	r := &Rule{}
-	f1 := &lint.File{
+	f := &lint.File{
 		FS:            os.DirFS(dir),
-		Path:          mdFile1,
-		Source:        []byte(mdContent),
-		MaxInputBytes: 10000,
-	}
-	f2 := &lint.File{
-		FS:            os.DirFS(dir),
-		Path:          mdFile2,
+		Path:          mdFile,
 		Source:        []byte(mdContent),
 		MaxInputBytes: 10000,
 	}
 
-	// First fix should update .gitattributes
-	r.Fix(f1)
-	content1, err := os.ReadFile(attrPath)
+	r.Fix(f)
+	// Capture mtime after the first write.
+	infoBefore, err := os.Stat(attrPath)
 	require.NoError(t, err)
-	expected := "# BEGIN mdsmith merge-driver\na.md merge=mdsmith\nb.md merge=mdsmith\n# END mdsmith merge-driver\n"
-	assert.Equal(t, expected, string(content1))
+	mtimeBefore := infoBefore.ModTime()
 
-	// Corrupt .gitattributes again
-	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
-
-	// Second fix should NOT update it (once per repo)
-	r.Fix(f2)
-	content2, err := os.ReadFile(attrPath)
+	// Second call: .gitattributes is already in sync so FilesMatch
+	// returns true and Fix returns before the writer runs.
+	r.Fix(f)
+	infoAfter, err := os.Stat(attrPath)
 	require.NoError(t, err)
-	assert.Equal(t, initial, string(content2)) // Should still be corrupted
+	assert.Equal(t, mtimeBefore, infoAfter.ModTime(),
+		"second Fix call must not re-write when .gitattributes is already in sync")
 }
 
 func TestRule_Fix_SkipsWhenAlreadyInSync(t *testing.T) {

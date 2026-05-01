@@ -290,13 +290,18 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		}
 	}
 
-	if !r.markFixed(repoRoot) {
-		return f.Source
-	}
-
-	// Write the corrected .gitattributes
+	// Write the corrected .gitattributes. The markFixed guard fires
+	// only after a successful write so a transient write failure
+	// (e.g. read-only mount, permission denied, racing process) does
+	// not lock subsequent Fix calls out of retrying within the same
+	// process.
 	if err := githooks.WriteGitattributes(attrPath, discovered); err != nil {
 		// If write fails, return original content unchanged
+		return f.Source
+	}
+	if !r.markFixed(repoRoot) {
+		// Another Fix call in this process already wrote
+		// .gitattributes; do not re-stage it.
 		return f.Source
 	}
 
