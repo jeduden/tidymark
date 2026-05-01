@@ -417,130 +417,127 @@ func TestFirstQuotedAfter(t *testing.T) {
 		})
 	}
 }
-func TestWriteGitattributes(t *testing.T) {
-	t.Run("creates new file with managed block", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, ".gitattributes")
-		files := []string{"a.md", "b.md"}
 
-		err := WriteGitattributes(path, files)
-		require.NoError(t, err)
+func TestWriteGitattributes_CreatesNewFileWithManagedBlock(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
+	files := []string{"a.md", "b.md"}
 
-		content, err := os.ReadFile(path)
-		require.NoError(t, err)
+	err := WriteGitattributes(path, files)
+	require.NoError(t, err)
 
-		expected := "# BEGIN mdsmith merge-driver\n" +
-			"a.md merge=mdsmith\n" +
-			"b.md merge=mdsmith\n" +
-			"# END mdsmith merge-driver\n"
-		assert.Equal(t, expected, string(content))
-	})
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
 
-	t.Run("preserves existing non-mdsmith entries", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, ".gitattributes")
+	expected := "# BEGIN mdsmith merge-driver\n" +
+		"a.md merge=mdsmith\n" +
+		"b.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver\n"
+	assert.Equal(t, expected, string(content))
+}
 
-		// Write initial content with non-mdsmith entries
-		initial := "*.txt text eol=lf\n" +
-			"*.jpg binary\n"
-		err := os.WriteFile(path, []byte(initial), 0644)
-		require.NoError(t, err)
+func TestWriteGitattributes_PreservesExistingNonMdsmithEntries(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
 
-		// Add mdsmith managed block
-		files := []string{"test.md"}
-		err = WriteGitattributes(path, files)
-		require.NoError(t, err)
+	initial := "*.txt text eol=lf\n" +
+		"*.jpg binary\n"
+	err := os.WriteFile(path, []byte(initial), 0644)
+	require.NoError(t, err)
 
-		content, err := os.ReadFile(path)
-		require.NoError(t, err)
+	files := []string{"test.md"}
+	err = WriteGitattributes(path, files)
+	require.NoError(t, err)
 
-		expected := "*.txt text eol=lf\n" +
-			"*.jpg binary\n" +
-			"# BEGIN mdsmith merge-driver\n" +
-			"test.md merge=mdsmith\n" +
-			"# END mdsmith merge-driver\n"
-		assert.Equal(t, expected, string(content))
-	})
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
 
-	t.Run("replaces existing managed block", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, ".gitattributes")
+	expected := "*.txt text eol=lf\n" +
+		"*.jpg binary\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"test.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver\n"
+	assert.Equal(t, expected, string(content))
+}
 
-		// Write initial content with managed block
-		initial := "*.txt text eol=lf\n" +
-			"# BEGIN mdsmith merge-driver\n" +
-			"old.md merge=mdsmith\n" +
-			"# END mdsmith merge-driver\n" +
-			"*.jpg binary\n"
-		err := os.WriteFile(path, []byte(initial), 0644)
-		require.NoError(t, err)
+func TestWriteGitattributes_ReplacesExistingManagedBlock(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
 
-		// Update managed block
-		files := []string{"new.md", "other.md"}
-		err = WriteGitattributes(path, files)
-		require.NoError(t, err)
+	initial := "*.txt text eol=lf\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"old.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver\n" +
+		"*.jpg binary\n"
+	err := os.WriteFile(path, []byte(initial), 0644)
+	require.NoError(t, err)
 
-		content, err := os.ReadFile(path)
-		require.NoError(t, err)
+	files := []string{"new.md", "other.md"}
+	err = WriteGitattributes(path, files)
+	require.NoError(t, err)
 
-		expected := "*.txt text eol=lf\n" +
-			"# BEGIN mdsmith merge-driver\n" +
-			"new.md merge=mdsmith\n" +
-			"other.md merge=mdsmith\n" +
-			"# END mdsmith merge-driver\n" +
-			"*.jpg binary\n"
-		assert.Equal(t, expected, string(content))
-	})
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
 
-	t.Run("handles empty file list", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, ".gitattributes")
+	expected := "*.txt text eol=lf\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"new.md merge=mdsmith\n" +
+		"other.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver\n" +
+		"*.jpg binary\n"
+	assert.Equal(t, expected, string(content))
+}
 
-		err := WriteGitattributes(path, []string{})
-		require.NoError(t, err)
+func TestWriteGitattributes_HandlesEmptyFileList(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
 
-		content, err := os.ReadFile(path)
-		require.NoError(t, err)
+	err := WriteGitattributes(path, []string{})
+	require.NoError(t, err)
 
-		// Only markers, no file entries
-		expected := "# BEGIN mdsmith merge-driver\n" +
-			"# END mdsmith merge-driver\n"
-		assert.Equal(t, expected, string(content))
-	})
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
 
-	t.Run("returns error for unreadable existing file", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, ".gitattributes")
+	expected := "# BEGIN mdsmith merge-driver\n" +
+		"# END mdsmith merge-driver\n"
+	assert.Equal(t, expected, string(content))
+}
 
-		// Create file with no read permission
-		err := os.WriteFile(path, []byte("test"), 0000)
-		require.NoError(t, err)
+func TestWriteGitattributes_ReturnsErrorForUnreadableExistingFile(t *testing.T) {
+	// Mode 0000 only blocks reads for non-root users; root bypasses
+	// file permission bits, so this assertion can't hold under uid 0.
+	if os.Geteuid() == 0 {
+		t.Skip("file permission bits don't restrict root")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
 
-		err = WriteGitattributes(path, []string{"a.md"})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "reading")
-	})
+	err := os.WriteFile(path, []byte("test"), 0000)
+	require.NoError(t, err)
 
-	t.Run("appends block when no newline at EOF", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, ".gitattributes")
+	err = WriteGitattributes(path, []string{"a.md"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "reading")
+}
 
-		// Write content without trailing newline
-		initial := "*.txt text eol=lf"
-		err := os.WriteFile(path, []byte(initial), 0644)
-		require.NoError(t, err)
+func TestWriteGitattributes_AppendsBlockWhenNoNewlineAtEOF(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
 
-		files := []string{"test.md"}
-		err = WriteGitattributes(path, files)
-		require.NoError(t, err)
+	initial := "*.txt text eol=lf"
+	err := os.WriteFile(path, []byte(initial), 0644)
+	require.NoError(t, err)
 
-		content, err := os.ReadFile(path)
-		require.NoError(t, err)
+	files := []string{"test.md"}
+	err = WriteGitattributes(path, files)
+	require.NoError(t, err)
 
-		expected := "*.txt text eol=lf\n" +
-			"# BEGIN mdsmith merge-driver\n" +
-			"test.md merge=mdsmith\n" +
-			"# END mdsmith merge-driver\n"
-		assert.Equal(t, expected, string(content))
-	})
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	expected := "*.txt text eol=lf\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"test.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver\n"
+	assert.Equal(t, expected, string(content))
 }

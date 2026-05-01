@@ -513,7 +513,10 @@ func TestRule_Fix_RegeneratesGitattributes(t *testing.T) {
 	initTestRepo(t, dir)
 
 	// Register merge driver
-	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	cmd := exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
+	)
 	require.NoError(t, cmd.Run())
 
 	// Create markdown file with directive
@@ -550,7 +553,10 @@ func TestRule_Fix_OnlyFixesOncePerRepo(t *testing.T) {
 	initTestRepo(t, dir)
 
 	// Register merge driver
-	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	cmd := exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
+	)
 	require.NoError(t, cmd.Run())
 
 	// Create two markdown files with directives
@@ -601,7 +607,10 @@ func TestRule_Fix_SkipsWhenAlreadyInSync(t *testing.T) {
 	initTestRepo(t, dir)
 
 	// Register merge driver
-	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	cmd := exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
+	)
 	require.NoError(t, cmd.Run())
 
 	// Create markdown file with directive
@@ -640,7 +649,10 @@ func TestRule_Fix_ReturnsOriginalOnWriteError(t *testing.T) {
 	initTestRepo(t, dir)
 
 	// Register merge driver
-	cmd := exec.Command("git", "-C", dir, "config", "--local", "merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P")
+	cmd := exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
+	)
 	require.NoError(t, cmd.Run())
 
 	// Create markdown file with directive

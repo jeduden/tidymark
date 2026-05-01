@@ -40,12 +40,12 @@ type Rule struct{}
 // repo walk + file reads), so caching it significantly improves
 // performance when checking many files in the same repo.
 var (
-	fixedMu          sync.Mutex
-	fixedRepos       = make(map[string]bool)
-	discoveredMu     sync.Mutex
-	discoveredCache  = make(map[string][]string)
-	reportedMu       sync.Mutex
-	reportedRepos    = make(map[string]bool)
+	fixedMu         sync.Mutex
+	fixedRepos      = make(map[string]bool)
+	discoveredMu    sync.Mutex
+	discoveredCache = make(map[string][]string)
+	reportedMu      sync.Mutex
+	reportedRepos   = make(map[string]bool)
 )
 
 // ID implements rule.Rule.
@@ -306,7 +306,6 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	return f.Source
 }
 
-
 // markFixed returns true exactly once per repoRoot for the lifetime
 // of the process. Subsequent calls for the same repo return false so
 // .gitattributes is not written multiple times while fixing many
@@ -353,7 +352,6 @@ func (r *Rule) getDiscovered(repoRoot string, maxBytes int64) []string {
 	discoveredCache[repoRoot] = files
 	return files
 }
-
 
 // ApplySettings implements rule.Configurable. The rule has no runtime
 // settings, so this only rejects unknown keys when a user supplies a
