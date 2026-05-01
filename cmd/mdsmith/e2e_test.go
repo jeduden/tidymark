@@ -1264,7 +1264,7 @@ func TestE2E_MergeDriver_Install(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(hookData), "fix .; then",
 		"hook must invoke mdsmith fix . via the exit-1-tolerant guard; got:\n%s", hookData)
-	assert.Contains(t, string(hookData), "git diff --name-only -z -- '*.md' '*.markdown'",
+	assert.Contains(t, string(hookData), "git diff --name-only -- '*.md' '*.markdown'",
 		"hook must stage modified markdown files via the glob-based diff")
 }
 

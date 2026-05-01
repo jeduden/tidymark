@@ -153,12 +153,51 @@ const configFileName = ".mdsmith.yml"
 // .mdsmith.yml ignore patterns are translated as exclude patterns.
 // Last-match-wins in .gitattributes lets the excludes override the
 // broader markdown includes. cfg may be nil (no exclusions then).
+//
+// Patterns that cannot be represented directly in .gitattributes are
+// dropped from the exclude set so MDS048's auto-fix never produces a
+// broken managed block:
+//
+//   - .gitattributes splits attribute lines on whitespace, so a
+//     pattern containing a space or tab would be parsed as a path
+//     plus a stray attribute.
+//   - .gitattributes does not support `!`-prefixed negation. A
+//     pattern like `!docs/*.md` written verbatim would be silently
+//     ignored by git (or treated as a literal path starting with
+//     `!`), which is misleading.
+//
+// Unrepresentable patterns are silently skipped: the rule's Fix
+// path has no error channel back to the user, and the alternative
+// (writing the bad line) corrupts the merge driver's behaviour.
+// Authors who rely on negation or whitespace patterns should keep
+// `git-hook-sync` disabled.
 func GlobsFromConfig(cfg *config.Config) Globs {
 	g := Globs{Include: DefaultIncludes()}
-	if cfg != nil && len(cfg.Ignore) > 0 {
-		g.Exclude = append([]string{}, cfg.Ignore...)
+	if cfg == nil || len(cfg.Ignore) == 0 {
+		return g
+	}
+	g.Exclude = make([]string, 0, len(cfg.Ignore))
+	for _, p := range cfg.Ignore {
+		if !isRepresentableGitattributesPattern(p) {
+			continue
+		}
+		g.Exclude = append(g.Exclude, p)
 	}
 	return g
+}
+
+// isRepresentableGitattributesPattern reports whether pattern can be
+// copied directly into a .gitattributes pattern field without
+// changing its meaning. Negation (`!pattern`) is unsupported, and
+// whitespace would split the generated line into multiple fields.
+func isRepresentableGitattributesPattern(pattern string) bool {
+	if pattern == "" {
+		return false
+	}
+	if strings.HasPrefix(pattern, "!") {
+		return false
+	}
+	return !strings.ContainsAny(pattern, " \t\r\n")
 }
 
 // LoadGlobs reads .mdsmith.yml from repoRoot and returns the merge-
@@ -779,6 +818,15 @@ func HasMdsmithMergeDriver(repoRoot string) bool {
 // can resolve the remaining issues in a follow-up commit. Any other
 // non-zero exit (e.g. config errors, panics, exit 2) is propagated
 // out of the hook so the merge commit aborts on genuine errors.
+//
+// The staging loop reads `git diff --name-only` newline-by-newline
+// inside a POSIX `while read` loop. `xargs -r` is a GNU extension
+// (BSD xargs on macOS does not support it), so an empty pipeline
+// would otherwise invoke `git add --` with no arguments and abort
+// the merge. The loop also avoids splitting on filename whitespace
+// (read uses IFS= -r) at the cost of mishandling the rare filename
+// that contains literal newlines — an acceptable trade for
+// portability.
 func BuildHookScript(exe string) string {
 	return "#!/bin/sh\n" +
 		PreMergeCommitMarker + "\n" +
@@ -795,8 +843,10 @@ func BuildHookScript(exe string) string {
 		"    exit \"$status\"\n" +
 		"  fi\n" +
 		"fi\n" +
-		"git diff --name-only -z -- '*.md' '*.markdown' | " +
-		"xargs -0 -r git add --\n"
+		"git diff --name-only -- '*.md' '*.markdown' | " +
+		"while IFS= read -r f; do\n" +
+		"  [ -n \"$f\" ] && git add -- \"$f\"\n" +
+		"done\n"
 }
 
 // HookMatchesCanonical reports whether hook content looks like the
@@ -804,9 +854,9 @@ func BuildHookScript(exe string) string {
 // path is repo-specific, so canonical comparison checks for the
 // stable lines that carry the runtime behaviour: cd to the repo
 // root, run `mdsmith fix .` inside the exit-1-tolerant guard, and
-// stage modified markdown files. Both the CLI status output and
-// the git-hook-sync rule call this so they cannot disagree on what
-// counts as in-sync.
+// stage modified markdown files via the POSIX `while read` loop.
+// Both the CLI status output and the git-hook-sync rule call this
+// so they cannot disagree on what counts as in-sync.
 func HookMatchesCanonical(hook string) bool {
 	if !strings.Contains(hook, "cd \"$(git rev-parse --show-toplevel)\"") {
 		return false
@@ -818,7 +868,10 @@ func HookMatchesCanonical(hook string) bool {
 		return false
 	}
 	if !strings.Contains(hook,
-		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --") {
+		"git diff --name-only -- '*.md' '*.markdown' |") {
+		return false
+	}
+	if !strings.Contains(hook, `while IFS= read -r f; do`) {
 		return false
 	}
 	return true

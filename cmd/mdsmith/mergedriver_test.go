@@ -483,7 +483,7 @@ func TestEnsurePreMergeCommitHook_CreatesExecutableHook(t *testing.T) {
 		"hook must invoke the resolved mdsmith binary inside the exit-1-tolerant guard")
 	assert.Contains(t, content, `if [ "$status" -ne 1 ]; then`,
 		"hook must propagate exit codes other than 1 (unfixed diagnostics)")
-	assert.Contains(t, content, "git diff --name-only -z -- '*.md' '*.markdown'",
+	assert.Contains(t, content, "git diff --name-only -- '*.md' '*.markdown'",
 		"hook must stage modified markdown files via the glob-based diff")
 }
 

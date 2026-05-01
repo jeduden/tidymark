@@ -946,7 +946,7 @@ func TestBuildHookScript_EmbedsBinaryAndUsesGlobs(t *testing.T) {
 	assert.Contains(t, got, "if ! '/usr/local/bin/mdsmith' fix .; then")
 	assert.Contains(t, got, `if [ "$status" -ne 1 ]; then`,
 		"hook must propagate exit codes other than 1 (unfixed diagnostics)")
-	assert.Contains(t, got, "git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --")
+	assert.Contains(t, got, "git diff --name-only -- '*.md' '*.markdown' |")
 }
 
 func TestBuildHookScript_QuotesBinaryWithEmbeddedQuote(t *testing.T) {
@@ -974,7 +974,7 @@ func TestHookMatchesCanonical_RejectsMissingChdir(t *testing.T) {
 		"  status=$?\n" +
 		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
 		"fi\n" +
-		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --\n"
+		"git diff --name-only -- '*.md' '*.markdown' |\n"
 	assert.False(t, HookMatchesCanonical(hook))
 }
 
@@ -984,7 +984,7 @@ func TestHookMatchesCanonical_RejectsLegacyFixCommand(t *testing.T) {
 		"set -e\n" +
 		"cd \"$(git rev-parse --show-toplevel)\"\n" +
 		"'/usr/local/bin/mdsmith' fix -- 'PLAN.md'\n" +
-		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --\n"
+		"git diff --name-only -- '*.md' '*.markdown' |\n"
 	assert.False(t, HookMatchesCanonical(hook))
 }
 
@@ -997,7 +997,7 @@ func TestHookMatchesCanonical_RejectsLegacyOrTrueGuard(t *testing.T) {
 		"set -e\n" +
 		"cd \"$(git rev-parse --show-toplevel)\"\n" +
 		"'/usr/local/bin/mdsmith' fix . || true\n" +
-		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --\n"
+		"git diff --name-only -- '*.md' '*.markdown' |\n"
 	assert.False(t, HookMatchesCanonical(hook))
 }
 

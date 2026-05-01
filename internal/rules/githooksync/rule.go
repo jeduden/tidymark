@@ -362,13 +362,31 @@ func stagingError(repoRoot string) error {
 // repo. Failures (the linted file is not inside a git repo) are
 // cached too so a directory tree without a `.git` ancestor is also
 // only probed once.
+//
+// The mutex is released across the (potentially slow) `git rev-parse`
+// subprocess so concurrent Check/Fix calls on unrelated directories
+// are not serialised behind a single git invocation. A second
+// directory triggering the same lookup may run git in parallel; the
+// double-check after re-acquiring the lock makes the first writer
+// win without hurting correctness.
 func (r *Rule) resolveRepoRoot(dir string) (string, error) {
+	repoRootMu.Lock()
+	if entry, ok := repoRootCache[dir]; ok {
+		repoRootMu.Unlock()
+		return entry.root, entry.err
+	}
+	repoRootMu.Unlock()
+
+	root, err := githooks.GitRepoRoot(dir)
+
 	repoRootMu.Lock()
 	defer repoRootMu.Unlock()
 	if entry, ok := repoRootCache[dir]; ok {
+		// A concurrent caller populated the cache while we were
+		// running `git rev-parse`; honour their result so callers
+		// observe a single source of truth.
 		return entry.root, entry.err
 	}
-	root, err := githooks.GitRepoRoot(dir)
 	repoRootCache[dir] = repoRootEntry{root: root, err: err}
 	return root, err
 }

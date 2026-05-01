@@ -361,7 +361,7 @@ func TestPreMergeCommitInstall_CreatesHook(t *testing.T) {
 	content := string(data)
 	assert.Contains(t, content, preMergeCommitHookMarker)
 	assert.Contains(t, content, "if ! '/usr/local/bin/mdsmith' fix .; then")
-	assert.Contains(t, content, "git diff --name-only -z -- '*.md' '*.markdown'")
+	assert.Contains(t, content, "git diff --name-only -- '*.md' '*.markdown'")
 }
 
 func TestPreMergeCommitUninstall_RemovesHook(t *testing.T) {
