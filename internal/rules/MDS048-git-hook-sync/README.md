@@ -71,11 +71,14 @@ fallback is install-only. Stale entries from it can still
 trip the rule above.
 
 Drift is computed from repository-wide discovery of files
-containing generated section directives. When `mdsmith fix`
-applies the `.gitattributes` fix, it regenerates that file
-once per repository run from the current discovered file
-list. Check() reports drift at most once per repository per
-process to avoid noisy output when checking many files.
+that carry generated section directives. `Check()` reads
+that drift on every linted file. While drift exists, the
+diagnostic appears on each file in the repository. Discovery
+is cached per process, so the cost is paid once. When
+`mdsmith fix` applies the `.gitattributes` fix, the writer
+runs at most once per process. Subsequent `Check()` calls
+then see the file as in sync and stop emitting the
+diagnostic.
 
 ## Fix
 
@@ -118,15 +121,22 @@ If the merge driver is not registered, or to update the
 pre-merge-commit hook, run:
 
 ```bash
-# Register merge driver and regenerate .gitattributes
+# Register the merge driver and add any missing
+# `<file> merge=mdsmith` entries to .gitattributes.
 mdsmith merge-driver install
 
 # Re-install the pre-merge-commit hook
 mdsmith pre-merge-commit install
 ```
 
-Both commands pick up the current set of files with
-generated directives.
+`mdsmith merge-driver install` is **append-only**: it adds
+missing entries but does not remove stale ones or rewrite
+the file into a managed block. To remove stale entries and
+normalise the file into the `# BEGIN/END mdsmith merge-driver`
+block, run `mdsmith fix` with `git-hook-sync: true` enabled
+(or rely on the merge-queue / pre-merge-commit hook to do
+it, which runs `mdsmith fix` for you). Both paths pick up
+the current set of files with generated directives.
 
 ## Examples
 

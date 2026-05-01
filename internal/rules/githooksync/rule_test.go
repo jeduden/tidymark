@@ -600,6 +600,47 @@ func TestRule_Fix_SkipsWhenDriverNotRegistered(t *testing.T) {
 	assert.Equal(t, f.Source, result)
 }
 
+func TestRule_Fix_DoesNotMarkFixedBeforeDriverIsRegistered(t *testing.T) {
+	// markFixed must reflect an attempted write, not just a call to
+	// Fix(). If the driver is not registered yet, Fix returns early
+	// without writing — and a later call (after the driver is
+	// registered) must still be able to write.
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	mdFile := filepath.Join(dir, "test.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0644))
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+
+	// Fix #1: driver not registered → early return, no markFixed.
+	r.Fix(f)
+	_, statErr := os.Stat(filepath.Join(dir, ".gitattributes"))
+	require.True(t, os.IsNotExist(statErr),
+		"Fix must not write .gitattributes when the driver is not registered")
+
+	// Now register the merge driver.
+	cmd := exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
+	)
+	require.NoError(t, cmd.Run())
+
+	// Fix #2: driver is registered, drift exists, Fix must write.
+	r.Fix(f)
+	content, err := os.ReadFile(filepath.Join(dir, ".gitattributes"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "test.md merge=mdsmith",
+		"Fix must write .gitattributes once the driver is registered, even after a prior no-op call")
+}
+
 func TestRule_Fix_RegeneratesGitattributes(t *testing.T) {
 	dir := t.TempDir()
 	initTestRepo(t, dir)

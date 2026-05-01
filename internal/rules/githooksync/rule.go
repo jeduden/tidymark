@@ -267,11 +267,6 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		return f.Source
 	}
 
-	// Only fix once per repo per process
-	if !r.markFixed(repoRoot) {
-		return f.Source
-	}
-
 	// Only fix when the merge driver is registered. If the driver
 	// isn't set up, there's no .gitattributes to repair.
 	if !githooks.HasMdsmithMergeDriver(repoRoot) {
@@ -281,14 +276,22 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	discovered := r.getDiscovered(repoRoot, f.MaxInputBytes)
 	attrPath := filepath.Join(repoRoot, ".gitattributes")
 
-	// Check if .gitattributes actually needs fixing
+	// Check if .gitattributes actually needs fixing. The markFixed
+	// guard is intentionally placed *after* this check so an early
+	// "already in sync" return does not poison fixedRepos: a later
+	// call in the same process (e.g. drift introduced by another
+	// rule) can still trigger a real write. The guard reflects an
+	// attempted write, not just a call to Fix.
 	data, err := os.ReadFile(attrPath)
 	if err == nil {
 		installed := githooks.ExtractGitattributesFiles(string(data))
 		if githooks.FilesMatch(installed, discovered) {
-			// Already in sync, nothing to fix
 			return f.Source
 		}
+	}
+
+	if !r.markFixed(repoRoot) {
+		return f.Source
 	}
 
 	// Write the corrected .gitattributes
