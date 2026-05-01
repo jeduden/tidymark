@@ -769,9 +769,17 @@ func HasMdsmithMergeDriver(repoRoot string) bool {
 // of files marked with `merge=mdsmith` in `.gitattributes`. Modified
 // markdown files are then staged so the merge commit captures them.
 //
-// The script depends only on the absolute path of the mdsmith binary,
-// so the rule's drift detection can re-render the canonical content
-// and compare it byte-for-byte with the installed hook.
+// The script embeds the absolute path of the mdsmith binary, so one
+// line is machine-specific. The rule's drift detection therefore
+// re-renders the canonical template and validates the stable hook
+// lines (chdir, fix invocation, staging) rather than requiring a
+// full byte-for-byte match.
+//
+// `mdsmith fix` exit code 1 means unfixed diagnostics remain — the
+// hook still allows the merge to proceed in that case so reviewers
+// can resolve the remaining issues in a follow-up commit. Any other
+// non-zero exit (e.g. config errors, panics, exit 2) is propagated
+// out of the hook so the merge commit aborts on genuine errors.
 func BuildHookScript(exe string) string {
 	return "#!/bin/sh\n" +
 		PreMergeCommitMarker + "\n" +
@@ -782,14 +790,20 @@ func BuildHookScript(exe string) string {
 		"# marked with merge=mdsmith in .gitattributes.\n" +
 		"set -e\n" +
 		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		shellQuote(exe) + " fix . || true\n" +
+		"if ! " + shellQuote(exe) + " fix .; then\n" +
+		"  status=$?\n" +
+		"  if [ \"$status\" -ne 1 ]; then\n" +
+		"    exit \"$status\"\n" +
+		"  fi\n" +
+		"fi\n" +
 		"git diff --name-only -z -- '*.md' '*.markdown' | " +
 		"xargs -0 -r git add --\n"
 }
 
 // shellQuote single-quotes s for use in a POSIX shell, encoding any
-// embedded single quote as `'\”` so the result round-trips through
-// the shell's quoting rules.
+// embedded single quote as `'\”` (close quote, escaped quote,
+// reopen quote) so the result round-trips through the shell's
+// quoting rules.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

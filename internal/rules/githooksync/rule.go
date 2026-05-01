@@ -42,10 +42,12 @@ type Rule struct{}
 //
 // repoRootCache memoises the result of GitRepoRoot(dir) so per-file
 // Check/Fix calls do not respawn `git rev-parse --show-toplevel` for
-// every file. Entries with a non-nil error are also cached so
-// non-repo directories are remembered too. Keyed by the directory
-// passed to resolveRepoRoot, not the resolved root, because two
-// directories under the same repo still produce one git invocation.
+// every file in the same directory. Entries with a non-nil error are
+// also cached so non-repo directories are remembered too. The cache
+// is keyed by the directory passed to resolveRepoRoot, not the
+// resolved root, so repeated lookups for the same directory reuse
+// one git invocation; different subdirectories under the same repo
+// may still invoke git separately.
 var (
 	stagingMu     sync.Mutex
 	stagingErrors = make(map[string]error)
@@ -263,12 +265,16 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string) string {
 // looks like the current glob-based template. The mdsmith binary
 // path is repo-specific, so canonical comparison checks for the
 // stable lines that carry the runtime behaviour (cd to the repo
-// root, run `mdsmith fix .`, stage modified markdown files).
+// root, run `mdsmith fix .` with the exit-1-tolerant guard, stage
+// modified markdown files).
 func hookMatchesCanonical(hook string) bool {
 	if !strings.Contains(hook, "cd \"$(git rev-parse --show-toplevel)\"") {
 		return false
 	}
-	if !strings.Contains(hook, "fix . || true") {
+	if !strings.Contains(hook, "fix .; then") {
+		return false
+	}
+	if !strings.Contains(hook, `if [ "$status" -ne 1 ]; then`) {
 		return false
 	}
 	if !strings.Contains(hook,

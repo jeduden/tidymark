@@ -2,25 +2,25 @@
 id: MDS048
 name: git-hook-sync
 status: ready
-description: Git artefacts must match the canonical glob-based template derived from .mdsmith.yml.
+description: Git artifacts must match the canonical glob-based template derived from .mdsmith.yml.
 ---
 # MDS048: git-hook-sync
 
-Git artefacts must match the canonical glob-based template
+Git artifacts must match the canonical glob-based template
 derived from .mdsmith.yml.
 
 The `.gitattributes` managed block and the
 pre-merge-commit hook must match a canonical template.
 That template is computed from the project's
 `.mdsmith.yml` ignore patterns. Editing `.mdsmith.yml`
-keeps both git artefacts in sync.
+keeps both git artifacts in sync.
 
 ## Rationale
 
 Markdown files can contain generated sections like
 `<?catalog?>`, `<?include?>`, and `<?toc?>`. They need
 special handling during git merges to regenerate content
-and avoid conflicts. Two artefacts cooperate:
+and avoid conflicts. Two artifacts cooperate:
 
 - `.gitattributes` assigns the `mdsmith` merge driver to
   markdown files. The managed block uses globs (e.g.
@@ -34,7 +34,7 @@ and avoid conflicts. Two artefacts cooperate:
   glob-driven (no embedded file list), so its scope tracks
   the same ignore patterns automatically.
 
-This rule detects when either artefact drifts from the
+This rule detects when either artifact drifts from the
 canonical template.
 
 ## Settings
@@ -72,7 +72,7 @@ The rule:
 3. Reads the pre-merge-commit hook (when it carries the
    mdsmith marker) and compares the script against the
    canonical glob-based template.
-4. Reports a warning if either artefact drifts.
+4. Reports a warning if either artifact drifts.
 
 `.gitattributes` does not support negation patterns
 (`!*.md` is a syntax error there). The managed block

@@ -235,7 +235,10 @@ func hookMatchesCanonical(hook string) bool {
 	if !strings.Contains(hook, "cd \"$(git rev-parse --show-toplevel)\"") {
 		return false
 	}
-	if !strings.Contains(hook, "fix . || true") {
+	if !strings.Contains(hook, "fix .; then") {
+		return false
+	}
+	if !strings.Contains(hook, `if [ "$status" -ne 1 ]; then`) {
 		return false
 	}
 	if !strings.Contains(hook,

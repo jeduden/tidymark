@@ -253,7 +253,7 @@ func TestPreMergeCommitInstall_NoArgsInstallsCanonicalHook(t *testing.T) {
 	assert.Contains(t, got, "pre-merge-commit hook installed")
 	hookData, err := os.ReadFile(filepath.Join(resolveHooksDir(dir), "pre-merge-commit"))
 	require.NoError(t, err)
-	assert.Contains(t, string(hookData), "fix . || true",
+	assert.Contains(t, string(hookData), "fix .; then",
 		"installed hook must use the glob-based template")
 }
 
@@ -360,7 +360,7 @@ func TestPreMergeCommitInstall_CreatesHook(t *testing.T) {
 	require.NoError(t, err)
 	content := string(data)
 	assert.Contains(t, content, preMergeCommitHookMarker)
-	assert.Contains(t, content, "'/usr/local/bin/mdsmith' fix . || true")
+	assert.Contains(t, content, "if ! '/usr/local/bin/mdsmith' fix .; then")
 	assert.Contains(t, content, "git diff --name-only -z -- '*.md' '*.markdown'")
 }
 
@@ -547,6 +547,22 @@ func TestHookMatchesCanonical_RejectsLegacyHook(t *testing.T) {
 func TestHookMatchesCanonical_RejectsMissingChdir(t *testing.T) {
 	hook := "#!/bin/sh\n" + preMergeCommitHookMarker + "\n" +
 		"set -e\n" +
+		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
+		"  status=$?\n" +
+		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
+		"fi\n" +
+		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --\n"
+	assert.False(t, hookMatchesCanonical(hook))
+}
+
+func TestHookMatchesCanonical_RejectsLegacyOrTrueGuard(t *testing.T) {
+	// Old `fix . || true` form swallowed every non-zero exit. The new
+	// canonical template uses an `if ! ... fix .; then` block so
+	// genuine errors propagate. The drift check must reject the
+	// permissive legacy form.
+	hook := "#!/bin/sh\n" + preMergeCommitHookMarker + "\n" +
+		"set -e\n" +
+		"cd \"$(git rev-parse --show-toplevel)\"\n" +
 		"'/usr/local/bin/mdsmith' fix . || true\n" +
 		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --\n"
 	assert.False(t, hookMatchesCanonical(hook))
@@ -556,6 +572,9 @@ func TestHookMatchesCanonical_RejectsMissingStagingLine(t *testing.T) {
 	hook := "#!/bin/sh\n" + preMergeCommitHookMarker + "\n" +
 		"set -e\n" +
 		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"'/usr/local/bin/mdsmith' fix . || true\n"
+		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
+		"  status=$?\n" +
+		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
+		"fi\n"
 	assert.False(t, hookMatchesCanonical(hook))
 }

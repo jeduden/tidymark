@@ -126,7 +126,7 @@ func TestRule_Check_HooksInSync(t *testing.T) {
 		MaxInputBytes: 1048576,
 		FS:            os.DirFS(dir),
 	}
-	assert.Empty(t, r.Check(f), "no diagnostics when both managed artefacts are canonical")
+	assert.Empty(t, r.Check(f), "no diagnostics when both managed artifacts are canonical")
 }
 
 func TestRule_Check_HonorsConfigIgnorePatterns(t *testing.T) {
@@ -740,13 +740,16 @@ func TestHookMatchesCanonical_RejectsMissingChdir(t *testing.T) {
 	// Drop the `cd "$(git rev-parse ...)"` line.
 	hook := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"set -e\n" +
-		"'/usr/local/bin/mdsmith' fix . || true\n" +
+		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
+		"  status=$?\n" +
+		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
+		"fi\n" +
 		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --\n"
 	assert.False(t, hookMatchesCanonical(hook))
 }
 
 func TestHookMatchesCanonical_RejectsLegacyFixCommand(t *testing.T) {
-	// Old per-file `fix --` style instead of glob-based `fix . || true`.
+	// Old per-file `fix --` style instead of glob-based `fix .`.
 	hook := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"set -e\n" +
 		"cd \"$(git rev-parse --show-toplevel)\"\n" +
@@ -755,10 +758,26 @@ func TestHookMatchesCanonical_RejectsLegacyFixCommand(t *testing.T) {
 	assert.False(t, hookMatchesCanonical(hook))
 }
 
+func TestHookMatchesCanonical_RejectsLegacyOrTrueGuard(t *testing.T) {
+	// Old `fix . || true` form swallowed every non-zero exit. The new
+	// canonical template uses an `if ! ... fix .; then` block so
+	// genuine errors propagate. The drift check must reject the
+	// permissive legacy form.
+	hook := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
+		"set -e\n" +
+		"cd \"$(git rev-parse --show-toplevel)\"\n" +
+		"'/usr/local/bin/mdsmith' fix . || true\n" +
+		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --\n"
+	assert.False(t, hookMatchesCanonical(hook))
+}
+
 func TestHookMatchesCanonical_RejectsMissingStagingLine(t *testing.T) {
 	hook := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
 		"set -e\n" +
 		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"'/usr/local/bin/mdsmith' fix . || true\n"
+		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
+		"  status=$?\n" +
+		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
+		"fi\n"
 	assert.False(t, hookMatchesCanonical(hook))
 }

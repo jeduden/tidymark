@@ -60,5 +60,5 @@ row: "| [{id}]({filename}) | `{name}` | {status} | {description} |"
 | [MDS041](MDS041-no-inline-html/README.md)                     | `no-inline-html`                     | ready     | Raw HTML tags in Markdown are not allowed; use a Markdown construct or an mdsmith directive instead.          |
 | [MDS043](MDS043-no-reference-style/README.md)                 | `no-reference-style`                 | ready     | Reference-style links and footnotes require global definition resolution; flag them in favor of inline links. |
 | [MDS046](MDS046-ordered-list-numbering/README.md)             | `ordered-list-numbering`             | ready     | Ordered list items must be numbered in the configured style.                                                  |
-| [MDS048](MDS048-git-hook-sync/README.md)                      | `git-hook-sync`                      | ready     | Git artefacts must match the canonical glob-based template derived from .mdsmith.yml.                         |
+| [MDS048](MDS048-git-hook-sync/README.md)                      | `git-hook-sync`                      | ready     | Git artifacts must match the canonical glob-based template derived from .mdsmith.yml.                         |
 <?/catalog?>
