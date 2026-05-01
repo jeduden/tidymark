@@ -112,8 +112,10 @@ runs `git add -- .gitattributes`. The regenerated file then
 lands in the index next to the markdown files the hook stages.
 A merge commit produced by the pre-merge-commit hook flow
 includes both. If staging fails (for example, the index is
-locked), the on-disk fix is still applied. You can stage the
-file yourself in that case.
+locked by another git process), the on-disk fix is still
+applied and the failure is recorded. `Check()` keeps emitting
+a "staging failed" diagnostic until a later `Fix()` call
+re-runs `git add` successfully.
 
 ### Manual Installation
 

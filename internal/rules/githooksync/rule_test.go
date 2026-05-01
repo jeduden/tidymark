@@ -805,6 +805,83 @@ func TestRule_Fix_RetriesAfterTransientWriteFailure(t *testing.T) {
 		"Fix must retry after a prior write failure within the same process")
 }
 
+// setupStagingFailureRepo sets up a repo whose `git add` fails because
+// .git/index.lock is held. Returns the dir, the markdown file path, and
+// the lock-file path so the caller can release it to retry.
+func setupStagingFailureRepo(t *testing.T) (dir, mdFile, lockPath string) {
+	t.Helper()
+	dir = t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+	require.NoError(t, exec.Command(
+		"git", "-C", dir, "config", "core.hooksPath",
+		filepath.Join(dir, ".git", "hooks"),
+	).Run())
+	require.NoError(t, exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver run %O %A %B %P",
+	).Run())
+
+	mdFile = filepath.Join(dir, "test.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0o644))
+
+	attrPath := filepath.Join(dir, ".gitattributes")
+	initial := "# BEGIN mdsmith merge-driver\nold.md merge=mdsmith\n# END mdsmith merge-driver\n"
+	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0o644))
+
+	// Holding index.lock makes git refuse to modify the index.
+	lockPath = filepath.Join(dir, ".git", "index.lock")
+	require.NoError(t, os.WriteFile(lockPath, nil, 0o644))
+	t.Cleanup(func() {
+		stagingMu.Lock()
+		delete(stagingErrors, dir)
+		stagingMu.Unlock()
+	})
+	return dir, mdFile, lockPath
+}
+
+func TestRule_StagingFailure_SurfacedAndRetried(t *testing.T) {
+	// A failed `git add -- .gitattributes` (simulated via index.lock)
+	// must (1) be recorded so Check keeps reporting it even though
+	// the on-disk file is in sync and (2) be cleared by a subsequent
+	// Fix call once staging can succeed.
+	dir, mdFile, lockPath := setupStagingFailureRepo(t)
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+
+	r.Fix(f)
+	require.Error(t, stagingError(dir),
+		"failed staging must be recorded so it can be surfaced and retried")
+
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "git add` failed",
+		"Check must report a pending staging failure")
+
+	// Release the lock; the next Fix call must retry and succeed.
+	require.NoError(t, os.Remove(lockPath))
+	r.Fix(f)
+	assert.NoError(t, stagingError(dir),
+		"successful staging must clear the recorded error")
+
+	staged, err := exec.Command(
+		"git", "-C", dir, "ls-files", "--stage", "--", ".gitattributes",
+	).Output()
+	require.NoError(t, err)
+	assert.Contains(t, string(staged), ".gitattributes",
+		"retry must actually stage .gitattributes")
+
+	assert.Empty(t, r.Check(f),
+		"Check must stop reporting once staging succeeds and drift is gone")
+}
+
 func TestRule_Fix_DoesNotReStageOnSecondCall(t *testing.T) {
 	// After a successful first fix, a second Fix call in the same
 	// process must not redundantly re-stage .gitattributes. The first

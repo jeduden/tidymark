@@ -39,11 +39,22 @@ type Rule struct{}
 // re-scanning the repo for every file. Discovery is expensive (full
 // repo walk + file reads), so caching it significantly improves
 // performance when checking many files in the same repo.
+//
+// stagingErrors records repos where Fix wrote .gitattributes but the
+// follow-up `git add -- .gitattributes` failed (e.g. index.lock
+// contention). The on-disk fix already happened, so a plain drift
+// re-check would see the file as in sync and stop emitting
+// diagnostics — silently leaving the staged tree out of sync with
+// the working tree. Surfacing the failure through Check makes it
+// retryable: subsequent Fix calls re-run the staging step until it
+// succeeds, at which point the entry is cleared.
 var (
 	fixedMu         sync.Mutex
 	fixedRepos      = make(map[string]bool)
 	discoveredMu    sync.Mutex
 	discoveredCache = make(map[string][]string)
+	stagingMu       sync.Mutex
+	stagingErrors   = make(map[string]error)
 )
 
 // ID implements rule.Rule.
@@ -109,6 +120,16 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	}
 	if msg := r.preMergeCommitHookDrift(repoRoot, discovered); msg != "" {
 		parts = append(parts, msg)
+	}
+	// A previous Fix may have written .gitattributes but failed to
+	// stage it. Surface that as a diagnostic so the next Fix call is
+	// triggered to retry the staging.
+	if err := stagingError(repoRoot); err != nil {
+		parts = append(parts, fmt.Sprintf(
+			".gitattributes was regenerated but `git add` failed: %v "+
+				"(run `git add .gitattributes` or re-run mdsmith fix to retry)",
+			err,
+		))
 	}
 	if len(parts) == 0 {
 		return nil
@@ -282,10 +303,18 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	// call in the same process (e.g. drift introduced by another
 	// rule) can still trigger a real write. The guard reflects an
 	// attempted write, not just a call to Fix.
+	//
+	// When .gitattributes is in sync, skip the rewrite — but if a
+	// previous run failed to stage, retry the staging step now so
+	// the pending error is given a chance to clear without forcing
+	// a redundant write.
 	data, err := os.ReadFile(attrPath)
 	if err == nil {
 		installed := githooks.ExtractGitattributesFiles(string(data))
 		if githooks.FilesMatch(installed, discovered) {
+			if stagingError(repoRoot) != nil {
+				stage(repoRoot)
+			}
 			return f.Source
 		}
 	}
@@ -301,21 +330,50 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	}
 	if !r.markFixed(repoRoot) {
 		// Another Fix call in this process already wrote
-		// .gitattributes; do not re-stage it.
+		// .gitattributes. The earlier call's staging attempt was
+		// recorded in stagingErrors; if it failed, retry now so the
+		// pending error has a chance to clear.
+		if stagingError(repoRoot) != nil {
+			stage(repoRoot)
+		}
 		return f.Source
 	}
 
 	// Stage the regenerated .gitattributes so the pre-merge-commit
 	// hook flow includes it in the merge commit alongside the
-	// markdown files mdsmith fix touched. A failed `git add` (e.g.,
-	// the path is excluded by an ignore rule, or the index is locked
-	// by a concurrent operation) is non-fatal: the on-disk fix
-	// already happened, and the user can stage the file themselves.
-	_ = githooks.StageGitattributes(repoRoot)
+	// markdown files mdsmith fix touched. The error is recorded in
+	// stagingErrors so Check can keep emitting a diagnostic until a
+	// later Fix call's staging attempt succeeds; without that, a
+	// transient `git add` failure (e.g. index.lock contention)
+	// would silently leave the working tree fixed but the merge
+	// commit missing the .gitattributes update.
+	stage(repoRoot)
 
 	// Return original file content unchanged (the fix is in .gitattributes,
 	// not in the markdown file being linted)
 	return f.Source
+}
+
+// stage attempts to stage .gitattributes and records the outcome in
+// stagingErrors so Check can surface a persistent failure.
+func stage(repoRoot string) {
+	err := githooks.StageGitattributes(repoRoot)
+	stagingMu.Lock()
+	defer stagingMu.Unlock()
+	if err != nil {
+		stagingErrors[repoRoot] = err
+		return
+	}
+	delete(stagingErrors, repoRoot)
+}
+
+// stagingError returns the most recent unsuccessful staging attempt
+// for repoRoot, or nil if the last attempt succeeded (or there has
+// been none).
+func stagingError(repoRoot string) error {
+	stagingMu.Lock()
+	defer stagingMu.Unlock()
+	return stagingErrors[repoRoot]
 }
 
 // markFixed returns true exactly once per repoRoot for the lifetime
