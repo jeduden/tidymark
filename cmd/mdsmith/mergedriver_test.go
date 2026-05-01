@@ -797,23 +797,18 @@ func TestRunMergeDriverInstall_FailsWhenGitattributesIsDir(t *testing.T) {
 
 func TestRunMergeDriverInstall_FailsWhenHooksDirNotWritable(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("POSIX permission semantics not applicable on Windows")
+		t.Skip("filesystem semantics differ on Windows")
 	}
-	if os.Getuid() == 0 {
-		t.Skip("running as root: permission checks don't apply")
-	}
-	// .git is read-only so MkdirAll(.git/hooks) fails inside
-	// ensurePreMergeCommitHook, surfacing exit 2 with a clear
+	// Replace .git/hooks with a regular file so MkdirAll inside
+	// ensurePreMergeCommitHook fails specifically at the hook step
+	// (registerMergeDriver and WriteGitattributes still succeed).
+	// The error must be surfaced with a clear
 	// "installing pre-merge-commit hook" prefix.
 	dir := t.TempDir()
 	initTestRepo(t, dir)
-	gitDir := filepath.Join(dir, ".git")
-	hooksDir := filepath.Join(gitDir, "hooks")
-	// Remove the existing hooks dir created by initTestRepo, then
-	// drop write permission on .git so MkdirAll cannot recreate it.
+	hooksDir := filepath.Join(dir, ".git", "hooks")
 	require.NoError(t, os.RemoveAll(hooksDir))
-	require.NoError(t, os.Chmod(gitDir, 0o555))
-	t.Cleanup(func() { _ = os.Chmod(gitDir, 0o755) })
+	require.NoError(t, os.WriteFile(hooksDir, []byte("not a directory"), 0o644))
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
