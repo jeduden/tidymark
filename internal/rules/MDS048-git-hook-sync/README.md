@@ -75,10 +75,13 @@ that carry generated section directives. `Check()` reads
 that drift on every linted file. While drift exists, the
 diagnostic appears on each file in the repository. Discovery
 is cached per process, so the cost is paid once. When
-`mdsmith fix` applies the `.gitattributes` fix, the writer
-runs at most once per process. Subsequent `Check()` calls
-then see the file as in sync and stop emitting the
-diagnostic.
+`mdsmith fix` applies the `.gitattributes` fix, it does not
+rewrite the file again while it remains in sync. Subsequent
+`Check()` calls then see the file as in sync and stop
+emitting the diagnostic. The fixer can run again later in
+the same process if drift reappears (for example, an
+external tool rewrote the file) or if a previous staging
+attempt needs retrying.
 
 ## Fix
 

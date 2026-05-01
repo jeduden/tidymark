@@ -270,8 +270,12 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string, discovered []string) str
 // `git config merge.mdsmith.driver`. If neither condition holds, the
 // original file content is returned unchanged.
 //
-// Like Check, Fix only runs once per repository per process to avoid
-// redundant file writes when linting many files in the same repo.
+// Fix short-circuits via a FilesMatch check when .gitattributes is
+// already in sync, so linting many files in the same repo does not
+// trigger redundant rewrites. Subsequent calls may still do real
+// work in two cases: drift has reappeared (e.g. an external tool or
+// a different MaxInputBytes-driven discovery changed the expected
+// set), or a previous staging attempt failed and needs retrying.
 func (r *Rule) Fix(f *lint.File) []byte {
 	// Skip stdin and other in-memory inputs (same logic as Check).
 	if f.FS == nil {
