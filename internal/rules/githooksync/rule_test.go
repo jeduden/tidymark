@@ -632,11 +632,12 @@ func TestRule_Fix_SkipsWhenDriverNotRegistered(t *testing.T) {
 	assert.Equal(t, f.Source, result)
 }
 
-func TestRule_Fix_DoesNotMarkFixedBeforeDriverIsRegistered(t *testing.T) {
-	// markFixed must reflect an attempted write, not just a call to
-	// Fix(). If the driver is not registered yet, Fix returns early
-	// without writing — and a later call (after the driver is
-	// registered) must still be able to write.
+func TestRule_Fix_RetriesAfterDriverBecomesRegistered(t *testing.T) {
+	// An early Fix call (before the merge driver is registered)
+	// returns without writing. A later call, once the driver is
+	// registered, must still be able to detect drift and write —
+	// nothing in the rule should poison repo-level state on an
+	// early-returned call.
 	dir := t.TempDir()
 	initTestRepo(t, dir)
 
@@ -755,9 +756,9 @@ func TestRule_Fix_StagesGitattributes(t *testing.T) {
 }
 
 func TestRule_Fix_RetriesAfterTransientWriteFailure(t *testing.T) {
-	// markFixed only fires after a successful WriteGitattributes, so
-	// a transient write failure does not lock subsequent Fix calls
-	// out of retrying within the same process.
+	// A failed WriteGitattributes leaves no lasting state, so the
+	// next Fix call within the same process can retry. Once the
+	// underlying problem clears, the second call must write.
 	dir := t.TempDir()
 	initTestRepo(t, dir)
 
@@ -882,12 +883,12 @@ func TestRule_StagingFailure_SurfacedAndRetried(t *testing.T) {
 		"Check must stop reporting once staging succeeds and drift is gone")
 }
 
-func TestRule_Fix_DoesNotReStageOnSecondCall(t *testing.T) {
+func TestRule_Fix_DoesNotReWriteWhenAlreadyInSync(t *testing.T) {
 	// After a successful first fix, a second Fix call in the same
-	// process must not redundantly re-stage .gitattributes. The first
-	// call records markFixed and stages; subsequent calls see the
-	// file as in sync (FilesMatch true) and short-circuit before
-	// reaching markFixed/stage.
+	// process must not redundantly re-write .gitattributes. The
+	// FilesMatch short-circuit should detect that the on-disk state
+	// already matches the discovered set and return without writing
+	// or re-staging.
 	dir := t.TempDir()
 	initTestRepo(t, dir)
 
@@ -926,6 +927,85 @@ func TestRule_Fix_DoesNotReStageOnSecondCall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, mtimeBefore, infoAfter.ModTime(),
 		"second Fix call must not re-write when .gitattributes is already in sync")
+}
+
+func TestRule_Fix_RewritesAndStagesWhenDriftReappears(t *testing.T) {
+	// If something corrupts .gitattributes after a first successful
+	// fix (e.g. a stray write, a different MaxInputBytes triggers
+	// rediscovery, or a sibling tool overwrites it), the next Fix
+	// call must rewrite *and* stage the corrected content. Without
+	// this guarantee the working tree could be repaired while the
+	// index keeps pointing at the stale version.
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	cmd := exec.Command(
+		"git", "-C", dir, "config", "--local",
+		"merge.mdsmith.driver", "mdsmith merge-driver %O %A %B %P",
+	)
+	require.NoError(t, cmd.Run())
+
+	mdFile := filepath.Join(dir, "test.md")
+	mdContent := "# Test\n<?catalog glob=\"*.md\"?>\n<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdFile, []byte(mdContent), 0644))
+
+	attrPath := filepath.Join(dir, ".gitattributes")
+	initial := "# BEGIN mdsmith merge-driver\nold.md merge=mdsmith\n# END mdsmith merge-driver\n"
+	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
+
+	r := &Rule{}
+	f := &lint.File{
+		FS:            os.DirFS(dir),
+		Path:          mdFile,
+		Source:        []byte(mdContent),
+		MaxInputBytes: 10000,
+	}
+
+	// First call: writes test.md and stages.
+	r.Fix(f)
+	stagedFirst, err := exec.Command(
+		"git", "-C", dir, "ls-files", "--stage", "--", ".gitattributes",
+	).Output()
+	require.NoError(t, err)
+	require.Contains(t, string(stagedFirst), ".gitattributes")
+
+	// Simulate external corruption — index now disagrees with the
+	// working tree's intended (test.md) content.
+	require.NoError(t, os.WriteFile(attrPath, []byte(initial), 0644))
+
+	// Second call must observe the drift, rewrite, and re-stage.
+	r.Fix(f)
+
+	expected := "# BEGIN mdsmith merge-driver\ntest.md merge=mdsmith\n# END mdsmith merge-driver\n"
+	got, err := os.ReadFile(attrPath)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(got),
+		"a second Fix call must rewrite .gitattributes when drift reappears")
+
+	// The index must hold the regenerated content. Read the staged
+	// blob via ls-files / cat-file and assert it matches the rewrite.
+	assert.Contains(t, stagedGitattributesBlob(t, dir), "test.md merge=mdsmith",
+		"rewrite must also be staged so the index matches the working tree")
+}
+
+// stagedGitattributesBlob returns the contents of the .gitattributes
+// blob currently in the index, fetched via `git ls-files -s` plus
+// `git cat-file -p`. Tests use it to assert the index matches the
+// working tree without depending on a HEAD commit.
+func stagedGitattributesBlob(t *testing.T, dir string) string {
+	t.Helper()
+	staged, err := exec.Command(
+		"git", "-C", dir, "ls-files", "-s", "--", ".gitattributes",
+	).Output()
+	require.NoError(t, err)
+	fields := strings.Fields(string(staged))
+	require.GreaterOrEqual(t, len(fields), 2,
+		"`git ls-files -s` must report a staged blob hash")
+	blob, err := exec.Command(
+		"git", "-C", dir, "cat-file", "-p", fields[1],
+	).Output()
+	require.NoError(t, err)
+	return string(blob)
 }
 
 func TestRule_Fix_SkipsWhenAlreadyInSync(t *testing.T) {

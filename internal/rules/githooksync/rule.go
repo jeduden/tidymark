@@ -30,15 +30,12 @@ func init() {
 // it being called.
 type Rule struct{}
 
-// fixedRepos tracks repositories where Fix() has already run, guarded
-// by fixedMu. This lives at package scope so per-file Rule clones
-// share state. The fix should only run once per repo per process since
-// it writes .gitattributes.
-//
 // discoveredCache stores the result of DiscoverFiles per repo to avoid
 // re-scanning the repo for every file. Discovery is expensive (full
 // repo walk + file reads), so caching it significantly improves
-// performance when checking many files in the same repo.
+// performance when checking many files in the same repo. The cache
+// key includes maxBytes because DiscoverFiles uses that limit when
+// reading each candidate.
 //
 // stagingErrors records repos where Fix wrote .gitattributes but the
 // follow-up `git add -- .gitattributes` failed (e.g. index.lock
@@ -49,8 +46,6 @@ type Rule struct{}
 // retryable: subsequent Fix calls re-run the staging step until it
 // succeeds, at which point the entry is cleared.
 var (
-	fixedMu         sync.Mutex
-	fixedRepos      = make(map[string]bool)
 	discoveredMu    sync.Mutex
 	discoveredCache = make(map[string][]string)
 	stagingMu       sync.Mutex
@@ -297,17 +292,14 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	discovered := r.getDiscovered(repoRoot, f.MaxInputBytes)
 	attrPath := filepath.Join(repoRoot, ".gitattributes")
 
-	// Check if .gitattributes actually needs fixing. The markFixed
-	// guard is intentionally placed *after* this check so an early
-	// "already in sync" return does not poison fixedRepos: a later
-	// call in the same process (e.g. drift introduced by another
-	// rule) can still trigger a real write. The guard reflects an
-	// attempted write, not just a call to Fix.
-	//
-	// When .gitattributes is in sync, skip the rewrite — but if a
-	// previous run failed to stage, retry the staging step now so
-	// the pending error is given a chance to clear without forcing
-	// a redundant write.
+	// When .gitattributes is in sync, skip the rewrite. If a previous
+	// run failed to stage, retry the staging step now so the pending
+	// error is given a chance to clear without forcing a redundant
+	// write. FilesMatch is the only short-circuit we need: there is no
+	// per-process "already wrote" guard because every successful write
+	// must flow into the staging path below — without that, a write
+	// triggered by reappearing drift would update the working tree but
+	// leave the index pointing at the old content.
 	data, err := os.ReadFile(attrPath)
 	if err == nil {
 		installed := githooks.ExtractGitattributesFiles(string(data))
@@ -319,23 +311,11 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		}
 	}
 
-	// Write the corrected .gitattributes. The markFixed guard fires
-	// only after a successful write so a transient write failure
-	// (e.g. read-only mount, permission denied, racing process) does
-	// not lock subsequent Fix calls out of retrying within the same
-	// process.
+	// Write the corrected .gitattributes. Any successful write flows
+	// through the staging path so the index always reflects the
+	// updated working-tree content; a transient write failure simply
+	// leaves the tree unchanged so the next Fix call can retry.
 	if err := githooks.WriteGitattributes(attrPath, discovered); err != nil {
-		// If write fails, return original content unchanged
-		return f.Source
-	}
-	if !r.markFixed(repoRoot) {
-		// Another Fix call in this process already wrote
-		// .gitattributes. The earlier call's staging attempt was
-		// recorded in stagingErrors; if it failed, retry now so the
-		// pending error has a chance to clear.
-		if stagingError(repoRoot) != nil {
-			stage(repoRoot)
-		}
 		return f.Source
 	}
 
@@ -374,21 +354,6 @@ func stagingError(repoRoot string) error {
 	stagingMu.Lock()
 	defer stagingMu.Unlock()
 	return stagingErrors[repoRoot]
-}
-
-// markFixed returns true exactly once per repoRoot for the lifetime
-// of the process. Subsequent calls for the same repo return false so
-// .gitattributes is not written multiple times while fixing many
-// files in the same repo. Shared via package-level state so the
-// guarantee holds even when the engine clones the rule per file.
-func (r *Rule) markFixed(repoRoot string) bool {
-	fixedMu.Lock()
-	defer fixedMu.Unlock()
-	if fixedRepos[repoRoot] {
-		return false
-	}
-	fixedRepos[repoRoot] = true
-	return true
 }
 
 // getDiscovered returns the discovered files for a repo, using a cached
