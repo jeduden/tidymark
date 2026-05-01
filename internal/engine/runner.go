@@ -114,12 +114,15 @@ func (r *Runner) Run(paths []string) *Result {
 // print the same warning N times and duplicate that entry in the
 // returned diagnostics. Earlier-encountered duplicates win so the
 // diagnostic order from the first hit is preserved. The input slice
-// is not modified; the result is always a freshly-allocated slice
-// (or nil for empty/single-element input) so callers can keep the
+// is never modified; nil input returns nil and a non-nil input
+// always produces a freshly-allocated slice so callers can keep the
 // original around without worrying about aliasing.
 func DedupeDiagnostics(diags []lint.Diagnostic) []lint.Diagnostic {
-	if len(diags) <= 1 {
-		return diags
+	if len(diags) == 0 {
+		return nil
+	}
+	if len(diags) == 1 {
+		return append([]lint.Diagnostic(nil), diags[0])
 	}
 	type key struct {
 		File    string

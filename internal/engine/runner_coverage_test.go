@@ -248,6 +248,15 @@ func TestDedupeDiagnostics_PreservesDistinctMessages(t *testing.T) {
 
 func TestDedupeDiagnostics_HandlesShortInput(t *testing.T) {
 	assert.Nil(t, DedupeDiagnostics(nil))
+
 	one := []lint.Diagnostic{{File: "f", RuleID: "X"}}
-	assert.Equal(t, one, DedupeDiagnostics(one))
+	got := DedupeDiagnostics(one)
+	assert.Equal(t, one, got, "single-element input round-trips by content")
+
+	// Result must be a freshly-allocated slice so mutating it does
+	// not corrupt the caller's input. Mutate the result's first
+	// element and confirm the input is unchanged.
+	got[0].File = "mutated"
+	assert.Equal(t, "f", one[0].File,
+		"single-element result must not alias the input slice")
 }
