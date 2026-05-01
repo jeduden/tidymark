@@ -636,3 +636,54 @@ func TestWriteGitattributes_AppendsBlockWhenNoNewlineAtEOF(t *testing.T) {
 		"# END mdsmith merge-driver\n"
 	assert.Equal(t, expected, string(content))
 }
+
+func TestWriteGitattributes_HandlesEndMarkerWithoutTrailingNewline(t *testing.T) {
+	// When the END marker is the last line without a final newline,
+	// the rewriter must still locate the block end (len(content)
+	// fallback) instead of dropping content.
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
+
+	initial := "*.txt text eol=lf\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"old.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver"
+	err := os.WriteFile(path, []byte(initial), 0644)
+	require.NoError(t, err)
+
+	err = WriteGitattributes(path, []string{"new.md"})
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	expected := "*.txt text eol=lf\n" +
+		"# BEGIN mdsmith merge-driver\n" +
+		"new.md merge=mdsmith\n" +
+		"# END mdsmith merge-driver\n"
+	assert.Equal(t, expected, string(content))
+}
+
+func TestStageGitattributes_AddsFileToIndex(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+
+	attrPath := filepath.Join(dir, ".gitattributes")
+	require.NoError(t, os.WriteFile(attrPath, []byte("*.md merge=mdsmith\n"), 0644))
+
+	require.NoError(t, StageGitattributes(dir))
+
+	staged, err := exec.Command(
+		"git", "-C", dir, "ls-files", "--stage", "--", ".gitattributes",
+	).Output()
+	require.NoError(t, err)
+	assert.Contains(t, string(staged), ".gitattributes",
+		"StageGitattributes must add .gitattributes to the index")
+}
+
+func TestStageGitattributes_ReturnsErrorOutsideRepo(t *testing.T) {
+	dir := t.TempDir()
+	// dir is not a git repo; `git -C dir add` exits non-zero.
+	err := StageGitattributes(dir)
+	assert.Error(t, err)
+}

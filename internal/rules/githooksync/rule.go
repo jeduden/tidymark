@@ -44,8 +44,6 @@ var (
 	fixedRepos      = make(map[string]bool)
 	discoveredMu    sync.Mutex
 	discoveredCache = make(map[string][]string)
-	reportedMu      sync.Mutex
-	reportedRepos   = make(map[string]bool)
 )
 
 // ID implements rule.Rule.
@@ -93,15 +91,13 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return nil
 	}
 
-	// Check if we've already reported drift for this repo. Report
-	// drift at most once per repo per process to avoid noisy output
-	// when checking many files. The fixer (Fix method) needs at
-	// least one diagnostic to trigger, so we report once.
-	if !r.markReported(repoRoot) {
-		return nil
-	}
-
-	// Get discovered files (cached per repo to avoid repeated scans)
+	// Discovery is cached per repo so the cost is paid once per
+	// process; the diagnostic itself is emitted whenever drift
+	// exists. The fixer pipeline calls Check before deciding whether
+	// to run Fix, so suppressing the diagnostic here would prevent
+	// `mdsmith fix` from regenerating .gitattributes. Output noise
+	// is bounded: once Fix runs, the on-disk state matches the
+	// discovered set and subsequent Check calls return nil.
 	discovered := r.getDiscovered(repoRoot, f.MaxInputBytes)
 
 	// Collect drift descriptions from both sources. A blank
@@ -326,21 +322,6 @@ func (r *Rule) markFixed(repoRoot string) bool {
 		return false
 	}
 	fixedRepos[repoRoot] = true
-	return true
-}
-
-// markReported returns true exactly once per repoRoot for the lifetime
-// of the process. Subsequent calls return false to ensure we only emit
-// one diagnostic per repo (avoiding noisy repeated warnings when checking
-// many files). Shared via package-level state so the guarantee holds
-// even when the engine clones the rule per file.
-func (r *Rule) markReported(repoRoot string) bool {
-	reportedMu.Lock()
-	defer reportedMu.Unlock()
-	if reportedRepos[repoRoot] {
-		return false
-	}
-	reportedRepos[repoRoot] = true
 	return true
 }
 

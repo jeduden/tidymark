@@ -300,6 +300,95 @@ func TestRule_Check_HookListsNoFilesRendersNone(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "has: (none)")
 }
 
+func TestRule_Check_GitattributesListsFilesButRepoHasNoDirectives(t *testing.T) {
+	// Driver registered + .gitattributes lists a file + repo has no
+	// files with directives → mergeDriverDrift renders
+	// `should have: (none)`.
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	// A markdown file without any directive: discovery returns empty.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plain.md"),
+		[]byte("# Plain\nno directives here\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte("stale.md merge=mdsmith\n"), 0o644))
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "plain.md"),
+		Source:        []byte("# Plain\n"),
+		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
+	}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "has: stale.md")
+	assert.Contains(t, diags[0].Message, "should have: (none)")
+}
+
+func TestRule_Check_HookListsFilesButRepoHasNoDirectives(t *testing.T) {
+	// Hook lists a file + repo has no files with directives →
+	// preMergeCommitHookDrift renders `should have: (none)`.
+	dir := t.TempDir()
+	initTestRepo(t, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plain.md"),
+		[]byte("# Plain\n"), 0o644))
+
+	hooksDir := githooks.ResolveHooksDir(dir)
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	hookContent := "#!/bin/sh\n" + githooks.PreMergeCommitMarker + "\n" +
+		"mdsmith fix -- 'stale.md' && git add -- 'stale.md'\n"
+	require.NoError(t, os.WriteFile(
+		filepath.Join(hooksDir, "pre-merge-commit"), []byte(hookContent), 0o755))
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "plain.md"),
+		Source:        []byte("# Plain\n"),
+		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
+	}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "has: stale.md")
+	assert.Contains(t, diags[0].Message, "should have: (none)")
+}
+
+func TestRule_GetDiscoveredCacheHit(t *testing.T) {
+	// Two consecutive Check() calls in the same repo must hit the
+	// discoveredCache rather than re-scan. We verify by deleting the
+	// repo's directive-bearing file between calls and confirming the
+	// rule still observes the cached discovery (i.e. drift logic
+	// continues to see the file as discovered).
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	mdFile := filepath.Join(dir, "test.md")
+	require.NoError(t, os.WriteFile(mdFile,
+		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte("# BEGIN mdsmith merge-driver\ntest.md merge=mdsmith\n# END mdsmith merge-driver\n"), 0o644))
+
+	r := &Rule{}
+	// Prime the cache via a Check call.
+	_ = r.Check(&lint.File{
+		Path:          mdFile,
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
+	})
+
+	// Direct getDiscovered call: must return the cached slice without
+	// invoking DiscoverFiles again. We assert it returns the original
+	// file list even though the file was deleted, proving the cache
+	// hit branch is exercised.
+	require.NoError(t, os.Remove(mdFile))
+	got := r.getDiscovered(dir, 1048576)
+	assert.Equal(t, []string{"test.md"}, got,
+		"second call must return cached discovery, not rescan")
+}
+
 func TestRule_Check_HookReadErrorIsReported(t *testing.T) {
 	dir := t.TempDir()
 	initTestRepo(t, dir)
@@ -351,11 +440,12 @@ func TestRule_Check_GitattributesReadErrorIsReported(t *testing.T) {
 		"cannot verify merge-driver assignments")
 }
 
-func TestRule_Check_OncePerRepoAcrossClones(t *testing.T) {
-	// Simulate the engine's clone-per-file path: when the rule is
-	// enabled with a settings mapping (even an empty {}), the engine
-	// clones the rule per file. The "at most one diagnostic per
-	// repo" guarantee must still hold across clones.
+func TestRule_Check_ReportsConsistentlyAcrossClones(t *testing.T) {
+	// The engine clones the rule per file when configured with a
+	// settings mapping. Each clone must observe drift independently:
+	// suppressing duplicate diagnostics here would prevent the fixer
+	// pipeline (which calls Check before deciding whether to run Fix)
+	// from triggering Fix on subsequent files.
 	dir := t.TempDir()
 	initRepoWithDriver(t, dir)
 
@@ -385,10 +475,13 @@ func TestRule_Check_OncePerRepoAcrossClones(t *testing.T) {
 	diags1 := clone1.Check(f1)
 	diags2 := clone2.Check(f2)
 	assert.Len(t, diags1, 1, "first clone reports drift")
-	assert.Empty(t, diags2, "second clone in the same repo does not report (once-per-repo guard)")
+	assert.Len(t, diags2, 1, "second clone also reports so Fix can trigger")
 }
 
-func TestRule_Check_SuppressesDuplicateDriftWithinSameRepo(t *testing.T) {
+func TestRule_Check_ReportsForEachFileWhileDriftExists(t *testing.T) {
+	// The fixer pipeline calls Check before each fix pass. Until
+	// Fix runs and brings .gitattributes in sync, Check must keep
+	// returning a diagnostic for every file in the repo.
 	dir := t.TempDir()
 	initRepoWithDriver(t, dir)
 
@@ -396,7 +489,6 @@ func TestRule_Check_SuppressesDuplicateDriftWithinSameRepo(t *testing.T) {
 		[]byte("# Test\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"),
 		[]byte("# README\n\n<?include file=\"x.md\"?><?/include?>\n"), 0o644))
-	// .gitattributes lists only README.md, so drift is real.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
 		[]byte("README.md merge=mdsmith\n"), 0o644))
 
@@ -417,7 +509,7 @@ func TestRule_Check_SuppressesDuplicateDriftWithinSameRepo(t *testing.T) {
 	diags1 := r.Check(f1)
 	diags2 := r.Check(f2)
 	assert.Len(t, diags1, 1, "first file reports drift")
-	assert.Empty(t, diags2, "second file does not report (once-per-repo guard)")
+	assert.Len(t, diags2, 1, "second file also reports so Fix can trigger per-file")
 }
 
 func TestRule_Metadata(t *testing.T) {
