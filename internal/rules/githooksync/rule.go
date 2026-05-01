@@ -48,16 +48,32 @@ type Rule struct{}
 // resolved root, so repeated lookups for the same directory reuse
 // one git invocation; different subdirectories under the same repo
 // may still invoke git separately.
+//
+// driftCache memoises the per-repo drift messages computed by Check
+// (the merge-driver and pre-merge-commit hook sources, excluding the
+// dynamic staging-error part). Without it, Check would respawn
+// `git config`, re-read the hook script, and re-parse `.mdsmith.yml`
+// once per linted file. Fix() invalidates the entry so the next
+// Check observes the post-fix state.
 var (
 	stagingMu     sync.Mutex
 	stagingErrors = make(map[string]error)
 	repoRootMu    sync.Mutex
 	repoRootCache = make(map[string]repoRootEntry)
+	driftMu       sync.Mutex
+	driftCache    = make(map[string]driftResult)
 )
 
 type repoRootEntry struct {
 	root string
 	err  error
+}
+
+// driftResult is the cached output of Check's repo-level drift
+// inspection minus the staging-error message, which is checked on
+// every call because it can change between Check and Fix calls.
+type driftResult struct {
+	parts []string
 }
 
 // ID implements rule.Rule.
@@ -92,30 +108,13 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return nil
 	}
 
-	// Cheap opt-in probes. The merge-driver source only applies when
-	// the local config registers `merge.mdsmith.driver`, and the hook
-	// source only applies when an mdsmith-marked pre-merge-commit
-	// hook is installed. If neither is opted in (and the hook is not
-	// unreadable, which would still warrant a warning) there is
-	// nothing to compare against.
-	hasDriver := githooks.HasMdsmithMergeDriver(repoRoot)
-	hookState := peekHookSource(repoRoot)
-	if !hasDriver && hookState != hookSourceManaged && hookState != hookSourceUnreadable {
-		return nil
-	}
-
-	expectedGlobs := githooks.LoadGlobs(repoRoot)
-
-	// Collect drift descriptions from both sources. A blank
-	// description from a source means it is in sync (or the user
-	// has not opted into that source at all).
-	var parts []string
-	if msg := r.mergeDriverDrift(repoRoot, hasDriver, expectedGlobs); msg != "" {
-		parts = append(parts, msg)
-	}
-	if msg := r.preMergeCommitHookDrift(repoRoot); msg != "" {
-		parts = append(parts, msg)
-	}
+	// Look up the cached drift inspection first. Without this, every
+	// linted markdown file would respawn `git config`, re-read the
+	// hook script, and re-parse `.mdsmith.yml`; over a large repo
+	// that becomes O(files) git subprocesses + YAML parses for a
+	// single repo-level diagnostic. Fix() invalidates the cache
+	// entry so the post-fix state is observed.
+	parts := r.driftParts(repoRoot)
 	// A previous Fix may have written .gitattributes but failed to
 	// stage it. Surface that as a diagnostic so the next Fix call is
 	// triggered to retry the staging.
@@ -178,6 +177,45 @@ func peekHookSource(repoRoot string) hookSource {
 		return hookSourceManaged
 	}
 	return hookSourceUnmanaged
+}
+
+// driftParts returns the cached drift messages for repoRoot,
+// computing them on a cache miss. The result excludes the dynamic
+// staging-error part (Check appends that on every call so a
+// staging failure recorded after the first inspection is still
+// surfaced). Fix() invalidates the cache entry so the post-fix
+// state is observed; without invalidation a successful Fix would
+// still report stale drift.
+func (r *Rule) driftParts(repoRoot string) []string {
+	driftMu.Lock()
+	if cached, ok := driftCache[repoRoot]; ok {
+		driftMu.Unlock()
+		return cached.parts
+	}
+	driftMu.Unlock()
+
+	hasDriver := githooks.HasMdsmithMergeDriver(repoRoot)
+	hookState := peekHookSource(repoRoot)
+	if !hasDriver && hookState != hookSourceManaged && hookState != hookSourceUnreadable {
+		driftMu.Lock()
+		driftCache[repoRoot] = driftResult{}
+		driftMu.Unlock()
+		return nil
+	}
+
+	expectedGlobs := githooks.LoadGlobs(repoRoot)
+	var parts []string
+	if msg := r.mergeDriverDrift(repoRoot, hasDriver, expectedGlobs); msg != "" {
+		parts = append(parts, msg)
+	}
+	if msg := r.preMergeCommitHookDrift(repoRoot); msg != "" {
+		parts = append(parts, msg)
+	}
+
+	driftMu.Lock()
+	driftCache[repoRoot] = driftResult{parts: parts}
+	driftMu.Unlock()
+	return parts
 }
 
 // mergeDriverDrift returns a human-readable description of any drift
@@ -298,6 +336,18 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	if err != nil {
 		return f.Source
 	}
+
+	// Whatever Fix decides, the cached drift result for this repo
+	// is now stale (the on-disk state may have changed). Drop the
+	// entry so the next Check re-reads the repo. Doing this even
+	// when Fix short-circuits keeps the cache coherent if the
+	// driver is registered between calls or an external tool
+	// rewrites .gitattributes.
+	defer func() {
+		driftMu.Lock()
+		delete(driftCache, repoRoot)
+		driftMu.Unlock()
+	}()
 
 	// Only fix when the merge driver is registered. If the driver
 	// isn't set up, there's no .gitattributes to repair.

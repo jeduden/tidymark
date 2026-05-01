@@ -752,3 +752,78 @@ func TestRule_ResolveRepoRoot_NotInRepo(t *testing.T) {
 	_, err = r.resolveRepoRoot(dir)
 	assert.Error(t, err)
 }
+
+func TestRule_Check_CachesDriftPartsPerRepo(t *testing.T) {
+	// Drift inspection is expensive (git config subprocess, hook
+	// read, .mdsmith.yml parse). The rule caches the result per
+	// repo so per-file Check calls don't repeat it. We probe the
+	// cache directly to confirm a Check call populates it and a
+	// second call reuses it.
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte(canonicalManagedBlock()), 0o644))
+
+	driftMu.Lock()
+	delete(driftCache, dir)
+	driftMu.Unlock()
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "README.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
+	}
+	r.Check(f)
+
+	driftMu.Lock()
+	_, populated := driftCache[dir]
+	driftMu.Unlock()
+	assert.True(t, populated, "first Check call must populate the drift cache")
+
+	// Make .gitattributes drift on disk; the cached entry should
+	// suppress the new computation, so Check still returns no diag.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte("# BEGIN mdsmith merge-driver\nstale.md merge=mdsmith\n# END mdsmith merge-driver\n"),
+		0o644))
+	assert.Empty(t, r.Check(f),
+		"cached in-sync result is reused even when on-disk state changes")
+}
+
+func TestRule_Fix_InvalidatesDriftCache(t *testing.T) {
+	// Fix changes the on-disk state, so the cached drift entry is
+	// invalidated. Subsequent Check calls re-read the repo.
+	dir := t.TempDir()
+	initRepoWithDriver(t, dir)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitattributes"),
+		[]byte("# BEGIN mdsmith merge-driver\nold.md merge=mdsmith\n# END mdsmith merge-driver\n"),
+		0o644))
+
+	driftMu.Lock()
+	delete(driftCache, dir)
+	driftMu.Unlock()
+
+	r := &Rule{}
+	f := &lint.File{
+		Path:          filepath.Join(dir, "test.md"),
+		Source:        []byte("# Test\n"),
+		MaxInputBytes: 1048576,
+		FS:            os.DirFS(dir),
+	}
+	// First Check populates the cache with the drift entry.
+	require.Len(t, r.Check(f), 1)
+	driftMu.Lock()
+	_, populated := driftCache[dir]
+	driftMu.Unlock()
+	require.True(t, populated)
+
+	// Fix runs and clears the cached entry.
+	r.Fix(f)
+	driftMu.Lock()
+	_, stillPopulated := driftCache[dir]
+	driftMu.Unlock()
+	assert.False(t, stillPopulated, "Fix must invalidate the drift cache")
+}

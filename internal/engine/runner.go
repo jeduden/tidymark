@@ -106,14 +106,17 @@ func (r *Runner) Run(paths []string) *Result {
 	return res
 }
 
-// DedupeDiagnostics returns diags with duplicate (file, line, column,
-// rule, message) tuples collapsed to a single entry. Repo-level rules
-// (notably MDS048 git-hook-sync) emit a diagnostic anchored to the
-// repository artifact for every linted file in the repo, so a fresh
-// `mdsmith check` over a large tree would otherwise display the same
-// warning N times and inflate Failures counts. Earlier-encountered
-// duplicates win so the diagnostic order from the first hit is
-// preserved.
+// DedupeDiagnostics returns a new slice with duplicate (file, line,
+// column, rule, message) tuples collapsed to a single entry. Repo-
+// level rules (notably MDS048 git-hook-sync) emit a diagnostic
+// anchored to the repository artifact for every linted file in the
+// repo, so a fresh `mdsmith check` over a large tree would otherwise
+// print the same warning N times and duplicate that entry in the
+// returned diagnostics. Earlier-encountered duplicates win so the
+// diagnostic order from the first hit is preserved. The input slice
+// is not modified; the result is always a freshly-allocated slice
+// (or nil for empty/single-element input) so callers can keep the
+// original around without worrying about aliasing.
 func DedupeDiagnostics(diags []lint.Diagnostic) []lint.Diagnostic {
 	if len(diags) <= 1 {
 		return diags
@@ -126,7 +129,7 @@ func DedupeDiagnostics(diags []lint.Diagnostic) []lint.Diagnostic {
 		Message string
 	}
 	seen := make(map[key]struct{}, len(diags))
-	out := diags[:0]
+	out := make([]lint.Diagnostic, 0, len(diags))
 	for _, d := range diags {
 		k := key{
 			File:    d.File,
