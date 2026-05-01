@@ -2,31 +2,45 @@
 id: MDS048
 name: git-hook-sync
 status: ready
-description: Git hooks must be in sync with files containing generated content directives.
+description: Git artefacts must match the canonical glob-based template derived from .mdsmith.yml.
 ---
 # MDS048: git-hook-sync
 
-Git hooks must be in sync with files containing generated
-content directives.
+Git artefacts must match the canonical glob-based template
+derived from .mdsmith.yml.
+
+The `.gitattributes` managed block and the
+pre-merge-commit hook must match a canonical template.
+That template is computed from the project's
+`.mdsmith.yml` ignore patterns. Editing `.mdsmith.yml`
+keeps both git artefacts in sync.
 
 ## Rationale
 
-When markdown files contain generated sections (`<?catalog?>`,
-`<?include?>`, `<?toc?>`), they need special handling during
-git merges to regenerate content and avoid conflicts. The
-mdsmith git hooks automate this process.
+Markdown files can contain generated sections like
+`<?catalog?>`, `<?include?>`, and `<?toc?>`. They need
+special handling during git merges to regenerate content
+and avoid conflicts. Two artefacts cooperate:
 
-This rule detects when:
+- `.gitattributes` assigns the `mdsmith` merge driver to
+  markdown files. The managed block uses globs (e.g.
+  `*.md merge=mdsmith`) plus exclude overrides
+  (`<pattern> -merge`) so the assignment scope tracks
+  `.mdsmith.yml` ignore patterns rather than enumerating
+  individual files.
+- The pre-merge-commit hook re-runs `mdsmith fix .` once
+  every per-file merge has resolved, so generated sections
+  reflect the final merged state. The hook script is
+  glob-driven (no embedded file list), so its scope tracks
+  the same ignore patterns automatically.
 
-- The merge-driver assignments in `.gitattributes` cover a
-  different set of files than those currently containing
-  directives
-- The pre-merge-commit hook is configured for a different set
-  of files than those currently containing directives
+This rule detects when either artefact drifts from the
+canonical template.
 
 ## Settings
 
-This rule has no configuration settings beyond enabling/disabling it.
+This rule has no configuration settings beyond
+enabling/disabling it.
 
 ## Config
 
@@ -48,50 +62,33 @@ rules:
 
 The rule:
 
-1. Scans the repository for markdown files containing
-   generated section directives
+1. Reads `.mdsmith.yml` ignore patterns and computes the
+   canonical glob set: include patterns (default: `*.md`,
+   `*.markdown`) followed by an exclude pattern for each
+   `ignore:` entry.
 2. If `merge.mdsmith.driver` is registered in git config,
-   compares the file list in `.gitattributes` (lines of the
-   form `<file> merge=mdsmith`) against the discovered files
+   reads `.gitattributes` and compares the BEGIN/END
+   managed block against the canonical render.
 3. Reads the pre-merge-commit hook (when it carries the
-   mdsmith marker) and compares the file list extracted from
-   `mdsmith fix --` lines against the discovered files
-4. Reports a warning if either source is out of sync
+   mdsmith marker) and compares the script against the
+   canonical glob-based template.
+4. Reports a warning if either artefact drifts.
 
-If discovery is empty:
-
-- If neither managed source lists files, the rule is silent.
-- If a managed source still lists files, the rule reports
-  those entries as stale (drift against an empty set).
-
-The install commands (`mdsmith merge-driver install` and
-`mdsmith pre-merge-commit install`) apply a fallback list of
-`PLAN.md` and `README.md` when discovery is empty. The
-fallback is install-only. Stale entries from it can still
-trip the rule above.
-
-Drift is computed from repository-wide discovery of files
-that carry generated section directives. `Check()` reads
-that drift on every linted file. While drift exists, the
-diagnostic appears on each file in the repository. Discovery
-is cached per process, so the cost is paid once. When
-`mdsmith fix` applies the `.gitattributes` fix, it does not
-rewrite the file again while it remains in sync. Subsequent
-`Check()` calls then see the file as in sync and stop
-emitting the diagnostic. The fixer can run again later in
-the same process if drift reappears (for example, an
-external tool rewrote the file) or if a previous staging
-attempt needs retrying.
+`.gitattributes` does not support negation patterns
+(`!*.md` is a syntax error there). The managed block
+exploits last-match-wins instead: include lines come first,
+then `<exclude> -merge` lines override them for matching
+paths.
 
 ## Fix
 
 This rule is **partially auto-fixable**:
 
 - **`.gitattributes`** is auto-fixed by `mdsmith fix` when
-  the merge driver is registered (`merge.mdsmith.driver` in
-  git config). The fixer regenerates `.gitattributes` with
-  the current discovered file list, preserving header
-  comments.
+  the merge driver is registered (`merge.mdsmith.driver`
+  in git config). The fixer rewrites the managed block
+  with the canonical globs, preserving any non-mdsmith
+  entries surrounding it.
 - **Pre-merge-commit hook** is not auto-fixed (it is an
   executable script). You must manually re-run:
 
@@ -99,12 +96,12 @@ This rule is **partially auto-fixable**:
 mdsmith pre-merge-commit install
 ```
 
-### Why Auto-Fix .gitattributes?
+### Why Auto-Fix `.gitattributes`?
 
-`.gitattributes` is a tracked file (not system configuration,
-not executable) and should be auto-fixable like other
-content issues. This enables build systems running
-`mdsmith fix` to automatically resolve drift.
+`.gitattributes` is a tracked file. It is not system
+configuration, and not executable. So it should be
+auto-fixable like other content issues. Build systems
+running `mdsmith fix` reconcile drift automatically.
 
 The pre-merge-commit hook remains manual-only because
 modifying executable files during automated fixes could be
@@ -112,82 +109,68 @@ surprising or unsafe.
 
 When `mdsmith fix` updates `.gitattributes`, the fixer also
 runs `git add -- .gitattributes`. The regenerated file then
-lands in the index next to the markdown files the hook stages.
-A merge commit produced by the pre-merge-commit hook flow
-includes both. If staging fails (for example, the index is
-locked by another git process), the on-disk fix is still
-applied and the failure is recorded. `Check()` keeps emitting
-a "staging failed" diagnostic until a later `Fix()` call
-re-runs `git add` successfully.
+lands in the index next to the markdown files the hook
+stages, so a merge commit produced by the
+pre-merge-commit hook flow includes both. If staging fails
+(for example, the index is locked by another git process),
+the on-disk fix is still applied and the failure is
+recorded. `Check()` keeps emitting a "staging failed"
+diagnostic until a later `Fix()` call re-runs `git add`
+successfully.
 
 ### Manual Installation
 
-If the merge driver is not registered, or to update the
-pre-merge-commit hook, run:
+To register the merge driver, write the canonical
+`.gitattributes` block, and install the hook:
 
 ```bash
-# Register the merge driver and add any missing
-# `<file> merge=mdsmith` entries to .gitattributes.
 mdsmith merge-driver install
-
-# Re-install the pre-merge-commit hook
 mdsmith pre-merge-commit install
 ```
 
-`mdsmith merge-driver install` is **append-only**: it adds
-missing entries but does not remove stale ones or rewrite
-the file into a managed block. To remove stale entries and
-normalise the file into the `# BEGIN/END mdsmith merge-driver`
-block, run `mdsmith fix` with `git-hook-sync: true` enabled
-(or rely on the merge-queue / pre-merge-commit hook to do
-it, which runs `mdsmith fix` for you). Both paths pick up
-the current set of files with generated directives.
+Both commands write the canonical glob-based content from
+the project's `.mdsmith.yml`, so re-running them is
+idempotent.
 
 ## Examples
 
 ### Good
 
-Hooks match the files with generated content:
+`.mdsmith.yml` ignores test fixtures, and `.gitattributes`
+mirrors that exactly:
 
-```markdown
-# README.md
-<?catalog?>
-- [File 1](file1.md)
-<?/catalog?>
+```yaml
+# .mdsmith.yml
+ignore:
+  - "demo/**"
+  - "vendor/**"
 ```
 
 ```text
-# .gitattributes contains:
-README.md merge=mdsmith
-
-# git config (local) contains:
-merge.mdsmith.driver=mdsmith merge-driver run %O %A %B %P
-
-# .git/hooks/pre-merge-commit contains:
-# mdsmith merge-driver pre-merge-commit hook
-mdsmith fix -- 'README.md'
-git add -- 'README.md'
+# .gitattributes
+# BEGIN mdsmith merge-driver
+*.md merge=mdsmith
+*.markdown merge=mdsmith
+demo/** -merge
+vendor/** -merge
+# END mdsmith merge-driver
 ```
 
 ### Bad
 
-`.gitattributes` is configured for `PLAN.md` but the file
-that actually contains a directive is `test.md`:
-
-```markdown
-# test.md
-<?catalog?>
-- [File 1](file1.md)
-<?/catalog?>
-```
+`.gitattributes` still uses the old per-file format from a
+pre-glob install:
 
 ```text
-# .gitattributes contains:
-PLAN.md merge=mdsmith
+# BEGIN mdsmith merge-driver
+README.md merge=mdsmith
+docs/index.md merge=mdsmith
+# END mdsmith merge-driver
 ```
 
-**Diagnostic**: `merge-driver assignments in .gitattributes
-are out of sync (has: PLAN.md, should have: test.md)`
+**Diagnostic**: `.gitattributes managed block is out of
+sync`. The message lists the installed include and exclude
+patterns and the canonical patterns the rule expected.
 
 ## Meta-Information
 

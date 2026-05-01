@@ -460,9 +460,9 @@ func TestFirstQuotedAfter(t *testing.T) {
 func TestWriteGitattributes_CreatesNewFileWithManagedBlock(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitattributes")
-	files := []string{"a.md", "b.md"}
+	globs := Globs{Include: []string{"a.md", "b.md"}}
 
-	err := WriteGitattributes(path, files)
+	err := WriteGitattributes(path, globs)
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -484,8 +484,8 @@ func TestWriteGitattributes_PreservesExistingNonMdsmithEntries(t *testing.T) {
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	files := []string{"test.md"}
-	err = WriteGitattributes(path, files)
+	globs := Globs{Include: []string{"test.md"}}
+	err = WriteGitattributes(path, globs)
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -511,8 +511,8 @@ func TestWriteGitattributes_ReplacesExistingManagedBlock(t *testing.T) {
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	files := []string{"new.md", "other.md"}
-	err = WriteGitattributes(path, files)
+	globs := Globs{Include: []string{"new.md", "other.md"}}
+	err = WriteGitattributes(path, globs)
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -545,7 +545,7 @@ func TestWriteGitattributes_StripsStaleMdsmithEntriesOutsideBlock(t *testing.T) 
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	err = WriteGitattributes(path, []string{"new.md"})
+	err = WriteGitattributes(path, Globs{Include: []string{"new.md"}})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -574,7 +574,7 @@ func TestWriteGitattributes_StripsStaleMdsmithEntriesWithTrailingAttributes(t *t
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	err = WriteGitattributes(path, []string{"new.md"})
+	err = WriteGitattributes(path, Globs{Include: []string{"new.md"}})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -602,7 +602,7 @@ func TestWriteGitattributes_PreservesCommentsThatMentionMdsmith(t *testing.T) {
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	err = WriteGitattributes(path, []string{"new.md"})
+	err = WriteGitattributes(path, Globs{Include: []string{"new.md"}})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -626,7 +626,7 @@ func TestWriteGitattributes_StripsStaleMdsmithEntriesWhenNoBlockExists(t *testin
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	err = WriteGitattributes(path, []string{"new.md"})
+	err = WriteGitattributes(path, Globs{Include: []string{"new.md"}})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -643,7 +643,7 @@ func TestWriteGitattributes_HandlesEmptyFileList(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitattributes")
 
-	err := WriteGitattributes(path, []string{})
+	err := WriteGitattributes(path, Globs{})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -662,8 +662,7 @@ func TestWriteGitattributes_AppendsBlockWhenNoNewlineAtEOF(t *testing.T) {
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	files := []string{"test.md"}
-	err = WriteGitattributes(path, files)
+	err = WriteGitattributes(path, Globs{Include: []string{"test.md"}})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -690,7 +689,7 @@ func TestWriteGitattributes_HandlesEndMarkerWithoutTrailingNewline(t *testing.T)
 	err := os.WriteFile(path, []byte(initial), 0644)
 	require.NoError(t, err)
 
-	err = WriteGitattributes(path, []string{"new.md"})
+	err = WriteGitattributes(path, Globs{Include: []string{"new.md"}})
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(path)
@@ -718,7 +717,7 @@ func TestWriteGitattributes_ReplacesTruncatedBlockMissingEndMarker(t *testing.T)
 		"# (END marker truncated by a partial edit)\n"
 	require.NoError(t, os.WriteFile(path, []byte(initial), 0644))
 
-	require.NoError(t, WriteGitattributes(path, []string{"new.md"}))
+	require.NoError(t, WriteGitattributes(path, Globs{Include: []string{"new.md"}}))
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -744,7 +743,7 @@ func TestWriteGitattributes_DoesNotMatchMarkerInsideOtherComment(t *testing.T) {
 		"*.txt text eol=lf\n"
 	require.NoError(t, os.WriteFile(path, []byte(initial), 0644))
 
-	require.NoError(t, WriteGitattributes(path, []string{"new.md"}))
+	require.NoError(t, WriteGitattributes(path, Globs{Include: []string{"new.md"}}))
 
 	content, err := os.ReadFile(path)
 	require.NoError(t, err)

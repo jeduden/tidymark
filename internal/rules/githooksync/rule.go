@@ -1,7 +1,7 @@
 // Package githooksync implements MDS048, the git-hook-sync rule. It
-// reports when the pre-merge-commit hook or .gitattributes merge
-// driver assignments do not list the same files that currently
-// contain generated-section directives.
+// reports when the .gitattributes managed block or the
+// pre-merge-commit hook drifts from the canonical content derived
+// from the project's .mdsmith.yml ignore patterns.
 package githooksync
 
 import (
@@ -21,7 +21,8 @@ func init() {
 }
 
 // Rule checks that mdsmith-managed git hooks and .gitattributes are
-// in sync with the files that contain generated-section directives.
+// in sync with the canonical content computed from the project's
+// .mdsmith.yml ignore patterns.
 //
 // The rule is runnable in its zero value: it has no required runtime
 // settings, so users can opt in via the bool form `git-hook-sync:
@@ -30,13 +31,6 @@ func init() {
 // it being called.
 type Rule struct{}
 
-// discoveredCache stores the result of DiscoverFiles per repo to avoid
-// re-scanning the repo for every file. Discovery is expensive (full
-// repo walk + file reads), so caching it significantly improves
-// performance when checking many files in the same repo. The cache
-// key includes maxBytes because DiscoverFiles uses that limit when
-// reading each candidate.
-//
 // stagingErrors records repos where Fix wrote .gitattributes but the
 // follow-up `git add -- .gitattributes` failed (e.g. index.lock
 // contention). The on-disk fix already happened, so a plain drift
@@ -45,6 +39,7 @@ type Rule struct{}
 // the working tree. Surfacing the failure through Check makes it
 // retryable: subsequent Fix calls re-run the staging step until it
 // succeeds, at which point the entry is cleared.
+//
 // repoRootCache memoises the result of GitRepoRoot(dir) so per-file
 // Check/Fix calls do not respawn `git rev-parse --show-toplevel` for
 // every file. Entries with a non-nil error are also cached so
@@ -52,12 +47,10 @@ type Rule struct{}
 // passed to resolveRepoRoot, not the resolved root, because two
 // directories under the same repo still produce one git invocation.
 var (
-	discoveredMu    sync.Mutex
-	discoveredCache = make(map[string][]string)
-	stagingMu       sync.Mutex
-	stagingErrors   = make(map[string]error)
-	repoRootMu      sync.Mutex
-	repoRootCache   = make(map[string]repoRootEntry)
+	stagingMu     sync.Mutex
+	stagingErrors = make(map[string]error)
+	repoRootMu    sync.Mutex
+	repoRootCache = make(map[string]repoRootEntry)
 )
 
 type repoRootEntry struct {
@@ -92,54 +85,33 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	// Resolve the repo root from the directory of the file being
 	// linted so the rule does not depend on the process working
 	// directory. When a file is not inside a git repo, skip silently.
-	// The lookup result is memoised per directory so linting many
-	// files in the same repo does not respawn `git rev-parse` for
-	// each one.
 	repoRoot, err := r.resolveRepoRoot(filepath.Dir(f.Path))
 	if err != nil {
 		return nil
 	}
 
-	// Cheap opt-in probes before the (expensive) repo walk. The
-	// merge-driver source only applies when the local config
-	// registers `merge.mdsmith.driver`, and the hook source only
-	// applies when an mdsmith-marked pre-merge-commit hook is
-	// installed. If neither is opted in (and the hook is not
+	// Cheap opt-in probes. The merge-driver source only applies when
+	// the local config registers `merge.mdsmith.driver`, and the hook
+	// source only applies when an mdsmith-marked pre-merge-commit
+	// hook is installed. If neither is opted in (and the hook is not
 	// unreadable, which would still warrant a warning) there is
-	// nothing to compare against, so skip the discovery walk.
+	// nothing to compare against.
 	hasDriver := githooks.HasMdsmithMergeDriver(repoRoot)
 	hookState := peekHookSource(repoRoot)
 	if !hasDriver && hookState != hookSourceManaged && hookState != hookSourceUnreadable {
 		return nil
 	}
 
-	// Discovery is cached per repo and only consumed by the drift
-	// functions once they get past their own IO short-circuits.
-	// Wrap it in a lazy getter so the (potentially expensive) walk
-	// is skipped entirely on the unreadable-only path: when the user
-	// has not registered the merge driver and the hook file is
-	// unreadable, preMergeCommitHookDrift returns the IO diagnostic
-	// before reaching the FilesMatch check, and the walk is wasted.
-	var (
-		discovered    []string
-		haveDiscovery bool
-	)
-	getDiscovered := func() []string {
-		if !haveDiscovery {
-			discovered = r.getDiscovered(repoRoot, f.MaxInputBytes)
-			haveDiscovery = true
-		}
-		return discovered
-	}
+	expectedGlobs := githooks.LoadGlobs(repoRoot)
 
 	// Collect drift descriptions from both sources. A blank
 	// description from a source means it is in sync (or the user
 	// has not opted into that source at all).
 	var parts []string
-	if msg := r.mergeDriverDrift(repoRoot, hasDriver, getDiscovered); msg != "" {
+	if msg := r.mergeDriverDrift(repoRoot, hasDriver, expectedGlobs); msg != "" {
 		parts = append(parts, msg)
 	}
-	if msg := r.preMergeCommitHookDrift(repoRoot, getDiscovered); msg != "" {
+	if msg := r.preMergeCommitHookDrift(repoRoot); msg != "" {
 		parts = append(parts, msg)
 	}
 	// A previous Fix may have written .gitattributes but failed to
@@ -181,9 +153,7 @@ const (
 )
 
 // peekHookSource reports the current state of the pre-merge-commit
-// hook without parsing its file list. It is a cheap probe used by
-// Check to decide whether the (expensive) repo discovery walk is
-// needed at all.
+// hook without parsing its contents.
 func peekHookSource(repoRoot string) hookSource {
 	hookPath := filepath.Join(githooks.ResolveHooksDir(repoRoot), "pre-merge-commit")
 	data, err := os.ReadFile(hookPath)
@@ -200,22 +170,19 @@ func peekHookSource(repoRoot string) hookSource {
 }
 
 // mergeDriverDrift returns a human-readable description of any drift
-// between .gitattributes (the real source of truth for which files
-// use the mdsmith merge driver) and the discovered file list. The
-// check only runs when `merge.mdsmith.driver` is registered, so repos
-// that have not opted in are not flagged. Returns an empty string
-// when no drift is detected.
+// between the .gitattributes managed block and the canonical block
+// derived from .mdsmith.yml. The check only runs when
+// `merge.mdsmith.driver` is registered, so repos that have not opted
+// in are not flagged. Returns an empty string when no drift is
+// detected.
 //
 // hasDriver is taken as a parameter rather than re-probed via
 // HasMdsmithMergeDriver so Check does not pay an extra `git config`
 // subprocess per linted file: the caller has already computed it.
 //
-// An empty `merge=mdsmith` assignment list with the driver registered
-// and discovered files present is treated as drift: the merge driver
-// will not run for any file, defeating the registration. A non-ENOENT
-// read error is surfaced as drift too rather than silently passing,
-// so permission/IO failures cannot mask real misconfiguration.
-func (r *Rule) mergeDriverDrift(repoRoot string, hasDriver bool, getDiscovered func() []string) string {
+// A non-ENOENT read error is surfaced as drift rather than silently
+// passing, so permission/IO failures cannot mask real misconfiguration.
+func (r *Rule) mergeDriverDrift(repoRoot string, hasDriver bool, expected githooks.Globs) string {
 	if !hasDriver {
 		return ""
 	}
@@ -226,35 +193,44 @@ func (r *Rule) mergeDriverDrift(repoRoot string, hasDriver bool, getDiscovered f
 			err,
 		)
 	}
-	discovered := getDiscovered()
-	installed := githooks.ExtractGitattributesFiles(string(data))
-	if githooks.FilesMatch(installed, discovered) {
-		return ""
-	}
-	if len(installed) == 0 {
+	installed, ok := githooks.ExtractGlobs(string(data))
+	if !ok {
 		return fmt.Sprintf(
-			"merge.mdsmith.driver is registered but .gitattributes has no merge=mdsmith entries (should have: %s)",
-			strings.Join(discovered, ", "),
+			"merge.mdsmith.driver is registered but .gitattributes has no managed block "+
+				"(should contain include patterns: %s; exclude patterns: %s)",
+			strings.Join(expected.Include, ", "),
+			describeGlobs(expected.Exclude),
 		)
 	}
-	shouldDesc := strings.Join(discovered, ", ")
-	if len(discovered) == 0 {
-		shouldDesc = "(none)"
+	if githooks.GlobsEqual(installed, expected) {
+		return ""
 	}
 	return fmt.Sprintf(
-		"merge-driver assignments in .gitattributes are out of sync (has: %s, should have: %s)",
-		strings.Join(installed, ", "),
-		shouldDesc,
+		".gitattributes managed block is out of sync "+
+			"(has include: %s, exclude: %s; should have include: %s, exclude: %s)",
+		describeGlobs(installed.Include),
+		describeGlobs(installed.Exclude),
+		describeGlobs(expected.Include),
+		describeGlobs(expected.Exclude),
 	)
 }
 
+// describeGlobs returns a printable representation of patterns so
+// "(none)" is shown for an empty list rather than a blank field.
+func describeGlobs(patterns []string) string {
+	if len(patterns) == 0 {
+		return "(none)"
+	}
+	return strings.Join(patterns, ", ")
+}
+
 // preMergeCommitHookDrift returns a human-readable description of any
-// drift between the installed pre-merge-commit hook and the discovered
-// file list. Returns an empty string if no hook is installed, the
-// hook is not mdsmith-managed, or the file list matches. A non-ENOENT
+// drift between the installed pre-merge-commit hook and the canonical
+// hook content. Returns an empty string if no hook is installed, the
+// hook is not mdsmith-managed, or the content matches. A non-ENOENT
 // read error is surfaced rather than silently passing so permission
 // or IO failures cannot mask real drift.
-func (r *Rule) preMergeCommitHookDrift(repoRoot string, getDiscovered func() []string) string {
+func (r *Rule) preMergeCommitHookDrift(repoRoot string) string {
 	hookPath := filepath.Join(githooks.ResolveHooksDir(repoRoot), "pre-merge-commit")
 	data, err := os.ReadFile(hookPath)
 	if err != nil {
@@ -270,31 +246,43 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string, getDiscovered func() []s
 	if !strings.Contains(hook, githooks.PreMergeCommitMarker) {
 		return ""
 	}
-	installed := githooks.ExtractHookFiles(hook)
-	discovered := getDiscovered()
-	if githooks.FilesMatch(installed, discovered) {
+	// The canonical hook content depends on the absolute path of the
+	// mdsmith binary that originally installed it. Comparing only the
+	// portions that are independent of that path (the marker plus the
+	// glob-based fix invocation pattern) keeps drift detection
+	// hermetic across machines while still catching missing or
+	// outdated hook content.
+	if hookMatchesCanonical(hook) {
 		return ""
 	}
-	hasDesc := strings.Join(installed, ", ")
-	if len(installed) == 0 {
-		hasDesc = "(none)"
-	}
-	shouldDesc := strings.Join(discovered, ", ")
-	if len(discovered) == 0 {
-		shouldDesc = "(none)"
-	}
-	return fmt.Sprintf(
-		"pre-merge-commit hook is out of sync (has: %s, should have: %s)",
-		hasDesc,
-		shouldDesc,
-	)
+	return "pre-merge-commit hook is out of sync with the glob-based template " +
+		"(re-run `mdsmith pre-merge-commit install` to update it)"
 }
 
-// Fix implements rule.FixableRule. It regenerates .gitattributes to
-// match the discovered file list when the merge driver is registered.
-// The pre-merge-commit hook is not auto-fixed because it is an
-// executable script and modifying executable files during automated
-// fixes could be surprising or unsafe. Users must run
+// hookMatchesCanonical reports whether the installed hook script
+// looks like the current glob-based template. The mdsmith binary
+// path is repo-specific, so canonical comparison checks for the
+// stable lines that carry the runtime behaviour (cd to the repo
+// root, run `mdsmith fix .`, stage modified markdown files).
+func hookMatchesCanonical(hook string) bool {
+	if !strings.Contains(hook, "cd \"$(git rev-parse --show-toplevel)\"") {
+		return false
+	}
+	if !strings.Contains(hook, "fix . || true") {
+		return false
+	}
+	if !strings.Contains(hook,
+		"git diff --name-only -z -- '*.md' '*.markdown' | xargs -0 -r git add --") {
+		return false
+	}
+	return true
+}
+
+// Fix implements rule.FixableRule. It regenerates the .gitattributes
+// managed block from the canonical glob set when the merge driver is
+// registered. The pre-merge-commit hook is not auto-fixed because it
+// is an executable script and modifying executable files during
+// automated fixes could be surprising or unsafe. Users must run
 // `mdsmith pre-merge-commit install` manually to update the hook.
 //
 // The fix only runs when f.FS != nil (a real file, not stdin) and
@@ -302,12 +290,12 @@ func (r *Rule) preMergeCommitHookDrift(repoRoot string, getDiscovered func() []s
 // `git config merge.mdsmith.driver`. If neither condition holds, the
 // original file content is returned unchanged.
 //
-// Fix short-circuits via a FilesMatch check when .gitattributes is
+// Fix short-circuits via a GlobsEqual check when .gitattributes is
 // already in sync, so linting many files in the same repo does not
 // trigger redundant rewrites. Subsequent calls may still do real
-// work in two cases: drift has reappeared (e.g. an external tool or
-// a different MaxInputBytes-driven discovery changed the expected
-// set), or a previous staging attempt failed and needs retrying.
+// work in two cases: drift has reappeared (e.g. an external tool
+// changed the managed block), or a previous staging attempt failed
+// and needs retrying.
 func (r *Rule) Fix(f *lint.File) []byte {
 	// Skip stdin and other in-memory inputs (same logic as Check).
 	if f.FS == nil {
@@ -325,21 +313,17 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		return f.Source
 	}
 
-	discovered := r.getDiscovered(repoRoot, f.MaxInputBytes)
+	expected := githooks.LoadGlobs(repoRoot)
 	attrPath := filepath.Join(repoRoot, ".gitattributes")
 
-	// When .gitattributes is in sync, skip the rewrite. If a previous
-	// run failed to stage, retry the staging step now so the pending
-	// error is given a chance to clear without forcing a redundant
-	// write. FilesMatch is the only short-circuit we need: there is no
-	// per-process "already wrote" guard because every successful write
-	// must flow into the staging path below — without that, a write
-	// triggered by reappearing drift would update the working tree but
-	// leave the index pointing at the old content.
+	// When .gitattributes is already in sync, skip the rewrite. If a
+	// previous run failed to stage, retry the staging step now so the
+	// pending error is given a chance to clear without forcing a
+	// redundant write.
 	data, err := os.ReadFile(attrPath)
 	if err == nil {
-		installed := githooks.ExtractGitattributesFiles(string(data))
-		if githooks.FilesMatch(installed, discovered) {
+		installed, ok := githooks.ExtractGlobs(string(data))
+		if ok && githooks.GlobsEqual(installed, expected) {
 			if stagingError(repoRoot) != nil {
 				stage(repoRoot)
 			}
@@ -351,7 +335,7 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	// through the staging path so the index always reflects the
 	// updated working-tree content; a transient write failure simply
 	// leaves the tree unchanged so the next Fix call can retry.
-	if err := githooks.WriteGitattributes(attrPath, discovered); err != nil {
+	if err := githooks.WriteGitattributes(attrPath, expected); err != nil {
 		return f.Source
 	}
 
@@ -359,14 +343,11 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	// hook flow includes it in the merge commit alongside the
 	// markdown files mdsmith fix touched. The error is recorded in
 	// stagingErrors so Check can keep emitting a diagnostic until a
-	// later Fix call's staging attempt succeeds; without that, a
-	// transient `git add` failure (e.g. index.lock contention)
-	// would silently leave the working tree fixed but the merge
-	// commit missing the .gitattributes update.
+	// later Fix call's staging attempt succeeds.
 	stage(repoRoot)
 
-	// Return original file content unchanged (the fix is in .gitattributes,
-	// not in the markdown file being linted)
+	// Return original file content unchanged (the fix is in
+	// .gitattributes, not in the markdown file being linted).
 	return f.Source
 }
 
@@ -407,28 +388,6 @@ func (r *Rule) resolveRepoRoot(dir string) (string, error) {
 	root, err := githooks.GitRepoRoot(dir)
 	repoRootCache[dir] = repoRootEntry{root: root, err: err}
 	return root, err
-}
-
-// getDiscovered returns the discovered files for a repo, using a cached
-// result if available. Discovery is expensive (full repo walk + file
-// reads), so caching it significantly improves performance when checking
-// many files in the same repo. The cache key includes maxBytes because
-// DiscoverFiles passes that limit to ReadFileLimited when scanning each
-// file: a different limit can change which files qualify as
-// directive-bearing, so reusing a slice computed under a different
-// budget would return an incorrect list.
-func (r *Rule) getDiscovered(repoRoot string, maxBytes int64) []string {
-	discoveredMu.Lock()
-	defer discoveredMu.Unlock()
-
-	cacheKey := fmt.Sprintf("%s:%d", repoRoot, maxBytes)
-	if files, ok := discoveredCache[cacheKey]; ok {
-		return files
-	}
-
-	files := githooks.DiscoverFiles(repoRoot, maxBytes)
-	discoveredCache[cacheKey] = files
-	return files
 }
 
 // ApplySettings implements rule.Configurable. The rule has no runtime

@@ -149,6 +149,30 @@ func DiscoverFiles(repoRoot string, maxBytes int64) []string {
 // than reading ignore patterns.
 const configFileName = ".mdsmith.yml"
 
+// GlobsFromConfig returns the canonical merge-driver glob set for a
+// repository: every markdown extension is included, and the project's
+// .mdsmith.yml ignore patterns are translated as exclude patterns.
+// Last-match-wins in .gitattributes lets the excludes override the
+// broader markdown includes. cfg may be nil (no exclusions then).
+func GlobsFromConfig(cfg *config.Config) Globs {
+	g := Globs{Include: DefaultIncludes()}
+	if cfg != nil && len(cfg.Ignore) > 0 {
+		g.Exclude = append([]string{}, cfg.Ignore...)
+	}
+	return g
+}
+
+// LoadGlobs reads .mdsmith.yml from repoRoot and returns the merge-
+// driver glob set. A missing or unparseable config falls back to the
+// default include set with no exclusions.
+func LoadGlobs(repoRoot string) Globs {
+	cfg, err := config.Load(filepath.Join(repoRoot, configFileName))
+	if err != nil {
+		return GlobsFromConfig(nil)
+	}
+	return GlobsFromConfig(cfg)
+}
+
 // DiscoverFilesForInstall is the install-time variant of DiscoverFiles
 // that supplies a sensible default file list when the repository has
 // no directive-bearing files. It returns ["PLAN.md", "README.md"] in
@@ -513,40 +537,136 @@ func findManagedBlockLines(lines []string) (int, int) {
 	return startLine, len(lines)
 }
 
-// WriteGitattributes updates .gitattributes to register the given files
-// with the mdsmith merge driver. It preserves all non-mdsmith entries and
-// updates only the mdsmith-managed block (delimited by BEGIN/END markers).
-// Stray `merge=mdsmith` lines outside the managed block (left behind by
-// older append-only installs or hand-edited files) are removed so the
-// resulting file matches the provided files exactly.
+// Globs describes the set of paths the mdsmith merge driver applies
+// to. Each Include pattern is written as `<pattern> merge=mdsmith`
+// and each Exclude pattern is written after them as `<pattern>
+// -merge`. .gitattributes uses last-match-wins, so an exclude line
+// after the include lines effectively removes the merge driver from
+// any path the include patterns matched.
 //
-// If the file does not exist, it is created with only the managed block.
-// If the file exists but has no managed block, one is appended.
-// If a managed block exists, it is replaced with the new file list.
+// `.gitattributes` itself does not support negative patterns (`!*.md`
+// is a syntax error there). Order-sensitive override via -merge is the
+// supported way to express exclusions, which is why Globs keeps
+// Include and Exclude as separate ordered slices.
+type Globs struct {
+	Include []string
+	Exclude []string
+}
+
+// DefaultIncludes is the canonical include pattern set: every
+// markdown extension mdsmith processes. Kept as a function so callers
+// always get a fresh slice rather than sharing a package-level value.
+func DefaultIncludes() []string {
+	return []string{"*.md", "*.markdown"}
+}
+
+// RenderManagedBlock returns the .gitattributes managed block content
+// for globs, including the BEGIN/END markers and a trailing newline.
+// Output is deterministic so drift detection compares it byte-for-byte
+// against the installed block.
+func RenderManagedBlock(globs Globs) string {
+	var b strings.Builder
+	b.WriteString(gitattributesManagedBlockStart)
+	b.WriteString("\n")
+	for _, p := range globs.Include {
+		fmt.Fprintf(&b, "%s merge=mdsmith\n", p)
+	}
+	for _, p := range globs.Exclude {
+		fmt.Fprintf(&b, "%s -merge\n", p)
+	}
+	b.WriteString(gitattributesManagedBlockEnd)
+	b.WriteString("\n")
+	return b.String()
+}
+
+// ExtractGlobs parses the managed block from .gitattributes content
+// and returns the include and exclude patterns. The second return is
+// true when a managed block was found. Content outside the BEGIN/END
+// markers is ignored — stale `merge=mdsmith` lines outside the block
+// are handled by stripStaleMergeMdsmithLines at write time.
+func ExtractGlobs(content string) (Globs, bool) {
+	lines := strings.Split(content, "\n")
+	if strings.HasSuffix(content, "\n") {
+		lines = lines[:len(lines)-1]
+	}
+	startLine, endLine := findManagedBlockLines(lines)
+	if startLine == -1 {
+		return Globs{}, false
+	}
+	var globs Globs
+	for i := startLine + 1; i < endLine; i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 {
+			continue
+		}
+		pattern := fields[0]
+		for _, attr := range fields[1:] {
+			switch attr {
+			case "merge=mdsmith":
+				globs.Include = append(globs.Include, pattern)
+			case "-merge":
+				globs.Exclude = append(globs.Exclude, pattern)
+			default:
+				continue
+			}
+			break
+		}
+	}
+	return globs, true
+}
+
+// GlobsEqual reports whether two glob sets are identical. Comparison
+// is order-sensitive because .gitattributes uses last-match-wins:
+// reordering Include vs Exclude (or shuffling Exclude entries that
+// might overlap) changes which paths the merge driver applies to.
+func GlobsEqual(a, b Globs) bool {
+	if len(a.Include) != len(b.Include) || len(a.Exclude) != len(b.Exclude) {
+		return false
+	}
+	for i, p := range a.Include {
+		if b.Include[i] != p {
+			return false
+		}
+	}
+	for i, p := range a.Exclude {
+		if b.Exclude[i] != p {
+			return false
+		}
+	}
+	return true
+}
+
+// WriteGitattributes updates .gitattributes to assign the mdsmith
+// merge driver to the patterns described by globs. It preserves all
+// non-mdsmith entries and replaces only the BEGIN/END managed block.
+// Stray `merge=mdsmith` lines outside the managed block (left behind
+// by older append-only installs or hand-edited files) are removed so
+// the resulting file matches globs exactly.
 //
-// This approach ensures that other .gitattributes entries (e.g., text,
-// eol=lf, linguist settings, other merge drivers) are never dropped.
-func WriteGitattributes(path string, files []string) error {
+// If the file does not exist, it is created with only the managed
+// block. If the file exists but has no managed block, one is
+// appended. If a managed block exists, it is replaced.
+//
+// This approach ensures that other .gitattributes entries (e.g.
+// text, eol=lf, linguist settings, other merge drivers) are never
+// dropped.
+func WriteGitattributes(path string, globs Globs) error {
 	existing, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	// Build the new managed block
-	var managedBlock strings.Builder
-	managedBlock.WriteString(gitattributesManagedBlockStart)
-	managedBlock.WriteString("\n")
-	for _, f := range files {
-		fmt.Fprintf(&managedBlock, "%s merge=mdsmith\n", f)
-	}
-	managedBlock.WriteString(gitattributesManagedBlockEnd)
-	managedBlock.WriteString("\n")
+	managedBlock := RenderManagedBlock(globs)
 
 	var newContent strings.Builder
 
 	if len(existing) == 0 {
 		// New file: just write the managed block
-		newContent.WriteString(managedBlock.String())
+		newContent.WriteString(managedBlock)
 	} else {
 		// Existing file: preserve non-mdsmith content, replace managed
 		// block. Strip stale merge=mdsmith lines from the surrounding
@@ -584,12 +704,12 @@ func WriteGitattributes(path string, files []string) error {
 			if before != "" {
 				newContent.WriteString("\n")
 			}
-			newContent.WriteString(managedBlock.String())
+			newContent.WriteString(managedBlock)
 		} else {
 			before := stripStaleMergeMdsmithLines(joinLines(lines[:startLine]))
 			after := stripStaleMergeMdsmithLines(joinLines(lines[endLine:]))
 			newContent.WriteString(before)
-			newContent.WriteString(managedBlock.String())
+			newContent.WriteString(managedBlock)
 			newContent.WriteString(after)
 		}
 	}
@@ -639,6 +759,39 @@ func HasMdsmithMergeDriver(repoRoot string) bool {
 		return false
 	}
 	return strings.TrimSpace(string(out)) != ""
+}
+
+// BuildHookScript returns the canonical pre-merge-commit hook
+// content. The script runs `mdsmith fix` once on the entire repo
+// after git resolves every per-file merge, so generated sections
+// reflect the final merged state. mdsmith fix walks the worktree
+// respecting `.mdsmith.yml` ignore patterns, matching the same set
+// of files marked with `merge=mdsmith` in `.gitattributes`. Modified
+// markdown files are then staged so the merge commit captures them.
+//
+// The script depends only on the absolute path of the mdsmith binary,
+// so the rule's drift detection can re-render the canonical content
+// and compare it byte-for-byte with the installed hook.
+func BuildHookScript(exe string) string {
+	return "#!/bin/sh\n" +
+		PreMergeCommitMarker + "\n" +
+		"# Re-runs mdsmith fix once git has resolved every per-file\n" +
+		"# merge, so generated sections reflect the final merged\n" +
+		"# state of every source file. mdsmith fix walks the worktree\n" +
+		"# respecting .mdsmith.yml ignore patterns — the same set\n" +
+		"# marked with merge=mdsmith in .gitattributes.\n" +
+		"set -e\n" +
+		"cd \"$(git rev-parse --show-toplevel)\"\n" +
+		shellQuote(exe) + " fix . || true\n" +
+		"git diff --name-only -z -- '*.md' '*.markdown' | " +
+		"xargs -0 -r git add --\n"
+}
+
+// shellQuote single-quotes s for use in a POSIX shell, encoding any
+// embedded single quote as `'\”` so the result round-trips through
+// the shell's quoting rules.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // EnableRuleSnippet returns the YAML the user can paste into

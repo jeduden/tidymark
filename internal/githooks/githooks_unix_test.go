@@ -23,7 +23,7 @@ func TestWriteGitattributes_ReturnsErrorForUnreadableExistingFile(t *testing.T) 
 	err := os.WriteFile(path, []byte("test"), 0000)
 	require.NoError(t, err)
 
-	err = WriteGitattributes(path, []string{"a.md"})
+	err = WriteGitattributes(path, Globs{Include: []string{"a.md"}})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "reading")
 }

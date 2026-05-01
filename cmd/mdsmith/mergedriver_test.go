@@ -164,89 +164,6 @@ func TestMatchesAnyEnd_NoMatch(t *testing.T) {
 	assert.False(t, matchesAnyEnd([]byte("<?catalog glob: \"*\" ?>"), names))
 }
 
-// --- ensureGitattributes ---
-
-func TestEnsureGitattributes_CreatesFileWithEntry(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".gitattributes")
-
-	err := ensureGitattributes(path, []string{"PLAN.md"})
-	require.NoError(t, err)
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(data), "PLAN.md merge=mdsmith")
-}
-
-func TestEnsureGitattributes_AppendsMissingEntries(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".gitattributes")
-	require.NoError(t, os.WriteFile(path, []byte("*.md text\n"), 0644))
-
-	err := ensureGitattributes(path, []string{"PLAN.md"})
-	require.NoError(t, err)
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(data), "*.md text")
-	assert.Contains(t, string(data), "PLAN.md merge=mdsmith")
-}
-
-func TestEnsureGitattributes_Idempotent(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".gitattributes")
-
-	require.NoError(t, ensureGitattributes(path, []string{"PLAN.md"}))
-	require.NoError(t, ensureGitattributes(path, []string{"PLAN.md"}))
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	// Entry should appear exactly once.
-	assert.Equal(t, 1, strings.Count(string(data), "PLAN.md merge=mdsmith"))
-}
-
-func TestEnsureGitattributes_MultipleFiles(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".gitattributes")
-
-	err := ensureGitattributes(path, []string{"PLAN.md", "README.md"})
-	require.NoError(t, err)
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Contains(t, string(data), "PLAN.md merge=mdsmith")
-	assert.Contains(t, string(data), "README.md merge=mdsmith")
-}
-
-func TestEnsureGitattributes_AddsOnlyMissingEntries(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".gitattributes")
-	require.NoError(t, os.WriteFile(path, []byte("PLAN.md merge=mdsmith\n"), 0644))
-
-	err := ensureGitattributes(path, []string{"PLAN.md", "README.md"})
-	require.NoError(t, err)
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, 1, strings.Count(string(data), "PLAN.md merge=mdsmith"))
-	assert.Contains(t, string(data), "README.md merge=mdsmith")
-}
-
-func TestEnsureGitattributes_NoTrailingNewlineInExisting_Handled(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".gitattributes")
-	// File without trailing newline.
-	require.NoError(t, os.WriteFile(path, []byte("*.md text"), 0644))
-
-	err := ensureGitattributes(path, []string{"PLAN.md"})
-	require.NoError(t, err)
-
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	// Trailing newline should be added before the new entry.
-	assert.Contains(t, string(data), "PLAN.md merge=mdsmith")
-}
-
 // --- runMergeDriver dispatch ---
 
 func TestRunMergeDriver_NoArgs_ExitsZero(t *testing.T) {
@@ -333,26 +250,6 @@ func TestRunMergeDriverInstall_LoadConfigError(t *testing.T) {
 	assert.Contains(t, got, "loading config")
 }
 
-func TestRunMergeDriverInstall_BadMaxInputSize(t *testing.T) {
-	dir := t.TempDir()
-	initTestRepo(t, dir)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
-		[]byte("max-input-size: nonsense\n"), 0o644))
-
-	orig := executableFunc
-	t.Cleanup(func() { executableFunc = orig })
-	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
-
-	origWd, _ := os.Getwd()
-	require.NoError(t, os.Chdir(dir))
-	t.Cleanup(func() { _ = os.Chdir(origWd) })
-
-	got := captureStderr(func() {
-		assert.Equal(t, 2, runMergeDriverInstall(nil))
-	})
-	assert.Contains(t, got, "invalid max-input-size")
-}
-
 func TestRunMergeDriverInstall_RejectsWhitespacePath(t *testing.T) {
 	dir := t.TempDir()
 	initTestRepo(t, dir)
@@ -371,14 +268,12 @@ func TestRunMergeDriverInstall_RejectsWhitespacePath(t *testing.T) {
 	assert.Contains(t, got, "whitespace")
 }
 
-func TestRunMergeDriverInstall_NoArgsUsesDiscovery(t *testing.T) {
+func TestRunMergeDriverInstall_NoArgsWritesCanonicalGlobs(t *testing.T) {
 	dir := t.TempDir()
 	initTestRepo(t, dir)
-
-	// Generate a markdown file with a directive so discovery returns
-	// it instead of the PLAN.md/README.md fallback.
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "guide.md"),
-		[]byte("# Guide\n\n<?catalog?>\n<?/catalog?>\n"), 0o644))
+	// .mdsmith.yml ignore patterns become -merge overrides.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
+		[]byte("ignore:\n  - \"vendor/**\"\n"), 0o644))
 
 	orig := executableFunc
 	t.Cleanup(func() { executableFunc = orig })
@@ -392,8 +287,15 @@ func TestRunMergeDriverInstall_NoArgsUsesDiscovery(t *testing.T) {
 		assert.Equal(t, 0, runMergeDriverInstall(nil))
 	})
 	assert.Contains(t, got, "merge driver 'mdsmith' installed")
-	// Make sure the snippet print landed too.
 	assert.Contains(t, got, "git-hook-sync: true")
+
+	attrs, err := os.ReadFile(filepath.Join(dir, ".gitattributes"))
+	require.NoError(t, err)
+	content := string(attrs)
+	assert.Contains(t, content, "*.md merge=mdsmith")
+	assert.Contains(t, content, "*.markdown merge=mdsmith")
+	assert.Contains(t, content, "vendor/** -merge",
+		"ignore patterns from .mdsmith.yml must appear as -merge overrides")
 }
 
 // --- resolveInstalledBinary ---
@@ -562,7 +464,7 @@ func TestEnsurePreMergeCommitHook_CreatesExecutableHook(t *testing.T) {
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md", "README.md"})
+	err := ensurePreMergeCommitHook(dir)
 	require.NoError(t, err)
 
 	hookPath := filepath.Join(dir, ".git", "hooks", "pre-merge-commit")
@@ -577,10 +479,10 @@ func TestEnsurePreMergeCommitHook_CreatesExecutableHook(t *testing.T) {
 	require.NoError(t, err)
 	content := string(data)
 	assert.Contains(t, content, preMergeCommitHookMarker)
-	assert.Contains(t, content, "'/usr/local/bin/mdsmith' fix --",
-		"hook must invoke the resolved mdsmith binary with fix --")
-	assert.Contains(t, content, "'PLAN.md'")
-	assert.Contains(t, content, "'README.md'")
+	assert.Contains(t, content, "'/usr/local/bin/mdsmith' fix . || true",
+		"hook must invoke the resolved mdsmith binary with fix .")
+	assert.Contains(t, content, "git diff --name-only -z -- '*.md' '*.markdown'",
+		"hook must stage modified markdown files via the glob-based diff")
 }
 
 func TestEnsurePreMergeCommitHook_OverwritesManagedHook(t *testing.T) {
@@ -596,13 +498,14 @@ func TestEnsurePreMergeCommitHook_OverwritesManagedHook(t *testing.T) {
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	require.NoError(t, ensurePreMergeCommitHook(dir, []string{"PLAN.md"}))
+	require.NoError(t, ensurePreMergeCommitHook(dir))
 
 	data, err := os.ReadFile(hookPath)
 	require.NoError(t, err)
 	assert.NotContains(t, string(data), "stale content",
 		"managed hook must be replaced, not preserved")
-	assert.Contains(t, string(data), "'PLAN.md'")
+	assert.Contains(t, string(data), "fix . || true",
+		"replaced hook must use the glob-based template")
 }
 
 func TestEnsurePreMergeCommitHook_SetsExecutableBitOnExistingHook(t *testing.T) {
@@ -621,7 +524,7 @@ func TestEnsurePreMergeCommitHook_SetsExecutableBitOnExistingHook(t *testing.T) 
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	require.NoError(t, ensurePreMergeCommitHook(dir, []string{"PLAN.md"}))
+	require.NoError(t, ensurePreMergeCommitHook(dir))
 
 	info, err := os.Stat(hookPath)
 	require.NoError(t, err)
@@ -643,7 +546,7 @@ func TestEnsurePreMergeCommitHook_RefusesUnmanagedHook(t *testing.T) {
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	err := ensurePreMergeCommitHook(dir)
 	require.Error(t, err, "must fail when an unmanaged hook is present")
 
 	data, err := os.ReadFile(hookPath)
@@ -662,7 +565,7 @@ func TestEnsurePreMergeCommitHook_BinaryNotFound(t *testing.T) {
 	}
 	t.Setenv("PATH", "")
 
-	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	err := ensurePreMergeCommitHook(dir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot locate mdsmith binary")
 }
@@ -718,7 +621,7 @@ func TestEnsurePreMergeCommitHook_UnreadableHook(t *testing.T) {
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	err := ensurePreMergeCommitHook(dir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reading existing hook")
 }
@@ -740,7 +643,7 @@ func TestEnsurePreMergeCommitHook_MkdirAllFails(t *testing.T) {
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	err := ensurePreMergeCommitHook(dir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "creating")
 }
@@ -763,7 +666,7 @@ func TestEnsurePreMergeCommitHook_WriteFileFails(t *testing.T) {
 	t.Cleanup(func() { executableFunc = orig })
 	executableFunc = func() (string, error) { return "/usr/local/bin/mdsmith", nil }
 
-	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	err := ensurePreMergeCommitHook(dir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "writing")
 }
@@ -783,7 +686,7 @@ func TestEnsurePreMergeCommitHook_ChmodFails(t *testing.T) {
 		return os.ErrPermission
 	}
 
-	err := ensurePreMergeCommitHook(dir, []string{"PLAN.md"})
+	err := ensurePreMergeCommitHook(dir)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "setting permissions")
 }

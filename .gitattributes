@@ -2,48 +2,12 @@
 # (catalog, include). Resolves section conflicts via mdsmith fix.
 # Run: mdsmith merge-driver install
 # BEGIN mdsmith merge-driver
-AGENTS.md merge=mdsmith
-CLAUDE.md merge=mdsmith
-PLAN.md merge=mdsmith
-docs/guides/index.md merge=mdsmith
-internal/rules/MDS001-line-length/README.md merge=mdsmith
-internal/rules/MDS002-heading-style/README.md merge=mdsmith
-internal/rules/MDS003-heading-increment/README.md merge=mdsmith
-internal/rules/MDS004-first-line-heading/README.md merge=mdsmith
-internal/rules/MDS005-no-duplicate-headings/README.md merge=mdsmith
-internal/rules/MDS006-no-trailing-spaces/README.md merge=mdsmith
-internal/rules/MDS007-no-hard-tabs/README.md merge=mdsmith
-internal/rules/MDS008-no-multiple-blanks/README.md merge=mdsmith
-internal/rules/MDS009-single-trailing-newline/README.md merge=mdsmith
-internal/rules/MDS010-fenced-code-style/README.md merge=mdsmith
-internal/rules/MDS011-fenced-code-language/README.md merge=mdsmith
-internal/rules/MDS012-no-bare-urls/README.md merge=mdsmith
-internal/rules/MDS013-blank-line-around-headings/README.md merge=mdsmith
-internal/rules/MDS014-blank-line-around-lists/README.md merge=mdsmith
-internal/rules/MDS015-blank-line-around-fenced-code/README.md merge=mdsmith
-internal/rules/MDS016-list-indent/README.md merge=mdsmith
-internal/rules/MDS017-no-trailing-punctuation-in-heading/README.md merge=mdsmith
-internal/rules/MDS018-no-emphasis-as-heading/README.md merge=mdsmith
-internal/rules/MDS019-catalog/README.md merge=mdsmith
-internal/rules/MDS020-required-structure/README.md merge=mdsmith
-internal/rules/MDS022-max-file-length/README.md merge=mdsmith
-internal/rules/MDS023-paragraph-readability/README.md merge=mdsmith
-internal/rules/MDS024-paragraph-structure/README.md merge=mdsmith
-internal/rules/MDS025-table-format/README.md merge=mdsmith
-internal/rules/MDS026-table-readability/README.md merge=mdsmith
-internal/rules/MDS027-cross-file-reference-integrity/README.md merge=mdsmith
-internal/rules/MDS028-token-budget/README.md merge=mdsmith
-internal/rules/MDS029-conciseness-scoring/README.md merge=mdsmith
-internal/rules/MDS030-empty-section-body/README.md merge=mdsmith
-internal/rules/MDS031-unclosed-code-block/README.md merge=mdsmith
-internal/rules/MDS032-no-empty-alt-text/README.md merge=mdsmith
-internal/rules/MDS033-directory-structure/README.md merge=mdsmith
-internal/rules/MDS034-markdown-flavor/README.md merge=mdsmith
-internal/rules/MDS035-toc-directive/README.md merge=mdsmith
-internal/rules/MDS036-max-section-length/README.md merge=mdsmith
-internal/rules/MDS037-duplicated-content/README.md merge=mdsmith
-internal/rules/MDS041-no-inline-html/README.md merge=mdsmith
-internal/rules/MDS043-no-reference-style/README.md merge=mdsmith
-internal/rules/MDS046-ordered-list-numbering/README.md merge=mdsmith
-internal/rules/index.md merge=mdsmith
+*.md merge=mdsmith
+*.markdown merge=mdsmith
+demo/** -merge
+internal/rules/*/bad/** -merge
+internal/rules/*/bad.md -merge
+internal/rules/*/good/** -merge
+internal/rules/*/fixed/** -merge
+.claude/worktrees/** -merge
 # END mdsmith merge-driver
