@@ -65,7 +65,7 @@ LSP capabilities the server advertises:
 | `textDocumentSync = Full`         | Re-lint on every change; debounced               |
 | `publishDiagnostics`              | One push after each lint                         |
 | `codeActionProvider`              | Per-diagnostic quick fixes (see below)           |
-| `workspace.configuration`         | Pull `mdsmith.config` and trace level            |
+| `workspace.configuration`         | Pull `mdsmith.config`, `mdsmith.run`, trace      |
 | `workspace.didChangeWatchedFiles` | Re-lint open buffers when `.mdsmith.yml` changes |
 
 The server maps mdsmith JSON diagnostics to LSP

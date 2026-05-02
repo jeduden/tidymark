@@ -81,13 +81,13 @@ Each command is registered in
 `contributes.commands` and bound to a handler in
 `editors/vscode/src/commands/`.
 
-| Command ID                    | Title                              | Action                                                   |
-|-------------------------------|------------------------------------|----------------------------------------------------------|
-| `mdsmith.init`                | mdsmith: Initialize config         | Run `mdsmith init` in the workspace root                 |
-| `mdsmith.mergeDriver.install` | mdsmith: Install Git merge driver  | Run `mdsmith merge-driver install` after confirmation    |
-| `mdsmith.fixWorkspace`        | mdsmith: Fix all Markdown          | Run `mdsmith fix .` against the workspace; show summary  |
-| `mdsmith.kinds.why`           | mdsmith: Explain rule on this file | Pick a rule; open `mdsmith kinds why <file> <rule>` view |
-| `mdsmith.kinds.resolve`       | mdsmith: Show resolved config      | Open `mdsmith kinds resolve <file> --json` virtual doc   |
+| Command ID                    | Title                              | Action                                                          |
+|-------------------------------|------------------------------------|-----------------------------------------------------------------|
+| `mdsmith.init`                | mdsmith: Initialize config         | Run `mdsmith init` in the workspace root                        |
+| `mdsmith.mergeDriver.install` | mdsmith: Install Git merge driver  | Run `mdsmith merge-driver install` after confirmation           |
+| `mdsmith.fixWorkspace`        | mdsmith: Fix all Markdown          | Run `mdsmith fix .` against the workspace; show summary         |
+| `mdsmith.kinds.why`           | mdsmith: Explain rule on this file | Pick a rule; open `mdsmith kinds why <file> <rule> --json` view |
+| `mdsmith.kinds.resolve`       | mdsmith: Show resolved config      | Open `mdsmith kinds resolve <file> --json` virtual doc          |
 
 Each handler spawns the binary, surfaces stderr in
 a `mdsmith` output channel, and shows a
@@ -101,14 +101,15 @@ Fills the gap the SRE reviewer flagged. Per-buffer
 runbooks need the same trailing-space fix.
 
 The handler runs `mdsmith fix .` from the
-workspace root. It parses the `stats:` line. It
-shows a notification: `Fixed 12 of 200 files`. A
-"Show output" button opens the channel.
+workspace root and parses the `stats:` line. The
+CLI's `printRunStats` writes that line to stderr,
+so the handler reads stderr or combined output.
+The notification shows `Fixed 12 of 200 files` with
+a "Show output" button.
 
-The command is gated by a confirmation dialog. It
-touches files outside the active editor.
-Restricted-trust workspaces skip the dialog and
-fail closed.
+A confirmation dialog gates the command, since it
+touches files outside the active editor. Untrusted
+workspaces skip the dialog and fail closed.
 
 #### `mdsmith.kinds.why` and `mdsmith.kinds.resolve`
 
@@ -120,7 +121,8 @@ Closing the tab discards the buffer.
 
 For `kinds.why`, the handler shows a quick-pick of
 diagnostic rule IDs on the active editor; the
-selection drives `mdsmith kinds why <file> <rule>`.
+selection drives `mdsmith kinds why <file> <rule>
+--json`.
 
 ### Workspace trust
 
@@ -230,7 +232,8 @@ feedback.
    shows a notification on non-zero exit.
 4. Implement `mdsmith.fixWorkspace`. Run
    `mdsmith fix .` from the workspace root. Parse
-   the `stats:` line. Show a notification with the
+   the `stats:` line from stderr (see
+   `printRunStats`). Show a notification with the
    fixed-of-total count. Cover with a VS Code
    extension test that mocks the child process.
 5. Implement `mdsmith.kinds.why` and
