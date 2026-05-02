@@ -42,7 +42,7 @@ schema":
    `internal/archetypes` Resolver, and a doc
    directory `docs/background/archetypes/`.
    Documented at
-   [internal/archetypes/archetypes.go](../internal/archetypes/archetypes.go):
+   `internal/archetypes/archetypes.go` (since removed):
    *"An archetype is a Markdown schema file whose
    basename (without the ".md" extension) is the
    archetype name."*
