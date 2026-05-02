@@ -167,7 +167,76 @@ func TestApplySettingsLengthTooSmall(t *testing.T) {
 	assert.Error(t, r.ApplySettings(map[string]any{"length": 2}))
 }
 
-func TestApplySettingsUnknownKey(t *testing.T) {
-	r := newRule()
-	assert.Error(t, r.ApplySettings(map[string]any{"bogus": "x"}))
+func TestCategory(t *testing.T) {
+	assert.Equal(t, "whitespace", newRule().Category())
 }
+
+func TestDefaultSettings(t *testing.T) {
+	ds := newRule().DefaultSettings()
+	assert.Equal(t, "dash", ds["style"])
+	assert.Equal(t, 3, ds["length"])
+	assert.Equal(t, true, ds["require-blank-lines"])
+}
+
+func TestCheckNoBlankLinesRequired(t *testing.T) {
+	r := &Rule{Style: "dash", Length: 3, RequireBlankLines: false}
+	src := []byte("# Title\n---\nText.\n")
+	diags := r.Check(newFile(t, "f.md", src))
+	assert.Empty(t, diags)
+}
+
+func TestFixNoChangesNeeded(t *testing.T) {
+	src := []byte("# Title\n\n---\n\nText.\n")
+	f := newFile(t, "f.md", src)
+	out := newRule().Fix(f)
+	// Should return the original source unchanged.
+	assert.Equal(t, string(f.Source), string(out))
+}
+
+func TestSplitHRLineNoDelimiter(t *testing.T) {
+	prefix, token := splitHRLine("just some text")
+	assert.Equal(t, "just some text", prefix)
+	assert.Equal(t, "", token)
+}
+
+func TestSplitHRLineWithPrefix(t *testing.T) {
+	prefix, token := splitHRLine("> ---")
+	assert.Equal(t, "> ", prefix)
+	assert.Equal(t, "---", token)
+}
+
+func TestStyleNameUnderscore(t *testing.T) {
+	assert.Equal(t, "underscore", styleName('_'))
+}
+
+func TestStyleNameDash(t *testing.T) {
+	assert.Equal(t, "dash", styleName('-'))
+}
+
+func TestIsBlankLineOutOfBounds(t *testing.T) {
+	lines := [][]byte{[]byte("hello\n")}
+	assert.True(t, isBlankLine(lines, -1))
+	assert.True(t, isBlankLine(lines, 5))
+}
+
+func TestApplySettingsNonStringStyle(t *testing.T) {
+	r := newRule()
+	assert.Error(t, r.ApplySettings(map[string]any{"style": 42}))
+}
+
+func TestApplySettingsNonBoolRequireBlankLines(t *testing.T) {
+	r := newRule()
+	assert.Error(t, r.ApplySettings(map[string]any{"require-blank-lines": "yes"}))
+}
+
+func TestApplySettingsLengthFloat64(t *testing.T) {
+	r := newRule()
+	require.NoError(t, r.ApplySettings(map[string]any{"length": float64(4)}))
+	assert.Equal(t, 4, r.Length)
+}
+
+func TestApplySettingsLengthNotInt(t *testing.T) {
+	r := newRule()
+	assert.Error(t, r.ApplySettings(map[string]any{"length": "three"}))
+}
+
