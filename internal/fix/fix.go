@@ -47,21 +47,23 @@ type Fixer struct {
 // lint.File values give catalog (and any other rule that calls
 // f.GetGitignore()) the same matcher the check path would.
 //
-// The cache is keyed on the raw dir string. lint.NewGitignoreMatcher
-// canonicalizes the path internally before walking, so the matcher
-// itself is correctly rooted regardless of whether dir was passed
-// absolute or relative; the cache key just has to be deterministic
-// across calls within a Fix run, which prepareFile guarantees by
-// always passing the same form (filepath.Dir(path) or f.RootDir).
+// The cache key is filepath.Clean(dir). Clean is total (no error
+// path) and idempotent, and it collapses equivalent forms like
+// "./sub" and "sub" / "sub/" so callers passing the same logical
+// directory in slightly different syntactic forms share one cache
+// entry. lint.NewGitignoreMatcher canonicalizes its argument
+// internally (filepath.Abs) before walking, so the matcher itself is
+// correctly rooted even when the cleaned key is still relative.
 func (f *Fixer) cachedGitignore(dir string) *lint.GitignoreMatcher {
 	if f.gitignoreCache == nil {
 		f.gitignoreCache = make(map[string]*lint.GitignoreMatcher)
 	}
-	if m, ok := f.gitignoreCache[dir]; ok {
+	key := filepath.Clean(dir)
+	if m, ok := f.gitignoreCache[key]; ok {
 		return m
 	}
-	m := lint.NewGitignoreMatcher(dir)
-	f.gitignoreCache[dir] = m
+	m := lint.NewGitignoreMatcher(key)
+	f.gitignoreCache[key] = m
 	return m
 }
 
