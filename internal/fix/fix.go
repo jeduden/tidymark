@@ -149,7 +149,7 @@ func (f *Fixer) fixFile(path string) ([]lint.Diagnostic, []lint.Diagnostic, stri
 	beforeDiags, checkErrs := engine.CheckRules(lf, f.Rules, effective)
 	errs = append(errs, append(settingsErrs, checkErrs...)...)
 
-	current := f.applyFixPasses(path, lf.Source, fixable, dirFS, &errs)
+	current := f.applyFixPasses(path, lf.Source, fixable, lf, dirFS, &errs)
 
 	var modified string
 	if !bytes.Equal(lf.Source, current) {
@@ -175,35 +175,44 @@ func (f *Fixer) fixFile(path string) ([]lint.Diagnostic, []lint.Diagnostic, stri
 	return beforeDiags, diags, modified, errs
 }
 
-// buildPostFixFile parses post-fix bytes and mirrors onto the new
-// *lint.File the parse-time and resolution context that the engine
-// runner sets per-file (see runner.go ~line 90-108). Without these,
-// the post-fix CheckRules call would diverge from both the pre-fix
-// call and from `mdsmith check` for rules that consult these fields:
-// MaxInputBytes (catalog/include/requiredstructure secondary reads),
-// StripFrontMatter (cross-file coordinate alignment), GeneratedRanges
-// (generated-section diagnostic suppression), GitignoreFunc (catalog
-// glob filtering).
+// hydrateLintFile copies onto a freshly-parsed *lint.File the parse-
+// time and resolution context that the engine.Runner sets per-file
+// (see runner.go ~line 90-108): FS, RootFS/RootDir, FrontMatter,
+// LineOffset, StripFrontMatter, MaxInputBytes, GitignoreFunc, and
+// GeneratedRanges (recomputed for the parsed bytes). Used by both
+// the post-fix CheckRules call and the parsedFile inside each
+// applyFixPasses iteration so rules see the same File regardless of
+// which Fixer phase invokes them. Without this, fixable rules like
+// catalog (consults GetGitignore for glob filtering) and include
+// (consults MaxInputBytes for secondary reads) silently produce
+// different post-fix bytes than `mdsmith check` would have validated.
+func hydrateLintFile(parsed *lint.File, lf *lint.File, dirFS fs.FS) {
+	parsed.FS = dirFS
+	parsed.RootFS = lf.RootFS
+	parsed.RootDir = lf.RootDir
+	parsed.FrontMatter = lf.FrontMatter
+	parsed.LineOffset = lf.LineOffset
+	parsed.StripFrontMatter = lf.StripFrontMatter
+	parsed.MaxInputBytes = lf.MaxInputBytes
+	parsed.GitignoreFunc = lf.GitignoreFunc
+	parsed.GeneratedRanges = gensection.FindAllGeneratedRanges(parsed)
+}
+
+// buildPostFixFile parses post-fix bytes and hydrates them with the
+// per-file context from lf so the post-fix CheckRules call sees the
+// same lint.File the runner would.
 func buildPostFixFile(path string, source []byte, lf *lint.File, dirFS fs.FS) (*lint.File, error) {
 	finalFile, err := lint.NewFile(path, source)
 	if err != nil {
 		return nil, err
 	}
-	finalFile.FS = dirFS
-	finalFile.RootFS = lf.RootFS
-	finalFile.RootDir = lf.RootDir
-	finalFile.FrontMatter = lf.FrontMatter
-	finalFile.LineOffset = lf.LineOffset
-	finalFile.StripFrontMatter = lf.StripFrontMatter
-	finalFile.MaxInputBytes = lf.MaxInputBytes
-	finalFile.GitignoreFunc = lf.GitignoreFunc
-	finalFile.GeneratedRanges = gensection.FindAllGeneratedRanges(finalFile)
+	hydrateLintFile(finalFile, lf, dirFS)
 	return finalFile, nil
 }
 
 // applyFixPasses repeatedly applies fixable rules until the content stabilizes.
 func (f *Fixer) applyFixPasses(
-	path string, source []byte, fixable []rule.FixableRule, dirFS fs.FS, errs *[]error,
+	path string, source []byte, fixable []rule.FixableRule, lf *lint.File, dirFS fs.FS, errs *[]error,
 ) []byte {
 	const maxPasses = 10
 	current := source
@@ -216,10 +225,7 @@ func (f *Fixer) applyFixPasses(
 				*errs = append(*errs, fmt.Errorf("parsing %q: %w", path, err))
 				break
 			}
-			parsedFile.FS = dirFS
-			if f.RootDir != "" {
-				parsedFile.SetRootDir(f.RootDir)
-			}
+			hydrateLintFile(parsedFile, lf, dirFS)
 
 			diags := fr.Check(parsedFile)
 			if len(diags) == 0 {

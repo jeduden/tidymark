@@ -161,6 +161,137 @@ func TestFix_FilesHaveGitignoreFunc(t *testing.T) {
 	}
 }
 
+// TestFix_FilesHaveGitignoreFuncWithRootDir covers the prepareFile
+// branch where Fixer.RootDir is set (gitignore matcher is anchored at
+// the root rather than the file's directory). Without a test that
+// configures RootDir, the branch flipping gitignoreDir = f.RootDir is
+// never executed.
+func TestFix_FilesHaveGitignoreFuncWithRootDir(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "doc.md")
+	require.NoError(t, os.WriteFile(mdPath, []byte("# Doc\n"), 0o644))
+
+	const ruleName = "gitignore-probe-root"
+	probe := &gitignoreProbeRule{id: "MDS995", name: ruleName}
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			ruleName: {Enabled: true},
+		},
+	}
+
+	fixer := &Fixer{
+		Config:  cfg,
+		Rules:   []rule.Rule{probe},
+		RootDir: dir,
+	}
+
+	result := fixer.Fix([]string{mdPath})
+	require.Empty(t, result.Errors, "unexpected errors: %v", result.Errors)
+	require.Len(t, probe.hasMatcher, 2,
+		"expected pre-fix and post-fix Check calls, got %d", len(probe.hasMatcher))
+	for i, ok := range probe.hasMatcher {
+		assert.True(t, ok,
+			"call %d: f.GetGitignore() returned nil under RootDir mode", i)
+	}
+}
+
+// fixPassProbeRule is a fixable rule that records, on each Check
+// invocation inside applyFixPasses, whether the parsedFile carries
+// the per-file context (MaxInputBytes / StripFrontMatter /
+// GitignoreFunc / GeneratedRanges) that the engine.Runner sets. Its
+// Fix returns the source unchanged so applyFixPasses stabilizes
+// after one iteration.
+type fixPassProbeRule struct {
+	id       string
+	name     string
+	maxBytes []int64
+	stripFM  []bool
+	hasGI    []bool
+	hasRange []bool
+}
+
+func (r *fixPassProbeRule) ID() string       { return r.id }
+func (r *fixPassProbeRule) Name() string     { return r.name }
+func (r *fixPassProbeRule) Category() string { return "test" }
+func (r *fixPassProbeRule) Check(f *lint.File) []lint.Diagnostic {
+	r.maxBytes = append(r.maxBytes, f.MaxInputBytes)
+	r.stripFM = append(r.stripFM, f.StripFrontMatter)
+	r.hasGI = append(r.hasGI, f.GetGitignore() != nil)
+	r.hasRange = append(r.hasRange, len(f.GeneratedRanges) > 0)
+	// Return one diagnostic on the first call so applyFixPasses also
+	// invokes Fix; subsequent calls return nil so the loop stabilizes.
+	if len(r.maxBytes) == 1 {
+		return []lint.Diagnostic{{
+			File: f.Path, Line: 1, Column: 1,
+			RuleID: r.id, RuleName: r.name,
+			Severity: lint.Warning, Message: "trigger fix",
+		}}
+	}
+	return nil
+}
+func (r *fixPassProbeRule) Fix(f *lint.File) []byte { return f.Source }
+
+var _ rule.FixableRule = (*fixPassProbeRule)(nil)
+
+// TestFix_FixPassesHydrateLintFile verifies that the parsedFile used
+// inside applyFixPasses carries the same per-file context that the
+// pre-fix and post-fix CheckRules calls already use. Without this,
+// fixable rules that consult these fields during their own Check or
+// Fix (notably catalog: GetGitignore for glob filtering, include:
+// MaxInputBytes for secondary reads) silently produce different
+// post-fix bytes than `mdsmith check` would have validated against.
+func TestFix_FixPassesHydrateLintFile(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "doc.md")
+	host := "---\ntitle: t\n---\n# Doc\n\n" +
+		"<?catalog\nglob: \"*.md\"\nrow: \"- {filename}\"\n?>\n" +
+		"- doc.md\n" +
+		"<?/catalog?>\n"
+	require.NoError(t, os.WriteFile(mdPath, []byte(host), 0o644))
+
+	const ruleName = "fix-pass-probe"
+	const wantMaxBytes int64 = 8192
+	probe := &fixPassProbeRule{id: "MDS996", name: ruleName}
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			ruleName: {Enabled: true},
+		},
+	}
+
+	fixer := &Fixer{
+		Config:           cfg,
+		Rules:            []rule.Rule{probe},
+		StripFrontMatter: true,
+		MaxInputBytes:    wantMaxBytes,
+	}
+
+	result := fixer.Fix([]string{mdPath})
+	require.Empty(t, result.Errors, "unexpected errors: %v", result.Errors)
+
+	// applyFixPasses calls Check at least once on parsedFile; that
+	// parsedFile must carry the per-file context.
+	require.NotEmpty(t, probe.maxBytes,
+		"fixable rule was never invoked inside applyFixPasses")
+	for i, got := range probe.maxBytes {
+		assert.Equal(t, wantMaxBytes, got,
+			"fix-pass call %d: MaxInputBytes not propagated to parsedFile", i)
+	}
+	for i, got := range probe.stripFM {
+		assert.True(t, got,
+			"fix-pass call %d: StripFrontMatter not propagated to parsedFile", i)
+	}
+	for i, got := range probe.hasGI {
+		assert.True(t, got,
+			"fix-pass call %d: GitignoreFunc not propagated to parsedFile", i)
+	}
+	for i, got := range probe.hasRange {
+		assert.True(t, got,
+			"fix-pass call %d: GeneratedRanges not populated on parsedFile (catalog body unprotected)", i)
+	}
+}
+
 // fieldRecordingRule captures f.MaxInputBytes and f.StripFrontMatter
 // on every Check invocation. Rules in the wild (catalog, include,
 // duplicatedcontent, requiredstructure, crossfilereferenceintegrity)
