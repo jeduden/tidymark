@@ -408,4 +408,3 @@ func ApplyCategories(
 func matchesAny(patterns []string, filePath string) bool {
 	return globMatchAny(patterns, filePath)
 }
-

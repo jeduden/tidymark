@@ -68,7 +68,6 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 	return nil
 }
 
-
 // DefaultSettings implements rule.Configurable.
 func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
