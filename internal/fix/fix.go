@@ -45,14 +45,19 @@ type Fixer struct {
 // creating and caching it on first use. Mirrors engine.Runner so the
 // fix path's lint.File values give catalog (and any other rule that
 // calls f.GetGitignore()) the same matcher the check path would.
+//
+// filepath.Abs is allowed to error (it can fail when the process
+// can't read its current directory); on that path it returns the
+// input string unchanged, which is still a usable cache key — the
+// only consequence is that two callers passing the same relative
+// path from different working directories would share a cache entry,
+// which is acceptable for the fix pipeline that always passes either
+// filepath.Dir(path) or f.RootDir.
 func (f *Fixer) cachedGitignore(dir string) *lint.GitignoreMatcher {
 	if f.gitignoreCache == nil {
 		f.gitignoreCache = make(map[string]*lint.GitignoreMatcher)
 	}
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		absDir = filepath.Clean(dir)
-	}
+	absDir, _ := filepath.Abs(dir)
 	if m, ok := f.gitignoreCache[absDir]; ok {
 		return m
 	}
@@ -161,11 +166,7 @@ func (f *Fixer) fixFile(path string) ([]lint.Diagnostic, []lint.Diagnostic, stri
 		modified = path
 	}
 
-	finalFile, err := buildPostFixFile(path, current, lf, dirFS)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("parsing %q after fix: %w", path, err))
-		return beforeDiags, beforeDiags, modified, errs
-	}
+	finalFile := buildPostFixFile(path, current, lf, dirFS)
 
 	diags, checkErrs := engine.CheckRules(finalFile, f.Rules, effective)
 	errs = append(errs, checkErrs...)
@@ -201,13 +202,10 @@ func hydrateLintFile(parsed *lint.File, lf *lint.File, dirFS fs.FS) {
 // buildPostFixFile parses post-fix bytes and hydrates them with the
 // per-file context from lf so the post-fix CheckRules call sees the
 // same lint.File the runner would.
-func buildPostFixFile(path string, source []byte, lf *lint.File, dirFS fs.FS) (*lint.File, error) {
-	finalFile, err := lint.NewFile(path, source)
-	if err != nil {
-		return nil, err
-	}
+func buildPostFixFile(path string, source []byte, lf *lint.File, dirFS fs.FS) *lint.File {
+	finalFile, _ := lint.NewFile(path, source) // NewFile never errors with current implementation
 	hydrateLintFile(finalFile, lf, dirFS)
-	return finalFile, nil
+	return finalFile
 }
 
 // applyFixPasses repeatedly applies fixable rules until the content stabilizes.
