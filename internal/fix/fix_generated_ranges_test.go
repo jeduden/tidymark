@@ -228,32 +228,47 @@ func TestFix_FilesHaveGitignoreFuncWithRootDir(t *testing.T) {
 	}
 }
 
-// fixPassProbeRule is a fixable rule that records, on each Check
-// invocation inside applyFixPasses, whether the parsedFile carries
-// the per-file context (MaxInputBytes / StripFrontMatter /
-// GitignoreFunc / GeneratedRanges) that the engine.Runner sets. Its
-// Fix returns the source unchanged so applyFixPasses stabilizes
-// after one iteration.
+// fileSnapshot records the per-file context fields that should be
+// hydrated identically across pre-fix Check, fix-pass Check, fix-pass
+// Fix, and post-fix Check. Captured on every invocation so the test
+// can assert hydration in each phase independently.
+type fileSnapshot struct {
+	maxBytes int64
+	stripFM  bool
+	hasGI    bool
+	hasRange bool
+}
+
+func snapshotOf(f *lint.File) fileSnapshot {
+	return fileSnapshot{
+		maxBytes: f.MaxInputBytes,
+		stripFM:  f.StripFrontMatter,
+		hasGI:    f.GetGitignore() != nil,
+		hasRange: len(f.GeneratedRanges) > 0,
+	}
+}
+
+// fixPassProbeRule is a fixable rule that records every Check and
+// Fix invocation it receives. Check returns a diagnostic on its
+// second call so that applyFixPasses (which runs Check after the
+// pre-fix engine.CheckRules has already run Check once) sees a
+// non-empty diagnostic list and is forced to call Fix. Fix returns
+// the source unchanged so applyFixPasses stabilizes after one
+// iteration.
 type fixPassProbeRule struct {
-	id       string
-	name     string
-	maxBytes []int64
-	stripFM  []bool
-	hasGI    []bool
-	hasRange []bool
+	id           string
+	name         string
+	checkSnaps   []fileSnapshot
+	fixSnaps     []fileSnapshot
+	triggerOnNth int // 1-based: which Check call returns a diag
 }
 
 func (r *fixPassProbeRule) ID() string       { return r.id }
 func (r *fixPassProbeRule) Name() string     { return r.name }
 func (r *fixPassProbeRule) Category() string { return "test" }
 func (r *fixPassProbeRule) Check(f *lint.File) []lint.Diagnostic {
-	r.maxBytes = append(r.maxBytes, f.MaxInputBytes)
-	r.stripFM = append(r.stripFM, f.StripFrontMatter)
-	r.hasGI = append(r.hasGI, f.GetGitignore() != nil)
-	r.hasRange = append(r.hasRange, len(f.GeneratedRanges) > 0)
-	// Return one diagnostic on the first call so applyFixPasses also
-	// invokes Fix; subsequent calls return nil so the loop stabilizes.
-	if len(r.maxBytes) == 1 {
+	r.checkSnaps = append(r.checkSnaps, snapshotOf(f))
+	if len(r.checkSnaps) == r.triggerOnNth {
 		return []lint.Diagnostic{{
 			File: f.Path, Line: 1, Column: 1,
 			RuleID: r.id, RuleName: r.name,
@@ -262,17 +277,31 @@ func (r *fixPassProbeRule) Check(f *lint.File) []lint.Diagnostic {
 	}
 	return nil
 }
-func (r *fixPassProbeRule) Fix(f *lint.File) []byte { return f.Source }
+func (r *fixPassProbeRule) Fix(f *lint.File) []byte {
+	r.fixSnaps = append(r.fixSnaps, snapshotOf(f))
+	return f.Source
+}
 
 var _ rule.FixableRule = (*fixPassProbeRule)(nil)
 
 // TestFix_FixPassesHydrateLintFile verifies that the parsedFile used
 // inside applyFixPasses carries the same per-file context that the
-// pre-fix and post-fix CheckRules calls already use. Without this,
-// fixable rules that consult these fields during their own Check or
-// Fix (notably catalog: GetGitignore for glob filtering, include:
-// MaxInputBytes for secondary reads) silently produce different
-// post-fix bytes than `mdsmith check` would have validated against.
+// pre-fix and post-fix CheckRules calls already use, AND that the
+// hydration is present when applyFixPasses calls fr.Fix (not just
+// fr.Check). Without this, fixable rules that consult these fields
+// during their own Check or Fix (notably catalog: GetGitignore for
+// glob filtering, include: MaxInputBytes for secondary reads)
+// silently produce different post-fix bytes than `mdsmith check`
+// would have validated against.
+//
+// Phase layout (one fixable rule, Fix returns same source):
+//  1. pre-fix engine.CheckRules → Check call #1
+//  2. applyFixPasses pass 1     → Check call #2, then Fix call #1
+//     (loop sees source unchanged → break)
+//  3. post-fix engine.CheckRules → Check call #3
+//
+// The probe is configured to return a diagnostic on Check call #2 so
+// that step 2's Fix actually fires.
 func TestFix_FixPassesHydrateLintFile(t *testing.T) {
 	dir := t.TempDir()
 	mdPath := filepath.Join(dir, "doc.md")
@@ -284,7 +313,7 @@ func TestFix_FixPassesHydrateLintFile(t *testing.T) {
 
 	const ruleName = "fix-pass-probe"
 	const wantMaxBytes int64 = 8192
-	probe := &fixPassProbeRule{id: "MDS996", name: ruleName}
+	probe := &fixPassProbeRule{id: "MDS996", name: ruleName, triggerOnNth: 2}
 
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{
@@ -302,26 +331,22 @@ func TestFix_FixPassesHydrateLintFile(t *testing.T) {
 	result := fixer.Fix([]string{mdPath})
 	require.Empty(t, result.Errors, "unexpected errors: %v", result.Errors)
 
-	// applyFixPasses calls Check at least once on parsedFile; that
-	// parsedFile must carry the per-file context.
-	require.NotEmpty(t, probe.maxBytes,
-		"fixable rule was never invoked inside applyFixPasses")
-	for i, got := range probe.maxBytes {
-		assert.Equal(t, wantMaxBytes, got,
-			"fix-pass call %d: MaxInputBytes not propagated to parsedFile", i)
+	// Three Check calls (pre-fix, fix-pass, post-fix) and exactly
+	// one Fix call (from inside applyFixPasses). If the fix-pass
+	// Check had no diagnostic to trigger Fix, fixSnaps would be
+	// empty — that is the regression this test guards against.
+	require.Len(t, probe.checkSnaps, 3,
+		"expected 3 Check calls (pre-fix + fix-pass + post-fix), got %d", len(probe.checkSnaps))
+	require.Len(t, probe.fixSnaps, 1,
+		"expected 1 Fix call from inside applyFixPasses, got %d", len(probe.fixSnaps))
+
+	want := fileSnapshot{maxBytes: wantMaxBytes, stripFM: true, hasGI: true, hasRange: true}
+	phases := []string{"pre-fix Check", "fix-pass Check", "post-fix Check"}
+	for i, got := range probe.checkSnaps {
+		assert.Equal(t, want, got, "%s: per-file context not hydrated", phases[i])
 	}
-	for i, got := range probe.stripFM {
-		assert.True(t, got,
-			"fix-pass call %d: StripFrontMatter not propagated to parsedFile", i)
-	}
-	for i, got := range probe.hasGI {
-		assert.True(t, got,
-			"fix-pass call %d: GitignoreFunc not propagated to parsedFile", i)
-	}
-	for i, got := range probe.hasRange {
-		assert.True(t, got,
-			"fix-pass call %d: GeneratedRanges not populated on parsedFile (catalog body unprotected)", i)
-	}
+	assert.Equal(t, want, probe.fixSnaps[0],
+		"fix-pass Fix: per-file context not hydrated (catalog/include rules would silently behave differently)")
 }
 
 // fieldRecordingRule captures f.MaxInputBytes and f.StripFrontMatter
