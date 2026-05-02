@@ -135,17 +135,11 @@ func (f *Fixer) fixFile(path string) ([]lint.Diagnostic, []lint.Diagnostic, stri
 		modified = path
 	}
 
-	finalFile, err := lint.NewFile(path, current)
+	finalFile, err := buildPostFixFile(path, current, lf, dirFS)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("parsing %q after fix: %w", path, err))
 		return beforeDiags, beforeDiags, modified, errs
 	}
-	finalFile.FS = dirFS
-	finalFile.RootFS = lf.RootFS
-	finalFile.RootDir = lf.RootDir
-	finalFile.FrontMatter = lf.FrontMatter
-	finalFile.LineOffset = lf.LineOffset
-	finalFile.GeneratedRanges = gensection.FindAllGeneratedRanges(finalFile)
 
 	diags, checkErrs := engine.CheckRules(finalFile, f.Rules, effective)
 	errs = append(errs, checkErrs...)
@@ -153,6 +147,30 @@ func (f *Fixer) fixFile(path string) ([]lint.Diagnostic, []lint.Diagnostic, stri
 		explain.Attach(diags, f.Config, path, fmKinds)
 	}
 	return beforeDiags, diags, modified, errs
+}
+
+// buildPostFixFile parses post-fix bytes and mirrors onto the new
+// *lint.File the parse-time and resolution context that the engine
+// runner sets per-file (see runner.go ~line 90-108). Without these,
+// the post-fix CheckRules call would diverge from both the pre-fix
+// call and from `mdsmith check` for rules that consult these fields:
+// MaxInputBytes (catalog/include/requiredstructure secondary reads),
+// StripFrontMatter (cross-file coordinate alignment), GeneratedRanges
+// (generated-section diagnostic suppression).
+func buildPostFixFile(path string, source []byte, lf *lint.File, dirFS fs.FS) (*lint.File, error) {
+	finalFile, err := lint.NewFile(path, source)
+	if err != nil {
+		return nil, err
+	}
+	finalFile.FS = dirFS
+	finalFile.RootFS = lf.RootFS
+	finalFile.RootDir = lf.RootDir
+	finalFile.FrontMatter = lf.FrontMatter
+	finalFile.LineOffset = lf.LineOffset
+	finalFile.StripFrontMatter = lf.StripFrontMatter
+	finalFile.MaxInputBytes = lf.MaxInputBytes
+	finalFile.GeneratedRanges = gensection.FindAllGeneratedRanges(finalFile)
+	return finalFile, nil
 }
 
 // applyFixPasses repeatedly applies fixable rules until the content stabilizes.
