@@ -57,7 +57,8 @@ func Load(path string) (*Config, error) {
 	if keys["archetypes"] {
 		cfg.Deprecations = append(cfg.Deprecations,
 			"config key `archetypes` has been removed; "+
-				"migrate to `kinds` with explicit `schema:` paths — "+
+				"set `required-structure.schema:` to an explicit path, "+
+				"or declare a kind under `kinds:` — "+
 				"see docs/guides/file-kinds.md")
 	}
 

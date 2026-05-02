@@ -1347,8 +1347,10 @@ func TestLoad_ArchetypesKeyEmitsDeprecation(t *testing.T) {
 	for _, d := range cfg.Deprecations {
 		if strings.Contains(d, "archetypes") {
 			found = true
+			assert.Contains(t, d, "schema:",
+				"deprecation should offer the direct schema: migration")
 			assert.Contains(t, d, "kinds",
-				"deprecation should mention migration to 'kinds'")
+				"deprecation should also mention 'kinds' as an option")
 			break
 		}
 	}
