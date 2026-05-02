@@ -61,6 +61,11 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return fmt.Errorf("required-structure: %w", err)
 			}
 			r.Placeholders = toks
+		case "archetype", "archetype-roots":
+			return fmt.Errorf(
+				"required-structure: setting %q has been removed; "+
+					"use `schema:` with an explicit path, or declare a kind "+
+					"under `kinds:` — see docs/guides/file-kinds.md", k)
 		default:
 			return fmt.Errorf("required-structure: unknown setting %q", k)
 		}

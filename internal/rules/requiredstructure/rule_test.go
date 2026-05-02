@@ -132,6 +132,18 @@ func TestApplySettings_UnknownSetting(t *testing.T) {
 	require.Error(t, err, "expected error for unknown setting")
 }
 
+func TestApplySettings_RemovedArchetypeSettings(t *testing.T) {
+	for _, key := range []string{"archetype", "archetype-roots"} {
+		t.Run(key, func(t *testing.T) {
+			r := &Rule{}
+			err := r.ApplySettings(map[string]any{key: "anything"})
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "has been removed")
+			require.Contains(t, err.Error(), "kinds")
+		})
+	}
+}
+
 func TestDefaultSettings(t *testing.T) {
 	r := &Rule{}
 	ds := r.DefaultSettings()
