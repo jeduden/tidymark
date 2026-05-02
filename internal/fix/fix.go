@@ -33,6 +33,32 @@ type Fixer struct {
 	// remaining diagnostic so output formatters can render an
 	// explanation trailer.
 	Explain bool
+
+	// gitignoreCache caches GitignoreMatchers by directory so the
+	// matcher tree is walked once per directory across a fix run,
+	// matching the engine.Runner cache contract that catalog and
+	// other gitignore-aware rules expect.
+	gitignoreCache map[string]*lint.GitignoreMatcher
+}
+
+// cachedGitignore returns a GitignoreMatcher for the given directory,
+// creating and caching it on first use. Mirrors engine.Runner so the
+// fix path's lint.File values give catalog (and any other rule that
+// calls f.GetGitignore()) the same matcher the check path would.
+func (f *Fixer) cachedGitignore(dir string) *lint.GitignoreMatcher {
+	if f.gitignoreCache == nil {
+		f.gitignoreCache = make(map[string]*lint.GitignoreMatcher)
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		absDir = filepath.Clean(dir)
+	}
+	if m, ok := f.gitignoreCache[absDir]; ok {
+		return m
+	}
+	m := lint.NewGitignoreMatcher(absDir)
+	f.gitignoreCache[absDir] = m
+	return m
 }
 
 // Result holds the outcome of a fix run.
@@ -156,7 +182,8 @@ func (f *Fixer) fixFile(path string) ([]lint.Diagnostic, []lint.Diagnostic, stri
 // call and from `mdsmith check` for rules that consult these fields:
 // MaxInputBytes (catalog/include/requiredstructure secondary reads),
 // StripFrontMatter (cross-file coordinate alignment), GeneratedRanges
-// (generated-section diagnostic suppression).
+// (generated-section diagnostic suppression), GitignoreFunc (catalog
+// glob filtering).
 func buildPostFixFile(path string, source []byte, lf *lint.File, dirFS fs.FS) (*lint.File, error) {
 	finalFile, err := lint.NewFile(path, source)
 	if err != nil {
@@ -169,6 +196,7 @@ func buildPostFixFile(path string, source []byte, lf *lint.File, dirFS fs.FS) (*
 	finalFile.LineOffset = lf.LineOffset
 	finalFile.StripFrontMatter = lf.StripFrontMatter
 	finalFile.MaxInputBytes = lf.MaxInputBytes
+	finalFile.GitignoreFunc = lf.GitignoreFunc
 	finalFile.GeneratedRanges = gensection.FindAllGeneratedRanges(finalFile)
 	return finalFile, nil
 }
@@ -241,10 +269,17 @@ func (f *Fixer) prepareFile(path string, source []byte) (*lint.File, fs.FS, []st
 		return nil, nil, nil, fmt.Errorf("parsing %q: %w", path, err)
 	}
 	lf.MaxInputBytes = f.MaxInputBytes
-	dirFS := os.DirFS(filepath.Dir(path))
+	dir := filepath.Dir(path)
+	dirFS := os.DirFS(dir)
 	lf.FS = dirFS
+	gitignoreDir := dir
 	if f.RootDir != "" {
 		lf.SetRootDir(f.RootDir)
+		gitignoreDir = f.RootDir
+	}
+	gd := gitignoreDir // capture for closure
+	lf.GitignoreFunc = func() *lint.GitignoreMatcher {
+		return f.cachedGitignore(gd)
 	}
 	kinds, err := lint.ParseFrontMatterKinds(lf.FrontMatter)
 	if err != nil {

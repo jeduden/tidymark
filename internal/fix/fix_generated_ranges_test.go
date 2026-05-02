@@ -103,6 +103,64 @@ func TestFix_SuppressesDiagnosticsInsideCatalogBody(t *testing.T) {
 		result.Failures)
 }
 
+// gitignoreProbeRule records, on every Check call, whether the file
+// has a non-nil GitignoreFunc set. Rules in the wild (catalog uses
+// f.GetGitignore() in resolveGitignore) silently lose gitignore
+// filtering when the matcher is nil — so a missing GitignoreFunc on
+// the Fixer's lint.File causes catalog output to disagree between
+// `mdsmith fix` and `mdsmith check` on the same source bytes.
+type gitignoreProbeRule struct {
+	id         string
+	name       string
+	hasMatcher []bool
+}
+
+func (r *gitignoreProbeRule) ID() string       { return r.id }
+func (r *gitignoreProbeRule) Name() string     { return r.name }
+func (r *gitignoreProbeRule) Category() string { return "test" }
+func (r *gitignoreProbeRule) Check(f *lint.File) []lint.Diagnostic {
+	r.hasMatcher = append(r.hasMatcher, f.GetGitignore() != nil)
+	return nil
+}
+
+// TestFix_FilesHaveGitignoreFunc verifies that the Fixer wires
+// GitignoreFunc onto its *lint.File the same way the Runner does, so
+// rules that consult f.GetGitignore() (catalog) behave identically
+// during fix and check. Without this, a catalog directive whose glob
+// matches gitignored files would include those files in the fix-time
+// regenerated catalog body but exclude them at check time.
+func TestFix_FilesHaveGitignoreFunc(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "doc.md")
+	require.NoError(t, os.WriteFile(mdPath, []byte("# Doc\n"), 0o644))
+
+	const ruleName = "gitignore-probe"
+	probe := &gitignoreProbeRule{id: "MDS997", name: ruleName}
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			ruleName: {Enabled: true},
+		},
+	}
+
+	fixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{probe},
+	}
+
+	result := fixer.Fix([]string{mdPath})
+	require.Empty(t, result.Errors, "unexpected errors: %v", result.Errors)
+
+	// Pre-fix and post-fix Check calls; both must see a usable
+	// gitignore matcher (parity with engine.Runner's per-file setup).
+	require.Len(t, probe.hasMatcher, 2,
+		"expected one Check call pre-fix and one post-fix, got %d", len(probe.hasMatcher))
+	for i, ok := range probe.hasMatcher {
+		assert.True(t, ok,
+			"call %d: f.GetGitignore() returned nil — Fixer did not wire GitignoreFunc", i)
+	}
+}
+
 // fieldRecordingRule captures f.MaxInputBytes and f.StripFrontMatter
 // on every Check invocation. Rules in the wild (catalog, include,
 // duplicatedcontent, requiredstructure, crossfilereferenceintegrity)
