@@ -63,57 +63,60 @@ func (r *Runner) Run(paths []string) *Result {
 			continue
 		}
 		res.FilesChecked++
-
-		r.log().Printf("file: %s", path)
-
-		source, err := lint.ReadFileLimited(path, r.MaxInputBytes)
-		if err != nil {
-			res.Errors = append(res.Errors, fmt.Errorf("reading %q: %w", path, err))
-			continue
-		}
-
-		f, err := lint.NewFileFromSource(path, source, r.StripFrontMatter)
-		if err != nil {
-			res.Errors = append(res.Errors, fmt.Errorf("parsing %q: %w", path, err))
-			continue
-		}
-		f.MaxInputBytes = r.MaxInputBytes
-		dir := filepath.Dir(path)
-		f.FS = os.DirFS(dir)
-		gitignoreDir := dir
-		if r.RootDir != "" {
-			f.SetRootDir(r.RootDir)
-			gitignoreDir = r.RootDir
-		}
-		gd := gitignoreDir // capture for closure
-		f.GitignoreFunc = func() *lint.GitignoreMatcher {
-			return r.cachedGitignore(gd)
-		}
-
-		fmKinds, err := r.parseFrontMatterKinds(path, f.FrontMatter)
-		if err != nil {
-			res.Errors = append(res.Errors, err)
-			continue
-		}
-
-		f.GeneratedRanges = gensection.FindAllGeneratedRanges(f)
-
-		effective := r.effectiveWithCategories(path, fmKinds)
-
-		mdRules := r.markdownRules()
-		r.logRules(mdRules, effective)
-
-		diags, errs := CheckRules(f, mdRules, effective)
-		if r.Explain {
-			explain.Attach(diags, r.Config, path, fmKinds)
-		}
-		res.Diagnostics = append(res.Diagnostics, diags...)
-		res.Errors = append(res.Errors, errs...)
+		r.processFile(path, res)
 	}
 
 	res.Diagnostics = DedupeDiagnostics(res.Diagnostics)
 	sortDiagnostics(res.Diagnostics)
 	return res
+}
+
+// processFile reads, parses, and checks a single file, appending results to res.
+func (r *Runner) processFile(path string, res *Result) {
+	r.log().Printf("file: %s", path)
+
+	source, err := lint.ReadFileLimited(path, r.MaxInputBytes)
+	if err != nil {
+		res.Errors = append(res.Errors, fmt.Errorf("reading %q: %w", path, err))
+		return
+	}
+
+	f, err := lint.NewFileFromSource(path, source, r.StripFrontMatter)
+	if err != nil {
+		res.Errors = append(res.Errors, fmt.Errorf("parsing %q: %w", path, err))
+		return
+	}
+	f.MaxInputBytes = r.MaxInputBytes
+	dir := filepath.Dir(path)
+	f.FS = os.DirFS(dir)
+	gitignoreDir := dir
+	if r.RootDir != "" {
+		f.SetRootDir(r.RootDir)
+		gitignoreDir = r.RootDir
+	}
+	gd := gitignoreDir // capture for closure
+	f.GitignoreFunc = func() *lint.GitignoreMatcher {
+		return r.cachedGitignore(gd)
+	}
+
+	fmKinds, err := r.parseFrontMatterKinds(path, f.FrontMatter)
+	if err != nil {
+		res.Errors = append(res.Errors, err)
+		return
+	}
+
+	f.GeneratedRanges = gensection.FindAllGeneratedRanges(f)
+
+	effective := r.effectiveWithCategories(path, fmKinds)
+	mdRules := r.markdownRules()
+	r.logRules(mdRules, effective)
+
+	diags, errs := CheckRules(f, mdRules, effective)
+	if r.Explain {
+		explain.Attach(diags, r.Config, path, fmKinds)
+	}
+	res.Diagnostics = append(res.Diagnostics, diags...)
+	res.Errors = append(res.Errors, errs...)
 }
 
 // DedupeDiagnostics returns a new slice with duplicate (file, line,
