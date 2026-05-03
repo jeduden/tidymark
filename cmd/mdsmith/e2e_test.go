@@ -1260,12 +1260,11 @@ func TestE2E_MergeDriver_Install(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		assert.NotZero(t, info.Mode()&0o111, "hook must be executable")
 	}
+	// The exact hook content is verified by the golden-file test in
+	// internal/githooks; here we confirm that install wrote a non-empty file.
 	hookData, err := os.ReadFile(hookPath)
 	require.NoError(t, err)
-	assert.Contains(t, string(hookData), " fix .\n",
-		"hook must invoke `mdsmith fix .` and capture its raw exit status; got:\n%s", hookData)
-	assert.Contains(t, string(hookData), "git diff --name-only -- '*.md' '*.markdown'",
-		"hook must stage modified markdown files via the glob-based diff")
+	assert.NotEmpty(t, hookData, "installed hook must not be empty")
 }
 
 func TestE2E_MergeDriver_Install_Idempotent(t *testing.T) {
