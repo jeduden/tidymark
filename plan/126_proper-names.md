@@ -1,7 +1,7 @@
 ---
 id: 126
 title: Proper-name capitalization rule
-status: "🔲"
+status: "✅"
 summary: >-
   New rule MDS050 that pins capitalization for a
   user-defined list of proper names (e.g. `JavaScript`,
@@ -116,22 +116,22 @@ proper name "{actual}" should be "{configured}"
 
 ## Tasks
 
-1. Scaffold `internal/rules/propernames/` with
+1. [x] Scaffold `internal/rules/propernames/` with
    `rule.go`, `rule_test.go`, and the `init()`
    `rule.Register` call.
-2. Implement a whole-word matcher with a small
+2. [x] Implement a whole-word matcher with a small
    helper covering ASCII letter/digit/underscore as
    the word class.
-3. Implement `Check()` walking visible-prose nodes,
+3. [x] Implement `Check()` walking visible-prose nodes,
    then optionally code/HTML nodes per setting.
-4. Implement `rule.Configurable` for `names`,
+4. [x] Implement `rule.Configurable` for `names`,
    `check-code`, and `check-html`. Implement
    `rule.ListMerger.SettingMergeMode("names")`
    returning `rule.MergeAppend`.
-5. Implement `Fix()` rewriting the matched bytes.
-6. Implement `rule.Defaultable` returning `false`.
-7. Register as MDS050 in category `prose`.
-8. Add fixture tests in
+5. [x] Implement `Fix()` rewriting the matched bytes.
+6. [x] Implement `rule.Defaultable` returning `false`.
+7. [x] Register as MDS050 in category `prose`.
+8. [x] Add fixture tests in
    `internal/rules/MDS050-proper-names/` covering:
    correct casing (clean), wrong casing in prose,
    wrong casing in heading, wrong casing in link
@@ -140,32 +140,32 @@ proper name "{actual}" should be "{configured}"
    `check-code: true`), word-boundary edge cases
    (`JavaScripts`, `GitHubber`), and append merge
    behavior across kind layers.
-9. Add rule README following the MDS012 template.
+9. [x] Add rule README following the MDS012 template.
 
 ## Acceptance Criteria
 
-- [ ] `JavaScript is fun` with `names: [JavaScript]`
+- [x] `JavaScript is fun` with `names: [JavaScript]`
       emits no diagnostic.
-- [ ] `Javascript is fun` emits one diagnostic and
+- [x] `Javascript is fun` emits one diagnostic and
       fixes to `JavaScript is fun`.
-- [ ] `JAVASCRIPT` emits one diagnostic.
-- [ ] `JavaScripts` (trailing letter) emits one
+- [x] `JAVASCRIPT` emits one diagnostic.
+- [x] `JavaScripts` (trailing letter) emits one
       diagnostic on the `JavaScript` portion.
-- [ ] `GitHubber` does not match `GitHub` (no
+- [x] `GitHubber` does not match `GitHub` (no
       diagnostic).
-- [ ] Heading `# Github` emits one diagnostic.
-- [ ] `[Github](https://github.com)` emits one
+- [x] Heading `# Github` emits one diagnostic.
+- [x] `[Github](https://github.com)` emits one
       diagnostic on the link text only — the URL is
       not checked.
-- [ ] An inline code span `` `javascript` `` emits
+- [x] An inline code span `` `javascript` `` emits
       no diagnostic when `check-code: false`.
-- [ ] A fenced code block containing `javascript`
+- [x] A fenced code block containing `javascript`
       emits a diagnostic only when `check-code: true`.
-- [ ] `names:` set in a kind layer and again in an
+- [x] `names:` set in a kind layer and again in an
       override appends — both names are checked.
-- [ ] Rule is disabled by default.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
-- [ ] `mdsmith check .` passes on the repo with the
+- [x] Rule is disabled by default.
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
+- [x] `mdsmith check .` passes on the repo with the
       rule disabled (no regression for existing
       docs).

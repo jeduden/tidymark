@@ -37,7 +37,7 @@ footer: |
 | 122 | 🔲     | sonnet | [VS Code hover help and palette commands](plan/122_vscode-hover-and-palette.md)                      |
 | 124 | 🔲     | sonnet | [No space inside code spans rule](plan/124_no-space-in-code-spans.md)                                |
 | 125 | 🔲     | sonnet | [No space inside link text rule](plan/125_no-space-in-link-text.md)                                  |
-| 126 | 🔲     | sonnet | [Proper-name capitalization rule](plan/126_proper-names.md)                                          |
+| 126 | ✅     | sonnet | [Proper-name capitalization rule](plan/126_proper-names.md)                                          |
 | 127 | 🔲     | sonnet | [Single H1 per file rule](plan/127_single-h1.md)                                                     |
 | 128 | 🔲     | sonnet | [Reject undefined reference-link labels](plan/128_no-undefined-reference-labels.md)                  |
 | 129 | 🔲     | sonnet | [Flag unused or duplicate link reference definitions](plan/129_no-unused-link-definitions.md)        |

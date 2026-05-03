@@ -66,4 +66,5 @@ row: "| [{id}]({filename}) | `{name}` | {status} | {description} |"
 | [MDS046](MDS046-ordered-list-numbering/README.md)             | `ordered-list-numbering`             | ready     | Ordered list items must be numbered in the configured style.                                                        |
 | [MDS047](MDS047-ambiguous-emphasis/README.md)                 | `ambiguous-emphasis`                 | ready     | Forbid emphasis sequences whose meaning a human cannot predict at a glance.                                         |
 | [MDS048](MDS048-git-hook-sync/README.md)                      | `git-hook-sync`                      | ready     | Git artifacts must match the canonical glob-based template derived from .mdsmith.yml.                               |
+| [MDS050](MDS050-proper-names/README.md)                       | `proper-names`                       | ready     | Configured proper names (e.g. JavaScript, GitHub) must appear with their canonical casing.                          |
 <?/catalog?>
