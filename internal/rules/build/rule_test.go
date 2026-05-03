@@ -129,6 +129,24 @@ func TestValidateHard_DotDotOutput(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `".." path component`)
 }
 
+func TestValidateHard_AbsoluteOutput(t *testing.T) {
+	r := ruleWithRender()
+	diags := r.validateHard("test.md", 1, map[string]string{
+		"recipe": "render", "source": "a.svg", "output": "/tmp/out.png",
+	})
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "relative path")
+}
+
+func TestValidateHard_EmptyRequiredParamValue(t *testing.T) {
+	r := ruleWithRender()
+	diags := r.validateHard("test.md", 1, map[string]string{
+		"recipe": "render", "output": "out.png", "source": "   ",
+	})
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, `missing required parameter "source"`)
+}
+
 func TestValidateHard_UnknownRecipe(t *testing.T) {
 	r := &Rule{}
 	diags := r.validateHard("test.md", 1, map[string]string{
@@ -328,6 +346,100 @@ func TestHasDotDotSegment(t *testing.T) {
 	for _, c := range cases {
 		assert.Equal(t, c.want, hasDotDotSegment(c.path), "path=%q", c.path)
 	}
+}
+
+// --- Check with malformed directive YAML ---
+
+func TestCheck_MalformedDirectiveYAML(t *testing.T) {
+	r := ruleWithRender()
+	// Invalid YAML in directive body causes ParseDirective to return nil + diagnostics.
+	src := "# Test\n\n<?build\n{invalid: yaml: here\n?>\ncontent\n<?/build?>\n"
+	f := newFile(t, src)
+	diags := r.Check(f)
+	// Should return parse diagnostics, not panic.
+	require.NotEmpty(t, diags)
+}
+
+// --- parseRecipesSettings error branches ---
+
+func TestApplySettings_Recipes_RecipeNotMap(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"bad": "not-a-map",
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `recipe "bad" must be a map`)
+}
+
+func TestApplySettings_Recipes_ParamsNotMap(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"x": map[string]any{
+				"params": "not-a-map",
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `params must be a map`)
+}
+
+func TestApplySettings_Recipes_RequiredNotStringSlice(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"x": map[string]any{
+				"params": map[string]any{
+					"required": []any{42},
+				},
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "params.required")
+}
+
+func TestApplySettings_Recipes_OptionalNotStringSlice(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"recipes": map[string]any{
+			"x": map[string]any{
+				"params": map[string]any{
+					"optional": []any{99},
+				},
+			},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "params.optional")
+}
+
+// --- toStringSlice edge cases ---
+
+func TestToStringSlice_Nil(t *testing.T) {
+	result, err := toStringSlice(nil)
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestToStringSlice_StringSlice(t *testing.T) {
+	result, err := toStringSlice([]string{"a", "b"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, result)
+}
+
+func TestToStringSlice_AnySlice_NonString(t *testing.T) {
+	_, err := toStringSlice([]any{"ok", 123})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "element 1")
+}
+
+func TestToStringSlice_WrongType(t *testing.T) {
+	_, err := toStringSlice(42)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string slice")
 }
 
 // --- output extension filter ---

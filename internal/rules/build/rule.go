@@ -4,6 +4,7 @@ package build
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -171,6 +172,13 @@ func (r *Rule) validateHard(
 		)}
 	}
 
+	if filepath.IsAbs(output) {
+		return []lint.Diagnostic{gensection.MakeDiag(
+			r.RuleID(), r.RuleName(), filePath, line,
+			fmt.Sprintf(`build directive "output" must be a relative path: %q`, output),
+		)}
+	}
+
 	if hasDotDotSegment(output) {
 		return []lint.Diagnostic{gensection.MakeDiag(
 			r.RuleID(), r.RuleName(), filePath, line,
@@ -187,7 +195,7 @@ func (r *Rule) validateHard(
 	}
 
 	for _, req := range schema.Required {
-		if _, ok := params[req]; !ok {
+		if v, ok := params[req]; !ok || strings.TrimSpace(v) == "" {
 			return []lint.Diagnostic{gensection.MakeDiag(
 				r.RuleID(), r.RuleName(), filePath, line,
 				fmt.Sprintf("build directive recipe %q: missing required parameter %q", recipeName, req),

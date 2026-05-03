@@ -1,4 +1,5 @@
 ---
+title: Build directive
 summary: >-
   How to use the build directive to declare artifact outputs, keep
   generated bodies in sync, and configure user-declared recipes.
