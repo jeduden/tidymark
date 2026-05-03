@@ -1,7 +1,7 @@
 ---
 id: 120
 title: Unify glob matcher and field naming across mdsmith
-status: "🔲"
+status: "✅"
 model: sonnet
 summary: >-
   Pick one glob library and one field name (`files:` vs
@@ -135,26 +135,26 @@ doesn't grasp.
 
 ## Acceptance Criteria
 
-- [ ] Every glob surface in mdsmith — config, catalog,
+- [x] Every glob surface in mdsmith — config, catalog,
       CLI argument expansion — resolves through one
       shared matcher; `gobwas/glob` and the stdlib
       `filepath.Glob` are no longer imported by
       production code.
-- [ ] `**` recursion, brace expansion, and `!`-prefix
+- [x] `**` recursion, brace expansion, and `!`-prefix
       exclusion behave identically across all three
       surfaces (covered by tests).
-- [ ] `overrides:` and `kind-assignment:` accept
+- [x] `overrides:` and `kind-assignment:` accept
       `glob:` as the canonical key. `files:` continues
       to work and emits a deprecation warning naming
       the offending block.
-- [ ] `mdsmith init` writes `glob:`; existing `files:`
+- [x] `mdsmith init` writes `glob:`; existing `files:`
       configs in the repo are migrated.
-- [ ] [docs/reference/globs.md](../docs/reference/globs.md)
+- [x] [docs/reference/globs.md](../docs/reference/globs.md)
       collapses the three-surface table into a single
       surface and documents the deprecation timeline
       for `files:`.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
 
 ## ...
 

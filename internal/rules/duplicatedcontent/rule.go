@@ -14,7 +14,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gobwas/glob"
+	"github.com/bmatcuk/doublestar/v4"
+	"github.com/jeduden/mdsmith/internal/globpath"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/jeduden/mdsmith/internal/rules/settings"
@@ -69,8 +70,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 	// Validate config first so bad globs surface even on files that
 	// contain no qualifying paragraphs.
-	includeMatchers, excludeMatchers, configErr := r.compileFilters()
-	if configErr != nil {
+	if configErr := r.validateFilters(); configErr != nil {
 		return []lint.Diagnostic{configDiag(f, r, configErr)}
 	}
 
@@ -91,7 +91,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 	index := buildCorpusIndex(
 		corpus, selfName, f.MaxInputBytes, minChars,
-		f.StripFrontMatter, includeMatchers, excludeMatchers,
+		f.StripFrontMatter, r.Include, r.Exclude,
 	)
 
 	var diags []lint.Diagnostic
@@ -319,7 +319,7 @@ func buildCorpusIndex(
 	maxBytes int64,
 	minChars int,
 	stripFrontMatter bool,
-	include, exclude []glob.Glob,
+	include, exclude []string,
 ) map[string][]externalMatch {
 	index := make(map[string][]externalMatch)
 	_ = fs.WalkDir(corpus, ".", func(path string, d fs.DirEntry, err error) error {
@@ -353,7 +353,7 @@ func buildCorpusIndex(
 // walkDirDecision returns the fs.WalkDirFunc verdict for a directory:
 // descend normally, or SkipDir for known-heavy subtrees (`.git`,
 // `node_modules`) and user-configured excludes.
-func walkDirDecision(p string, exclude []glob.Glob) error {
+func walkDirDecision(p string, exclude []string) error {
 	if p == "." {
 		return nil
 	}
@@ -383,7 +383,7 @@ func indexFileIfEligible(
 	maxBytes int64,
 	minChars int,
 	stripFrontMatter bool,
-	include, exclude []glob.Glob,
+	include, exclude []string,
 ) {
 	if !isMarkdownPath(path) || path == selfName {
 		return
@@ -415,14 +415,14 @@ func isMarkdownPath(p string) bool {
 }
 
 // shouldSkipDir reports whether a directory path matches one of the
-// exclude globs and should be pruned from the walk. Matching the
+// exclude patterns and should be pruned from the walk. Matching the
 // slash path lets patterns like "vendor/**" hit at the directory
 // boundary; matching basename lets ".git" or "node_modules" skip
-// wherever they appear in the tree. Include globs are intentionally
+// wherever they appear in the tree. Include patterns are intentionally
 // not consulted here: excluding a subtree is safe, but a missing
 // include match at the directory level would skip subtree entries
-// that individual include globs could still allow.
-func shouldSkipDir(p string, exclude []glob.Glob) bool {
+// that individual include patterns could still allow.
+func shouldSkipDir(p string, exclude []string) bool {
 	if len(exclude) == 0 {
 		return false
 	}
@@ -437,8 +437,17 @@ func shouldSkipDir(p string, exclude []glob.Glob) bool {
 	// so the raw glob expects "docs/generated/<rest>" and skips
 	// the bare directory without this.
 	slashed := p + "/"
-	for _, g := range exclude {
-		if g.Match(p) || g.Match(slashed) || g.Match(base) {
+	for _, pattern := range exclude {
+		matched, err := doublestar.Match(pattern, p)
+		if err == nil && matched {
+			return true
+		}
+		matched, err = doublestar.Match(pattern, slashed)
+		if err == nil && matched {
+			return true
+		}
+		matched, err = doublestar.Match(pattern, base)
+		if err == nil && matched {
 			return true
 		}
 	}
@@ -446,58 +455,45 @@ func shouldSkipDir(p string, exclude []glob.Glob) bool {
 }
 
 // matchesFilters reports whether path is allowed by include/exclude.
-// To stay consistent with MDS027 cross-file-reference-integrity,
-// patterns are matched against both the full forward-slash path and
+// Patterns are matched against both the full forward-slash path and
 // the basename, so `"draft.md"` excludes a file regardless of which
 // directory it sits in.
-func matchesFilters(p string, include, exclude []glob.Glob) bool {
-	base := gopath.Base(p)
-	for _, g := range exclude {
-		if g.Match(p) || g.Match(base) {
+func matchesFilters(p string, include, exclude []string) bool {
+	for _, pattern := range exclude {
+		if globpath.Match(pattern, p) {
 			return false
 		}
 	}
 	if len(include) == 0 {
 		return true
 	}
-	for _, g := range include {
-		if g.Match(p) || g.Match(base) {
+	for _, pattern := range include {
+		if globpath.Match(pattern, p) {
 			return true
 		}
 	}
 	return false
 }
 
-// compileFilters compiles the include/exclude globs and wraps any
-// failure with the offending setting name so users see which list
-// holds the bad pattern. Kept on the rule to keep Check() focused on
-// diagnostics rather than configuration plumbing.
-func (r *Rule) compileFilters() (include, exclude []glob.Glob, err error) {
-	include, err = compileMatchers(r.Include)
-	if err != nil {
-		return nil, nil, fmt.Errorf("include: %w", err)
+// validateFilters checks that include/exclude patterns are valid.
+func (r *Rule) validateFilters() error {
+	if err := validatePatterns(r.Include); err != nil {
+		return fmt.Errorf("include: %w", err)
 	}
-	exclude, err = compileMatchers(r.Exclude)
-	if err != nil {
-		return nil, nil, fmt.Errorf("exclude: %w", err)
+	if err := validatePatterns(r.Exclude); err != nil {
+		return fmt.Errorf("exclude: %w", err)
 	}
-	return include, exclude, nil
+	return nil
 }
 
-// compileMatchers compiles user-supplied glob patterns without a path
-// separator, matching the rest of the project (MDS027, config ignore
-// matching, etc.) so that a pattern like `*` behaves consistently
-// across rules.
-func compileMatchers(patterns []string) ([]glob.Glob, error) {
-	out := make([]glob.Glob, 0, len(patterns))
+// validatePatterns checks that all patterns are valid doublestar patterns.
+func validatePatterns(patterns []string) error {
 	for _, pat := range patterns {
-		g, err := glob.Compile(pat)
-		if err != nil {
-			return nil, fmt.Errorf("invalid glob pattern %q: %w", pat, err)
+		if !doublestar.ValidatePattern(pat) {
+			return fmt.Errorf("invalid glob pattern %q", pat)
 		}
-		out = append(out, g)
 	}
-	return out, nil
+	return nil
 }
 
 func configDiag(f *lint.File, r *Rule, err error) lint.Diagnostic {
@@ -558,13 +554,13 @@ func (r *Rule) ApplySettings(cfg map[string]any) error {
 		}
 	}
 
-	if _, err := compileMatchers(r.Include); err != nil {
+	if err := validatePatterns(r.Include); err != nil {
 		return fmt.Errorf(
 			"duplicated-content: include has invalid glob pattern: %w",
 			err,
 		)
 	}
-	if _, err := compileMatchers(r.Exclude); err != nil {
+	if err := validatePatterns(r.Exclude); err != nil {
 		return fmt.Errorf(
 			"duplicated-content: exclude has invalid glob pattern: %w",
 			err,

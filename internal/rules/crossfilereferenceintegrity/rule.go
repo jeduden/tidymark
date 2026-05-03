@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gobwas/glob"
+	"github.com/bmatcuk/doublestar/v4"
+	"github.com/jeduden/mdsmith/internal/globpath"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/placeholders"
@@ -45,12 +46,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return nil
 	}
 
-	includeMatchers, err := compileMatchers(r.Include)
-	if err != nil {
-		return []lint.Diagnostic{configDiag(f.Path, r, err)}
-	}
-	excludeMatchers, err := compileMatchers(r.Exclude)
-	if err != nil {
+	if err := r.validateGlobSettings(); err != nil {
 		return []lint.Diagnostic{configDiag(f.Path, r, err)}
 	}
 
@@ -74,8 +70,8 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		diags = append(diags, r.checkLink(
 			f,
 			linkNode,
-			includeMatchers,
-			excludeMatchers,
+			r.Include,
+			r.Exclude,
 			selfAnchors,
 			resolvedRoot,
 			anchorCache,
@@ -90,8 +86,8 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 func (r *Rule) checkLink(
 	f *lint.File,
 	linkNode *ast.Link,
-	includeMatchers []glob.Glob,
-	excludeMatchers []glob.Glob,
+	includePatterns []string,
+	excludePatterns []string,
 	selfAnchors map[string]bool,
 	resolvedRoot string,
 	anchorCache map[string]map[string]bool,
@@ -120,7 +116,7 @@ func (r *Rule) checkLink(
 		return nil
 	}
 
-	if !matchesPathFilters(linkPath, includeMatchers, excludeMatchers) {
+	if !matchesPathFilters(linkPath, includePatterns, excludePatterns) {
 		return nil
 	}
 
@@ -210,13 +206,13 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 }
 
 func (r *Rule) validateGlobSettings() error {
-	if _, err := compileMatchers(r.Include); err != nil {
+	if err := validatePatterns(r.Include); err != nil {
 		return fmt.Errorf(
 			"cross-file-reference-integrity: include has invalid glob pattern: %w",
 			err,
 		)
 	}
-	if _, err := compileMatchers(r.Exclude); err != nil {
+	if err := validatePatterns(r.Exclude); err != nil {
 		return fmt.Errorf(
 			"cross-file-reference-integrity: exclude has invalid glob pattern: %w",
 			err,
@@ -489,26 +485,21 @@ func normalizeLinkPath(linkPath string) string {
 	return linkPath
 }
 
-func compileMatchers(patterns []string) ([]glob.Glob, error) {
-	matchers := make([]glob.Glob, 0, len(patterns))
-	for _, pattern := range patterns {
-		g, err := glob.Compile(pattern)
-		if err != nil {
-			return nil, err
+// validatePatterns checks that all patterns are valid doublestar patterns.
+func validatePatterns(patterns []string) error {
+	for _, p := range patterns {
+		if !doublestar.ValidatePattern(p) {
+			return fmt.Errorf("invalid pattern %q", p)
 		}
-		matchers = append(matchers, g)
 	}
-	return matchers, nil
+	return nil
 }
 
-func matchesPathFilters(path string, include, exclude []glob.Glob) bool {
-	slashPath := filepath.ToSlash(path)
-	base := filepath.Base(path)
-
+func matchesPathFilters(path string, include, exclude []string) bool {
 	if len(include) > 0 {
 		matched := false
-		for _, g := range include {
-			if g.Match(slashPath) || g.Match(base) {
+		for _, pattern := range include {
+			if globpath.Match(pattern, path) {
 				matched = true
 				break
 			}
@@ -518,8 +509,8 @@ func matchesPathFilters(path string, include, exclude []glob.Glob) bool {
 		}
 	}
 
-	for _, g := range exclude {
-		if g.Match(slashPath) || g.Match(base) {
+	for _, pattern := range exclude {
+		if globpath.Match(pattern, path) {
 			return false
 		}
 	}

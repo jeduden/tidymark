@@ -6,24 +6,33 @@ summary: >-
 ---
 # Glob patterns
 
-mdsmith uses globs in three places. The supported syntax
-and the exclusion semantics differ at each one. This page
-documents the current behavior; the long-term goal is to
-unify on a single matcher and a single naming convention,
-but that's a separate effort — until it lands, the table
-below is the source of truth.
+mdsmith uses one glob matcher — [`doublestar`](https://github.com/bmatcuk/doublestar)
+— across all surfaces: config patterns (`ignore:`,
+`overrides:`, `kind-assignment:`), the `<?catalog?>`
+directive, and CLI argument expansion. The syntax and
+`!`-exclusion semantics are identical on every surface.
 
-## Surfaces and matchers
+## Surfaces
 
-| Surface                  | Matcher                | Field name      | `!`-exclusion |
-|--------------------------|------------------------|-----------------|---------------|
-| `ignore:`                | `gobwas/glob`          | list of strings | yes           |
-| `overrides:.files`       | `gobwas/glob`          | `files:`        | yes           |
-| `kind-assignment:.files` | `gobwas/glob`          | `files:`        | yes           |
-| `<?catalog?>`            | `doublestar`           | `glob:`         | yes           |
-| CLI argument expansion   | stdlib `filepath.Glob` | positional      | no            |
+| Surface                        | Field name      | `!`-exclusion |
+|--------------------------------|-----------------|---------------|
+| `ignore:`                      | list of strings | yes           |
+| `overrides:.glob`              | `glob:`         | yes           |
+| `kind-assignment:.glob`        | `glob:`         | yes           |
+| `<?catalog?>`                  | `glob:`         | yes           |
+| CLI argument expansion         | positional      | no            |
 
-## Config globs (`ignore:`, `overrides:`, `kind-assignment:`)
+## Supported syntax
+
+All config and directive surfaces use `doublestar`, which
+supports:
+
+- `*` — any sequence of characters, no path separator
+- `**` — any sequence of characters, including path separators
+  (recursive match)
+- `?` — any single character
+- `[abc]` — character class
+- `{a,b}` — brace expansion (matches either `a` or `b`)
 
 A pattern matches a file if it matches any of:
 
@@ -34,7 +43,7 @@ A pattern matches a file if it matches any of:
 Basename matching means a pattern like `CHANGELOG.md` (no
 slash) matches `CHANGELOG.md` in any directory.
 
-### Exclusion with `!`-prefix
+## Exclusion with `!`-prefix
 
 A pattern prefixed with `!` is an exclusion pattern. The
 list matches a file when at least one non-negated pattern
@@ -44,31 +53,50 @@ always wins.
 
 ```yaml
 overrides:
-  - files: ["docs/security/*.md", "!docs/security/proto.md"]
+  - glob: ["docs/security/*.md", "!docs/security/proto.md"]
     rules:
       max-file-length:
         max: 1000
 ```
 
-A list containing only exclusion patterns matches
-nothing.
+A list containing only exclusion patterns matches nothing.
 
-### Limits
+## Config globs (`ignore:`, `overrides:`, `kind-assignment:`)
 
-- No `**` recursive matching unless the underlying
-  `gobwas/glob` syntax supports it for the specific
-  pattern; prefer explicit subdirectories.
-- No brace expansion (`{a,b}`).
-- A pattern that fails to compile is silently skipped.
+Use the canonical `glob:` key for file patterns in
+`overrides:` and `kind-assignment:` entries:
+
+```yaml
+overrides:
+  - glob: ["docs/**/*.md", "!docs/research/**"]
+    rules:
+      line-length:
+        max: 120
+
+kind-assignment:
+  - glob: ["plan/[0-9]*_*.md"]
+    kinds: [plan]
+```
+
+### Deprecation: `files:`
+
+The `files:` key was the original field name for these
+patterns. It continues to work but emits a deprecation
+warning at load time:
+
+```
+overrides[0]: `files:` is deprecated; rename it to `glob:` — see docs/reference/globs.md
+```
+
+Replace every `files:` key with `glob:` in your
+`.mdsmith.yml`. The `files:` key will be removed in a
+future release.
 
 ## Directive globs (`<?catalog?>`)
 
 `<?catalog?>` accepts a `glob:` parameter whose patterns
 are split on newlines into a list. A YAML `glob:` list
-becomes one pattern per line. The matcher is
-[`doublestar`](https://github.com/bmatcuk/doublestar),
-which supports `**`, brace expansion, and other
-extensions on top of the standard glob syntax.
+becomes one pattern per line.
 
 `!`-prefix exclusion works the same way as in config:
 include patterns gather candidates, exclude patterns
@@ -89,25 +117,12 @@ lint time.
 ## CLI argument expansion
 
 Positional arguments to `mdsmith check` and `mdsmith fix`
-are expanded with the standard library's `filepath.Glob`.
-That matcher does not support `**`, brace expansion, or
-`!`-prefix exclusion. Use shell expansion (or wrap with
-`find`) for anything beyond a single-level pattern.
+are expanded with `doublestar.FilepathGlob`, which
+supports the same `**` and brace-expansion syntax as
+config patterns. `!`-prefix exclusion is not available on
+the CLI; use `ignore:` in `.mdsmith.yml` instead.
 
 ```bash
-mdsmith check 'plan/*.md'   # works
-mdsmith check '**/*.md'     # falls through as a literal
-                            # path on most shells
+mdsmith check 'docs/**/*.md'   # works, recurses into subdirs
+mdsmith check '*.{md,markdown}'  # works, brace expansion
 ```
-
-For repeatable scoping, prefer `ignore:` /
-`kind-assignment:` in `.mdsmith.yml` over CLI globs.
-
-## Future work
-
-The split between `gobwas/glob`, `doublestar`, and
-`filepath.Glob`, and between the `files:` and `glob:`
-field names, is a known source of confusion. A future
-plan will pick one matcher (likely `doublestar`) and
-one field name, migrate the three call sites, and
-deprecate the displaced one.

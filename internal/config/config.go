@@ -83,9 +83,19 @@ type Config struct {
 
 // Override applies rule settings to files matching glob patterns.
 type Override struct {
-	Files      []string           `yaml:"files"`
+	// Glob is the canonical field for file patterns (doublestar syntax,
+	// supports **, brace expansion, and !-prefix exclusion).
+	Glob []string `yaml:"glob,omitempty"`
+	// Files is a deprecated alias for Glob. Use Glob in new configs.
+	Files      []string           `yaml:"files,omitempty"`
 	Rules      map[string]RuleCfg `yaml:"rules"`
 	Categories map[string]bool    `yaml:"categories"`
+}
+
+// Patterns returns the effective set of glob patterns for the override,
+// combining the canonical Glob field with the deprecated Files alias.
+func (o Override) Patterns() []string {
+	return append(o.Glob, o.Files...)
 }
 
 // KindBody is a named bundle of rule settings. It has the same shape as
@@ -99,8 +109,18 @@ type KindBody struct {
 // KindAssignmentEntry assigns one or more kinds to files matching glob
 // patterns. The glob syntax is the same as overrides: and ignore:.
 type KindAssignmentEntry struct {
-	Files []string `yaml:"files"`
+	// Glob is the canonical field for file patterns (doublestar syntax,
+	// supports **, brace expansion, and !-prefix exclusion).
+	Glob []string `yaml:"glob,omitempty"`
+	// Files is a deprecated alias for Glob. Use Glob in new configs.
+	Files []string `yaml:"files,omitempty"`
 	Kinds []string `yaml:"kinds"`
+}
+
+// Patterns returns the effective set of glob patterns for the entry,
+// combining the canonical Glob field with the deprecated Files alias.
+func (e KindAssignmentEntry) Patterns() []string {
+	return append(e.Glob, e.Files...)
 }
 
 // RuleCfg is a YAML union: can be bool (enable/disable) or map[string]any (settings).

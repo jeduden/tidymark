@@ -212,9 +212,7 @@ func TestCheck_IncludePatternNoMatch_Skipped(t *testing.T) {
 // TestMatchesPathFilters_IncludeNoMatch exercises the `!matched` return false
 // branch directly, bypassing the full Check pipeline.
 func TestMatchesPathFilters_IncludeNoMatch(t *testing.T) {
-	include, err := compileMatchers([]string{"docs/**"})
-	require.NoError(t, err)
-
+	include := []string{"docs/**"}
 	// "other/page.md" doesn't match "docs/**"
 	result := matchesPathFilters("other/page.md", include, nil)
 	require.False(t, result, "path not in include should return false")

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // isMarkdown returns true if the file extension is .md or .markdown.
@@ -345,7 +347,7 @@ func gitProjectRoot(start string) string {
 
 // resolveGlob expands a glob pattern and adds matching markdown files.
 func resolveGlob(pattern string, opts ResolveOpts, addFile func(string)) error {
-	matches, err := filepath.Glob(pattern)
+	matches, err := doublestar.FilepathGlob(pattern)
 	if err != nil {
 		return fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 	}

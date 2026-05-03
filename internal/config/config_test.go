@@ -1505,3 +1505,157 @@ func TestTopLevelKeySet_NullDocument(t *testing.T) {
 	// ScalarNode child means no keys to extract.
 	assert.Empty(t, result)
 }
+
+// --- glob: canonical field / files: deprecation regression tests ---
+
+// TestOverrideGlobCanonical verifies that overrides using the new glob: key
+// load correctly, produce no deprecation warning, and match files.
+func TestOverrideGlobCanonical(t *testing.T) {
+	yml := `
+overrides:
+  - glob: ["docs/**/*.md"]
+    rules:
+      line-length:
+        max: 120
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yml), 0o644))
+
+	cfg, err := Load(cfgPath)
+	require.NoError(t, err)
+
+	assert.Empty(t, cfg.Deprecations, "glob: key should not produce a deprecation warning")
+	require.Len(t, cfg.Overrides, 1)
+	assert.Equal(t, []string{"docs/**/*.md"}, cfg.Overrides[0].Glob)
+	assert.Nil(t, cfg.Overrides[0].Files)
+}
+
+// TestOverrideFilesDeprecated verifies that overrides using the old files: key
+// still load correctly, produce a deprecation warning naming the entry index,
+// and the patterns are still applied via Patterns().
+func TestOverrideFilesDeprecated(t *testing.T) {
+	yml := `
+overrides:
+  - files: ["CHANGELOG.md"]
+    rules:
+      no-duplicate-headings: false
+  - files: ["docs/**"]
+    rules:
+      line-length:
+        max: 120
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yml), 0o644))
+
+	cfg, err := Load(cfgPath)
+	require.NoError(t, err)
+
+	require.Len(t, cfg.Deprecations, 2, "each files: entry should produce one deprecation warning")
+	assert.Contains(t, cfg.Deprecations[0], "overrides[0]")
+	assert.Contains(t, cfg.Deprecations[0], "files:")
+	assert.Contains(t, cfg.Deprecations[1], "overrides[1]")
+
+	require.Len(t, cfg.Overrides, 2)
+	// Files field still populated for backward compatibility
+	assert.Equal(t, []string{"CHANGELOG.md"}, cfg.Overrides[0].Files)
+	// Patterns() combines both fields
+	assert.Equal(t, []string{"CHANGELOG.md"}, cfg.Overrides[0].Patterns())
+}
+
+// TestOverrideFilesAndGlobSameEffectiveConfig verifies that a config using
+// files: and one using glob: with the same patterns produce identical
+// effective rule configs for a matching file.
+func TestOverrideFilesAndGlobSameEffectiveConfig(t *testing.T) {
+	withFiles := `
+overrides:
+  - files: ["docs/**"]
+    rules:
+      line-length:
+        max: 200
+`
+	withGlob := `
+overrides:
+  - glob: ["docs/**"]
+    rules:
+      line-length:
+        max: 200
+`
+	loadCfg := func(yml string) *Config {
+		t.Helper()
+		dir := t.TempDir()
+		cfgPath := filepath.Join(dir, ".mdsmith.yml")
+		require.NoError(t, os.WriteFile(cfgPath, []byte(yml), 0o644))
+		cfg, err := Load(cfgPath)
+		require.NoError(t, err)
+		return cfg
+	}
+
+	cfgFiles := loadCfg(withFiles)
+	cfgGlob := loadCfg(withGlob)
+
+	defaults := Defaults()
+	mergedFiles := Merge(defaults, cfgFiles)
+	mergedGlob := Merge(defaults, cfgGlob)
+
+	effFiles := Effective(mergedFiles, "docs/guide.md", nil)
+	effGlob := Effective(mergedGlob, "docs/guide.md", nil)
+
+	assert.Equal(t, effFiles["line-length"].Settings["max"],
+		effGlob["line-length"].Settings["max"],
+		"glob: and files: with the same pattern should produce identical effective config")
+}
+
+// TestKindAssignmentGlobCanonical verifies that kind-assignment using glob: key
+// loads correctly with no deprecation warning.
+func TestKindAssignmentGlobCanonical(t *testing.T) {
+	yml := `
+kinds:
+  plan:
+    rules:
+      paragraph-readability: false
+kind-assignment:
+  - glob: ["plan/*.md"]
+    kinds: [plan]
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yml), 0o644))
+
+	cfg, err := Load(cfgPath)
+	require.NoError(t, err)
+
+	assert.Empty(t, cfg.Deprecations, "glob: key should not produce a deprecation warning")
+	require.Len(t, cfg.KindAssignment, 1)
+	assert.Equal(t, []string{"plan/*.md"}, cfg.KindAssignment[0].Glob)
+	assert.Nil(t, cfg.KindAssignment[0].Files)
+}
+
+// TestKindAssignmentFilesDeprecated verifies that kind-assignment using files:
+// produces a deprecation warning naming the entry index.
+func TestKindAssignmentFilesDeprecated(t *testing.T) {
+	yml := `
+kinds:
+  plan:
+    rules:
+      paragraph-readability: false
+kind-assignment:
+  - files: ["plan/*.md"]
+    kinds: [plan]
+`
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yml), 0o644))
+
+	cfg, err := Load(cfgPath)
+	require.NoError(t, err)
+
+	require.Len(t, cfg.Deprecations, 1)
+	assert.Contains(t, cfg.Deprecations[0], "kind-assignment[0]")
+	assert.Contains(t, cfg.Deprecations[0], "files:")
+
+	require.Len(t, cfg.KindAssignment, 1)
+	assert.Equal(t, []string{"plan/*.md"}, cfg.KindAssignment[0].Files)
+	assert.Equal(t, []string{"plan/*.md"}, cfg.KindAssignment[0].Patterns())
+}

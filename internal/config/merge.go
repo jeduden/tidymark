@@ -160,6 +160,7 @@ func copyKindAssignment(entries []KindAssignmentEntry) []KindAssignmentEntry {
 	result := make([]KindAssignmentEntry, len(entries))
 	for i, e := range entries {
 		result[i] = KindAssignmentEntry{
+			Glob:  copyStrings(e.Glob),
 			Files: copyStrings(e.Files),
 			Kinds: copyStrings(e.Kinds),
 		}
@@ -226,7 +227,7 @@ func resolveEffectiveKinds(cfg *Config, filePath string, fmKinds []string) []str
 		add(k)
 	}
 	for _, entry := range cfg.KindAssignment {
-		if matchesAny(entry.Files, filePath) {
+		if matchesAny(entry.Patterns(), filePath) {
 			for _, k := range entry.Kinds {
 				add(k)
 			}
@@ -317,7 +318,7 @@ func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]Rul
 		}
 	}
 	for _, o := range cfg.Overrides {
-		if matchesAny(o.Files, filePath) {
+		if matchesAny(o.Patterns(), filePath) {
 			for k, v := range o.Rules {
 				apply(k, v)
 			}
@@ -341,7 +342,7 @@ func effectiveExplicit(cfg *Config, filePath string, kinds []string) map[string]
 		}
 	}
 	for _, o := range cfg.Overrides {
-		if matchesAny(o.Files, filePath) {
+		if matchesAny(o.Patterns(), filePath) {
 			for k := range o.Rules {
 				result[k] = true
 			}
@@ -368,7 +369,7 @@ func effectiveCats(cfg *Config, filePath string, kinds []string) map[string]bool
 		}
 	}
 	for _, o := range cfg.Overrides {
-		if matchesAny(o.Files, filePath) {
+		if matchesAny(o.Patterns(), filePath) {
 			for k, v := range o.Categories {
 				result[k] = v
 			}

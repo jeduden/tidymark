@@ -55,7 +55,7 @@ overrides:
 
 ```yaml
 overrides:
-  - files: ["internal/rules/*/README.md"]
+  - glob: ["internal/rules/*/README.md"]
     rules:
       required-structure:
         schema: internal/rules/proto.md

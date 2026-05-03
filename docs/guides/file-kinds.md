@@ -20,7 +20,7 @@ names that fit its repository.
 
 Kinds live under the `kinds:` key in `.mdsmith.yml`. Each
 kind body has the same shape as an entry under
-`overrides:`, minus `files:` — files are bound to kinds
+`overrides:`, minus `glob:` — files are bound to kinds
 separately.
 
 ```yaml
@@ -78,17 +78,17 @@ order.
 ### Glob assignment
 
 `kind-assignment:` is a list of entries. Each entry has
-`files:` (the same glob shape as `overrides:` and
-`ignore:`) and `kinds:` (the names to apply).
+`glob:` (the same doublestar pattern syntax as `overrides:`
+and `ignore:`) and `kinds:` (the names to apply).
 
 ```yaml
 kind-assignment:
-  - files: ["**/proto.md"]
+  - glob: ["**/proto.md"]
     kinds: [proto]
-  - files: ["plan/*.md"]
+  - glob: ["plan/*.md"]
     kinds: [plan]
-  - files: ["internal/rules/proto.md",
-            "internal/rules/MDS*/README.md"]
+  - glob: ["internal/rules/proto.md",
+           "internal/rules/MDS*/README.md"]
     kinds: [rule-readme]
 ```
 
@@ -133,7 +133,7 @@ order from lowest to highest precedence:
 1. The rule's built-in defaults.
 2. Top-level `rules:` defaults.
 3. Each kind in the file's effective kind list, in order.
-4. Each `overrides:` entry whose `files:` glob matches,
+4. Each `overrides:` entry whose `glob:` matches,
    in config order.
 
 Across all four layers the config is **deep-merged**
@@ -204,7 +204,7 @@ against the merge rules above:
 
 1. Read the file's front matter for any `kinds:` field.
 2. Walk `kind-assignment:` top to bottom and collect
-   every entry whose `files:` glob matches the file.
+   every entry whose `glob:` matches the file.
 3. Concatenate the two lists, dropping duplicates after
    first occurrence — that's the effective kind list.
 4. Apply built-in defaults, then the top-level `rules:`

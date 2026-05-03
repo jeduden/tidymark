@@ -1,11 +1,6 @@
 package config
 
-import (
-	"path/filepath"
-	"strings"
-
-	"github.com/gobwas/glob"
-)
+import "github.com/jeduden/mdsmith/internal/globpath"
 
 // globMatchAny returns true if filePath matches any of the given glob
 // patterns. It checks the raw path, the cleaned path, and the base name
@@ -18,28 +13,7 @@ import (
 // inclusion pattern, regardless of list order. A list containing only
 // exclusion patterns matches nothing.
 func globMatchAny(patterns []string, filePath string) bool {
-	cleanPath := filepath.Clean(filePath)
-	base := filepath.Base(filePath)
-
-	matchedInclude := false
-	for _, pattern := range patterns {
-		isExclude := strings.HasPrefix(pattern, "!")
-		if isExclude {
-			pattern = pattern[1:]
-		}
-		g, err := glob.Compile(pattern)
-		if err != nil {
-			continue
-		}
-		if !g.Match(filePath) && !g.Match(cleanPath) && !g.Match(base) {
-			continue
-		}
-		if isExclude {
-			return false
-		}
-		matchedInclude = true
-	}
-	return matchedInclude
+	return globpath.MatchAny(patterns, filePath)
 }
 
 // IsIgnored returns true if the file path matches any of the given
