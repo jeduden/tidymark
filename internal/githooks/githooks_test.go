@@ -947,15 +947,18 @@ func TestBuildHookScript_EmbedsBinaryAndUsesGlobs(t *testing.T) {
 	assert.Contains(t, got, "#!/bin/sh")
 	assert.Contains(t, got, PreMergeCommitMarker)
 	assert.Contains(t, got, "cd \"$(git rev-parse --show-toplevel)\"")
-	assert.Contains(t, got, "if ! '/usr/local/bin/mdsmith' fix .; then")
-	assert.Contains(t, got, `if [ "$status" -ne 1 ]; then`,
-		"hook must propagate exit codes other than 1 (unfixed diagnostics)")
+	assert.Contains(t, got, "'/usr/local/bin/mdsmith' fix .")
+	assert.Contains(t, got, "status=$?",
+		"hook must capture fix's raw exit status before any negation; "+
+			"`! cmd` would clobber it to 0 when fix exits 1")
+	assert.Contains(t, got, `if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then`,
+		"hook must propagate exit codes other than 0 or 1 (unfixed diagnostics)")
 	assert.Contains(t, got, "git diff --name-only -- '*.md' '*.markdown' |")
 }
 
 func TestBuildHookScript_QuotesBinaryWithEmbeddedQuote(t *testing.T) {
 	got := BuildHookScript("/path/it's/mdsmith")
-	assert.Contains(t, got, `if ! '/path/it'\''s/mdsmith' fix .; then`,
+	assert.Contains(t, got, `'/path/it'\''s/mdsmith' fix .`,
 		"single quote in path must be encoded as `'\\''` so the shell sees the literal path")
 }
 

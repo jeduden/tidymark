@@ -480,10 +480,10 @@ func TestEnsurePreMergeCommitHook_CreatesExecutableHook(t *testing.T) {
 	require.NoError(t, err)
 	content := string(data)
 	assert.Contains(t, content, preMergeCommitHookMarker)
-	assert.Contains(t, content, "if ! '/usr/local/bin/mdsmith' fix .; then",
-		"hook must invoke the resolved mdsmith binary inside the exit-1-tolerant guard")
-	assert.Contains(t, content, `if [ "$status" -ne 1 ]; then`,
-		"hook must propagate exit codes other than 1 (unfixed diagnostics)")
+	assert.Contains(t, content, "'/usr/local/bin/mdsmith' fix .",
+		"hook must invoke the resolved mdsmith binary")
+	assert.Contains(t, content, `if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then`,
+		"hook must propagate exit codes other than 0 or 1 (unfixed diagnostics)")
 	assert.Contains(t, content, "git diff --name-only -- '*.md' '*.markdown'",
 		"hook must stage modified markdown files via the glob-based diff")
 }
@@ -507,7 +507,7 @@ func TestEnsurePreMergeCommitHook_OverwritesManagedHook(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(data), "stale content",
 		"managed hook must be replaced, not preserved")
-	assert.Contains(t, string(data), "fix .; then",
+	assert.Contains(t, string(data), " fix .\n",
 		"replaced hook must use the glob-based template")
 }
 

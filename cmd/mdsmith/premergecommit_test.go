@@ -253,7 +253,7 @@ func TestPreMergeCommitInstall_NoArgsInstallsCanonicalHook(t *testing.T) {
 	assert.Contains(t, got, "pre-merge-commit hook installed")
 	hookData, err := os.ReadFile(filepath.Join(resolveHooksDir(dir), "pre-merge-commit"))
 	require.NoError(t, err)
-	assert.Contains(t, string(hookData), "fix .; then",
+	assert.Contains(t, string(hookData), " fix .\n",
 		"installed hook must use the glob-based template")
 }
 
@@ -360,7 +360,8 @@ func TestPreMergeCommitInstall_CreatesHook(t *testing.T) {
 	require.NoError(t, err)
 	content := string(data)
 	assert.Contains(t, content, preMergeCommitHookMarker)
-	assert.Contains(t, content, "if ! '/usr/local/bin/mdsmith' fix .; then")
+	assert.Contains(t, content, "'/usr/local/bin/mdsmith' fix .")
+	assert.Contains(t, content, `if [ "$status" -ne 0 ] && [ "$status" -ne 1 ]; then`)
 	assert.Contains(t, content, "git diff --name-only -- '*.md' '*.markdown'")
 }
 
