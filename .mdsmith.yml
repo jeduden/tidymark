@@ -78,7 +78,7 @@ rules:
   git-hook-sync: true
 
 overrides:
-  - files: ["CLAUDE.md"]
+  - glob: ["CLAUDE.md"]
     rules:
       line-length:
         max: 200
@@ -87,20 +87,20 @@ overrides:
           - tables
           - urls
       blank-line-around-lists: false
-  - files: [".claude/skills/*/SKILL.md",
+  - glob: [".claude/skills/*/SKILL.md",
             ".github/copilot-pr-fixup.md",
             ".github/AGENTS-PR-FIXUP.md"]
     rules:
       max-file-length:
         max: 600
-  - files: [".claude/skills/*/SKILL.md"]
+  - glob: [".claude/skills/*/SKILL.md"]
     rules:
       # required-structure.schema for SKILL.md files comes
       # from the `skill` kind; this override only carries
       # the SKILL-specific heading-rule tweaks.
       first-line-heading: false
       heading-increment: false
-  - files: ["AGENTS.md", ".github/copilot-instructions.md"]
+  - glob: ["AGENTS.md", ".github/copilot-instructions.md"]
     rules:
       line-length:
         max: 200
@@ -116,15 +116,15 @@ overrides:
         level: 1
       cross-file-reference-integrity: true
       catalog: false
-  - files: ["docs/development/index.md"]
+  - glob: ["docs/development/index.md"]
     rules:
       first-line-heading: false
       heading-increment: false
-  - files: ["internal/rules/index.md"]
+  - glob: ["internal/rules/index.md"]
     rules:
       table-readability:
         max-rows: 45
-  - files: ["README.md"]
+  - glob: ["README.md"]
     rules:
       line-length:
         max: 100
@@ -138,24 +138,24 @@ overrides:
         max-rows: 40
       paragraph-structure:
         max-sentences: 30
-  - files: ["PLAN.md"]
+  - glob: ["PLAN.md"]
     rules:
       table-readability:
         max-rows: 80
         max-column-width-ratio: 65
-  - files: ["internal/rules/MDS002-heading-style/good/setext.md"]
+  - glob: ["internal/rules/MDS002-heading-style/good/setext.md"]
     rules:
       heading-style:
         style: setext
-  - files: ["internal/rules/MDS010-fenced-code-style/good/tilde.md"]
+  - glob: ["internal/rules/MDS010-fenced-code-style/good/tilde.md"]
     rules:
       fenced-code-style:
         style: tilde
-  - files: ["internal/rules/MDS016-list-indent/good/spaces-4.md"]
+  - glob: ["internal/rules/MDS016-list-indent/good/spaces-4.md"]
     rules:
       list-indent:
         spaces: 4
-  - files: ["docs/background/*.md"]
+  - glob: ["docs/background/**/*.md"]
     rules:
       line-length:
         stern: true
@@ -167,13 +167,13 @@ overrides:
         tokens-per-word: 1.33
         tokenizer: builtin
         encoding: cl100k_base
-  - files: ["docs/development/pr-fixup-workflow.md"]
+  - glob: ["docs/development/pr-fixup-workflow.md"]
     rules:
       first-line-heading: false
       heading-increment: false
       max-file-length:
         max: 330
-  - files: ["docs/guides/*.md"]
+  - glob: ["docs/guides/**/*.md"]
     rules:
       line-length:
         max: 600
@@ -195,7 +195,7 @@ overrides:
       paragraph-structure:
         max-sentences: 12
         max-words-per-sentence: 120
-  - files: ["docs/security/*.md", "!docs/security/proto.md"]
+  - glob: ["docs/security/*.md", "!docs/security/proto.md"]
     rules:
       line-length:
         max: 600
@@ -214,7 +214,7 @@ overrides:
         tokens-per-word: 1.33
         tokenizer: builtin
         encoding: cl100k_base
-  - files: ["docs/research/**"]
+  - glob: ["docs/research/**"]
     rules:
       first-line-heading: false
       heading-increment: false
@@ -285,13 +285,13 @@ kinds:
 # would strip the schema from proto.md, so it is not used
 # here.
 kind-assignment:
-  - files: ["**/proto.md"]
+  - glob: ["**/proto.md"]
     kinds: [proto]
-  - files: ["plan/*.md"]
+  - glob: ["plan/*.md"]
     kinds: [plan]
-  - files: ["internal/rules/proto.md", "internal/rules/MDS*/README.md"]
+  - glob: ["internal/rules/proto.md", "internal/rules/MDS*/README.md"]
     kinds: [rule-readme]
-  - files: [".claude/skills/proto.md", ".claude/skills/*/SKILL.md"]
+  - glob: [".claude/skills/proto.md", ".claude/skills/*/SKILL.md"]
     kinds: [skill]
-  - files: ["docs/security/*.md"]
+  - glob: ["docs/security/*.md"]
     kinds: [security-note]

@@ -82,7 +82,7 @@ starts with the built-in defaults. Then every `kinds:`
 block whose name matches the file applies. Front-matter
 `kinds:` come first; `kind-assignment:` entries follow in
 config order. Last, every `overrides:` block whose
-`files:` glob matches the file applies.
+`glob:` matches the file applies.
 
 Each layer **deep-merges** onto the accumulator:
 

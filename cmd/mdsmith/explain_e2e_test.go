@@ -19,7 +19,7 @@ const explainCfg = `kinds:
       line-length:
         max: 30
 kind-assignment:
-  - files: ["short.md"]
+  - glob: ["short.md"]
     kinds: [short]
 rules:
   line-length:

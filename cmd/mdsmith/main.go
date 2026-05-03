@@ -1080,7 +1080,7 @@ purpose (schema, template, fragment, prompt, …) without repeating overrides.
 DECLARATION
 
 Declare kinds under the kinds: key. The body has the same shape as an
-override entry (rules:, categories:) — minus files:, since files are bound
+override entry (rules:, categories:) — minus glob:, since files are bound
 to kinds separately:
 
   kinds:
@@ -1109,9 +1109,9 @@ Duplicate names are dropped after their first occurrence. Referencing an
 undeclared kind is a config error.
 
   kind-assignment:
-    - files: ["plan/[0-9]*_*.md"]
+    - glob: ["plan/[0-9]*_*.md"]
       kinds: [plan]
-    - files: ["**/proto.md"]
+    - glob: ["**/proto.md"]
       kinds: [proto]
 
 MERGE ORDER

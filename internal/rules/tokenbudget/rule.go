@@ -3,12 +3,11 @@ package tokenbudget
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
-	"github.com/gobwas/glob"
+	"github.com/bmatcuk/doublestar/v4"
+	"github.com/jeduden/mdsmith/internal/globpath"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/rule"
@@ -34,9 +33,8 @@ var (
 )
 
 type budgetOverride struct {
-	Glob    string
-	Max     int
-	matcher glob.Glob
+	Glob string
+	Max  int
 }
 
 func init() {
@@ -116,44 +114,14 @@ func (r *Rule) activeBudget(path string) int {
 		budget = defaultMax
 	}
 	for _, override := range r.Budgets {
-		if override.matcher == nil {
+		if override.Glob == "" {
 			continue
 		}
-		for _, candidate := range pathCandidates(path) {
-			if override.matcher.Match(candidate) {
-				budget = override.Max
-				break
-			}
+		if globpath.Match(override.Glob, path) {
+			budget = override.Max
 		}
 	}
 	return budget
-}
-
-func pathCandidates(path string) []string {
-	clean := filepath.Clean(path)
-	base := filepath.Base(path)
-
-	uniq := map[string]struct{}{}
-	for _, p := range []string{
-		path,
-		clean,
-		base,
-		filepath.ToSlash(path),
-		filepath.ToSlash(clean),
-		filepath.ToSlash(base),
-	} {
-		if strings.TrimSpace(p) == "" {
-			continue
-		}
-		uniq[p] = struct{}{}
-	}
-
-	out := make([]string, 0, len(uniq))
-	for p := range uniq {
-		out = append(out, p)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func (r *Rule) tokenCountAndMode(text string) (int, string) {
@@ -358,15 +326,13 @@ func parseBudgets(v any) ([]budgetOverride, error) {
 			return nil, fmt.Errorf("token-budget: budgets[%d].max must be positive, got %d", idx, maxVal)
 		}
 
-		matcher, err := glob.Compile(globStr)
-		if err != nil {
-			return nil, fmt.Errorf("token-budget: budgets[%d].glob is invalid: %v", idx, err)
+		if _, err := doublestar.Match(globStr, ""); err != nil {
+			return nil, fmt.Errorf("token-budget: budgets[%d].glob is invalid %q: %w", idx, globStr, err)
 		}
 
 		result = append(result, budgetOverride{
-			Glob:    globStr,
-			Max:     maxVal,
-			matcher: matcher,
+			Glob: globStr,
+			Max:  maxVal,
 		})
 	}
 

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // isMarkdown returns true if the file extension is .md or .markdown.
@@ -15,8 +17,39 @@ func isMarkdown(path string) bool {
 }
 
 // hasGlobChars returns true if the string contains glob meta-characters.
+// Brace expansion is only recognised when a brace group contains a comma
+// (e.g. {a,b}), so that literal filenames with braces (e.g. {draft}.md)
+// are not mistakenly routed through glob expansion.
 func hasGlobChars(s string) bool {
-	return strings.ContainsAny(s, "*?[")
+	return strings.ContainsAny(s, "*?[") || hasBraceExpansion(s)
+}
+
+// hasBraceExpansion reports whether s contains at least one brace group
+// with a comma inside a properly closed brace group, indicating real
+// doublestar brace expansion syntax. An unclosed brace (e.g. {a,b.md)
+// is not treated as expansion so it reaches normal path handling.
+func hasBraceExpansion(s string) bool {
+	// commaStack tracks whether each open brace depth has seen a comma.
+	var commaStack []bool
+	for _, c := range s {
+		switch c {
+		case '{':
+			commaStack = append(commaStack, false)
+		case '}':
+			if len(commaStack) > 0 {
+				hadComma := commaStack[len(commaStack)-1]
+				commaStack = commaStack[:len(commaStack)-1]
+				if hadComma {
+					return true
+				}
+			}
+		case ',':
+			if len(commaStack) > 0 {
+				commaStack[len(commaStack)-1] = true
+			}
+		}
+	}
+	return false
 }
 
 // ResolveOpts controls how file resolution behaves.
@@ -345,7 +378,7 @@ func gitProjectRoot(start string) string {
 
 // resolveGlob expands a glob pattern and adds matching markdown files.
 func resolveGlob(pattern string, opts ResolveOpts, addFile func(string)) error {
-	matches, err := filepath.Glob(pattern)
+	matches, err := doublestar.FilepathGlob(pattern)
 	if err != nil {
 		return fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
 	}

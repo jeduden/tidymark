@@ -10,7 +10,6 @@ tool (
 require (
 	cuelang.org/go v0.16.1
 	github.com/bmatcuk/doublestar/v4 v4.10.0
-	github.com/gobwas/glob v0.2.3
 	github.com/mattn/go-runewidth v0.0.23
 	github.com/neurosnap/sentences v1.1.2
 	github.com/spf13/pflag v1.0.10
@@ -115,6 +114,7 @@ require (
 	github.com/go-toolsmith/typep v1.1.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/go-xmlfmt/xmlfmt v1.1.3 // indirect
+	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godoc-lint/godoc-lint v0.11.1 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

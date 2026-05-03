@@ -11,6 +11,7 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	"github.com/jeduden/mdsmith/internal/fieldinterp"
+	"github.com/jeduden/mdsmith/internal/globpath"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/jeduden/mdsmith/internal/rules/tableformat"
@@ -244,14 +245,7 @@ func validateSort(filePath string, line int, sortVal string) []lint.Diagnostic {
 // splitIncludeExclude separates glob patterns into include and exclude lists.
 // Patterns prefixed with "!" are exclusion patterns (prefix is stripped).
 func splitIncludeExclude(glob string) (include, exclude []string) {
-	for _, pattern := range splitGlobs(glob) {
-		if strings.HasPrefix(pattern, "!") {
-			exclude = append(exclude, pattern[1:])
-		} else {
-			include = append(include, pattern)
-		}
-	}
-	return include, exclude
+	return globpath.SplitIncludeExclude(splitGlobs(glob))
 }
 
 // resolveGlobFS returns the filesystem to use for glob resolution and
@@ -660,8 +654,7 @@ func isExcluded(filePath string, patterns []string) bool {
 		if pattern == "" {
 			continue
 		}
-		matched, err := doublestar.Match(pattern, filePath)
-		if err == nil && matched {
+		if ok, _ := doublestar.Match(pattern, filePath); ok {
 			return true
 		}
 	}

@@ -171,7 +171,7 @@ func buildLayers(cfg *Config, filePath string, kinds []ResolvedKind) []layerInfo
 		})
 	}
 	for i, o := range cfg.Overrides {
-		if matchesAny(o.Files, filePath) {
+		if matchesAny(o.Patterns(), filePath) {
 			layers = append(layers, layerInfo{
 				Source: fmt.Sprintf("overrides[%d]", i),
 				Rules:  o.Rules,
@@ -312,7 +312,7 @@ func resolveKindsWithSources(cfg *Config, filePath string, fmKinds []string) []R
 		add(k, "front-matter")
 	}
 	for i, entry := range cfg.KindAssignment {
-		if matchesAny(entry.Files, filePath) {
+		if matchesAny(entry.Patterns(), filePath) {
 			src := KindAssignmentSource(fmt.Sprintf("kind-assignment[%d]", i))
 			for _, k := range entry.Kinds {
 				add(k, src)

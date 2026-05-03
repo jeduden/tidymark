@@ -58,6 +58,8 @@ func Load(path string) (*Config, error) {
 				"see docs/guides/file-kinds.md")
 	}
 
+	detectFilesKeyDeprecations(&cfg)
+
 	if err := ValidateKinds(&cfg); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
@@ -206,6 +208,23 @@ func readLimitedConfig(path string) ([]byte, error) {
 		)
 	}
 	return data, nil
+}
+
+func detectFilesKeyDeprecations(cfg *Config) {
+	for i, o := range cfg.Overrides {
+		if o.Files != nil {
+			cfg.Deprecations = append(cfg.Deprecations,
+				fmt.Sprintf("overrides[%d]: `files:` is deprecated; "+
+					"rename it to `glob:` — see docs/reference/globs.md", i))
+		}
+	}
+	for i, e := range cfg.KindAssignment {
+		if e.Files != nil {
+			cfg.Deprecations = append(cfg.Deprecations,
+				fmt.Sprintf("kind-assignment[%d]: `files:` is deprecated; "+
+					"rename it to `glob:` — see docs/reference/globs.md", i))
+		}
+	}
 }
 
 func enabledByDefault(r rule.Rule) bool {

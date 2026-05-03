@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -485,7 +486,83 @@ func TestHasGlobChars(t *testing.T) {
 	assert.True(t, hasGlobChars("*.md"))
 	assert.True(t, hasGlobChars("file?.md"))
 	assert.True(t, hasGlobChars("[abc].md"))
+	assert.True(t, hasGlobChars("docs/{a,b}.md")) // brace expansion with comma
 	assert.False(t, hasGlobChars("readme.md"))
+	assert.False(t, hasGlobChars("{draft}.md")) // single-item brace — not expansion
+}
+
+func TestHasBraceExpansion(t *testing.T) {
+	assert.True(t, hasBraceExpansion("docs/{a,b}.md"))
+	assert.True(t, hasBraceExpansion("{guide,ref}.md"))
+	assert.True(t, hasBraceExpansion("a/{x,y}/b"))               // nested depth with comma
+	assert.False(t, hasBraceExpansion("{draft}.md"))             // no comma inside braces
+	assert.False(t, hasBraceExpansion("readme.md"))              // no braces at all
+	assert.False(t, hasBraceExpansion("a,b"))                    // comma but no enclosing brace
+	assert.False(t, hasBraceExpansion("notes/{draft,review.md")) // unclosed brace
+}
+
+// TestResolveFiles_BraceExpansion verifies that a brace-expansion CLI argument
+// is expanded via doublestar rather than treated as a literal filename.
+func TestResolveFiles_BraceExpansion(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.md"), []byte("# A\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.md"), []byte("# B\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "c.md"), []byte("# C\n"), 0o644))
+
+	orig, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(orig) }()
+
+	files, err := ResolveFiles([]string{"{a,b}.md"})
+	require.NoError(t, err)
+	names := make([]string, len(files))
+	for i, f := range files {
+		names[i] = filepath.Base(f)
+	}
+	sort.Strings(names)
+	assert.Equal(t, []string{"a.md", "b.md"}, names)
+	assert.NotContains(t, names, "c.md")
+}
+
+// TestResolveFiles_LiteralBrace verifies that a filename with a single-item
+// brace group (no comma) is treated as a literal path, not a glob.
+func TestResolveFiles_LiteralBrace(t *testing.T) {
+	dir := t.TempDir()
+	// Create a file with a literal brace in its name.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "{draft}.md"), []byte("# D\n"), 0o644))
+
+	orig, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(orig) }()
+
+	files, err := ResolveFiles([]string{"{draft}.md"})
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Equal(t, "{draft}.md", filepath.Base(files[0]))
+}
+
+// TestResolveFiles_DoubleStarRecursive verifies that ** in a CLI argument
+// recurses into subdirectories via doublestar.FilepathGlob.
+func TestResolveFiles_DoubleStarRecursive(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "top.md"), []byte("# T\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(sub, "nested.md"), []byte("# N\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(sub, "other.txt"), []byte("txt"), 0o644))
+
+	orig, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(orig) }()
+
+	files, err := ResolveFiles([]string{"**/*.md"})
+	require.NoError(t, err)
+	names := make([]string, len(files))
+	for i, f := range files {
+		names[i] = filepath.Base(f)
+	}
+	sort.Strings(names)
+	assert.Equal(t, []string{"nested.md", "top.md"}, names, "** should recurse into subdirs")
 }
 
 // --- isMarkdown tests ---
