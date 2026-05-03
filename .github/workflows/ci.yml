@@ -60,7 +60,7 @@ jobs:
     with:
       # MP4 skips the slow GIF palette-quantization encoding pass.
       # The published GIF is produced separately by demo.yml.
-      output-format: mp4
+      output_format: mp4
 
   test:
     runs-on: ubuntu-latest

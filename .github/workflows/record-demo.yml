@@ -10,14 +10,14 @@ name: Record demo
 on:
   workflow_call:
     inputs:
-      output-format:
+      output_format:
         description: Output format — `gif` for the published artifact, `mp4` for fast CI validation
         type: string
         default: gif
     outputs:
-      artifact-name:
+      artifact_name:
         description: Name of the uploaded artifact
-        value: ${{ jobs.record.outputs.artifact-name }}
+        value: ${{ jobs.record.outputs.artifact_name }}
 
 permissions:
   contents: read
@@ -26,7 +26,7 @@ jobs:
   record:
     runs-on: ubuntu-latest
     outputs:
-      artifact-name: demo-${{ inputs.output-format }}
+      artifact_name: demo-${{ inputs.output_format }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -109,13 +109,13 @@ jobs:
           cp /usr/local/bin/ffmpeg ~/vhs-bin/
       - name: Record demo in isolated directory
         env:
-          OUTPUT_FORMAT: ${{ inputs.output-format }}
+          OUTPUT_FORMAT: ${{ inputs.output_format }}
         run: |
           # Run VHS in a temp directory so demo.tape commands
           # cannot modify the repo working tree.
           case "$OUTPUT_FORMAT" in
             gif|mp4) ;;
-            *) echo "Unsupported output-format: $OUTPUT_FORMAT" >&2; exit 1 ;;
+            *) echo "Unsupported output_format: $OUTPUT_FORMAT" >&2; exit 1 ;;
           esac
           iso="$(mktemp -d)"
           tar --exclude='.git' -cf - . | (cd "$iso" && tar -xf -)
@@ -129,7 +129,7 @@ jobs:
           rm -rf "$iso"
       - name: Validate output
         env:
-          OUTPUT_FORMAT: ${{ inputs.output-format }}
+          OUTPUT_FORMAT: ${{ inputs.output_format }}
         run: |
           file="artifacts/demo.${OUTPUT_FORMAT}"
           if [ ! -f "$file" ]; then
@@ -168,7 +168,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: demo-${{ inputs.output-format }}
-          path: artifacts/demo.${{ inputs.output-format }}
+          name: demo-${{ inputs.output_format }}
+          path: artifacts/demo.${{ inputs.output_format }}
           retention-days: 7
           if-no-files-found: error
