@@ -1,16 +1,22 @@
 name: Record demo
 
 # Reusable: builds mdsmith, installs VHS + ttyd + ffmpeg, executes
-# demo.tape in an isolated copy of the repo, and uploads the resulting
-# GIF as an artifact. Single source of truth for VHS pinning, called
-# by both ci.yml (for tape validation on PRs) and demo.yml (for
+# demo.tape in an isolated copy of the repo, and uploads the result
+# as an artifact. Single source of truth for VHS pinning, called by
+# both ci.yml (for tape validation on PRs — uses MP4 to skip the
+# expensive GIF palette quantization pass) and demo.yml (for
 # publishing the GIF on push to main).
 
 on:
   workflow_call:
+    inputs:
+      output-format:
+        description: Output format — `gif` for the published artifact, `mp4` for fast CI validation
+        type: string
+        default: gif
     outputs:
       artifact-name:
-        description: Name of the uploaded GIF artifact
+        description: Name of the uploaded artifact
         value: ${{ jobs.record.outputs.artifact-name }}
 
 permissions:
@@ -20,7 +26,7 @@ jobs:
   record:
     runs-on: ubuntu-latest
     outputs:
-      artifact-name: demo-gif
+      artifact-name: demo-${{ inputs.output-format }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -102,41 +108,67 @@ jobs:
           cp /usr/local/bin/vhs ~/vhs-bin/
           cp /usr/local/bin/ffmpeg ~/vhs-bin/
       - name: Record demo in isolated directory
+        env:
+          OUTPUT_FORMAT: ${{ inputs.output-format }}
         run: |
           # Run VHS in a temp directory so demo.tape commands
           # cannot modify the repo working tree.
+          case "$OUTPUT_FORMAT" in
+            gif|mp4) ;;
+            *) echo "Unsupported output-format: $OUTPUT_FORMAT" >&2; exit 1 ;;
+          esac
           iso="$(mktemp -d)"
           tar --exclude='.git' -cf - . | (cd "$iso" && tar -xf -)
+          # Rewrite the tape's `Output` line to the requested
+          # extension. The published demo (gif) and the CI
+          # validation (mp4) share one tape.
+          sed -i -E "s|^Output assets/demo\\.[a-z0-9]+|Output assets/demo.${OUTPUT_FORMAT}|" "$iso/demo.tape"
           (cd "$iso" && vhs demo.tape)
           mkdir -p artifacts
-          cp "$iso/assets/demo.gif" artifacts/demo.gif
+          cp "$iso/assets/demo.${OUTPUT_FORMAT}" "artifacts/demo.${OUTPUT_FORMAT}"
           rm -rf "$iso"
-      - name: Validate GIF
+      - name: Validate output
+        env:
+          OUTPUT_FORMAT: ${{ inputs.output-format }}
         run: |
-          file="artifacts/demo.gif"
+          file="artifacts/demo.${OUTPUT_FORMAT}"
           if [ ! -f "$file" ]; then
             echo "ERROR: $file not produced" >&2
             exit 1
           fi
-          header=$(head -c 6 "$file")
-          if [ "$header" != "GIF89a" ] && [ "$header" != "GIF87a" ]; then
-            echo "ERROR: $file is not a valid GIF (header: $header)" >&2
-            exit 1
-          fi
           size=$(stat -c%s "$file")
-          if [ "$size" -lt 10240 ]; then
-            echo "ERROR: $file too small (${size} bytes < 10 KB)" >&2
+          case "$OUTPUT_FORMAT" in
+            gif)
+              header=$(head -c 6 "$file")
+              if [ "$header" != "GIF89a" ] && [ "$header" != "GIF87a" ]; then
+                echo "ERROR: $file is not a valid GIF (header: $header)" >&2
+                exit 1
+              fi
+              min=10240; max=5242880
+              ;;
+            mp4)
+              # MP4 files start with an `ftyp` box; bytes 4-7 are the box type.
+              boxtype=$(dd if="$file" bs=1 skip=4 count=4 2>/dev/null)
+              if [ "$boxtype" != "ftyp" ]; then
+                echo "ERROR: $file is not a valid MP4 (box type: $boxtype)" >&2
+                exit 1
+              fi
+              min=10240; max=10485760
+              ;;
+          esac
+          if [ "$size" -lt "$min" ]; then
+            echo "ERROR: $file too small (${size} bytes < ${min})" >&2
             exit 1
           fi
-          if [ "$size" -gt 5242880 ]; then
-            echo "ERROR: $file too large (${size} bytes > 5 MB)" >&2
+          if [ "$size" -gt "$max" ]; then
+            echo "ERROR: $file too large (${size} bytes > ${max})" >&2
             exit 1
           fi
-          echo "demo.gif OK — ${size} bytes, header: $header"
-      - name: Upload GIF artifact
+          echo "demo.${OUTPUT_FORMAT} OK — ${size} bytes"
+      - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: demo-gif
-          path: artifacts/demo.gif
+          name: demo-${{ inputs.output-format }}
+          path: artifacts/demo.${{ inputs.output-format }}
           retention-days: 7
           if-no-files-found: error
