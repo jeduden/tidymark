@@ -21,6 +21,13 @@ rules:
   no-space-in-link-text: true
 ```
 
+Disable:
+
+```yaml
+rules:
+  no-space-in-link-text: false
+```
+
 Disable image alt-text checking:
 
 ```yaml

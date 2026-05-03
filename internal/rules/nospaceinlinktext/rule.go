@@ -95,13 +95,24 @@ func bracketSpan(n ast.Node, source []byte) (open, close int) {
 
 	// Scan backward from the first content byte to find the opening `[`.
 	// Any inline formatting bytes (*, _, `, etc.) between `[` and the first
-	// text are passed over without restriction.
+	// text are passed over. A `[` preceded by an odd number of backslashes is
+	// an escaped bracket (\[) and is skipped so we land on the real opener.
 	openBracket := -1
 	for i := minStart - 1; i >= 0; i-- {
-		if source[i] == '[' {
-			openBracket = i
-			break
+		if source[i] != '[' {
+			continue
 		}
+		// Count backslashes immediately before this `[`.
+		backslashes := 0
+		for j := i - 1; j >= 0 && source[j] == '\\'; j-- {
+			backslashes++
+		}
+		if backslashes%2 == 1 {
+			// Odd count → this `[` is escaped; skip.
+			continue
+		}
+		openBracket = i
+		break
 	}
 	if openBracket == -1 {
 		return -1, -1
@@ -248,6 +259,11 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	var result []byte
 	prev := 0
 	for _, rep := range reps {
+		if rep.open < prev {
+			// This span is nested inside a previously fixed span.
+			// Skip it — a subsequent fix pass will address it.
+			continue
+		}
 		result = append(result, f.Source[prev:rep.open]...)
 		result = append(result, rep.text...)
 		prev = rep.close

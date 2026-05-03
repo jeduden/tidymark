@@ -205,3 +205,41 @@ func TestEscapedBracketInLinkText(t *testing.T) {
 	assert.Contains(t, msgs, "link text has leading whitespace")
 	assert.Contains(t, msgs, "link text has trailing whitespace")
 }
+
+func TestLinkWithTextAndNestedImage(t *testing.T) {
+	// [ text ![ alt ](img.png) ](url) — outer link has boundary spaces,
+	// inner image also has spaces in alt text.
+	// Check reports all four diagnostics.
+	diags := check(t, "# T\n\n[ text ![ alt ](img.png) ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has leading whitespace")
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+	assert.Contains(t, msgs, "image alt text has leading whitespace")
+	assert.Contains(t, msgs, "image alt text has trailing whitespace")
+}
+
+func TestFixNestedSpanNoOverlapPanic(t *testing.T) {
+	// Fix must not panic when outer link and inner image both need trimming.
+	// The outer fix is applied; the inner requires a second pass.
+	src := "# T\n\n[ text ![ alt ](img.png) ](url)\n"
+	result := fix(t, src, true)
+	// Outer boundary spaces must be removed.
+	assert.Contains(t, string(result), "[text !")
+	// Source must not be unchanged (at least outer fix applied).
+	assert.NotEqual(t, src, result)
+}
+
+func TestLinkWithTextAndNestedImageClean(t *testing.T) {
+	// [ text !(img.png) ](url) — outer link has boundary spaces but clean inner image.
+	// Only link text diagnostics; inner image has no alt whitespace.
+	diags := check(t, "# T\n\n[ text ![clean](img.png) ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has leading whitespace")
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+}
