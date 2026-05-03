@@ -258,6 +258,12 @@ func (r *Rule) collectSpans(f *lint.File) []span {
 		if open == -1 {
 			return ast.WalkContinue, nil
 		}
+		line := f.LineOfOffset(open)
+		for _, gr := range f.GeneratedRanges {
+			if gr.Contains(line) {
+				return ast.WalkContinue, nil
+			}
+		}
 		spans = append(spans, span{open: open, close: close, img: img})
 		return ast.WalkContinue, nil
 	})

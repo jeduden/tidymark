@@ -232,7 +232,7 @@ func TestFixNestedSpanSinglePass(t *testing.T) {
 }
 
 func TestLinkWithTextAndNestedImageClean(t *testing.T) {
-	// [ text !(img.png) ](url) — outer link has boundary spaces but clean inner image.
+	// [ text ![clean](img.png) ](url) — outer link has boundary spaces but inner image has clean alt.
 	// Only link text diagnostics; inner image has no alt whitespace.
 	diags := check(t, "# T\n\n[ text ![clean](img.png) ](url)\n", true)
 	msgs := make([]string, len(diags))
@@ -450,4 +450,48 @@ func TestBracketSpanCloseBracketNotFound(t *testing.T) {
 	open, close := bracketSpan(link, src)
 	assert.Equal(t, -1, open)
 	assert.Equal(t, -1, close)
+}
+
+func checkWithGeneratedRanges(t *testing.T, src string, ranges []lint.LineRange) []lint.Diagnostic {
+	t.Helper()
+	f, err := lint.NewFile("test.md", []byte(src))
+	require.NoError(t, err)
+	f.GeneratedRanges = ranges
+	r := &Rule{CheckImages: true}
+	return r.Check(f)
+}
+
+func fixWithGeneratedRanges(t *testing.T, src string, ranges []lint.LineRange) string {
+	t.Helper()
+	f, err := lint.NewFile("test.md", []byte(src))
+	require.NoError(t, err)
+	f.GeneratedRanges = ranges
+	r := &Rule{CheckImages: true}
+	return string(r.Fix(f))
+}
+
+func TestCheckSkipsGeneratedRange(t *testing.T) {
+	// Link with leading whitespace on line 3, which is declared as a generated range.
+	// Check must produce no diagnostics for that link.
+	src := "# T\n\n[ text ](url)\n"
+	diags := checkWithGeneratedRanges(t, src, []lint.LineRange{{From: 3, To: 3}})
+	assert.Empty(t, diags)
+}
+
+func TestCheckOutsideGeneratedRangeStillFires(t *testing.T) {
+	// Line 3 is clean; line 5 has leading whitespace and is outside the generated range (line 3).
+	src := "# T\n\n[clean](url)\n\n[ text ](url2)\n"
+	diags := checkWithGeneratedRanges(t, src, []lint.LineRange{{From: 3, To: 3}})
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has leading whitespace")
+}
+
+func TestFixSkipsGeneratedRange(t *testing.T) {
+	// Fix must not rewrite the link on line 3 when it falls inside a generated range.
+	src := "# T\n\n[ text ](url)\n"
+	result := fixWithGeneratedRanges(t, src, []lint.LineRange{{From: 3, To: 3}})
+	assert.Equal(t, src, result)
 }
