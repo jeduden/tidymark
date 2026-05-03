@@ -155,7 +155,7 @@ overrides:
     rules:
       list-indent:
         spaces: 4
-  - glob: ["docs/background/*.md"]
+  - glob: ["docs/background/**/*.md"]
     rules:
       line-length:
         stern: true
@@ -173,7 +173,7 @@ overrides:
       heading-increment: false
       max-file-length:
         max: 330
-  - glob: ["docs/guides/*.md"]
+  - glob: ["docs/guides/**/*.md"]
     rules:
       line-length:
         max: 600

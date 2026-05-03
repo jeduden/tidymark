@@ -6,21 +6,21 @@ summary: >-
 ---
 # Glob patterns
 
-mdsmith uses one glob matcher — [`doublestar`](https://github.com/bmatcuk/doublestar)
-— across all surfaces: config patterns (`ignore:`,
-`overrides:`, `kind-assignment:`), the `<?catalog?>`
+mdsmith uses [`doublestar`](https://github.com/bmatcuk/doublestar) as
+its single glob matcher across all surfaces. These include config
+(`ignore:`, `overrides:`, `kind-assignment:`), the `<?catalog?>`
 directive, and CLI argument expansion. The syntax and
 `!`-exclusion semantics are identical on every surface.
 
 ## Surfaces
 
-| Surface                        | Field name      | `!`-exclusion |
-|--------------------------------|-----------------|---------------|
-| `ignore:`                      | list of strings | yes           |
-| `overrides:.glob`              | `glob:`         | yes           |
-| `kind-assignment:.glob`        | `glob:`         | yes           |
-| `<?catalog?>`                  | `glob:`         | yes           |
-| CLI argument expansion         | positional      | no            |
+| Surface                 | Field name      | `!`-exclusion |
+|-------------------------|-----------------|---------------|
+| `ignore:`               | list of strings | yes           |
+| `overrides:.glob`       | `glob:`         | yes           |
+| `kind-assignment:.glob` | `glob:`         | yes           |
+| `<?catalog?>`           | `glob:`         | yes           |
+| CLI argument expansion  | positional      | no            |
 
 ## Supported syntax
 
@@ -78,19 +78,25 @@ kind-assignment:
     kinds: [plan]
 ```
 
-### Deprecation: `files:`
+### Migrating from the `files:` key
 
 The `files:` key was the original field name for these
 patterns. It continues to work but emits a deprecation
 warning at load time:
 
-```
+```text
 overrides[0]: `files:` is deprecated; rename it to `glob:` — see docs/reference/globs.md
 ```
 
 Replace every `files:` key with `glob:` in your
 `.mdsmith.yml`. The `files:` key will be removed in a
 future release.
+
+Note: the old `files:` key used a matcher where `*`
+crossed path separators. The canonical `glob:` key uses
+`doublestar` semantics where `*` matches a single path
+component. Update patterns like `docs/guides/*.md` to
+`docs/guides/**/*.md` if they relied on that behavior.
 
 ## Directive globs (`<?catalog?>`)
 
@@ -117,10 +123,10 @@ lint time.
 ## CLI argument expansion
 
 Positional arguments to `mdsmith check` and `mdsmith fix`
-are expanded with `doublestar.FilepathGlob`, which
-supports the same `**` and brace-expansion syntax as
-config patterns. `!`-prefix exclusion is not available on
-the CLI; use `ignore:` in `.mdsmith.yml` instead.
+are expanded with `doublestar.FilepathGlob`. It supports
+the same `**` and brace-expansion syntax as config
+patterns. `!`-prefix exclusion is not available on the
+CLI; use `ignore:` in `.mdsmith.yml` instead.
 
 ```bash
 mdsmith check 'docs/**/*.md'   # works, recurses into subdirs
