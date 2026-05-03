@@ -214,6 +214,17 @@ func TestFix_OverlappingMatches_LongestMatchWins(t *testing.T) {
 	assert.Equal(t, "JavaScript is fun.\n", string(out))
 }
 
+func TestCheck_OverlappingMatches_OneDiagnostic(t *testing.T) {
+	// "Java" and "JavaScript" both match "javascript" at offset 0.
+	// Check must emit only one diagnostic (for the longest match) so
+	// it agrees with Fix on the number of occurrences.
+	f := newFile(t, "javascript is fun.\n")
+	r := &Rule{Names: []string{"Java", "JavaScript"}}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Equal(t, `proper name "javascript" should be "JavaScript"`, diags[0].Message)
+}
+
 func TestScanBytes_EmptyName_Skipped(t *testing.T) {
 	r := &Rule{Names: []string{""}}
 	f := newFile(t, "javascript\n")

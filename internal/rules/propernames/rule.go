@@ -191,9 +191,32 @@ func (r *Rule) collectMatches(f *lint.File) []wrongMatch {
 	return all
 }
 
+// normalizeMatches sorts matches by start offset (ties broken by longest
+// match first) and removes overlapping entries, keeping the longest match
+// at each offset. Both Check and Fix call this so they agree on which
+// occurrences constitute a single diagnostic/replacement.
+func normalizeMatches(matches []wrongMatch) []wrongMatch {
+	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].start != matches[j].start {
+			return matches[i].start < matches[j].start
+		}
+		return matches[i].length > matches[j].length
+	})
+	out := matches[:0]
+	prev := 0
+	for _, m := range matches {
+		if m.start < prev {
+			continue
+		}
+		out = append(out, m)
+		prev = m.start + m.length
+	}
+	return out
+}
+
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
-	matches := r.collectMatches(f)
+	matches := normalizeMatches(r.collectMatches(f))
 	if len(matches) == 0 {
 		return nil
 	}
@@ -216,29 +239,16 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 // the canonical spelling in place. Whole-word left-boundary matching makes
 // this a safe rewrite.
 func (r *Rule) Fix(f *lint.File) []byte {
-	matches := r.collectMatches(f)
+	matches := normalizeMatches(r.collectMatches(f))
 	if len(matches) == 0 {
 		out := make([]byte, len(f.Source))
 		copy(out, f.Source)
 		return out
 	}
 
-	// Sort by start offset; break ties by preferring the longest match so
-	// that when two names share a prefix (e.g. "Java" and "JavaScript"),
-	// the longer canonical replacement wins.
-	sort.Slice(matches, func(i, j int) bool {
-		if matches[i].start != matches[j].start {
-			return matches[i].start < matches[j].start
-		}
-		return matches[i].length > matches[j].length
-	})
-
 	var out bytes.Buffer
 	prev := 0
 	for _, m := range matches {
-		if m.start < prev {
-			continue // overlapping or duplicate start: skip
-		}
 		out.Write(f.Source[prev:m.start])
 		out.WriteString(m.name)
 		prev = m.start + m.length
