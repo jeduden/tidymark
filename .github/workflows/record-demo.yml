@@ -83,7 +83,7 @@ jobs:
             curl -fsSL -o /tmp/vhs.tar.gz \
               "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Linux_${vhs_arch}.tar.gz"
             echo "${vhs_sha256}  /tmp/vhs.tar.gz" | sha256sum -c
-            tar -xzf /tmp/vhs.tar.gz -C /tmp vhs
+            tar -xzf /tmp/vhs.tar.gz -C /tmp --strip-components=1 --wildcards '*/vhs'
             sudo install /tmp/vhs /usr/local/bin/vhs
           fi
       - name: Populate VHS cache
