@@ -121,31 +121,37 @@ func validateCommandPlaceholders(recipeName, command string, allowed map[string]
 	return nil
 }
 
-// InjectBuildConfig copies cfg.Build.Recipes into the recipe-safety
-// rule settings, alongside the config file path. It is called after
-// config loading in main so the rule receives its inputs through the
-// normal ApplySettings path. cfgPath is the path to the loaded
-// .mdsmith.yml; it is set in the config-path setting so MDS040 can
-// report diagnostics against the
-// right file.
+// InjectBuildConfig copies cfg.Build.Recipes into the recipe-safety and
+// build rule settings. It is called after config loading in main so rules
+// receive their inputs through the normal ApplySettings path. cfgPath is
+// the path to the loaded .mdsmith.yml; it is set in the config-path
+// setting so MDS040 can report diagnostics against the right file.
 func InjectBuildConfig(cfg *Config, cfgPath string) {
 	if cfg == nil || len(cfg.Build.Recipes) == 0 {
 		return
 	}
-	const name = "recipe-safety"
-	rc, ok := cfg.Rules[name]
-	if !ok || !rc.Enabled {
-		return
+	recipes := serializeRecipes(cfg.Build.Recipes)
+
+	// Inject into recipe-safety (MDS040) with config-path.
+	if rc, ok := cfg.Rules["recipe-safety"]; ok && rc.Enabled {
+		if rc.Settings == nil {
+			rc.Settings = make(map[string]any)
+		}
+		rc.Settings["recipes"] = recipes
+		if cfgPath != "" {
+			rc.Settings["config-path"] = cfgPath
+		}
+		cfg.Rules["recipe-safety"] = rc
 	}
-	if rc.Settings == nil {
-		rc.Settings = make(map[string]any)
+
+	// Inject into build directive (MDS039).
+	if rc, ok := cfg.Rules["build"]; ok && rc.Enabled {
+		if rc.Settings == nil {
+			rc.Settings = make(map[string]any)
+		}
+		rc.Settings["recipes"] = recipes
+		cfg.Rules["build"] = rc
 	}
-	// Always overwrite: recipes must come from build:, not user rule settings.
-	rc.Settings["recipes"] = serializeRecipes(cfg.Build.Recipes)
-	if cfgPath != "" {
-		rc.Settings["config-path"] = cfgPath
-	}
-	cfg.Rules[name] = rc
 }
 
 // serializeRecipes converts RecipeCfg map to map[string]any for transport

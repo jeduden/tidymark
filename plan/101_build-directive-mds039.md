@@ -1,7 +1,7 @@
 ---
 id: 101
 title: build directive and MDS039 lint rule
-status: "🔲"
+status: "✅"
 summary: >-
   Add the `<?build?>` directive and MDS039, which
   validates directive params against the recipe's
@@ -154,56 +154,56 @@ introduce a new recipe.
 
 ## Tasks
 
-1. Implement the `<?build?>` directive in
+1. [x] Implement the `<?build?>` directive in
    `internal/rules/build/` using `gensection.Engine`.
    Register as MDS039, category `meta`. `Generate`
    renders `body_template` only; it never calls a
    builder or touches the filesystem.
-2. Add built-in recipe schemas for `screenshot` and
+2. [x] Add built-in recipe schemas for `screenshot` and
    `vhs` (param names, required/optional lists,
    default `body_template`).
-3. Implement MDS039 validation (recipe resolution,
+3. [x] Implement MDS039 validation (recipe resolution,
    `output` path safety, required params, unknown
    params, stale-section body check).
-4. Add `good/`, `bad/`, and `fixed/` fixtures for
+4. [x] Add `good/`, `bad/`, and `fixed/` fixtures for
    MDS039 under `internal/rules/MDS039-build/`.
-5. Wire MDS039 into `cmd/mdsmith/main.go`.
-6. Document MDS039 in
+5. [x] Wire MDS039 into `cmd/mdsmith/main.go`.
+6. [x] Document MDS039 in
    `internal/rules/MDS039-build/README.md`.
-7. Add user guide at
+7. [x] Add user guide at
    `docs/guides/directives/build.md` covering the
    directive syntax, built-in recipes, and how
    `mdsmith fix` keeps the body in sync.
 
 ## Acceptance Criteria
 
-- [ ] `<?build recipe:screenshot url:... output:...?>`
+- [x] `<?build recipe:screenshot url:... output:...?>`
       body is regenerated on `mdsmith fix`
-- [ ] `<?build recipe:vhs input:demo.tape output:demo.gif?>`
+- [x] `<?build recipe:vhs input:demo.tape output:demo.gif?>`
       body is regenerated on `mdsmith fix`
-- [ ] MDS039 reports `stale-section` when the body
+- [x] MDS039 reports `stale-section` when the body
       diverges from the rendered `body_template`
-- [ ] `mdsmith check` does **not** run any external
+- [x] `mdsmith check` does **not** run any external
       tool for `<?build?>` blocks
-- [ ] MDS039 rejects an unknown recipe name
-- [ ] MDS039 rejects a missing `output` param
-- [ ] MDS039 rejects an `output` value that contains
+- [x] MDS039 rejects an unknown recipe name
+- [x] MDS039 rejects a missing `output` param
+- [x] MDS039 rejects an `output` value that contains
       `..` components
-- [ ] MDS039 rejects a `<?build recipe:screenshot?>`
+- [x] MDS039 rejects a `<?build recipe:screenshot?>`
       that omits the required `url` param
-- [ ] MDS039 warns on a param not in the recipe's
+- [x] MDS039 warns on a param not in the recipe's
       `required` or `optional` lists
-- [ ] A Markdown file cannot introduce a new recipe;
+- [x] A Markdown file cannot introduce a new recipe;
       it can only reference recipes in `.mdsmith.yml`
       or built-in recipes
-- [ ] `output` accepts any file extension; no
+- [x] `output` accepts any file extension; no
       extension filter is applied
-- [ ] The rendered `body_template` uses `{alt}`
+- [x] The rendered `body_template` uses `{alt}`
       defaulting to `"{recipe} output: {output}"`,
       satisfying MDS032
-- [ ] A user-declared recipe's `body_template` from
+- [x] A user-declared recipe's `body_template` from
       `build.recipes` is used instead of the default
-- [ ] Merge driver regenerates `<?build?>` bodies on
+- [x] Merge driver regenerates `<?build?>` bodies on
       conflict (via `gensection.Engine`)
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
