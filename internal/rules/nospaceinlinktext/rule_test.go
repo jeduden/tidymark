@@ -516,6 +516,21 @@ func TestFixTabWhitespace(t *testing.T) {
 	assert.Equal(t, "# T\n\n[text](url)\n", result)
 }
 
+func TestWhitespaceOnlyImageAltNotFlagged(t *testing.T) {
+	// ![ ](img.png) — alt text is only whitespace; trimming would produce
+	// empty alt, which is an accessibility problem (MDS032), not a formatting
+	// problem. MDS049 must not flag it.
+	diags := check(t, "# T\n\n![ ](img.png)\n", true)
+	assert.Empty(t, diags)
+}
+
+func TestWhitespaceOnlyLinkTextNotFixed(t *testing.T) {
+	// [ ](url) — link text is only whitespace; Fix must not trim to empty.
+	src := "# T\n\n[ ](url)\n"
+	result := fix(t, src, true)
+	assert.Equal(t, src, result)
+}
+
 func TestReferenceImageLeadingSpace(t *testing.T) {
 	// ![ alt ][ref] — reference-style image with leading/trailing space in alt text.
 	src := "# T\n\n![ alt ][ref]\n\n[ref]: img.png\n"
