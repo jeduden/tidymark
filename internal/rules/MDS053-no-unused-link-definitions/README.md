@@ -22,7 +22,7 @@ The second copy is invisible noise.
 
 | Setting          | Type | Default | Description                                                                                                      |
 |------------------|------|---------|------------------------------------------------------------------------------------------------------------------|
-| `ignored-labels` | list | `[]`    | Normalized labels that are never flagged as unused. Replace-mode: a later config layer replaces the entire list. |
+| `ignored-labels` | list | `[]`    | Normalized labels that are never flagged as unused or duplicate. Replace-mode: a later config layer replaces the entire list. |
 
 ## Config
 

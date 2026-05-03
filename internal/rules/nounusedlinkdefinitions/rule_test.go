@@ -303,13 +303,12 @@ func TestCheck_CodeBlockLabel_OnlyExternalDefinitionCounted(t *testing.T) {
 func TestFix_MultipleUnused_AllRemoved(t *testing.T) {
 	// Two consecutive unused definitions with no blank between them: both are
 	// removed. The preceding blank line is not consumed (no blank follows [a]),
-	// so the result has a trailing double-newline — MDS009 cleans that up in
-	// the same fix pass.
+	// but Fix() normalises the resulting double trailing newline back to one.
 	src := "# Heading\n\n[a]: https://a.com\n[b]: https://b.com\n"
 	f := newFile(t, src)
 	r := &Rule{}
 	got := string(r.Fix(f))
-	assert.Equal(t, "# Heading\n\n", got)
+	assert.Equal(t, "# Heading\n", got)
 }
 
 func TestApplyCuts_OverlappingCuts_Skipped(t *testing.T) {

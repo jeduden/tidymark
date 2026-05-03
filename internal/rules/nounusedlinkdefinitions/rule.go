@@ -24,7 +24,7 @@ func init() {
 // Rule flags unused and duplicate link reference definitions.
 type Rule struct {
 	// ignoredLabels is the CommonMark-normalized set of labels that are
-	// never flagged as unused, regardless of whether they are consumed.
+	// never flagged as unused or duplicate, regardless of whether they are consumed.
 	ignoredLabels map[string]bool
 }
 
@@ -176,7 +176,18 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		copy(out, source)
 		return out
 	}
-	return applyCuts(source, cuts)
+	result := applyCuts(source, cuts)
+	// If the original file ended with exactly one newline and the result ends
+	// with two, a run of consecutive definitions at EOF was removed without
+	// consuming the preceding blank line.  Trim the extra newline so the file
+	// still ends with exactly one newline (MDS009 territory, but do it here to
+	// keep Fix() idempotent).
+	if bytes.HasSuffix(source, []byte{'\n'}) &&
+		!bytes.HasSuffix(source, []byte{'\n', '\n'}) &&
+		bytes.HasSuffix(result, []byte{'\n', '\n'}) {
+		result = result[:len(result)-1]
+	}
+	return result
 }
 
 // referenceDefinition records a single `[label]: url` line in source.
