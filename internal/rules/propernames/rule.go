@@ -66,14 +66,16 @@ func (r *Rule) scanBytes(text []byte, baseOffset int, source []byte) []wrongMatc
 	if len(r.Names) == 0 || len(text) == 0 {
 		return nil
 	}
+	// Lowercase the segment once; reused for every configured name.
+	lowerText := bytes.ToLower(text)
 	var results []wrongMatch
 	for _, name := range r.Names {
 		n := len(name)
 		if n == 0 || n > len(text) {
 			continue
 		}
-		lowerName := strings.ToLower(name)
-		lowerText := bytes.ToLower(text)
+		// Lowercase the name once per name, not once per position.
+		lowerName := []byte(strings.ToLower(name))
 		for i := 0; i <= len(lowerText)-n; i++ {
 			// Left boundary: the byte before the match (in source) must not
 			// be a word character, or the match is at the start of the source.
@@ -82,7 +84,7 @@ func (r *Rule) scanBytes(text []byte, baseOffset int, source []byte) []wrongMatc
 				continue
 			}
 			// Case-insensitive prefix match.
-			if !bytes.Equal(lowerText[i:i+n], []byte(lowerName)) {
+			if !bytes.Equal(lowerText[i:i+n], lowerName) {
 				continue
 			}
 			// Compare actual casing to the canonical name.
@@ -221,15 +223,21 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		return out
 	}
 
+	// Sort by start offset; break ties by preferring the longest match so
+	// that when two names share a prefix (e.g. "Java" and "JavaScript"),
+	// the longer canonical replacement wins.
 	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].start < matches[j].start
+		if matches[i].start != matches[j].start {
+			return matches[i].start < matches[j].start
+		}
+		return matches[i].length > matches[j].length
 	})
 
 	var out bytes.Buffer
 	prev := 0
 	for _, m := range matches {
 		if m.start < prev {
-			continue // overlapping match (shouldn't happen but guard anyway)
+			continue // overlapping or duplicate start: skip
 		}
 		out.Write(f.Source[prev:m.start])
 		out.WriteString(m.name)

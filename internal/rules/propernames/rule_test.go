@@ -158,6 +158,96 @@ func TestCheck_AfterDot_Matched(t *testing.T) {
 	require.Len(t, diags, 1)
 }
 
+func TestCheck_AutoLink_NotChecked(t *testing.T) {
+	// Autolinks like <https://javascript.com> are skipped entirely.
+	f := newFile(t, "<https://javascript.com>\n")
+	diags := ruleWith("JavaScript").Check(f)
+	assert.Empty(t, diags)
+}
+
+func TestCheck_HTMLBlock_SkippedByDefault(t *testing.T) {
+	f := newFile(t, "<div>\njavascript\n</div>\n")
+	diags := ruleWith("JavaScript").Check(f)
+	assert.Empty(t, diags)
+}
+
+func TestCheck_HTMLBlock_CheckedWhenEnabled(t *testing.T) {
+	f := newFile(t, "<div>\njavascript\n</div>\n")
+	r := &Rule{Names: []string{"JavaScript"}, CheckHTML: true}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+	assert.Equal(t, `proper name "javascript" should be "JavaScript"`, diags[0].Message)
+}
+
+func TestCheck_RawHTML_SkippedByDefault(t *testing.T) {
+	f := newFile(t, `Some <span id="javascript">text</span>.`+"\n")
+	diags := ruleWith("JavaScript").Check(f)
+	assert.Empty(t, diags)
+}
+
+func TestCheck_RawHTML_CheckedWhenEnabled(t *testing.T) {
+	// check-html: true causes RawHTML node segments to be scanned;
+	// the "javascript" inside the attribute is flagged.
+	f := newFile(t, `Some <span id="javascript">text</span>.`+"\n")
+	r := &Rule{Names: []string{"JavaScript"}, CheckHTML: true}
+	diags := r.Check(f)
+	require.NotEmpty(t, diags)
+	assert.Equal(t, `proper name "javascript" should be "JavaScript"`, diags[0].Message)
+}
+
+func TestFix_NoMatches_ReturnsCopy(t *testing.T) {
+	src := "JavaScript is correct.\n"
+	f := newFile(t, src)
+	out := ruleWith("JavaScript").Fix(f)
+	assert.Equal(t, src, string(out))
+	// Must be a copy, not the same slice.
+	assert.NotSame(t, &f.Source[0], &out[0])
+}
+
+func TestFix_OverlappingMatches_LongestMatchWins(t *testing.T) {
+	// "Java" (4 chars) and "JavaScript" (10 chars) both match at offset 0.
+	// The tie-break prefers the longest match, so "JavaScript" wins and
+	// the shorter "Java" is skipped as an overlap.
+	f := newFile(t, "javascript is fun.\n")
+	r := &Rule{Names: []string{"Java", "JavaScript"}}
+	out := r.Fix(f)
+	assert.Equal(t, "JavaScript is fun.\n", string(out))
+}
+
+func TestScanBytes_EmptyName_Skipped(t *testing.T) {
+	r := &Rule{Names: []string{""}}
+	f := newFile(t, "javascript\n")
+	diags := r.Check(f)
+	assert.Empty(t, diags)
+}
+
+func TestScanBytes_NameLongerThanText_Skipped(t *testing.T) {
+	r := &Rule{Names: []string{"AVeryLongProperNameThatIsLongerThanAnyText"}}
+	f := newFile(t, "hi\n")
+	diags := r.Check(f)
+	assert.Empty(t, diags)
+}
+
+func TestApplySettings_InvalidCheckHTML(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{"check-html": "yes"})
+	assert.Error(t, err)
+}
+
+func TestCheck_IndentedCodeBlock_SkippedByDefault(t *testing.T) {
+	// Indented code blocks are also CodeBlock nodes.
+	f := newFile(t, "    javascript code\n")
+	diags := ruleWith("JavaScript").Check(f)
+	assert.Empty(t, diags)
+}
+
+func TestCheck_IndentedCodeBlock_CheckedWhenEnabled(t *testing.T) {
+	f := newFile(t, "    javascript code\n")
+	r := &Rule{Names: []string{"JavaScript"}, CheckCode: true}
+	diags := r.Check(f)
+	require.Len(t, diags, 1)
+}
+
 func TestDefaultSettings(t *testing.T) {
 	r := &Rule{}
 	ds := r.DefaultSettings()

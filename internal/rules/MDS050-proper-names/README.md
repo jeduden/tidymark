@@ -61,10 +61,10 @@ rules:
 
 For each configured name, the rule scans prose text for
 case-insensitive matches that start at a word boundary. The byte
-before the match must be a non-alphanumeric, non-underscore
-character, or the match must begin at the start of the segment.
-When the matched bytes differ from the canonical spelling, a
-diagnostic is emitted.
+immediately before the match in the full source must be a
+non-alphanumeric, non-underscore character, or the match must
+begin at the start of the file. When the matched bytes differ from
+the canonical spelling, a diagnostic is emitted.
 
 URLs inside link destinations and autolinks are never checked.
 
@@ -143,7 +143,7 @@ The mdsmith tool lints Markdown files.
 
 <?/include?>
 
-### Good -- code spans skipped by default
+### Good -- word-boundary edge case
 
 <?include
 file: good/word-boundary.md
