@@ -527,10 +527,17 @@ func TestWhitespaceOnlyImageAltNotFlagged(t *testing.T) {
 func TestWhitespaceOnlyImageAltNotFixed(t *testing.T) {
 	// Fix must not trim ![ ](img.png) to ![](img.png) when a clean link is also
 	// present — both Check (skip image-only-whitespace) and fixSpans
-	// (img && empty trimmed → leave as-is) must be exercised.
+	// (img && bytes.TrimSpace empty → leave as-is) must be exercised.
 	src := "# T\n\n[ text ](url)\n\n![ ](img.png)\n"
 	result := fix(t, src, true)
 	assert.Equal(t, "# T\n\n[text](url)\n\n![ ](img.png)\n", result)
+}
+
+func TestWhitespaceOnlyImageAltWithNewlineNotFlagged(t *testing.T) {
+	// ![ \n ](img.png) — alt text is spaces+newline+spaces; TrimSpace → empty,
+	// so MDS032 already covers this. MDS049 must not flag the edge spaces.
+	diags := check(t, "# T\n\n![ \n ](img.png)\n", true)
+	assert.Empty(t, diags)
 }
 
 func TestWhitespaceOnlyLinkTextIsFlagged(t *testing.T) {
