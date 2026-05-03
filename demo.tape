@@ -13,10 +13,14 @@
 #   - demo/sample.md is ignored by .mdsmith.yml; the
 #     hidden setup copies it to a temp dir and runs
 #     check/fix there as sample.md.
-#   - Recording speed: TypingSpeed, Sleep durations,
-#     and Framerate are tuned for ~10x faster recording.
-#     PlaybackSpeed 0.1 restores normal apparent speed
-#     in the output GIF (~30 s recording → ~5 min GIF).
+#   - Recording speed: TypingSpeed and Sleep durations
+#     are tuned so the scripted wall time is ~25 s and
+#     PlaybackSpeed 0.1 stretches it to a ~4 min GIF.
+#     Framerate 60 × PlaybackSpeed 0.1 → 6 fps effective
+#     in the output, smooth enough for terminal text.
+#     Bumping Framerate quadratically inflates capture +
+#     GIF-encode cost without making the output noticeably
+#     smoother above ~6-12 fps.
 #   - Hidden blocks use TypingSpeed 0 since that typing
 #     is never visible in the output.
 #   - Sleep durations: 50ms for hidden setup steps;
@@ -33,7 +37,7 @@ Set Shell "bash"
 Set FontSize 14
 Set Width 960
 Set Height 540
-Set Framerate 120
+Set Framerate 60
 Set TypingSpeed 0.005
 Set PlaybackSpeed 0.1
 
