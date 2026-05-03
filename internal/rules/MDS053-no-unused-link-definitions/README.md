@@ -20,8 +20,8 @@ The second copy is invisible noise.
 
 ## Settings
 
-| Setting          | Type | Default | Description                                                                                                      |
-|------------------|------|---------|------------------------------------------------------------------------------------------------------------------|
+| Setting          | Type | Default | Description                                                                                                                   |
+|------------------|------|---------|-------------------------------------------------------------------------------------------------------------------------------|
 | `ignored-labels` | list | `[]`    | Normalized labels that are never flagged as unused or duplicate. Replace-mode: a later config layer replaces the entire list. |
 
 ## Config
