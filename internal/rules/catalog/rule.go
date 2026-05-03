@@ -657,7 +657,7 @@ func isExcluded(filePath string, patterns []string) bool {
 		if pattern == "" {
 			continue
 		}
-		if globpath.Match(pattern, filePath) {
+		if ok, _ := doublestar.Match(pattern, filePath); ok {
 			return true
 		}
 	}

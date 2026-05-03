@@ -89,9 +89,11 @@ warning at load time:
 overrides[0]: `files:` is deprecated; rename it to `glob:` — see docs/reference/globs.md
 ```
 
-Replace every `files:` key with `glob:` in your
-`.mdsmith.yml`. The `files:` key will be removed in a
-future release.
+Replace the `files:` key inside each `overrides:` or
+`kind-assignment:` entry with `glob:` in your
+`.mdsmith.yml`. The top-level `files:` discovery key is
+unrelated and is not deprecated. The deprecated `files:`
+key will be removed in a future release.
 
 Note: the old `files:` key used a matcher where `*`
 crossed path separators. The canonical `glob:` key uses
