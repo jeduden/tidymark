@@ -154,9 +154,9 @@ in `.mdsmith.yml`. It cannot introduce a new recipe.
       it can only reference recipes in `.mdsmith.yml`
 - [x] `output` accepts any file extension; no
       extension filter is applied
-- [x] The rendered `body_template` uses `{alt}`
+- [x] The rendered `body-template` uses `{alt}`
       defaulting to `"{recipe} output: {output}"`
-- [x] A user-declared recipe's `body_template` from
+- [x] A user-declared recipe's `body-template` from
       `build.recipes` is used instead of the default
 - [x] Merge driver regenerates `<?build?>` bodies on
       conflict (via `gensection.Engine`)
