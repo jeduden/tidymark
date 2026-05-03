@@ -82,7 +82,7 @@ File: `internal/corpus/config.go`
 
   - `UnmarshalSafe(data []byte, v any) error` — combines
      alias rejection + unmarshal
-  - `UnmarshalNodeSafe(data []byte) (*yaml.Node, error)` —
+  - `UnmarshalNodeSafe(data []byte) (yaml.Node, error)` —
      for node-based parsing
   - `Marshal(v any) ([]byte, error)` — thin wrapper for
      consistency
@@ -92,13 +92,16 @@ File: `internal/corpus/config.go`
 2. Update all 13+ `yaml.Unmarshal` call sites to use
    `yamlutil.UnmarshalSafe`:
 
-  - `internal/config/load.go` (3 sites: load, topLevelKeySet,
-     validateConventionScalar)
+  - `internal/config/load.go` (2 sites: load, topLevelKeySet;
+     validateConventionScalar uses plain yaml.Unmarshal since
+     node parsing does not expand aliases)
   - `internal/lint/frontmatter.go` (1 site)
   - `internal/archetype/gensection/parse.go` (1 site)
   - `internal/rules/catalog/rule.go` (1 site)
-  - `internal/rules/requiredstructure/rule.go` (4 sites:
-     require, include, schema, allow-empty-section)
+  - `internal/rules/requiredstructure/rule.go` (3 sites via
+     UnmarshalSafe: require, include, schema; front-matter
+     read uses explicit RejectYAMLAliases + yaml.Unmarshal
+     to preserve distinct error messages per error type)
   - `internal/corpus/config.go` (2 sites)
   - `cmd/mdsmith/main.go` (check if front-matter parsing
      needs update)
@@ -121,8 +124,10 @@ File: `internal/corpus/config.go`
 
 6. Update tests:
 
-  - Move `yamlsafe_test.go` to `yamlutil_test.go`
-  - Add tests for new wrapper functions
+  - Add `internal/yamlutil/yamlutil_test.go` with tests for
+    new wrapper functions and alias rejection
+  - Repurpose `internal/lint/yamlsafe_test.go` to verify
+    alias rejection through the front-matter parsing path
   - Ensure coverage of error paths
 
 7. Run full test suite: `go test ./...`

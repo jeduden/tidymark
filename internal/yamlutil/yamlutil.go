@@ -13,7 +13,7 @@
 //   - [Marshal] — thin wrapper around yaml.Marshal for consistency; safe for
 //     output marshaling where data originates from trusted Go values.
 //
-// See docs/security/adversarial-markdown.md for threat model context.
+// See docs/security/2026-04-05-adversarial-markdown.md for threat model context.
 package yamlutil
 
 import (

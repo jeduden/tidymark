@@ -19,6 +19,7 @@ import (
 	rulesettings "github.com/jeduden/mdsmith/internal/rules/settings"
 	"github.com/jeduden/mdsmith/internal/yamlutil"
 	"github.com/yuin/goldmark/ast"
+	"gopkg.in/yaml.v3"
 )
 
 func init() {
@@ -1089,7 +1090,7 @@ func readDocFrontMatterRaw(f *lint.File) (map[string]any, []lint.Diagnostic) {
 			fmt.Sprintf("front matter: %v", err))}
 	}
 	var raw map[string]any
-	if err := yamlutil.UnmarshalSafe(yamlBytes, &raw); err != nil {
+	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
 		return nil, []lint.Diagnostic{makeDiag(f.Path, 1,
 			fmt.Sprintf("front matter: invalid YAML: %v", err))}
 	}
