@@ -145,15 +145,16 @@ func TestEmptyLinkTextFix(t *testing.T) {
 
 func TestLinkWithImageChild(t *testing.T) {
 	// [![img](img.png)](url) — outer link wraps an image with clean alt text.
-	// bracketSpan skips Image subtrees so the outer link returns (-1,-1).
-	// The inner image is still visited and has no whitespace in alt text.
+	// Outer link inner text is "![img](img.png)" — first byte '!', not space.
+	// The inner image has no whitespace in alt text.
 	diags := check(t, "# T\n\n[![img](img.png)](url)\n", true)
 	assert.Empty(t, diags)
 }
 
 func TestLinkWithImageChildSpacedAlt(t *testing.T) {
 	// [![ alt ](img.png)](url) — inner image has leading/trailing space in alt.
-	// The outer link is skipped; the inner image produces two diagnostics.
+	// Outer link inner text is "![ alt ](img.png)" — first byte '!', not space.
+	// The inner image produces two diagnostics.
 	diags := check(t, "# T\n\n[![ alt ](img.png)](url)\n", true)
 	require.Len(t, diags, 2)
 	msgs := []string{diags[0].Message, diags[1].Message}
@@ -245,8 +246,8 @@ func TestLinkWithTextAndNestedImageClean(t *testing.T) {
 }
 
 func TestLinkWithImageThenTrailingSpace(t *testing.T) {
-	// [ ![img](img.png) tail ](url) — backward scan must skip the image's `[`
-	// and land on the outer link's `[`. Both boundary spaces must be detected.
+	// [ ![img](img.png) tail ](url) — link has image child followed by text;
+	// both boundary spaces must be detected.
 	diags := check(t, "# T\n\n[ ![img](img.png) tail ](url)\n", true)
 	msgs := make([]string, len(diags))
 	for i, d := range diags {
@@ -256,9 +257,51 @@ func TestLinkWithImageThenTrailingSpace(t *testing.T) {
 	assert.Contains(t, msgs, "link text has trailing whitespace")
 }
 
+func TestLinkStartingWithImageTrailingSpace(t *testing.T) {
+	// [![img](img.png) tail ](url) — no space between [ and ![, so minStart is
+	// inside the image subtree. The backward scan hits the image's [ first and
+	// must skip it (imageOpener=true, img=false) to find the outer [.
+	diags := check(t, "# T\n\n[![img](img.png) tail ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+}
+
+func TestLinkWithOnlyImageAndBoundarySpaces(t *testing.T) {
+	// [ ![alt](img.png) ](url) — link content is only an image with surrounding spaces.
+	// The outer link's inner text starts with space; leading and trailing are detected.
+	diags := check(t, "# T\n\n[ ![alt](img.png) ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has leading whitespace")
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+}
+
+func TestFixLinkWithOnlyImageAndBoundarySpaces(t *testing.T) {
+	result := fix(t, "# T\n\n[ ![alt](img.png) ](url)\n", true)
+	assert.Equal(t, "# T\n\n[![alt](img.png)](url)\n", result)
+}
+
+func TestEscapedExclamationBeforeLink(t *testing.T) {
+	// \![ text ](url) — escaped '!' before '['; goldmark parses this as a link,
+	// not an image. imageOpener checks the backslash count and returns false,
+	// so the [ is correctly identified as the link opener.
+	diags := check(t, "# T\n\n\\![ text ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has leading whitespace")
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+}
+
 func TestCodeSpanWithCloseBracketNotFlaggedAsClose(t *testing.T) {
-	// [ text `]` ](url) — `]` inside code span must not terminate the forward scan.
-	// The trailing space before the real `]` must still be detected.
+	// [ text `]` ](url) — `]` inside code span (forward scan) must not terminate
+	// the forward scan early. The trailing space before the real `]` is detected.
 	diags := check(t, "# T\n\n[ text `]` ](url)\n", true)
 	msgs := make([]string, len(diags))
 	for i, d := range diags {
@@ -269,12 +312,70 @@ func TestCodeSpanWithCloseBracketNotFlaggedAsClose(t *testing.T) {
 }
 
 func TestCodeSpanWithOpenBracketNotFlaggedAsNested(t *testing.T) {
-	// [ `[` text ](url) — `[` inside code span must not increment depth.
-	// The leading space before the code span must be detected.
+	// [ `[` text ](url) — `[` inside code span (forward scan) must not increment
+	// bracket depth. The leading space is detected.
 	diags := check(t, "# T\n\n[ `[` text](url)\n", true)
 	msgs := make([]string, len(diags))
 	for i, d := range diags {
 		msgs[i] = d.Message
 	}
 	assert.Contains(t, msgs, "link text has leading whitespace")
+}
+
+func TestCodeSpanWithOpenBracketBackwardScan(t *testing.T) {
+	// [`[code]` text ](url) — no space between [ and the code span, so the backward
+	// scan starts after the code span and must skip it via skipCodeSpanBackward.
+	// The trailing space is detected.
+	diags := check(t, "# T\n\n[`[code]` text ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+}
+
+func TestDoubleBacktickCodeSpanBackwardScan(t *testing.T) {
+	// [``x`y`` text ](url) — double-backtick code span with a single backtick
+	// inside. skipCodeSpanBackward must skip the wrong-length single-backtick
+	// sequence before finding the double-backtick opener. Trailing space detected.
+	diags := check(t, "# T\n\n[``x`y`` text ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+}
+
+func TestDoubleBacktickCodeSpanForwardScan(t *testing.T) {
+	// [ text ``x`y`` ](url) — double-backtick code span (forward scan) with
+	// single backtick inside; skipCodeSpan must skip the wrong-length sequence.
+	diags := check(t, "# T\n\n[ text ``x`y`` ](url)\n", true)
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.Message
+	}
+	assert.Contains(t, msgs, "link text has leading whitespace")
+	assert.Contains(t, msgs, "link text has trailing whitespace")
+}
+
+func TestSkipCodeSpanBackwardUnit(t *testing.T) {
+	// Unit test for skipCodeSpanBackward directly.
+	// Source: abc``x`y``def where double-backtick code span ends at position 10.
+	src := []byte("abc``x`y``def")
+	// Closing `` is at positions 8-9. Call with i=9 (last char of closer).
+	result := skipCodeSpanBackward(src, 9)
+	// Should return position before the opening ``, which starts at position 3.
+	// j=3 at end, return j-1=2.
+	assert.Equal(t, 2, result)
+}
+
+func TestSkipCodeSpanBackwardWrongLength(t *testing.T) {
+	// skipCodeSpanBackward with n=2, encountering single-backtick first.
+	// Source: abc`d``ef``gh where double-backtick closer ends at 9.
+	// Single backtick at 3 has wrong length; opener is at 5-6.
+	src := []byte("abc`d``ef``gh")
+	// Closer `` is at positions 9-10. Call with i=10 (last ` of closer).
+	result := skipCodeSpanBackward(src, 10)
+	// Opener `` is at 5-6. return j-1 = 4.
+	assert.Equal(t, 4, result)
 }

@@ -55,7 +55,7 @@ func (r *Rule) DefaultSettings() map[string]any {
 }
 
 // minTextStart returns the minimum Segment.Start among all *ast.Text descendant
-// nodes of n, skipping Image subtrees. Returns -1 if none are found.
+// nodes of n. Returns -1 if none are found.
 func minTextStart(n ast.Node) int {
 	minStart := -1
 	_ = ast.Walk(n, func(child ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -64,9 +64,6 @@ func minTextStart(n ast.Node) int {
 		}
 		if child == n {
 			return ast.WalkContinue, nil
-		}
-		if _, ok := child.(*ast.Image); ok {
-			return ast.WalkSkipChildren, nil
 		}
 		t, ok := child.(*ast.Text)
 		if !ok {
@@ -93,11 +90,45 @@ func imageOpener(source []byte, i int) bool {
 	return bs%2 == 0
 }
 
+// skipCodeSpanBackward scans backward past the code span whose closing backtick
+// sequence ends at i. Returns the position just before the opening backtick
+// sequence, or -1 if no matching opener is found.
+func skipCodeSpanBackward(source []byte, i int) int {
+	end := i
+	for i > 0 && source[i-1] == '`' {
+		i--
+	}
+	n := end - i + 1
+	i--
+	for i >= 0 {
+		if source[i] != '`' {
+			i--
+			continue
+		}
+		j := i
+		for j > 0 && source[j-1] == '`' {
+			j--
+		}
+		if i-j+1 == n {
+			return j - 1
+		}
+		i = j - 1
+	}
+	return -1
+}
+
 // findOpenBracket scans backward from from-1 to find the opening '[' for n.
 // For links it skips image openers (![); for images it requires one.
+// Code span contents are skipped so brackets inside backtick spans are ignored.
 // Returns -1 if not found.
 func findOpenBracket(source []byte, img bool, from int) int {
 	for i := from - 1; i >= 0; i-- {
+		if source[i] == '`' {
+			if j := skipCodeSpanBackward(source, i); j >= 0 {
+				i = j + 1 // loop will do i--
+			}
+			continue
+		}
 		if source[i] != '[' {
 			continue
 		}
@@ -233,11 +264,7 @@ func (r *Rule) collectSpans(f *lint.File) []span {
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	for _, s := range r.collectSpans(f) {
-		// Text inside brackets is source[s.open+1 : s.close].
 		inner := f.Source[s.open+1 : s.close]
-		if len(inner) == 0 {
-			continue
-		}
 		role := "link text"
 		if s.img {
 			role = "image alt text"
@@ -283,9 +310,6 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	var reps []replacement
 	for _, s := range r.collectSpans(f) {
 		inner := f.Source[s.open+1 : s.close]
-		if len(inner) == 0 {
-			continue
-		}
 		trimmed := trimSpaceTab(inner)
 		if len(trimmed) == len(inner) {
 			continue
