@@ -6,6 +6,8 @@ import (
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 func check(t *testing.T, src string, checkImages bool) []lint.Diagnostic {
@@ -378,4 +380,67 @@ func TestSkipCodeSpanBackwardWrongLength(t *testing.T) {
 	result := skipCodeSpanBackward(src, 10)
 	// Opener `` is at 5-6. return j-1 = 4.
 	assert.Equal(t, 4, result)
+}
+
+func TestFindOpenBracketSkipsCodeSpan(t *testing.T) {
+	// Direct unit test for findOpenBracket: source has a code span with [ inside.
+	// The backward scan must call skipCodeSpanBackward and use the returned position.
+	// Source bytes: [ `[code]` text (representing a link with code span content).
+	src := []byte("[ `[code]` text")
+	// Text "text" starts at position 11; scan backward from 10.
+	result := findOpenBracket(src, false, 11)
+	assert.Equal(t, 0, result)
+}
+
+func TestFindOpenBracketNoOpenerFound(t *testing.T) {
+	// findOpenBracket returns -1 when no suitable [ is found.
+	src := []byte("no bracket here")
+	result := findOpenBracket(src, false, len(src))
+	assert.Equal(t, -1, result)
+}
+
+func TestFindOpenBracketEscapedBracket(t *testing.T) {
+	// findOpenBracket skips \[ (escaped open bracket) and finds the real opener.
+	// Bytes: [ (0) space (1) \ (2) [ (3) t (4) e (5) x (6) t (7)
+	// Scanning backward from from=5 encounters [ at 3 (escaped, bs=1 → skip),
+	// then finds the real [ at 0.
+	src := []byte("[ \\[text")
+	result := findOpenBracket(src, false, 5)
+	assert.Equal(t, 0, result)
+}
+
+func TestSkipCodeSpanNoCloser(t *testing.T) {
+	// skipCodeSpan returns len(source) when no matching closer exists.
+	src := []byte("`abc")
+	result := skipCodeSpan(src, 0)
+	assert.Equal(t, len(src), result)
+}
+
+func TestFindCloseBracketUnmatched(t *testing.T) {
+	// findCloseBracket returns -1 when the opening [ has no matching ].
+	src := []byte("[unclosed")
+	result := findCloseBracket(src, 0)
+	assert.Equal(t, -1, result)
+}
+
+func TestBracketSpanOpenBracketNotFound(t *testing.T) {
+	// bracketSpan returns (-1,-1) when no [ precedes the text in source.
+	// Crafted: a Link node with a Text child at segment [5,10), but source has no [ before 5.
+	src := []byte("hello world text")
+	link := ast.NewLink()
+	link.AppendChild(link, ast.NewTextSegment(text.NewSegment(5, 10)))
+	open, close := bracketSpan(link, src)
+	assert.Equal(t, -1, open)
+	assert.Equal(t, -1, close)
+}
+
+func TestBracketSpanCloseBracketNotFound(t *testing.T) {
+	// bracketSpan returns (-1,-1) when [ is found but has no matching ].
+	// Crafted: source "abc [hello", [ at 4, text at 5, no ] anywhere.
+	src := []byte("abc [hello")
+	link := ast.NewLink()
+	link.AppendChild(link, ast.NewTextSegment(text.NewSegment(5, 10)))
+	open, close := bracketSpan(link, src)
+	assert.Equal(t, -1, open)
+	assert.Equal(t, -1, close)
 }
