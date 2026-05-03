@@ -27,10 +27,6 @@ var readFile = os.ReadFile
 // to exercise the os.WriteFile error path in WriteGitattributes.
 var writeFile = os.WriteFile
 
-// chmodFile is a variable so tests can substitute a failing implementation
-// to exercise the os.Chmod error path in WriteGitattributes.
-var chmodFile = os.Chmod
-
 // PreMergeCommitMarker is the comment line written into the
 // pre-merge-commit hook so that mdsmith (and the git-hook-sync rule)
 // can recognise hooks it manages without stomping on user-authored
@@ -786,22 +782,17 @@ func WriteGitattributes(path string, globs Globs) error {
 // narrow the TOCTOU window between WriteGitattributes' initial check and
 // the actual write.
 func writeGitattributesFile(path, content string) error {
+	// Default mode for new files; os.WriteFile preserves existing mode
+	// on truncating writes so no chmod is needed for existing files.
 	mode := os.FileMode(0o644)
-	existed := false
 	if info, err := os.Lstat(path); err == nil {
 		if !info.Mode().IsRegular() {
 			return fmt.Errorf("writing %s: not a regular file", path)
 		}
 		mode = info.Mode() &^ os.ModeType
-		existed = true
 	}
 	if err := writeFile(path, []byte(content), mode); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
-	}
-	if existed {
-		if err := chmodFile(path, mode); err != nil {
-			return fmt.Errorf("chmod %s: %w", path, err)
-		}
 	}
 	return nil
 }

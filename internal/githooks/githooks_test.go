@@ -1118,23 +1118,6 @@ func TestWriteGitattributes_WriteFileFails_ReturnsError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestWriteGitattributes_ChmodFails_ReturnsWrappedError(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, ".gitattributes")
-	// Pre-create the file so the chmod branch (existed=true) is taken.
-	require.NoError(t, os.WriteFile(path, []byte("existing\n"), 0o644))
-
-	orig := chmodFile
-	t.Cleanup(func() { chmodFile = orig })
-	chmodFile = func(string, os.FileMode) error {
-		return fmt.Errorf("mock chmod failure")
-	}
-
-	err := WriteGitattributes(path, Globs{Include: []string{"a.md"}})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "chmod")
-}
-
 func TestWriteGitattributes_ReadFileFails_ReturnsWrappedError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitattributes")
