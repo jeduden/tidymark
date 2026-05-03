@@ -149,3 +149,63 @@ func TestBuildHookScript_StagesFixesWhenUnfixedRemain(t *testing.T) {
 		"hook must stage files modified by `mdsmith fix .` even when "+
 			"fix exits 1; got staged=%q", string(stagedOut))
 }
+
+// TestHookScript_MissingSetPlusE_FailsToStageOnExitOne proves that a hook
+// without the `set +e` guard around the fix invocation does NOT stage files
+// when `mdsmith fix` exits 1. This is the original merge-queue bug: under
+// `set -e`, a non-zero exit aborts the shell before the staging loop runs.
+// The test documents the defect so drift detection (HookMatchesCanonical) is
+// shown to be meaningful — flagging the bad hook prevents silent data loss.
+func TestHookScript_MissingSetPlusE_FailsToStageOnExitOne(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	dir := t.TempDir()
+
+	fakeMdsmith := filepath.Join(dir, "fake-mdsmith")
+	target := filepath.Join(dir, "PLAN.md")
+	script := "#!/bin/sh\n" +
+		"echo 'fixed by fake mdsmith' > " + shellQuote(target) + "\n" +
+		"exit 1\n"
+	require.NoError(t, os.WriteFile(fakeMdsmith, []byte(script), 0o755))
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "git %s: %s", strings.Join(args, " "), out)
+	}
+	runGit("init", "-q", "-b", "main")
+	runGit("config", "user.email", "test@test")
+	runGit("config", "user.name", "test")
+	runGit("config", "commit.gpgsign", "false")
+	runGit("config", "tag.gpgsign", "false")
+	require.NoError(t, os.WriteFile(target, []byte("original\n"), 0o644))
+	runGit("add", "PLAN.md")
+	runGit("commit", "-q", "-m", "init")
+
+	// Read the bad hook golden file and substitute the real fake-mdsmith path.
+	golden, err := os.ReadFile(filepath.Join("testdata", "hooks", "bad", "missing-set-plus-e.sh"))
+	require.NoError(t, err)
+	hookScript := strings.ReplaceAll(string(golden), "/usr/local/bin/mdsmith", fakeMdsmith)
+
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(hooksDir, 0o755))
+	hookPath := filepath.Join(hooksDir, "pre-merge-commit")
+	require.NoError(t, os.WriteFile(hookPath, []byte(hookScript), 0o755))
+
+	cmd := exec.Command(hookPath)
+	cmd.Dir = dir
+	// The hook exits non-zero because fix exits 1 and set -e propagates it.
+	_ = cmd.Run()
+
+	staged := exec.Command("git", "diff", "--cached", "--name-only")
+	staged.Dir = dir
+	stagedOut, err := staged.Output()
+	require.NoError(t, err)
+	assert.NotContains(t, string(stagedOut), "PLAN.md",
+		"hook without set +e must NOT stage files when fix exits 1 — "+
+			"this is the original merge-queue bug; got staged=%q", string(stagedOut))
+}

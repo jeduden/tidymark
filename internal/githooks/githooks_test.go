@@ -968,71 +968,18 @@ func TestHookMatchesCanonical_AcceptsCanonicalScript(t *testing.T) {
 	assert.True(t, HookMatchesCanonical(hook))
 }
 
-func TestHookMatchesCanonical_RejectsMissingSetPlusE(t *testing.T) {
-	// A hook that invokes `mdsmith fix .` without first disabling
-	// errexit (`set +e`) will abort immediately when fix exits 1, so
-	// the staging loop never runs. The drift check must reject it so
-	// `pre-merge-commit status` prompts a reinstall.
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"'/usr/local/bin/mdsmith' fix .\n" + // no `set +e` guard before this
-		"status=$?\n" +
-		"set -e\n" +
-		"if [ \"$status\" -ne 0 ] && [ \"$status\" -ne 1 ]; then\n" +
-		"  exit \"$status\"\n" +
-		"fi\n" +
-		"git diff --name-only -- '*.md' '*.markdown' | while IFS= read -r f; do\n" +
-		"  if [ -n \"$f\" ]; then git add -- \"$f\"; fi\n" +
-		"done\n"
-	assert.False(t, HookMatchesCanonical(hook),
-		"hook running fix under set -e (without set +e guard) must be flagged as drifted")
-}
-
-func TestHookMatchesCanonical_RejectsMissingChdir(t *testing.T) {
-	// Drop the `cd "$(git rev-parse ...)"` line.
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
-		"  status=$?\n" +
-		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
-		"fi\n" +
-		"git diff --name-only -- '*.md' '*.markdown' |\n"
-	assert.False(t, HookMatchesCanonical(hook))
-}
-
-func TestHookMatchesCanonical_RejectsLegacyFixCommand(t *testing.T) {
-	// Old per-file `fix --` style instead of glob-based `fix .`.
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"'/usr/local/bin/mdsmith' fix -- 'PLAN.md'\n" +
-		"git diff --name-only -- '*.md' '*.markdown' |\n"
-	assert.False(t, HookMatchesCanonical(hook))
-}
-
-func TestHookMatchesCanonical_RejectsLegacyOrTrueGuard(t *testing.T) {
-	// Old `fix . || true` form swallowed every non-zero exit. The new
-	// canonical template uses an `if ! ... fix .; then` block so
-	// genuine errors propagate. The drift check must reject the
-	// permissive legacy form.
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"'/usr/local/bin/mdsmith' fix . || true\n" +
-		"git diff --name-only -- '*.md' '*.markdown' |\n"
-	assert.False(t, HookMatchesCanonical(hook))
-}
-
-func TestHookMatchesCanonical_RejectsMissingStagingLine(t *testing.T) {
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
-		"  status=$?\n" +
-		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
-		"fi\n"
-	assert.False(t, HookMatchesCanonical(hook))
+func TestHookMatchesCanonical_RejectsNonCanonicalHooks(t *testing.T) {
+	entries, err := os.ReadDir(filepath.Join("testdata", "hooks", "bad"))
+	require.NoError(t, err, "testdata/hooks/bad directory must exist")
+	require.NotEmpty(t, entries, "testdata/hooks/bad must contain at least one golden file")
+	for _, entry := range entries {
+		t.Run(entry.Name(), func(t *testing.T) {
+			data, err := os.ReadFile(filepath.Join("testdata", "hooks", "bad", entry.Name()))
+			require.NoError(t, err)
+			assert.False(t, HookMatchesCanonical(string(data)),
+				"bad hook %s must be flagged as drifted", entry.Name())
+		})
+	}
 }
 
 func TestIsRepresentableGitattributesPattern(t *testing.T) {
@@ -1068,46 +1015,6 @@ func TestGlobsFromConfig_DropsUnrepresentablePatterns(t *testing.T) {
 		"only representable patterns survive the validation filter")
 	assert.Equal(t, []string{"!docs/*.md", "with space"}, skipped,
 		"dropped patterns are returned in input order so callers can warn")
-}
-
-func TestHookMatchesCanonical_RejectsMissingStagingPipeline(t *testing.T) {
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
-		"  status=$?\n" +
-		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
-		"fi\n" +
-		// Missing the `git diff --name-only ... |` pipeline header.
-		"while IFS= read -r f; do git add -- \"$f\"; done\n"
-	assert.False(t, HookMatchesCanonical(hook))
-}
-
-func TestHookMatchesCanonical_RejectsMissingReadLoop(t *testing.T) {
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
-		"  status=$?\n" +
-		"  if [ \"$status\" -ne 1 ]; then exit \"$status\"; fi\n" +
-		"fi\n" +
-		"git diff --name-only -- '*.md' '*.markdown' | xargs git add --\n"
-	assert.False(t, HookMatchesCanonical(hook),
-		"a non-canonical staging pipeline (e.g. xargs without the read loop) must be flagged")
-}
-
-func TestHookMatchesCanonical_RejectsMissingExitGuard(t *testing.T) {
-	// fix .; then is present but the `[ "$status" -ne 1 ]` guard
-	// is missing, meaning genuine errors would be swallowed.
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"set -e\n" +
-		"cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"if ! '/usr/local/bin/mdsmith' fix .; then\n" +
-		"  true\n" +
-		"fi\n" +
-		"git diff --name-only -- '*.md' '*.markdown' | while IFS= read -r f; do\n" +
-		"  git add -- \"$f\"\ndone\n"
-	assert.False(t, HookMatchesCanonical(hook))
 }
 
 func TestExtractGlobs_SkipsSingleFieldLines(t *testing.T) {
@@ -1329,21 +1236,6 @@ func TestWriteGitattributes_RejectsDirectory(t *testing.T) {
 	err := WriteGitattributes(path, Globs{Include: []string{"*.md"}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a regular file")
-}
-
-func TestHookMatchesCanonical_RejectsCanonicalLinesInsideComments(t *testing.T) {
-	// A drifted hook that mentions the canonical commands inside
-	// shell comments must not be treated as canonical. Only
-	// non-comment lines satisfy the required-fragment checks.
-	hook := "#!/bin/sh\n" + PreMergeCommitMarker + "\n" +
-		"# example: cd \"$(git rev-parse --show-toplevel)\"\n" +
-		"# example: fix .; then\n" +
-		"# example: if [ \"$status\" -ne 1 ]; then\n" +
-		"# example: git diff --name-only -- '*.md' '*.markdown' |\n" +
-		"# example: while IFS= read -r f; do\n" +
-		"echo placeholder\n"
-	assert.False(t, HookMatchesCanonical(hook),
-		"required commands sitting in comments must not satisfy the drift check")
 }
 
 func TestHookHasNonCommentLineContaining_IgnoresBlankAndComments(t *testing.T) {
