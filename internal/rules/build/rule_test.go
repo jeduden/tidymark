@@ -138,6 +138,18 @@ func TestValidateHard_AbsoluteOutput(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "relative path")
 }
 
+func TestValidateHard_WindowsDriveLetter(t *testing.T) {
+	r := ruleWithRender()
+	// C:\out.png and C:out.png must be rejected on all platforms.
+	for _, p := range []string{`C:\out.png`, `C:out.png`, `d:file.txt`} {
+		diags := r.validateHard("test.md", 1, map[string]string{
+			"recipe": "render", "source": "a.svg", "output": p,
+		})
+		require.Len(t, diags, 1, "path=%q", p)
+		assert.Contains(t, diags[0].Message, "relative path", "path=%q", p)
+	}
+}
+
 func TestValidateHard_BackslashAbsoluteOutput(t *testing.T) {
 	r := ruleWithRender()
 	// Windows-style absolute paths are rejected even on non-Windows hosts.

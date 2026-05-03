@@ -172,7 +172,7 @@ func (r *Rule) validateHard(
 		)}
 	}
 
-	if filepath.IsAbs(output) || filepath.VolumeName(output) != "" || strings.HasPrefix(output, `\`) {
+	if filepath.IsAbs(output) || strings.HasPrefix(output, `\`) || hasDriveLetter(output) {
 		return []lint.Diagnostic{gensection.MakeDiag(
 			r.RuleID(), r.RuleName(), filePath, line,
 			fmt.Sprintf(`build directive "output" must be a relative path: %q`, output),
@@ -282,6 +282,14 @@ func hasDotDotSegment(p string) bool {
 		}
 	}
 	return false
+}
+
+// hasDriveLetter reports whether p begins with a Windows drive letter (e.g. C: or C:\).
+// This check is platform-independent, unlike filepath.VolumeName which returns ""
+// on non-Windows hosts even for Windows-style paths.
+func hasDriveLetter(p string) bool {
+	return len(p) >= 2 && p[1] == ':' &&
+		((p[0] >= 'A' && p[0] <= 'Z') || (p[0] >= 'a' && p[0] <= 'z'))
 }
 
 // parseRecipesSettings deserialises a recipes map from map[string]any.
