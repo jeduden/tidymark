@@ -214,13 +214,15 @@ func TestStyleNameDash(t *testing.T) {
 }
 
 func TestIsBlankLineOutOfBounds(t *testing.T) {
-	lines := [][]byte{[]byte("hello\n")}
+	lines := [][]byte{[]byte("hello")}
 	assert.True(t, isBlankLine(lines, -1))
 	assert.True(t, isBlankLine(lines, 5))
 }
 
 func TestIsBlankLineBlockquoteMarker(t *testing.T) {
-	lines := [][]byte{[]byte("> \n"), []byte(">\n"), []byte(">> \n")}
+	// lint.NewFile builds Lines via bytes.Split(source, "\n"), so entries
+	// do not include trailing newline bytes.
+	lines := [][]byte{[]byte("> "), []byte(">"), []byte(">> ")}
 	assert.True(t, isBlankLine(lines, 0), "> <space> is blank")
 	assert.True(t, isBlankLine(lines, 1), "> is blank")
 	assert.True(t, isBlankLine(lines, 2), ">> <space> is blank")
