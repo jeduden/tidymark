@@ -19,6 +19,10 @@ import (
 	"github.com/jeduden/mdsmith/internal/rule"
 )
 
+// readFile and writeFile are variables so tests can substitute failing
+// implementations to exercise error paths in WriteGitattributes.
+var readFile = os.ReadFile
+
 // writeFile is a variable so tests can substitute a failing implementation
 // to exercise the os.WriteFile error path in WriteGitattributes.
 var writeFile = os.WriteFile
@@ -707,7 +711,15 @@ func GlobsEqual(a, b Globs) bool {
 // text, eol=lf, linguist settings, other merge drivers) are never
 // dropped.
 func WriteGitattributes(path string, globs Globs) error {
-	existing, err := os.ReadFile(path)
+	// Reject symlinks and non-regular files before any I/O so neither the
+	// read nor the write follows a link to a path outside the repository.
+	if info, err := os.Lstat(path); err == nil {
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("writing %s: not a regular file", path)
+		}
+	}
+
+	existing, err := readFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
@@ -769,17 +781,12 @@ func WriteGitattributes(path string, globs Globs) error {
 	return writeGitattributesFile(path, newContent.String())
 }
 
-// writeGitattributesFile writes content to path, preserving an existing regular
-// file's permissions. Symlinks are rejected to prevent writes outside the repo.
+// writeGitattributesFile writes content to path, preserving an existing
+// file's permissions. The caller must ensure path is a regular file.
 func writeGitattributesFile(path, content string) error {
-	// Use Lstat so symlinks are detected rather than followed; writing through
-	// a symlink could modify a file outside the repository.
 	mode := os.FileMode(0o644)
 	existed := false
 	if info, err := os.Lstat(path); err == nil {
-		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("writing %s: refusing to write through symlink", path)
-		}
 		mode = info.Mode() &^ os.ModeType
 		existed = true
 	}

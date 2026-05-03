@@ -21,7 +21,7 @@ func TestWriteGitattributes_RejectsSymlink(t *testing.T) {
 
 	err := WriteGitattributes(link, Globs{Include: []string{"a.md"}})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "symlink")
+	assert.Contains(t, err.Error(), "not a regular file")
 }
 
 func TestWriteGitattributes_ReturnsErrorForUnreadableExistingFile(t *testing.T) {

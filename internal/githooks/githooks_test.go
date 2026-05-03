@@ -1135,17 +1135,32 @@ func TestWriteGitattributes_ChmodFails_ReturnsWrappedError(t *testing.T) {
 	assert.Contains(t, err.Error(), "chmod")
 }
 
-func TestWriteGitattributes_PropagatesNonENOENTReadError(t *testing.T) {
-	// .gitattributes is a directory, so os.ReadFile returns a
-	// non-IsNotExist error. WriteGitattributes must surface that
-	// rather than silently overwriting the directory.
+func TestWriteGitattributes_ReadFileFails_ReturnsWrappedError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
+	require.NoError(t, os.WriteFile(path, []byte("existing\n"), 0o644))
+
+	orig := readFile
+	t.Cleanup(func() { readFile = orig })
+	readFile = func(string) ([]byte, error) {
+		return nil, fmt.Errorf("mock read failure")
+	}
+
+	err := WriteGitattributes(path, Globs{Include: []string{"*.md"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reading")
+}
+
+func TestWriteGitattributes_RejectsDirectory(t *testing.T) {
+	// .gitattributes is a directory — the Lstat guard must reject it
+	// before any read or write is attempted.
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitattributes")
 	require.NoError(t, os.Mkdir(path, 0o755))
 
 	err := WriteGitattributes(path, Globs{Include: []string{"*.md"}})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "reading")
+	assert.Contains(t, err.Error(), "not a regular file")
 }
 
 func TestHookMatchesCanonical_RejectsCanonicalLinesInsideComments(t *testing.T) {
