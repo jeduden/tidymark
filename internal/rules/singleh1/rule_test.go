@@ -6,6 +6,8 @@ import (
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	goldast "github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 func newFile(t *testing.T, src string) *lint.File {
@@ -198,9 +200,9 @@ func TestFix_FrontMatterConflict_ExtraH1s(t *testing.T) {
 }
 
 // TestCheck_HeadingNotOnFirstLine exercises headingLineStart's offset-rewind
-// loop, which only runs when a heading appears after line 1.
+// loop, which runs for headings after line 1.
 func TestCheck_HeadingNotOnFirstLine(t *testing.T) {
-	// Two H1s where neither is on line 1.
+	// H1s on lines 3 and 5 exercise the rewind loop; line 1 takes the trivial path.
 	src := "# First\n\n# Second\n\n# Third\n"
 	f := newFile(t, src)
 	diags := (&Rule{}).Check(f)
@@ -286,7 +288,7 @@ func TestFrontMatterHasTitle_EmptyBody(t *testing.T) {
 }
 
 // TestCheck_IndentedATXHeading exercises the leading-space handling in
-// isATXHeading and buildDemoteReplacement for CommonMark-allowed indented ATX.
+// isATXHeadingAt and buildDemoteReplacement for CommonMark-allowed indented ATX.
 func TestCheck_IndentedATXHeading(t *testing.T) {
 	// CommonMark allows 1-3 spaces before the # marker.
 	src := "# First\n\n  # Second\n"
@@ -302,4 +304,49 @@ func TestFix_IndentedATXHeading(t *testing.T) {
 	f := newFile(t, src)
 	got := (&Rule{}).Fix(f)
 	assert.Equal(t, "# First\n\n  ## Second\n", string(got))
+}
+
+// TestHeadingLineStart_NoLines_WithTextChild covers headingLineStart's fallback
+// to child text segments when Lines().Len() == 0 (e.g. certain ATX headings).
+func TestHeadingLineStart_NoLines_WithTextChild(t *testing.T) {
+	// Build a synthetic heading with no Lines() but one Text child.
+	source := []byte("# Title\n")
+	h := goldast.NewHeading(1)
+	seg := text.NewSegment(2, 7) // points at "Title"
+	child := goldast.NewText()
+	child.Segment = seg
+	h.AppendChild(h, child)
+	// Lines().Len() == 0, so headingLineStart walks children to find offset 2,
+	// then rewinds to the '#' at offset 0.
+	got := headingLineStart(h, source)
+	assert.Equal(t, 0, got)
+}
+
+// TestHeadingLineStart_NoLines_NoChildren covers the -1 sentinel path when
+// Lines().Len() == 0 and there are no child text nodes.
+func TestHeadingLineStart_NoLines_NoChildren(t *testing.T) {
+	source := []byte("# Title\n")
+	h := goldast.NewHeading(1)
+	assert.Equal(t, -1, headingLineStart(h, source))
+}
+
+// TestBuildDemoteReplacement_ATX_NoLines_NoChildren verifies that
+// buildDemoteReplacement returns false when headingLineStart returns -1.
+func TestBuildDemoteReplacement_ATX_NoLines_NoChildren(t *testing.T) {
+	source := []byte("# First\n\n# Second\n")
+	h := goldast.NewHeading(1)
+	_, ok := buildDemoteReplacement(h, source)
+	assert.False(t, ok)
+}
+
+// TestBuildDemoteReplacement_Setext_NoLines_NoChildren verifies that the
+// setext path in buildDemoteReplacement returns false when headingLineStart
+// returns -1.  We construct an H1 with no Lines() and no children so that
+// isATXHeading returns false (start<0) and the setext branch also exits early.
+func TestBuildDemoteReplacement_Setext_NoLines_NoChildren(t *testing.T) {
+	source := []byte("Title\n=====\n")
+	// headingLineStart returns -1, so buildDemoteReplacement returns false immediately.
+	h := goldast.NewHeading(1)
+	_, ok := buildDemoteReplacement(h, source)
+	assert.False(t, ok)
 }

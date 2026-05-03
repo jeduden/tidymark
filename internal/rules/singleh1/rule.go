@@ -213,9 +213,16 @@ type rep struct {
 // H1 to H2. ATX: inserts a '#' after any leading spaces and the existing
 // '#' run. Setext: replaces the '=' underline with '-'.
 func buildDemoteReplacement(heading *ast.Heading, source []byte) (rep, bool) {
-	if isATXHeading(heading, source) {
-		start, end := atxHeadingLineRange(heading, source)
-		line := source[start:end]
+	lineStart := headingLineStart(heading, source)
+	if lineStart < 0 {
+		return rep{}, false
+	}
+	if isATXHeadingAt(lineStart, source) {
+		end := lineStart
+		for end < len(source) && source[end] != '\n' {
+			end++
+		}
+		line := source[lineStart:end]
 		// Skip up to 3 CommonMark-allowed leading spaces, then the '#' run.
 		i := 0
 		for i < len(line) && line[i] == ' ' {
@@ -225,63 +232,11 @@ func buildDemoteReplacement(heading *ast.Heading, source []byte) (rep, bool) {
 			i++
 		}
 		newText := string(line[:i]) + "#" + string(line[i:])
-		return rep{start: start, end: end, newText: newText}, true
+		return rep{start: lineStart, end: end, newText: newText}, true
 	}
 
 	// Setext heading: replace the underline line '===...' with '---...'
-	textStart, underlineEnd := setextHeadingRange(heading, source)
-	textEnd := textStart
-	for textEnd < len(source) && source[textEnd] != '\n' {
-		textEnd++
-	}
-	underlineStart := textEnd + 1
-	underlineContent := source[underlineStart:underlineEnd]
-	newUnderline := strings.ReplaceAll(string(underlineContent), "=", "-")
-	newText := string(source[textStart:underlineStart]) + newUnderline
-	return rep{start: textStart, end: underlineEnd, newText: newText}, true
-}
-
-// isATXHeading returns true if the heading uses ATX style (# prefix).
-// CommonMark allows 0-3 leading spaces before the # marker.
-func isATXHeading(heading *ast.Heading, source []byte) bool {
-	start := headingLineStart(heading, source)
-	spaces := 0
-	for spaces < 3 && start+spaces < len(source) && source[start+spaces] == ' ' {
-		spaces++
-	}
-	start += spaces
-	return start < len(source) && source[start] == '#'
-}
-
-// headingLineStart returns the byte offset of the start of the line
-// containing the heading. goldmark sets Lines() for all heading types,
-// so Lines().At(0).Start provides the content offset; we rewind to the
-// line-start to include any leading-space or # prefix bytes.
-func headingLineStart(heading *ast.Heading, source []byte) int {
-	offset := heading.Lines().At(0).Start
-	for offset > 0 && source[offset-1] != '\n' {
-		offset--
-	}
-	return offset
-}
-
-// atxHeadingLineRange returns the [start, end) byte range of an ATX heading
-// line (not including the trailing newline).
-func atxHeadingLineRange(heading *ast.Heading, source []byte) (int, int) {
-	start := headingLineStart(heading, source)
-	end := start
-	for end < len(source) && source[end] != '\n' {
-		end++
-	}
-	return start, end
-}
-
-// setextHeadingRange returns the byte range of a setext heading: from the
-// start of the text line to the end of the underline line (not including
-// the trailing newline of the underline).
-func setextHeadingRange(heading *ast.Heading, source []byte) (int, int) {
-	textStart := headingLineStart(heading, source)
-	textEnd := textStart
+	textEnd := lineStart
 	for textEnd < len(source) && source[textEnd] != '\n' {
 		textEnd++
 	}
@@ -290,5 +245,47 @@ func setextHeadingRange(heading *ast.Heading, source []byte) (int, int) {
 	for underlineEnd < len(source) && source[underlineEnd] != '\n' {
 		underlineEnd++
 	}
-	return textStart, underlineEnd
+	underlineContent := source[underlineStart:underlineEnd]
+	newUnderline := strings.ReplaceAll(string(underlineContent), "=", "-")
+	newText := string(source[lineStart:underlineStart]) + newUnderline
+	return rep{start: lineStart, end: underlineEnd, newText: newText}, true
+}
+
+// isATXHeadingAt checks whether source at lineStart begins with an ATX
+// heading marker (0-3 leading spaces then '#').
+func isATXHeadingAt(lineStart int, source []byte) bool {
+	spaces := 0
+	for spaces < 3 && lineStart+spaces < len(source) && source[lineStart+spaces] == ' ' {
+		spaces++
+	}
+	pos := lineStart + spaces
+	return pos < len(source) && source[pos] == '#'
+}
+
+// headingLineStart returns the byte offset of the start of the line
+// containing the heading, or -1 if the position cannot be determined.
+// goldmark normally sets Lines() for all heading types; when Lines() is
+// empty (possible for ATX headings in some goldmark versions), falls back
+// to the first child text segment.
+func headingLineStart(heading *ast.Heading, source []byte) int {
+	var offset int
+	if heading.Lines().Len() > 0 {
+		offset = heading.Lines().At(0).Start
+	} else {
+		found := false
+		for c := heading.FirstChild(); c != nil; c = c.NextSibling() {
+			if t, ok := c.(*ast.Text); ok {
+				offset = t.Segment.Start
+				found = true
+				break
+			}
+		}
+		if !found {
+			return -1
+		}
+	}
+	for offset > 0 && source[offset-1] != '\n' {
+		offset--
+	}
+	return offset
 }
