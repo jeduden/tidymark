@@ -3,7 +3,7 @@ package lint
 import (
 	"bytes"
 
-	"gopkg.in/yaml.v3"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
 // StripFrontMatter removes YAML front matter delimited by "---\n"
@@ -47,14 +47,10 @@ func ParseFrontMatterKinds(fm []byte) ([]string, error) {
 		return nil, nil
 	}
 
-	if err := RejectYAMLAliases(body); err != nil {
-		return nil, err
-	}
-
 	var parsed struct {
 		Kinds []string `yaml:"kinds"`
 	}
-	if err := yaml.Unmarshal(body, &parsed); err != nil {
+	if err := yamlutil.UnmarshalSafe(body, &parsed); err != nil {
 		return nil, err
 	}
 	return parsed.Kinds, nil

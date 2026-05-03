@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,18 +25,14 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
-	if err := lint.RejectYAMLAliases(data); err != nil {
-		return nil, fmt.Errorf("parsing config file: %w", err)
-	}
-
-	// Catch non-string `convention:` values before yaml.Unmarshal
+	// Catch non-string `convention:` values before UnmarshalSafe
 	// silently coerces them into the string field.
 	if err := validateConventionScalar(data); err != nil {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yamlutil.UnmarshalSafe(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config file: %w", err)
 	}
 
@@ -81,11 +77,8 @@ func Load(path string) (*Config, error) {
 // present in data, or an empty set on parse error. It rejects
 // anchor/alias usage for the same reason yamlHasKey does.
 func topLevelKeySet(data []byte) map[string]bool {
-	if err := lint.RejectYAMLAliases(data); err != nil {
-		return map[string]bool{}
-	}
-	var node yaml.Node
-	if err := yaml.Unmarshal(data, &node); err != nil {
+	node, err := yamlutil.UnmarshalNodeSafe(data)
+	if err != nil {
 		return map[string]bool{}
 	}
 	if node.Kind != yaml.DocumentNode || len(node.Content) == 0 {

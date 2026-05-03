@@ -9,7 +9,6 @@ import (
 	"runtime/debug"
 
 	flag "github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 
 	"github.com/jeduden/mdsmith/internal/concepts"
 	"github.com/jeduden/mdsmith/internal/config"
@@ -22,6 +21,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/query"
 	"github.com/jeduden/mdsmith/internal/rule"
 	ruledocs "github.com/jeduden/mdsmith/internal/rules"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 
 	// Import all rule packages so their init() functions register rules.
 	_ "github.com/jeduden/mdsmith/internal/rules/ambiguousemphasis"
@@ -415,11 +415,8 @@ func readFrontMatterRaw(path string, maxBytes int64) (map[string]any, error) {
 	delim := []byte("---\n")
 	yamlBytes := prefix[len(delim) : len(prefix)-len(delim)]
 
-	if err := lint.RejectYAMLAliases(yamlBytes); err != nil {
-		return nil, fmt.Errorf("parsing front matter: %w", err)
-	}
 	var raw map[string]any
-	if err := yaml.Unmarshal(yamlBytes, &raw); err != nil {
+	if err := yamlutil.UnmarshalSafe(yamlBytes, &raw); err != nil {
 		return nil, fmt.Errorf("parsing front matter: %w", err)
 	}
 	// Distinguish empty front matter (---\n---\n) from absent front matter.
@@ -463,7 +460,7 @@ func runInit(args []string) int {
 	fm := true
 	cfg.FrontMatter = &fm
 
-	data, err := yaml.Marshal(cfg)
+	data, err := yamlutil.Marshal(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: marshalling config: %v\n", err)
 		return 2

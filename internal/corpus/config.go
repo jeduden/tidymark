@@ -7,8 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jeduden/mdsmith/internal/lint"
-	"gopkg.in/yaml.v3"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
 const (
@@ -32,11 +31,8 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
 
-	if err := lint.RejectYAMLAliases(content); err != nil {
-		return nil, fmt.Errorf("parse config yaml: %w", err)
-	}
 	var cfg Config
-	if err := yaml.Unmarshal(content, &cfg); err != nil {
+	if err := yamlutil.UnmarshalSafe(content, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config yaml: %w", err)
 	}
 	applyConfigDefaults(&cfg)
@@ -82,11 +78,8 @@ func mergeLocalOverrides(configPath string, cfg *Config) error {
 		return fmt.Errorf("read local override config: %w", err)
 	}
 
-	if err := lint.RejectYAMLAliases(content); err != nil {
-		return fmt.Errorf("parse local override config: %w", err)
-	}
 	var local localOverrideConfig
-	if err := yaml.Unmarshal(content, &local); err != nil {
+	if err := yamlutil.UnmarshalSafe(content, &local); err != nil {
 		return fmt.Errorf("parse local override config: %w", err)
 	}
 

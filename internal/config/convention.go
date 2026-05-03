@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/jeduden/mdsmith/internal/rules/markdownflavor"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
 // applyConvention reads the top-level Convention selector from the
@@ -97,8 +98,8 @@ func copyConventionPreset(p map[string]RuleCfg) map[string]RuleCfg {
 // clean type error. Inspecting the raw node tag is the only way to
 // catch the type mismatch before that coercion happens.
 func validateConventionScalar(data []byte) error {
-	var node yaml.Node
-	if err := yaml.Unmarshal(data, &node); err != nil {
+	node, err := yamlutil.UnmarshalNodeSafe(data)
+	if err != nil {
 		// A YAML parse error is reported by Load's yaml.Unmarshal
 		// call already; do not double-report.
 		return nil

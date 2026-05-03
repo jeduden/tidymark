@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/jeduden/mdsmith/internal/config"
-	"gopkg.in/yaml.v3"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
 // --- JSON shapes ---
@@ -202,7 +202,7 @@ func WriteBodyText(w io.Writer, name string, body config.KindBody) error {
 		Rules:      body.Rules,
 		Categories: body.Categories,
 	}
-	data, err := yaml.Marshal(wrap)
+	data, err := yamlutil.Marshal(wrap)
 	if err != nil {
 		return err
 	}

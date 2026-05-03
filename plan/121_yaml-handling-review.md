@@ -1,7 +1,7 @@
 ---
 id: 121
 title: Review and centralize YAML handling
-status: 🔲
+status: ✅
 summary: Audit all YAML parsing/marshaling, unify under a central package, ensure consistent security checks
 model: sonnet
 ---
@@ -130,17 +130,17 @@ File: `internal/corpus/config.go`
 
 ## Acceptance Criteria
 
-- [ ] New `internal/yamlutil` package exists with documented
+- [x] New `internal/yamlutil` package exists with documented
       safe-unmarshal wrappers
-- [ ] `RejectYAMLAliases` moved from `internal/lint` to
+- [x] `RejectYAMLAliases` moved from `internal/lint` to
       `internal/yamlutil`
-- [ ] All user-content unmarshal sites use
+- [x] All user-content unmarshal sites use
       `yamlutil.UnmarshalSafe` (no direct `yaml.Unmarshal`
       on user data)
-- [ ] All marshal sites use `yamlutil.Marshal` or keep
+- [x] All marshal sites use `yamlutil.Marshal` or keep
       well-documented custom logic in place
-- [ ] `internal/yamlutil` has comprehensive godoc
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
-- [ ] No direct calls to `lint.RejectYAMLAliases` outside
+- [x] `internal/yamlutil` has comprehensive godoc
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
+- [x] No direct calls to `lint.RejectYAMLAliases` outside
       `yamlutil` package

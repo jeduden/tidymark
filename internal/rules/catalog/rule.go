@@ -14,7 +14,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/jeduden/mdsmith/internal/rules/tableformat"
-	"gopkg.in/yaml.v3"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
 func init() {
@@ -563,10 +563,7 @@ func readFrontMatter(fsys fs.FS, path string, maxBytes int64) (map[string]any, e
 	yamlStr := s[:idx]
 
 	var raw map[string]any
-	if err := lint.RejectYAMLAliases([]byte(yamlStr)); err != nil {
-		return nil, nil
-	}
-	if err := yaml.Unmarshal([]byte(yamlStr), &raw); err != nil {
+	if err := yamlutil.UnmarshalSafe([]byte(yamlStr), &raw); err != nil {
 		return nil, nil
 	}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/fieldinterp"
 	"github.com/jeduden/mdsmith/internal/lint"
-	"gopkg.in/yaml.v3"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
 // MarkerPair holds the line numbers and parsed content of a start/end marker pair.
@@ -219,13 +219,7 @@ func ParseYAMLBody(
 ) (map[string]any, []lint.Diagnostic) {
 	var rawMap map[string]any
 	if mp.YAMLBody != "" {
-		if err := lint.RejectYAMLAliases([]byte(mp.YAMLBody)); err != nil {
-			return nil, []lint.Diagnostic{
-				MakeDiag(ruleID, ruleName, filePath, mp.StartLine,
-					fmt.Sprintf("generated section YAML: %v", err)),
-			}
-		}
-		if err := yaml.Unmarshal([]byte(mp.YAMLBody), &rawMap); err != nil {
+		if err := yamlutil.UnmarshalSafe([]byte(mp.YAMLBody), &rawMap); err != nil {
 			return nil, []lint.Diagnostic{
 				MakeDiag(ruleID, ruleName, filePath, mp.StartLine,
 					fmt.Sprintf("generated section has invalid YAML: %v", err)),
