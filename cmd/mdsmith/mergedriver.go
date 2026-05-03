@@ -72,11 +72,22 @@ func runMergeDriver(args []string) int {
 	}
 }
 
+// mergeFileMode returns the mode of the named file, or defaultMode if
+// the file cannot be stat'd (e.g. does not exist yet).
+func mergeFileMode(name string, defaultMode os.FileMode) os.FileMode {
+	if info, err := os.Stat(name); err == nil {
+		return info.Mode()
+	}
+	return defaultMode
+}
+
 // mergeAndClean performs the 3-way merge and strips conflict markers.
 // Returns the cleaned content and an exit code (0 on success).
 func mergeAndClean(base, ours, theirs string, maxBytes int64) ([]byte, int) {
 	// Step 1: standard 3-way merge into ours.
-	mergeCmd := exec.Command("git", "merge-file", ours, base, theirs)
+	// Use "--" to prevent file paths starting with "-" from being
+	// interpreted as git options (option injection).
+	mergeCmd := exec.Command("git", "merge-file", "--", ours, base, theirs)
 	mergeCmd.Stderr = os.Stderr
 	mergeErr := mergeCmd.Run()
 
@@ -96,8 +107,10 @@ func mergeAndClean(base, ours, theirs string, maxBytes int64) ([]byte, int) {
 		return nil, 2
 	}
 
+	// Preserve the original permissions of git's temp file.
+	oursMode := mergeFileMode(ours, 0o644)
 	cleaned := stripSectionConflicts(content)
-	if err := os.WriteFile(ours, cleaned, 0644); err != nil {
+	if err := os.WriteFile(ours, cleaned, oursMode); err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: writing cleaned merge: %v\n", err)
 		return nil, 2
 	}
@@ -166,18 +179,16 @@ func runMergeDriverRun(args []string) int {
 // fixAtRealPath writes cleaned content to pathname, runs mdsmith
 // fix, copies the result to ours, and restores pathname.
 func fixAtRealPath(cleaned []byte, ours, pathname string, maxBytes int64) ([]byte, int) {
-	// Capture the original file mode so we can preserve permissions.
-	fileMode := os.FileMode(0644)
-	if info, err := os.Stat(pathname); err == nil {
-		fileMode = info.Mode()
-	}
+	// Capture the original file modes so we can preserve permissions.
+	pathnameMode := mergeFileMode(pathname, 0o644)
+	oursMode := mergeFileMode(ours, 0o644)
 
 	backup, backupErr := lint.ReadFileLimited(pathname, maxBytes)
 	if backupErr != nil && !os.IsNotExist(backupErr) {
 		fmt.Fprintf(os.Stderr, "mdsmith: reading %s for backup: %v\n", pathname, backupErr)
 		return nil, 2
 	}
-	if err := os.WriteFile(pathname, cleaned, fileMode); err != nil {
+	if err := os.WriteFile(pathname, cleaned, pathnameMode); err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: writing to %s: %v\n", pathname, err)
 		return nil, 2
 	}
@@ -194,7 +205,7 @@ func fixAtRealPath(cleaned []byte, ours, pathname string, maxBytes int64) ([]byt
 
 	var restoreErr error
 	if backupErr == nil {
-		restoreErr = os.WriteFile(pathname, backup, fileMode)
+		restoreErr = os.WriteFile(pathname, backup, pathnameMode)
 	} else if os.IsNotExist(backupErr) {
 		restoreErr = os.Remove(pathname)
 	}
@@ -210,7 +221,7 @@ func fixAtRealPath(cleaned []byte, ours, pathname string, maxBytes int64) ([]byt
 		return fixed, 2
 	}
 
-	if err := os.WriteFile(ours, fixed, 0644); err != nil {
+	if err := os.WriteFile(ours, fixed, oursMode); err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: writing merge output: %v\n", err)
 		return nil, 2
 	}

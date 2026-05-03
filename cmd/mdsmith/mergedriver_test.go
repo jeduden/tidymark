@@ -851,3 +851,71 @@ func TestRunMergeDriverInstall_CustomIncludeGlobs(t *testing.T) {
 	assert.NotContains(t, content, "*.md merge=mdsmith\n*.markdown",
 		"default include set must be replaced when custom globs are given")
 }
+
+func TestMergeAndClean_DashPrefixedFilenames_NoOptionInjection(t *testing.T) {
+	// Regression test: file paths starting with "-" must not be
+	// interpreted as git options. The "--" separator added to the
+	// git merge-file call prevents option injection.
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	dir := t.TempDir()
+
+	// Use a filename that starts with "-" to trigger option injection
+	// if "--" is missing from the git merge-file invocation.
+	base := filepath.Join(dir, "-base.md")
+	ours := filepath.Join(dir, "-ours.md")
+	theirs := filepath.Join(dir, "-theirs.md")
+
+	content := "# Hello\n"
+	require.NoError(t, os.WriteFile(base, []byte(content), 0o644))
+	require.NoError(t, os.WriteFile(ours, []byte(content), 0o644))
+	require.NoError(t, os.WriteFile(theirs, []byte(content), 0o644))
+
+	_, code := mergeAndClean(base, ours, theirs, 1<<20)
+	assert.Equal(t, 0, code, "merge with dash-prefixed filenames must succeed")
+}
+
+func TestMergeAndClean_PreservesOursFileMode(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("file mode bits not meaningful on Windows")
+	}
+	dir := t.TempDir()
+
+	base := filepath.Join(dir, "base.md")
+	ours := filepath.Join(dir, "ours.md")
+	theirs := filepath.Join(dir, "theirs.md")
+
+	content := "# Hello\n"
+	require.NoError(t, os.WriteFile(base, []byte(content), 0o644))
+	require.NoError(t, os.WriteFile(ours, []byte(content), 0o600))
+	require.NoError(t, os.WriteFile(theirs, []byte(content), 0o644))
+
+	_, code := mergeAndClean(base, ours, theirs, 1<<20)
+	require.Equal(t, 0, code)
+
+	info, err := os.Stat(ours)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(),
+		"mergeAndClean must preserve the original permissions of ours")
+}
+
+func TestMergeFileMode_ExistingFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file mode bits not meaningful on Windows")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file.md")
+	require.NoError(t, os.WriteFile(path, []byte("x"), 0o755))
+
+	got := mergeFileMode(path, 0o644)
+	assert.Equal(t, os.FileMode(0o755), got.Perm())
+}
+
+func TestMergeFileMode_MissingFile_UsesDefault(t *testing.T) {
+	got := mergeFileMode("/nonexistent/path/file.md", 0o644)
+	assert.Equal(t, os.FileMode(0o644), got)
+}

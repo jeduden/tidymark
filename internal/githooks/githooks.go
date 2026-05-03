@@ -758,7 +758,12 @@ func WriteGitattributes(path string, globs Globs) error {
 		}
 	}
 
-	return os.WriteFile(path, []byte(newContent.String()), 0644)
+	// Preserve the existing file's permissions; fall back to 0o644 for new files.
+	mode := os.FileMode(0o644)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode()
+	}
+	return os.WriteFile(path, []byte(newContent.String()), mode)
 }
 
 // StageGitattributes runs `git add -- .gitattributes` against repoRoot

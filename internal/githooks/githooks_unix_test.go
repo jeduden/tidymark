@@ -27,3 +27,21 @@ func TestWriteGitattributes_ReturnsErrorForUnreadableExistingFile(t *testing.T) 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "reading")
 }
+
+func TestWriteGitattributes_PreservesExistingFileMode(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("file permission bits don't restrict root")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitattributes")
+
+	// Write with a non-default mode to verify it is preserved.
+	require.NoError(t, os.WriteFile(path, []byte("*.txt text\n"), 0o600))
+
+	require.NoError(t, WriteGitattributes(path, Globs{Include: []string{"docs.md"}}))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(),
+		"WriteGitattributes must not change the existing file's permission bits")
+}
