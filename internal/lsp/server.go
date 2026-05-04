@@ -471,11 +471,22 @@ func (s *Server) scheduleLint(uri string, trigger lintTrigger) {
 		if s.shutdown.Load() {
 			return
 		}
+		// Only run lint if THIS timer is still the live one for
+		// uri. A racing scheduleLint(uri) may have replaced us
+		// with a newer timer; that newer timer (or its immediate
+		// runLint, when debounce==0) is responsible for the next
+		// publish. Without this guard, an already-replaced timer
+		// could fire after Stop() lost the race and emit stale
+		// diagnostics on top of fresher ones.
 		s.pendingMu.Lock()
-		if s.pending[uri] == timer {
+		live := s.pending[uri] == timer
+		if live {
 			delete(s.pending, uri)
 		}
 		s.pendingMu.Unlock()
+		if !live {
+			return
+		}
 		s.runLint(uri)
 	})
 	s.pending[uri] = timer

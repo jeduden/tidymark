@@ -77,13 +77,23 @@ func severityFor(s lint.Severity) DiagnosticSeverity {
 // line has its trailing CR stripped so Windows-style line endings
 // produce matching positions on the wire.
 //
+// Empty input returns a 1-element slice containing an empty line,
+// matching what bytes.Split produces (and therefore lint.File.Lines).
+// Returning nil here would put a diagnostic anchored at line 1 of an
+// empty buffer past the line count splitLines reports — currentLineBytes
+// would treat 1-based line 1 as out of range and toLSP would silently
+// clamp the squiggle to the wrong place.
+//
 // The function operates entirely on []byte (no string round-trip)
 // because it is on the diagnostics-publish hot path; allocating a
 // full-document string once per publish was a noticeable per-request
 // overhead on large files.
 func splitLines(source []byte) [][]byte {
 	if len(source) == 0 {
-		return nil
+		// Match bytes.Split's "empty input → 1-element empty
+		// slice" contract so lint.File.Lines and splitLines
+		// agree on the line count of an empty buffer.
+		return [][]byte{nil}
 	}
 	parts := bytes.Split(source, []byte{'\n'})
 	for i, p := range parts {

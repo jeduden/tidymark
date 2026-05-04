@@ -1832,9 +1832,14 @@ func TestCurrentLineBytesOutOfRange(t *testing.T) {
 
 func TestSplitLines(t *testing.T) {
 	t.Parallel()
-	// Empty input is nil so callers can range over the result
-	// without a special case.
-	assert.Nil(t, splitLines(nil))
+	// Empty input → 1-element slice with an empty line, matching
+	// bytes.Split's contract and therefore lint.File.Lines. The
+	// LSP toLSP path uses currentLineBytes(lines, n) with 1-based
+	// line numbers, so an empty buffer must report at least one
+	// line or a diagnostic anchored at line 1 would fall through
+	// the out-of-range guard and clamp to the wrong column.
+	assert.Equal(t, [][]byte{nil}, splitLines(nil))
+	assert.Equal(t, [][]byte{nil}, splitLines([]byte{}))
 	// No trailing newline → N parts.
 	assert.Equal(t, [][]byte{[]byte("a"), []byte("b")}, splitLines([]byte("a\nb")))
 	// Trailing newline → N+1 parts (preserves the empty line so
