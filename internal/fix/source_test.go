@@ -17,7 +17,6 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"
 )
 
-
 // TestFixSourceMatchesFixerOnDisk pins the LSP-side guarantee that
 // FixSource returns the same bytes the on-disk Fixer would write for
 // the same content. The matching pair is the acceptance criterion
