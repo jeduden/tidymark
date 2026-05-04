@@ -636,6 +636,38 @@ func TestDispatchExitTogglesShutdownFlags(t *testing.T) {
 	assert.True(t, s.exitRequested.Load())
 }
 
+func TestDispatchRoutesInitializedToHandler(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	s.dispatch(context.Background(), &requestMessage{Method: "initialized"})
+	// handleInitialized writes the registerWatchers request
+	// synchronously. fetchClientSettings runs in a goroutine and
+	// may or may not have written by the time we check.
+	assert.Contains(t, buf.String(), "client/registerCapability")
+}
+
+func TestDispatchRoutesDidChangeConfigurationToHandler(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	// handleDidChangeConfiguration spawns fetchClientSettings; we
+	// don't wait for the response — covering the dispatch arm is
+	// enough.
+	s.dispatch(context.Background(), &requestMessage{Method: "workspace/didChangeConfiguration"})
+}
+
+func TestDispatchRoutesDidChangeWatchedFilesToHandler(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	body, _ := json.Marshal(didChangeWatchedFilesParams{
+		Changes: []fileEvent{{URI: "file:///workspace/.mdsmith.yml", Type: 2}},
+	})
+	s.dispatch(context.Background(), &requestMessage{
+		Method: "workspace/didChangeWatchedFiles",
+		Params: body,
+	})
+}
+
 func TestDispatchRawRoutesResponseToWaiter(t *testing.T) {
 	t.Parallel()
 	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
@@ -1020,6 +1052,23 @@ func TestUriToPathInvalidURL(t *testing.T) {
 	// Malformed file URI — url.Parse rejects spaces in opaque.
 	got := uriToPath("file://%zz/tmp/foo")
 	assert.Empty(t, got)
+}
+
+func TestReloadConfigDiscoverEmptyFallsBack(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// No .mdsmith.yml under dir, and no .git boundary either; the
+	// discover walk hits the filesystem root without finding a
+	// config and returns "" — the function should fall back to the
+	// defaults rather than crashing or holding stale state.
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	s.configMu.Lock()
+	s.rootDir = dir
+	s.configMu.Unlock()
+	s.reloadConfig()
+	cfg, path, _ := s.snapshotConfig()
+	require.NotNil(t, cfg, "must fall back to defaults when no config is discovered")
+	assert.Empty(t, path, "configPath should be empty when discovery returns nothing")
 }
 
 func TestReloadConfigBadYAMLFallsBack(t *testing.T) {
