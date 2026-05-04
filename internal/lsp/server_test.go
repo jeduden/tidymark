@@ -1719,13 +1719,15 @@ func TestDocumentStoreOpenURIs(t *testing.T) {
 
 func TestPickRootPrefersWorkspaceFolder(t *testing.T) {
 	t.Parallel()
+	fallback := "file:///fallback"
+	legacy := "file:///legacy"
 	got := pickRoot(initializeParams{
 		WorkspaceFolders: []workspaceFolder{{URI: "file:///ws/root", Name: "ws"}},
-		RootURI:          "file:///fallback",
+		RootURI:          &fallback,
 	})
 	assert.Equal(t, "/ws/root", got)
 
-	got = pickRoot(initializeParams{RootURI: "file:///legacy"})
+	got = pickRoot(initializeParams{RootURI: &legacy})
 	assert.Equal(t, "/legacy", got)
 
 	got = pickRoot(initializeParams{})
@@ -2292,6 +2294,67 @@ func TestFetchClientSettingsWriteRequestFailureReturnsEarly(t *testing.T) {
 	s.fetchClientSettings(context.Background())
 	assert.Less(t, time.Since(start), 50*time.Millisecond,
 		"writeRequest failure must return before the fetchTimeout fires")
+}
+
+// Regression: an `exit` notification without a prior successful
+// `shutdown` request must terminate Run with an error so the CLI
+// exits non-zero. LSP §3.16 marks this as an abnormal termination.
+func TestRunExitWithoutShutdownReturnsError(t *testing.T) {
+	t.Parallel()
+	body := `{"jsonrpc":"2.0","method":"exit"}`
+	frames := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), body)
+	s := New(Options{
+		Reader: strings.NewReader(frames),
+		Writer: io.Discard,
+		Rules:  rule.All(),
+	})
+	err := s.Run(context.Background())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errExitWithoutShutdown)
+}
+
+// Companion: a clean shutdown→exit pair returns nil from Run.
+func TestRunShutdownThenExitReturnsNil(t *testing.T) {
+	t.Parallel()
+	shutdownBody := `{"jsonrpc":"2.0","id":99,"method":"shutdown"}`
+	exitBody := `{"jsonrpc":"2.0","method":"exit"}`
+	frames := fmt.Sprintf(
+		"Content-Length: %d\r\n\r\n%sContent-Length: %d\r\n\r\n%s",
+		len(shutdownBody), shutdownBody, len(exitBody), exitBody,
+	)
+	s := New(Options{
+		Reader: strings.NewReader(frames),
+		Writer: io.Discard,
+		Rules:  rule.All(),
+	})
+	err := s.Run(context.Background())
+	require.NoError(t, err)
+}
+
+// Regression: LSP clients may legitimately send `processId: null`
+// (and `rootUri: null`). The previous concrete int/string types
+// made json.Unmarshal fail with "cannot unmarshal null into ...",
+// causing handleInitialize to reject the very first request.
+func TestHandleInitializeAcceptsNullProcessIDAndRootURI(t *testing.T) {
+	t.Parallel()
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize",` +
+		`"params":{"processId":null,"rootUri":null,"capabilities":{}}}`
+	frames := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(body), body)
+	var buf safeBuffer
+	s := New(Options{
+		Reader: strings.NewReader(frames),
+		Writer: &buf,
+		Rules:  rule.All(),
+	})
+	// Run blocks on stdin; the test reader hits EOF after the one
+	// frame, Run returns nil, and we inspect what was written.
+	err := s.Run(context.Background())
+	require.NoError(t, err)
+	out := buf.String()
+	// Successful initialize includes a result object, NOT an
+	// error response (which would carry "code":-32602).
+	assert.Contains(t, out, `"result":`)
+	assert.NotContains(t, out, "invalid initialize params")
 }
 
 // Run's dispatch loop checks transport.WriteError() at the TOP of

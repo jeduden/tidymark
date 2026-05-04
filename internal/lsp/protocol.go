@@ -53,9 +53,17 @@ const (
 
 // LSP types — only the subset the server actually emits or consumes.
 
+// initializeParams mirrors LSP §3.16 InitializeParams. processId
+// and rootUri are spec'd as `integer | null` and `DocumentUri |
+// null` respectively, which VS Code (and most clients) really do
+// send as JSON null when no parent process / root is available.
+// Using pointer types lets json.Unmarshal accept the null without
+// failing — a non-pointer int would otherwise return
+// "cannot unmarshal null into int" and the server would reject
+// the very first request.
 type initializeParams struct {
-	ProcessID        int                `json:"processId,omitempty"`
-	RootURI          string             `json:"rootUri,omitempty"`
+	ProcessID        *int               `json:"processId,omitempty"`
+	RootURI          *string            `json:"rootUri,omitempty"`
 	WorkspaceFolders []workspaceFolder  `json:"workspaceFolders,omitempty"`
 	Capabilities     clientCapabilities `json:"capabilities"`
 }

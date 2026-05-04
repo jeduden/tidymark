@@ -50,9 +50,10 @@ type Server struct {
 	pendingRespMu sync.Mutex
 	pendingResp   map[string]chan rpcResponse
 
-	nextReqID     atomic.Int64
-	shutdown      atomic.Bool
-	exitRequested atomic.Bool
+	nextReqID        atomic.Int64
+	shutdown         atomic.Bool // we are tearing down (any cause)
+	shutdownReceived atomic.Bool // client sent a `shutdown` request
+	exitRequested    atomic.Bool // client sent an `exit` notification
 }
 
 // userSettings mirrors the subset of `mdsmith.*` VS Code keys the
@@ -153,11 +154,23 @@ func (s *Server) Run(ctx context.Context) error {
 		if err := s.t.WriteError(); err != nil {
 			return err
 		}
-		if s.shutdown.Load() && s.exitRequested.Load() {
+		if s.exitRequested.Load() {
+			// LSP §3.16: receiving `exit` without a prior
+			// successful `shutdown` request is an abnormal
+			// termination — return an error so the CLI exits
+			// non-zero. A clean shutdown→exit pair returns nil.
+			if !s.shutdownReceived.Load() {
+				return errExitWithoutShutdown
+			}
 			return nil
 		}
 	}
 }
+
+// errExitWithoutShutdown is returned from Run when the client
+// sends an `exit` notification before a successful `shutdown`
+// request, per the LSP lifecycle spec.
+var errExitWithoutShutdown = errors.New("lsp: exit notification received before shutdown request")
 
 // dispatchRaw routes one frame to either request/notification handling
 // or response handling based on the message shape.
@@ -227,6 +240,7 @@ func (s *Server) dispatch(ctx context.Context, msg *requestMessage) {
 		s.handleInitialized(ctx)
 	case "shutdown":
 		s.shutdown.Store(true)
+		s.shutdownReceived.Store(true)
 		s.stopPendingLints()
 		_ = s.t.writeResponse(msg.ID, nil)
 	case "exit":
@@ -1176,8 +1190,13 @@ func pickRoot(p initializeParams) string {
 			return path
 		}
 	}
-	if path := uriToPath(p.RootURI); path != "" {
-		return path
+	// rootUri is `DocumentUri | null` per LSP §3.16. The pointer
+	// dereference covers both the missing-key case (nil) and the
+	// explicit JSON null case (also nil after Unmarshal).
+	if p.RootURI != nil {
+		if path := uriToPath(*p.RootURI); path != "" {
+			return path
+		}
 	}
 	return ""
 }

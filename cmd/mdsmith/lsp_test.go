@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -63,10 +64,11 @@ func TestLSPInitializeOverPipe(t *testing.T) {
 // (workspace/configuration, client/registerCapability) that arrive
 // interleaved with the publishDiagnostics notifications we wait for.
 type lspPipe struct {
-	t      *testing.T
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout *bufio.Reader
+	t        *testing.T
+	cmd      *exec.Cmd
+	stdin    io.WriteCloser
+	stdout   *bufio.Reader
+	waitOnce sync.Once
 }
 
 func startLSPSubprocess(t *testing.T, ctx context.Context, binary string) *lspPipe {
@@ -80,11 +82,25 @@ func startLSPSubprocess(t *testing.T, ctx context.Context, binary string) *lspPi
 	require.NoError(t, err)
 	cmd.Stderr = nil
 	require.NoError(t, cmd.Start())
+	p := &lspPipe{t: t, cmd: cmd, stdin: stdin, stdout: bufio.NewReader(stdout)}
+	// Cleanup is the safety-net path for tests that fail before
+	// shutdown() runs (e.g. a require.NoError mid-test). When the
+	// happy path runs, shutdown() already waited and the once
+	// guard makes this a no-op rather than a "Wait was already
+	// called" error that would obscure real failures.
 	t.Cleanup(func() {
 		_ = stdin.Close()
-		_ = cmd.Wait()
+		p.wait()
 	})
-	return &lspPipe{t: t, cmd: cmd, stdin: stdin, stdout: bufio.NewReader(stdout)}
+	return p
+}
+
+// wait blocks for the subprocess to exit. Idempotent — Wait is
+// inherently single-shot, so we guard with sync.Once.
+func (p *lspPipe) wait() {
+	p.waitOnce.Do(func() {
+		_ = p.cmd.Wait()
+	})
 }
 
 func (p *lspPipe) writeFrame(v any) {
@@ -203,8 +219,10 @@ func (p *lspPipe) shutdown(t *testing.T) {
 	// function returns. The CommandContext's `defer cancel()`
 	// otherwise races the subprocess's exit and can SIGKILL it
 	// before its coverage counters are flushed to GOCOVERDIR.
+	// p.wait is idempotent (sync.Once), so the cleanup hook in
+	// startLSPSubprocess is a no-op after this returns.
 	_ = p.stdin.Close()
-	_ = p.cmd.Wait()
+	p.wait()
 }
 
 func assertHasMDS006(t *testing.T, diags publishDiagnosticsParams) {
