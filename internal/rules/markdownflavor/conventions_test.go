@@ -145,3 +145,70 @@ func TestConventionNamesSorted(t *testing.T) {
 		"ConventionNames should return a sorted slice; got %v", names)
 	assert.ElementsMatch(t, []string{"github", "plain", "portable"}, names)
 }
+
+// Tests for the updated Lookup(name, userConventions) signature.
+
+func TestLookup_WithNilUserConventions_BuiltInStillWorks(t *testing.T) {
+	c, err := Lookup("portable", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "portable", c.Name)
+	assert.Equal(t, FlavorCommonMark, c.Flavor)
+}
+
+func TestLookup_UserConventionFound(t *testing.T) {
+	user := map[string]Convention{
+		"our-team": {
+			Name:   "our-team",
+			Flavor: FlavorGFM,
+			Rules: map[string]RulePreset{
+				"list-marker-style": {
+					Enabled:  true,
+					Settings: map[string]any{"style": "dash"},
+				},
+			},
+		},
+	}
+	c, err := Lookup("our-team", user)
+	require.NoError(t, err)
+	assert.Equal(t, "our-team", c.Name)
+	assert.Equal(t, FlavorGFM, c.Flavor)
+	lms, ok := c.Rules["list-marker-style"]
+	require.True(t, ok)
+	assert.Equal(t, "dash", lms.Settings["style"])
+}
+
+func TestLookup_UnknownListsBothBuiltInAndUser(t *testing.T) {
+	user := map[string]Convention{
+		"our-team": {Name: "our-team", Flavor: FlavorGFM},
+	}
+	_, err := Lookup("bogus", user)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bogus")
+	// Must list built-in names
+	assert.Contains(t, err.Error(), "github")
+	assert.Contains(t, err.Error(), "portable")
+	assert.Contains(t, err.Error(), "plain")
+	// Must list user-defined names
+	assert.Contains(t, err.Error(), "our-team")
+}
+
+func TestLookup_UserConventionDeepCopied(t *testing.T) {
+	user := map[string]Convention{
+		"our-team": {
+			Name:   "our-team",
+			Flavor: FlavorGFM,
+			Rules: map[string]RulePreset{
+				"list-marker-style": {
+					Enabled:  true,
+					Settings: map[string]any{"style": "dash"},
+				},
+			},
+		},
+	}
+	c, err := Lookup("our-team", user)
+	require.NoError(t, err)
+	// Mutate the returned value — must not affect the source map.
+	c.Rules["list-marker-style"].Settings["style"] = "asterisk"
+	assert.Equal(t, "dash", user["our-team"].Rules["list-marker-style"].Settings["style"],
+		"returned convention must be a deep copy")
+}
