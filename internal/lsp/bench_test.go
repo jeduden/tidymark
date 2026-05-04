@@ -16,8 +16,10 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/rule"
 
-	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
-	_ "github.com/jeduden/mdsmith/internal/rules/notrailingspaces"
+	// Import the production rule set so the latency benchmark
+	// reflects what an editor actually triggers, not just the
+	// two-rule subset the unit tests register.
+	_ "github.com/jeduden/mdsmith/internal/rules/all"
 )
 
 // BenchmarkLatency1kLines measures end-to-end didChange →

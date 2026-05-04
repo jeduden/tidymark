@@ -146,13 +146,13 @@ one.
 mdsmith JSON diagnostics map to LSP `Diagnostic`
 fields as follows:
 
-| mdsmith field    | LSP field                                       |
-|------------------|-------------------------------------------------|
-| `rule` + `name`  | `code` (e.g. `MDS001`); `source` is `"mdsmith"` |
-| `message`        | `message`                                       |
-| `severity`       | `severity` (error → 1, warning → 2)             |
-| `line`, `column` | `range.start`; end column derived per-rule      |
-| rule name        | `data.rule` (echoed back on `codeAction`)       |
+| mdsmith field    | LSP field                                                               |
+|------------------|-------------------------------------------------------------------------|
+| `rule` + `name`  | `code` (e.g. `MDS001`); `source` is `"mdsmith"`                         |
+| `message`        | `message`                                                               |
+| `severity`       | `severity` (error → 1, warning → 2)                                     |
+| `line`, `column` | `range.start`; end is the line's UTF-16 length (squiggle → end-of-line) |
+| rule name        | `data.rule` (echoed back on `codeAction`)                               |
 
 The same JSON schema documented in
 [Output and JSON](../../reference/cli.md#output)

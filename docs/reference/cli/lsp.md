@@ -42,13 +42,13 @@ responses and notifications on stdout.
 LSP `Diagnostic` fields map from the same JSON shape `check`
 prints:
 
-| mdsmith          | LSP                                        |
-|------------------|--------------------------------------------|
-| `rule` + `name`  | `code` (e.g. `MDS001`); `source = mdsmith` |
-| `severity`       | `severity` (error → 1, warning → 2)        |
-| `line`, `column` | `range.start`; end column derived per-rule |
-| `message`        | `message`                                  |
-| rule name        | `data.rule` (echoed back on codeAction)    |
+| mdsmith          | LSP                                                                     |
+|------------------|-------------------------------------------------------------------------|
+| `rule` + `name`  | `code` (e.g. `MDS001`); `source = mdsmith`                              |
+| `severity`       | `severity` (error → 1, warning → 2)                                     |
+| `line`, `column` | `range.start`; end is the line's UTF-16 length (squiggle → end-of-line) |
+| `message`        | `message`                                                               |
+| rule name        | `data.rule` (echoed back on codeAction)                                 |
 
 ## Code actions
 

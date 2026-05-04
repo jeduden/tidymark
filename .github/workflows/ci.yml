@@ -84,13 +84,25 @@ jobs:
       # Install bun directly rather than via oven-sh/setup-bun: the
       # action enables the GitHub Actions tool cache by default, which
       # zizmor's cache-poisoning rule flags as an unprotected
-      # mutation surface. The pinned download URL gives us
-      # reproducibility without touching the cache.
+      # mutation surface. We download a pinned release zip from the
+      # bun GitHub release page and verify its SHA-256 before
+      # extracting, which avoids piping arbitrary remote shell
+      # script into bash.
       - name: Install Bun
         env:
           BUN_VERSION: "1.3.11"
+          BUN_SHA256: "8611ba935af886f05a6f38740a15160326c15e5d5d07adef966130b4493607ed"
         run: |
-          curl -fsSL "https://bun.sh/install" | bash -s "bun-v${BUN_VERSION}"
+          set -euo pipefail
+          mkdir -p "$HOME/.bun/bin"
+          tmp=$(mktemp --suffix=.zip)
+          curl -fsSL --proto '=https' --tlsv1.2 \
+            -o "$tmp" \
+            "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
+          echo "${BUN_SHA256}  ${tmp}" | sha256sum -c -
+          unzip -q "$tmp" -d "$HOME/.bun"
+          mv "$HOME/.bun/bun-linux-x64/bun" "$HOME/.bun/bin/bun"
+          rm -rf "$HOME/.bun/bun-linux-x64" "$tmp"
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
       - name: Install extension dependencies
         working-directory: editors/vscode

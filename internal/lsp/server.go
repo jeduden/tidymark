@@ -120,7 +120,16 @@ func New(opts Options) *Server {
 // client sends `exit`, the supplied context is canceled, or a
 // transport-level write fails (typically EPIPE when the client drops
 // its stdout pipe).
+//
+// On any exit path Run sets the shutdown flag and cancels every
+// pending debounce timer so a callback armed milliseconds before
+// teardown does not race the parent goroutine and write
+// publishDiagnostics into a half-closed pipe.
 func (s *Server) Run(ctx context.Context) error {
+	defer func() {
+		s.shutdown.Store(true)
+		s.stopPendingLints()
+	}()
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -197,6 +206,15 @@ func (s *Server) dispatchRaw(ctx context.Context, raw []byte) {
 }
 
 func (s *Server) dispatch(ctx context.Context, msg *requestMessage) {
+	// LSP §3.16 (lifecycle): once `shutdown` has succeeded, the
+	// server must reject any subsequent request other than `exit`
+	// with InvalidRequest. Notifications are silently dropped.
+	if s.shutdown.Load() && msg.Method != "exit" {
+		if msg.ID != nil {
+			_ = s.t.writeError(msg.ID, codeInvalidRequest, "server is shutting down")
+		}
+		return
+	}
 	switch msg.Method {
 	case "initialize":
 		s.handleInitialize(msg)
