@@ -220,9 +220,12 @@ separately (plan 116).
    `STALE | FRESH | ERROR` per target.
    On rebuild, hash each output and store
    in the cache entry.
-4. Detect duplicate-output-set targets:
-   report a clear error naming both source
-   locations; do not run either recipe.
+4. Detect any overlap across declared
+   `outputs:` paths — exact path collisions
+   and directory-prefix collisions
+   (`book/` vs `book/index.html`). Report a
+   clear error naming both source locations;
+   do not run either recipe.
 5. Wire staleness into the `mdsmith fix`
    build pass (plan 115). Default skips
    fresh; refresh cache entries for rebuilt
@@ -246,9 +249,9 @@ separately (plan 116).
     either output is deleted from disk.
   - A glob `inputs:` entry that matches zero
     files is a build error.
-  - Two directives with the same `outputs:`
-    set is a build error naming both
-    locations.
+  - Overlapping `outputs:` paths (exact
+    duplicates or directory-prefix
+    collisions) is a build error.
   - `--build-force` rebuilds even when fresh.
   - `--build-check-stale` exits non-zero
     with stale output and zero with fresh
@@ -275,9 +278,9 @@ separately (plan 116).
       every target using that recipe
 - [ ] An `inputs:` glob matching zero files
       is a build error
-- [ ] Two directives with the same `outputs:`
-      set is a build error reported with both
-      source locations and no recipe runs
+- [ ] Overlapping `outputs:` paths (exact
+      or directory-prefix) is a build error
+      reporting both source locations
 - [ ] A recipe's `default-inputs` are folded
       into the input hash
 - [ ] `mdsmith fix --build-force` rebuilds

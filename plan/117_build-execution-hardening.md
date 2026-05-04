@@ -99,23 +99,27 @@ zombies behind.
 Plan 115's basic atomic write is replaced
 by:
 
-1. mdsmith creates the staging dir via
-   `os.MkdirTemp` with a random suffix under
-   `.mdsmith/build-staging/`. Putting the
-   staging root under the project root
-   prevents a hostile output dir from
-   pre-creating a symlink at the temp
-   name.
+1. mdsmith `Lstat`s `.mdsmith/build-staging/`
+   and refuses to proceed if it is a symlink
+   or anything other than a directory; this
+   blocks an attacker who pre-replaced the
+   staging root with a link to elsewhere.
 2. mdsmith refuses to proceed if
    `.mdsmith/build-staging/` is world-
-   writable on Unix (mode bit `0o002`
-   set). The user is asked to fix the
-   directory permissions.
-3. Each declared output path maps to a
+   writable on Unix (mode bit `0o002` set).
+   The user is asked to fix the directory
+   permissions.
+3. mdsmith creates the per-recipe staging
+   dir via `os.MkdirTemp` with a random
+   suffix under `.mdsmith/build-staging/`.
+   Combined with steps 1 and 2, this
+   prevents a hostile output dir from
+   pre-creating a symlink at the temp name.
+4. Each declared output path maps to a
    file inside the staging dir. The recipe
    gets the staging path substituted for
    `{outputs}` and any output-path params.
-4. After post-condition checks (below),
+5. After post-condition checks (below),
    mdsmith renames each staged file to its
    final location. For each destination,
    mdsmith first `Lstat`s the existing path:
@@ -134,7 +138,7 @@ by:
    `mdsmith fix` reruns the recipe (the
    ActionID still mismatches the cache
    because no cache write happened).
-5. On any pre-rename failure, the staging
+6. On any pre-rename failure, the staging
    dir is removed; no declared output is
    touched.
 
@@ -168,7 +172,9 @@ limits:
   writes into an unrelated subtree is missed.
 - Hashing happens once before and once after
   per file. Symlinks in the snapshot are
-  recorded by `Lstat` target, not by following.
+  recorded via `Lstat` metadata plus
+  `os.Readlink` for the link target; mdsmith
+  never follows them.
 
 Writes outside are constrained by the
 hermetic env's allowlisted PATH and the
@@ -214,12 +220,14 @@ pass-through name is empty or contains `=`.
    process group (Windows), SIGTERM-then-
    SIGKILL on timeout.
 5. Replace plan 115's basic atomic write
-   with the hardened version: `os.MkdirTemp`
-   staging under `.mdsmith/build-staging/`,
-   world-writable parent refusal,
-   `RENAME_NOREPLACE` (Linux) or symlink-
-   checked `os.Rename` (others), full
-   rollback on partial rename failure.
+   with the hardened version: staging-root
+   `Lstat` directory check, world-writable
+   parent refusal, `os.MkdirTemp` per-recipe
+   dir, per-destination `Lstat` symlink
+   refusal followed by `os.Rename`. Document
+   the partial-failure semantics for
+   multi-output rename (best-effort cleanup;
+   next `fix` reruns the recipe).
 6. Implement output post-conditions in
    `internal/build/postcheck.go`: snapshot
    staging dir + output parents pre-recipe,
@@ -282,11 +290,15 @@ pass-through name is empty or contains `=`.
 - [ ] Atomic write uses `os.MkdirTemp` with
       a random suffix under
       `.mdsmith/build-staging/`; world-
-      writable staging parent is refused
-- [ ] Rename phase uses
-      `RENAME_NOREPLACE` (Linux) or a
-      symlink-checked fallback elsewhere;
-      partial rename failure rolls back
+      writable staging parent is refused;
+      a non-directory or symlink at the
+      staging root is refused
+- [ ] Rename phase `Lstat`s each output
+      destination, refuses to replace a
+      symlink, then uses `os.Rename`;
+      multi-output partial failure cleans
+      up the staging dir and exits with
+      FAIL (next `fix` reruns the recipe)
 - [ ] Recipe is invoked with `Cmd.Env`
       restricted to the allowlist and
       `Cmd.Dir` set to the per-recipe

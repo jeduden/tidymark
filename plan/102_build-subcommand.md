@@ -152,11 +152,17 @@ allowlist before MDS039 accepts it:
   inside a path (not as the first segment) to
   bound expansion at the project root.
 
-At build time (plan 115) the resolved path is
-re-checked: `filepath.EvalSymlinks` must not
-escape the project root. A symlinked output
-or input pointing outside the project is a
-build error.
+At build time (plan 115) the resolved path
+is re-checked against the project root.
+Inputs (which must exist) use
+`filepath.EvalSymlinks` to resolve the full
+chain. Outputs may not exist yet: the check
+walks the longest existing prefix of the
+output path with `EvalSymlinks` and applies
+`filepath.Clean` to the rest, then verifies
+the joined result stays under the project
+root. A symlinked output or input pointing
+outside the project is a build error.
 
 ### Glob match cap
 
@@ -181,6 +187,14 @@ placeholders are added:
 names. They may not appear in
 `params.required` or `params.optional`. MDS040
 checks this.
+
+`{outputs}` and `{inputs}` must appear as
+standalone argv tokens after
+`strings.Fields` tokenization. Embedded use
+(e.g. `-o{outputs}`) is a `command`
+validation error reported by MDS040, since
+list-expanding a fragment of a token has no
+well-defined semantics.
 
 A single-output recipe uses a named param:
 `command: "tool -o {dest}"` with the directive

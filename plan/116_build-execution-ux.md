@@ -77,9 +77,17 @@ run.
 Log files are kept until the cache entry
 that names them is invalidated, so a user
 can read the log of a recipe that ran an
-hour ago. Cache eviction (plan 103
-schema-version bump or `--build-no-cache`)
-deletes the corresponding log files.
+hour ago. A schema-version bump (plan 103)
+deletes the cache entry and its log file
+together. `--build-no-cache` is different:
+it bypasses the cache-write step entirely,
+so each run's logs are still written under
+`.mdsmith/build-logs/<action-id>.log` but
+are never associated with a cache entry.
+Those orphan logs are removed at the start
+of the next `mdsmith fix` invocation, so the
+build-logs dir contains at most one
+`--build-no-cache` run's output at a time.
 
 ### Failure diagnostic format
 
