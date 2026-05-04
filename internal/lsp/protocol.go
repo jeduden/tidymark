@@ -263,3 +263,20 @@ type didChangeWatchedFilesRegistrationOptions struct {
 type fileSystemWatcher struct {
 	GlobPattern string `json:"globPattern"`
 }
+
+// LSP §3.18.1 (window/logMessage). Used to surface server-side
+// errors (e.g. lint pipeline failures) to clients that route the
+// "mdsmith" output channel into their UI.
+type messageType int
+
+const (
+	messageTypeError   messageType = 1
+	messageTypeWarning messageType = 2
+	messageTypeInfo    messageType = 3
+	messageTypeLog     messageType = 4
+)
+
+type logMessageParams struct {
+	Type    messageType `json:"type"`
+	Message string      `json:"message"`
+}

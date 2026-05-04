@@ -520,6 +520,15 @@ func (s *Server) runLint(uri string) {
 		SourceFS:         dirFSForPath(doc.path),
 	}
 	res := r.RunSource(relPath, doc.text)
+	// Mirror `mdsmith check`: surface lint pipeline errors (parse
+	// failures, oversized buffers, config-target rule errors) to
+	// the editor instead of silently dropping them. Otherwise the
+	// editor would show no diagnostics and look broken.
+	for _, e := range res.Errors {
+		s.logger.Printf("lint %s: %v", uri, e)
+		_ = s.t.writeNotification("window/logMessage",
+			logMessageParams{Type: messageTypeError, Message: "mdsmith: " + e.Error()})
+	}
 	lspDiags := toLSPAll(res.Diagnostics, doc.text)
 	_ = s.t.writeNotification("textDocument/publishDiagnostics",
 		publishDiagnosticsParams{URI: uri, Diagnostics: lspDiags})

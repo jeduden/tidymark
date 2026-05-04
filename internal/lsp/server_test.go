@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1970,6 +1971,40 @@ func TestRunLintIgnoredFile(t *testing.T) {
 	})
 	s.runLint("file:///x/ignored.md")
 	out := buf.String()
+	assert.Contains(t, out, `"diagnostics":[]`)
+}
+
+// Regression: runLint must not silently swallow Runner.RunSource
+// errors. Triggering the size guard yields a Runner error; the
+// server should both publish empty diagnostics and emit a
+// window/logMessage so the editor can show actionable feedback.
+func TestRunLintSurfacesRunnerErrorsViaLogMessage(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	cfg.MaxInputSize = "16"
+	s.configMu.Lock()
+	s.config = cfg
+	s.configMu.Unlock()
+	s.docs.set("file:///x/big.md", &document{
+		uri:  "file:///x/big.md",
+		path: "x/big.md",
+		text: []byte("# H\n\nthis is well past sixteen bytes of body content\n"),
+	})
+	// Default MaxInputBytes (2 MiB) is too generous to trip the
+	// guard; runLint's runner pins to lint.DefaultMaxInputBytes,
+	// so we exercise the path by sending a buffer larger than 2 MiB.
+	bigSize := lint.DefaultMaxInputBytes + 1
+	s.docs.set("file:///x/huge.md", &document{
+		uri:  "file:///x/huge.md",
+		path: "x/huge.md",
+		text: bytes.Repeat([]byte("a"), int(bigSize)),
+	})
+	s.runLint("file:///x/huge.md")
+	out := buf.String()
+	assert.Contains(t, out, `"window/logMessage"`)
+	assert.Contains(t, out, "file too large")
 	assert.Contains(t, out, `"diagnostics":[]`)
 }
 

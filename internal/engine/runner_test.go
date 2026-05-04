@@ -10,6 +10,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/config"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -771,4 +772,34 @@ func TestRunSource_EmptyInput(t *testing.T) {
 	require.Len(t, result.Errors, 0, "expected 0 errors, got %d: %v", len(result.Errors), result.Errors)
 	require.Len(t, result.Diagnostics, 0,
 		"expected 0 diagnostics, got %d: %v", len(result.Diagnostics), result.Diagnostics)
+}
+
+// Regression: in-memory sources must respect Runner.MaxInputBytes
+// the same way on-disk reads respect lint.ReadFileLimited. Without
+// this guard, LSP and other in-memory callers would diverge from
+// `mdsmith check`'s "file too large" behavior.
+func TestRunSource_RejectsOversizedSource(t *testing.T) {
+	cfg := &config.Config{}
+	runner := &Runner{
+		Config:        cfg,
+		Rules:         []rule.Rule{&silentRule{id: "MDS998", name: "mock-rule"}},
+		MaxInputBytes: 16,
+	}
+	result := runner.RunSource("doc.md", []byte("this body is well past sixteen bytes"))
+	require.Len(t, result.Errors, 1)
+	assert.Contains(t, result.Errors[0].Error(), "file too large")
+	assert.Empty(t, result.Diagnostics, "no diagnostics expected when input is rejected")
+}
+
+// MaxInputBytes <= 0 means unlimited; oversized buffers must lint
+// normally instead of being rejected.
+func TestRunSource_UnlimitedMaxInputBytes(t *testing.T) {
+	cfg := &config.Config{}
+	runner := &Runner{
+		Config:        cfg,
+		Rules:         []rule.Rule{&silentRule{id: "MDS998", name: "mock-rule"}},
+		MaxInputBytes: 0,
+	}
+	result := runner.RunSource("doc.md", []byte("# Heading\n\nbody body body\n"))
+	assert.Empty(t, result.Errors)
 }

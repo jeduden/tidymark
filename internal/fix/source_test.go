@@ -100,6 +100,21 @@ func TestFixSourceWithRulesAcceptsZeroMaxBytes(t *testing.T) {
 	assert.Equal(t, "# Hi\n\ndirty\n", string(out))
 }
 
+// Regression: in-memory fixes must enforce MaxInputBytes the same
+// way on-disk Fixer does via lint.ReadFileLimited.
+func TestFixSourceRejectsOversizedSource(t *testing.T) {
+	t.Parallel()
+	_, err := fixpkg.Source(fixpkg.SourceOptions{
+		Config:        config.Merge(config.Defaults(), nil),
+		Rules:         rule.All(),
+		Path:          "buf.md",
+		Source:        []byte("this body is well past sixteen bytes"),
+		MaxInputBytes: 16,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "file too large")
+}
+
 // TestFixSourcePropagatesPrepareError pins the prepareFile error
 // branch: a kind reference in front matter that does not exist in
 // the config trips ValidateFrontMatterKinds and surfaces as an

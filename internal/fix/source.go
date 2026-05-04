@@ -2,7 +2,9 @@ package fix
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
+	"math"
 
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	"github.com/jeduden/mdsmith/internal/config"
@@ -52,6 +54,13 @@ func fixSourceImpl(opts SourceOptions, only []string) ([]byte, error) {
 	maxBytes := opts.MaxInputBytes
 	if maxBytes <= 0 {
 		maxBytes = lint.DefaultMaxInputBytes
+	}
+	// Mirror the on-disk cap that lint.ReadFileLimited applies during
+	// `mdsmith fix`. Without this guard, LSP code actions could fix
+	// buffers far larger than the CLI would accept.
+	if maxBytes != math.MaxInt64 && int64(len(opts.Source)) > maxBytes {
+		return nil, fmt.Errorf("%s: file too large (%d bytes, max %d)",
+			opts.Path, len(opts.Source), maxBytes)
 	}
 	cfg := opts.Config
 	if cfg == nil {

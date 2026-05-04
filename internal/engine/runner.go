@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -195,6 +196,19 @@ func DedupeDiagnostics(diags []lint.Diagnostic) []lint.Diagnostic {
 // require it short-circuit just as they did before.
 func (r *Runner) RunSource(path string, source []byte) *Result {
 	res := &Result{FilesChecked: 1}
+
+	// Mirror the on-disk size cap that lint.ReadFileLimited /
+	// readStdinLimited apply to file and stdin reads. Without this
+	// guard, in-memory callers (LSP, other integrations) would parse
+	// arbitrarily large buffers and diverge from `mdsmith check`'s
+	// "file too large" failure mode.
+	if r.MaxInputBytes > 0 && r.MaxInputBytes != math.MaxInt64 &&
+		int64(len(source)) > r.MaxInputBytes {
+		res.Errors = append(res.Errors,
+			fmt.Errorf("%s: file too large (%d bytes, max %d)",
+				path, len(source), r.MaxInputBytes))
+		return res
+	}
 
 	// Run config-target rules once before processing the in-memory source,
 	// matching the behavior of Run() so config diagnostics surface via stdin.
