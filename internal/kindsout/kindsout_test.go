@@ -454,6 +454,28 @@ func TestWriteFileResolutionText_ShowsConventionLayer(t *testing.T) {
 	assert.Contains(t, out, "(from user)")
 }
 
+func TestWriteFileResolutionText_UserConventionHasSuffix(t *testing.T) {
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
+		},
+		Convention: "our-team",
+		Conventions: map[string]config.UserConventionEntry{
+			"our-team": {Flavor: "gfm"},
+		},
+		ConventionPreset: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
+		},
+	}
+	res := config.ResolveFile(cfg, "x.md", nil)
+	var buf bytes.Buffer
+	require.NoError(t, WriteFileResolutionText(&buf, res))
+	out := buf.String()
+	// Convention layer source must include "(user)" to distinguish from built-ins.
+	assert.Contains(t, out, "convention.our-team (user)",
+		"user convention source should include (user) suffix")
+}
+
 func TestWriteRuleResolutionText_ShowsConventionLayer(t *testing.T) {
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{

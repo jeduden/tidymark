@@ -555,3 +555,88 @@ func TestKinds_PathPreservesAbsoluteSchema(t *testing.T) {
 	require.Equal(t, 0, code)
 	assert.Equal(t, "/etc/passwd", strings.TrimSpace(stdout))
 }
+
+// --- User-defined convention tests ---
+
+func TestKinds_ResolveUserConventionShowsSuffix(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      markdown-flavor:
+        flavor: gfm
+convention: our-team
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.our-team (user)",
+		"user convention layer must appear with (user) suffix in text output")
+}
+
+func TestKinds_ResolveUserConventionJSONShowsSuffix(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      markdown-flavor:
+        flavor: gfm
+convention: our-team
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md", "--json")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.our-team (user)",
+		"user convention layer must appear with (user) suffix in JSON output")
+}
+
+func TestKinds_ResolveBuiltinConventionNoSuffix(t *testing.T) {
+	cfg := "convention: github\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.github")
+	assert.NotContains(t, stdout, "(user)",
+		"built-in convention must not have (user) suffix")
+}
+
+func TestKinds_CheckRejectsReservedConventionName(t *testing.T) {
+	cfg := `conventions:
+  portable:
+    flavor: commonmark
+convention: portable
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "check", "doc.md")
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, stderr, "portable")
+}
+
+func TestKinds_CheckRejectsUnknownUserConventionRule(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-such-rule: true
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "check", "doc.md")
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, stderr, "our-team")
+}
+
+func TestKinds_Why_UserConventionShowsSuffix(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      markdown-flavor:
+        flavor: gfm
+convention: our-team
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "why", "doc.md", "markdown-flavor")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.our-team (user)",
+		"user convention must appear with (user) suffix in why output")
+}

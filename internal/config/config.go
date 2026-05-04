@@ -45,6 +45,13 @@ type Config struct {
 	// and docs/reference/conventions.md for end-user docs.
 	Convention string `yaml:"convention,omitempty"`
 
+	// Conventions is the user-defined convention table. Each entry
+	// is a { flavor, rules } pair that mirrors the built-in
+	// convention table from plan 112. Names must not collide with
+	// the built-in names "portable", "github", and "plain".
+	// See docs/reference/conventions.md for end-user docs.
+	Conventions map[string]UserConventionEntry `yaml:"conventions,omitempty"`
+
 	// LegacyNoFollowSymlinks captures the removed `no-follow-symlinks`
 	// key. Its presence surfaces a deprecation warning via
 	// Deprecations; its contents are otherwise ignored now that
@@ -80,6 +87,14 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+}
+
+// UserConventionEntry is one user-defined convention in the
+// `conventions:` map. It mirrors the shape of the built-in convention
+// table: a flavor string and a map of rule presets.
+type UserConventionEntry struct {
+	Flavor string             `yaml:"flavor"`
+	Rules  map[string]RuleCfg `yaml:"rules,omitempty"`
 }
 
 // Override applies rule settings to files matching glob patterns.

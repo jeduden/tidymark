@@ -172,6 +172,85 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+When the three built-in conventions don't fit, define
+your own inline in `.mdsmith.yml`:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+The `conventions:` map is a sibling to `kinds:` and
+`rules:`. Each entry is a `{ flavor, rules }` pair
+with the same shape as the built-in convention table.
+
+### Name collisions
+
+The names `portable`, `github`, and `plain` are
+reserved. Defining a `conventions.portable` (or any
+other built-in name) is a config error at load time.
+
+### Resolution order
+
+When `convention:` resolves a name:
+
+1. The user-defined `conventions:` map is checked
+   first.
+2. If not found, the built-in table is checked.
+3. If neither matches, a config error lists both sets
+   of available names.
+
+User conventions cannot shadow built-ins. Collisions
+are rejected at parse time.
+
+### Validation
+
+User-defined conventions are validated at config load:
+
+- `flavor` must be one of `commonmark`, `gfm`, or
+  `goldmark`.
+- Each key under `rules:` must name a registered
+  rule.
+- Each rule's settings are validated against that
+  rule's existing schema (the same path as the
+  top-level `rules:` block).
+
+Validation errors name the convention and the rule:
+`convention "our-team" rule "no-inline-html": unknown
+setting "allowed"`.
+
+### Layering
+
+User-defined conventions apply as a base layer in
+the same position as built-in conventions. Your
+top-level `rules:` overrides sit above them.
+
+### Inspecting a user convention
+
+`mdsmith kinds resolve <file>` shows the merge chain
+for every rule. User-defined conventions appear with
+a `(user)` suffix in the layer source:
+
+```text
+  convention.our-team (user)    set    {...}
+```
+
+Built-in conventions appear without the suffix, for
+example `convention.github`. The suffix lets you see
+at a glance which layer comes from your config.
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge
