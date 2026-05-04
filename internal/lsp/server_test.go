@@ -651,6 +651,37 @@ func TestDispatchRawRoutesResponseToWaiter(t *testing.T) {
 	}
 }
 
+func TestDispatchRawIDOnlyFrameIsInvalidRequest(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	// {jsonrpc:2.0, id:1} with no method/result/error is not a valid
+	// JSON-RPC frame; the server must reply with -32600 instead of
+	// silently routing it to a (non-existent) pending waiter.
+	s.dispatchRaw(context.Background(), []byte(`{"jsonrpc":"2.0","id":1}`))
+	out := buf.String()
+	assert.Contains(t, out, `"code":-32600`)
+	assert.Contains(t, out, `"id":1`)
+}
+
+func TestDispatchRawErrorOnlyResponseIsRouted(t *testing.T) {
+	t.Parallel()
+	// A response with `error` (and no `result`) must still be
+	// classified as a response and forwarded to the waiter.
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	ch := s.registerPendingResponse(`7`)
+	defer s.unregisterPendingResponse(`7`)
+	s.dispatchRaw(context.Background(),
+		[]byte(`{"jsonrpc":"2.0","id":7,"error":{"code":-1,"message":"x"}}`))
+	select {
+	case resp := <-ch:
+		require.NotNil(t, resp.Error)
+		assert.Equal(t, -1, resp.Error.Code)
+	case <-time.After(time.Second):
+		t.Fatalf("error response not delivered")
+	}
+}
+
 func TestDispatchRawRejectsWrongVersionWithID(t *testing.T) {
 	t.Parallel()
 	var buf safeBuffer
@@ -1299,18 +1330,49 @@ func TestRunOffSuppressesLint(t *testing.T) {
 
 func TestUriToPathRoundTrip(t *testing.T) {
 	t.Parallel()
+	// The drive-letter strip is gated on runtime.GOOS, so the
+	// expected output for `file:///C:/...` differs across platforms.
+	driveURI := "file:///C:/Users/x/foo.md"
+	driveWant := "/C:/Users/x/foo.md"
+	if runtime.GOOS == "windows" {
+		driveWant = "C:/Users/x/foo.md"
+	}
 	tests := []struct {
 		uri  string
 		want string
 	}{
 		{"file:///tmp/foo.md", "/tmp/foo.md"},
-		{"file:///C:/Users/x/foo.md", "C:/Users/x/foo.md"},
+		{driveURI, driveWant},
 		{"https://example.com", ""},
 		{"untitled:Untitled-1", ""},
 	}
 	for _, tc := range tests {
 		assert.Equal(t, tc.want, uriToPath(tc.uri), "uri=%s", tc.uri)
 	}
+}
+
+func TestUriToPathLeavesNonDriveColonPathUnchanged(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix-only: drive-letter check would fire on Windows")
+	}
+	// On Unix, a path like `/a:/tmp/file.md` is a perfectly valid
+	// absolute path. The drive-letter heuristic must not strip its
+	// leading slash; otherwise the result becomes a relative path
+	// that loses its anchoring.
+	got := uriToPath("file:///a:/tmp/file.md")
+	assert.Equal(t, "/a:/tmp/file.md", got)
+}
+
+func TestHasDriveLetterPrefix(t *testing.T) {
+	t.Parallel()
+	assert.True(t, hasDriveLetterPrefix("/C:/foo"))
+	assert.True(t, hasDriveLetterPrefix("/c:/foo"))
+	assert.True(t, hasDriveLetterPrefix("/Z:"))
+	assert.False(t, hasDriveLetterPrefix("/0:/foo"))
+	assert.False(t, hasDriveLetterPrefix("/abc:/foo"))
+	assert.False(t, hasDriveLetterPrefix("C:/foo"))
+	assert.False(t, hasDriveLetterPrefix(""))
 }
 
 func TestUriToPathLocalhostHostIsTreatedAsEmpty(t *testing.T) {
@@ -1477,11 +1539,20 @@ func TestCurrentLineOutOfRange(t *testing.T) {
 	assert.Equal(t, "", currentLine(lines, 99))
 }
 
-func TestSplitLinesEmpty(t *testing.T) {
+func TestSplitLines(t *testing.T) {
 	t.Parallel()
+	// Empty input is nil so callers can range over the result
+	// without a special case.
 	assert.Nil(t, splitLines(nil))
+	// No trailing newline → N parts.
 	assert.Equal(t, [][]byte{[]byte("a"), []byte("b")}, splitLines([]byte("a\nb")))
-	assert.Equal(t, [][]byte{[]byte("a"), []byte("b")}, splitLines([]byte("a\nb\n")))
+	// Trailing newline → N+1 parts (preserves the empty line so
+	// indexing matches lint.File.Lines / bytes.Split).
+	assert.Equal(t,
+		[][]byte{[]byte("a"), []byte("b"), {}},
+		splitLines([]byte("a\nb\n")))
+	// CRLF endings strip per-line CR.
+	assert.Equal(t, [][]byte{[]byte("a"), []byte("b")}, splitLines([]byte("a\r\nb")))
 }
 
 func TestUtf16ColumnSurrogatePair(t *testing.T) {

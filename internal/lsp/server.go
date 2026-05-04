@@ -167,9 +167,18 @@ func (s *Server) dispatchRaw(ctx context.Context, raw []byte) {
 		}
 		return
 	}
-	// Response: has id, no method.
+	// Response: has id, no method, and exactly one of result/error
+	// present. JSON-RPC 2.0 §5: a frame missing both result and
+	// error is an invalid request, not a response — deliverResponse
+	// would otherwise silently consume it (or worse, fire a stale
+	// pending channel) instead of telling the client they sent
+	// garbage.
 	if probe.Method == "" && len(probe.ID) > 0 {
-		s.deliverResponse(string(probe.ID), rpcResponse{Result: probe.Result, Error: probe.Error})
+		if probe.Result != nil || probe.Error != nil {
+			s.deliverResponse(string(probe.ID), rpcResponse{Result: probe.Result, Error: probe.Error})
+			return
+		}
+		_ = s.t.writeError(probe.ID, codeInvalidRequest, "missing method, result, and error")
 		return
 	}
 	msg := &requestMessage{
@@ -934,11 +943,28 @@ func uriToPath(uri string) string {
 		// Non-Windows: we cannot resolve a remote share, so refuse.
 		return ""
 	}
-	// Windows: file:///C:/foo decodes to "/C:/foo"; strip the leading slash.
-	if len(p) >= 3 && p[0] == '/' && p[2] == ':' {
+	// Windows: file:///C:/foo decodes to "/C:/foo"; strip the
+	// leading slash only when the path actually starts with a
+	// drive-letter pattern, so a non-Windows absolute path whose
+	// third byte happens to be ':' (e.g. "/a:/tmp/file.md") is left
+	// alone. The check is also gated on Windows so the fix never
+	// fires on platforms that don't have drive letters.
+	if runtime.GOOS == "windows" && hasDriveLetterPrefix(p) {
 		p = p[1:]
 	}
 	return filepath.Clean(p)
+}
+
+// hasDriveLetterPrefix reports whether p starts with "/X:/" or "/X:"
+// where X is an ASCII letter — i.e. the canonical Windows
+// drive-letter-after-leading-slash pattern produced by url.Parse on a
+// `file:///C:/…` URI.
+func hasDriveLetterPrefix(p string) bool {
+	if len(p) < 3 || p[0] != '/' || p[2] != ':' {
+		return false
+	}
+	c := p[1]
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }
 
 // pickRoot derives the workspace root from initialize params.

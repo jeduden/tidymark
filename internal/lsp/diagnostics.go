@@ -64,16 +64,19 @@ func severityFor(s lint.Severity) DiagnosticSeverity {
 	return severityError
 }
 
-// splitLines splits source into per-line byte slices preserving order.
-// Trailing newline yields no empty line, matching how editors index
-// content. Used for end-column derivation.
+// splitLines splits source into per-line byte slices, preserving
+// trailing empty lines so the indexing matches lint.File.Lines (which
+// uses bytes.Split). Rules such as single-trailing-newline emit
+// diagnostics anchored at len(f.Lines) for trailing whitespace runs;
+// trimming the trailing newlines here would make currentLine() return
+// "" and toLSP would clamp to a position past the document. Each line
+// has its trailing CR stripped so Windows-style line endings produce
+// matching positions on the wire.
 func splitLines(source []byte) [][]byte {
 	if len(source) == 0 {
 		return nil
 	}
-	str := string(source)
-	str = strings.TrimRight(str, "\n")
-	parts := strings.Split(str, "\n")
+	parts := strings.Split(string(source), "\n")
 	out := make([][]byte, len(parts))
 	for i, p := range parts {
 		out[i] = []byte(strings.TrimRight(p, "\r"))
