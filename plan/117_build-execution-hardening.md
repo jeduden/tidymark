@@ -101,16 +101,16 @@ zombies behind.
 Plan 115's basic atomic write is replaced
 by:
 
-1. mdsmith `Lstat`s `.mdsmith/build-staging/`
-   and refuses to proceed if it is a symlink
-   or anything other than a directory; this
-   blocks an attacker who pre-replaced the
-   staging root with a link to elsewhere.
-2. mdsmith refuses to proceed if
+1. mdsmith `Lstat`s `.mdsmith/build-staging/`.
+   If absent, mdsmith creates it via
+   `os.MkdirAll` with mode `0o700`. If
+   present but a symlink or non-directory,
+   mdsmith refuses, blocking pre-replaced
+   staging roots.
+2. mdsmith refuses if
    `.mdsmith/build-staging/` is world-
-   writable on Unix (mode bit `0o002` set).
-   The user is asked to fix the directory
-   permissions.
+   writable on Unix (`0o002` set); the
+   user fixes the permissions.
 3. mdsmith creates the per-recipe staging
    dir via `os.MkdirTemp` with a random
    suffix under `.mdsmith/build-staging/`.

@@ -117,42 +117,42 @@ Per target, in order:
 4. Look up the target's cache entry by
    sorted-output-set key. If absent or
    stored ActionID differs → stale.
-5. Hash each declared output's current
-   on-disk content. If the hash differs from
-   the cache entry's stored output hash →
-   stale (the artifact was tampered with or
+5. Hash each declared output; mismatch with
+   the cache entry's stored hash → stale
+   (the artifact was tampered with or
    regenerated externally).
 6. Otherwise → fresh; skip the recipe.
 
-Step 5 protects against a poisoned cache or
-a hand-edited artifact masking as fresh. The
-output-hash check is what makes the cache
-*advisory* rather than authoritative.
+Step 5 makes the cache *advisory* rather
+than authoritative — it catches poisoned
+cache entries and hand-edited artifacts.
 
 A target is identified in the cache by its
 sorted `outputs` list, length-framed and
 joined. Any overlap across two directives'
 `outputs:` paths is a build error reporting
 both source locations. Overlap covers exact
-path collisions and directory-prefix
-collisions (one target declares `book/`,
-another declares `book/index.html`). Without
-this rule cache ownership is ambiguous and
-serial builds become "last writer wins";
-plan 116 reuses the rule for parallel safety.
+collisions and directory-prefix collisions
+(`book/` vs `book/index.html`). Without it
+cache ownership is ambiguous and serial
+builds become "last writer wins"; plan 116
+reuses the rule for parallel safety.
 
 ### Cache file
 
 Stored at `.mdsmith/build-cache.json`. Each
 entry has:
 
-- `outputs[]`: `{path, hash}` pairs sorted by
-  path. `hash` is sha256 of the artifact at
-  build time, used by staleness step 5.
-- `inputs[]`: sorted, post-glob-expansion
-  paths. Informational; the ActionID covers
-  their content.
-- `action-id`: the length-framed sha256.
+- `outputs[]`: `{path, hash}` pairs sorted
+  by path; `hash` is sha256 of the artifact
+  at build time, used by staleness step 5.
+- `inputs[]`: sorted post-glob paths;
+  informational (ActionID covers content).
+- `action-id`: the length-framed sha256
+  serialized as `sha256-<64 lowercase hex>`
+  — used as cache key, log filename
+  (`<action-id>.log`), and wire form. No
+  path-unsafe characters.
 - `recipe`, `built-at`: informational only;
   neither is in the ActionID or consulted
   by staleness.
