@@ -60,11 +60,12 @@ table fits within mdsmith's 8-column limit.
 
 | Tool                  | Distribution                            | Content hash             | Atomic multi-output  | Output confinement    | Trust gate / sandbox   | Maintenance (May 2026)           | Cross-platform             |
 |-----------------------|-----------------------------------------|--------------------------|----------------------|-----------------------|------------------------|----------------------------------|----------------------------|
+| [GNU make][make]      | C; pre-installed everywhere on Unix     | No (mtime)               | No                   | No                    | No                     | Active; POSIX-standardised       | mac / Linux / Win (mingw)  |
 | [ninja][ninja]        | C++ binary; apt / brew / choco          | No (mtime; `restat = 1`) | No                   | No                    | No                     | Active; widely shipped           | mac / Linux / Win          |
 | [just][just]          | Rust binary; brew / apt / cargo / scoop | No                       | No                   | No                    | No                     | Very active (33 k+ stars)        | mac / Linux / Win          |
 | [Shake][shake]        | Haskell library; `stack install`        | Yes (file content)       | User code            | Partial (lint mode)   | No                     | v0.19.9 Jan 2026; powers Hadrian | mac / Linux / Win          |
 | [Tup][tup]            | C + Lua; needs FUSE / FUSE-T            | Yes                      | Per-rule isolation   | **Yes — auto-detect** | Partial (FUSE sandbox) | Active (commits Mar 2026)        | mac (FUSE-T) / Linux / Win |
-| [redo][apenwarr-redo] | Python / C / C++ ports; pip / source    | Yes (via `redo-stamp`)   | No                   | No                    | No                     | Mixed; many ports unmaintained   | Unix-mostly                |
+| [redo][apenwarr-redo] | Python (apenwarr); C / C++ ports        | Yes (via `redo-stamp`)   | No                   | No                    | No                     | apenwarr active; ports mixed     | Unix-mostly                |
 | [Bazel][bazel]        | Java + C++; `bazelisk` / brew           | Yes (SHA-256)            | Yes (sandboxed exec) | Yes (sandbox)         | Yes                    | Very active (Google)             | mac / Linux / Win          |
 | [Buck2][buck2]        | Rust; GitHub release only               | Yes                      | Partial without RE   | Partial               | Partial                | Active (Meta)                    | mac / Linux                |
 | [Pants v2][pants]     | Python + Rust; `pip install` (~150 MB)  | Yes                      | Yes (Rust engine)    | Yes                   | Yes                    | Active                           | mac / Linux                |
@@ -73,6 +74,7 @@ table fits within mdsmith's 8-column limit.
 | [doit][doit]          | Python; pip                             | Yes (MD5 default)        | No                   | No                    | No                     | Active                           | mac / Linux / Win          |
 | [Earthly][earthly]    | Go binary + BuildKit Docker; brew       | Yes (BuildKit CAS)       | Yes (containerised)  | Yes (containerised)   | Yes (containerised)    | Active                           | mac / Linux / Win + Docker |
 
+[make]: https://www.gnu.org/software/make/
 [ninja]: https://github.com/ninja-build/ninja
 [just]: https://github.com/casey/just
 [shake]: https://shakebuild.com/
@@ -156,36 +158,73 @@ Mitchell, Marlow.
 [shake-retro]: https://neilmitchell.blogspot.com/2021/09/
 [shake-paper]: https://simonmar.github.io/bib/papers/shake.pdf
 
-### ninja and just — popular side-doors
+### make, redo, ninja, just — popular side-doors
 
-Neither is a real build engine for mdsmith's needs, but
-each is a sane "side-door target" if the user already
-drives a docs site with one of them.
+None of these is a real build engine for mdsmith's
+threat model, but each is a sane "side-door target" if
+the user already drives a docs site with one of them.
+Walked through individually because the user explicitly
+asked about make and redo.
+
+**make.** POSIX-standardised, pre-installed on every
+Unix, every developer recognises a Makefile. mdsmith
+emits a Makefile (Model B) with one rule per
+`<?build?>` directive. Wins: zero install friction, one
+familiar entry point per project. Losses: mtime-only,
+which is exactly the same CI cache-restore problem as
+ninja (see below); no atomic multi-output (a recipe
+that fails halfway leaves partial files in place); no
+trust gate; classic concurrent-write hazards under
+`-j N` if two rules touch a shared directory ([Miller's
+*Recursive Make Considered Harmful*][miller-make]
+remains the foundational reading). The "every dev
+knows make" advantage is real but does not buy mdsmith
+any of the threat-model defenses plan 117 covers. Plan
+delta if adopted: same as ninja.
+
+**redo** (Avery Pennarun's Python implementation, the
+active fork; also [DJB's original sketch][djb-redo] and
+ports in C, C++, and Go). Each `<?build?>` becomes a
+`target.do` shell script that calls `redo-ifchange
+input1 input2 ...` to declare dependencies, then runs
+the recipe. redo records sha hashes (`redo-stamp`) so
+re-runs detect actual content change, not mtime. mdsmith
+generates `.do` files (Model B with shell scripts).
+Wins: content-hash native, parallel `-j N`, no DSL —
+just shell scripts the user can read and debug. Losses:
+no atomic multi-output (still the user's problem); no
+trust gate; Python install or build-from-source for the
+C ports; uneven cross-platform story (Windows is
+poorly supported by every redo implementation). Plan
+delta if adopted: plan 103 mostly absorbed (redo handles
+content hashing); plans 115 / 116 / 117 stay.
 
 **ninja.** Single C++ binary, ubiquitous, fast. mdsmith
-emits `build.ninja` (Model B). The mtime problem is real:
-docs CIs that cache `_site/` between runs see mtimes reset
-to the cache-restore moment, and ninja then either
-spuriously rebuilds everything or skips legitimate
-rebuilds (depending on which file restored "newer").
-`restat = 1` only helps when an output's content matches
-its previous content; it does not fix CI cache restore.
-Open issues [#2740][ninja-2740] and [#1459][ninja-1459]
-confirm the problem is unresolved upstream. For a hundreds-
-of-Markdown-files docs project the practical impact is
-occasional spurious rebuilds — annoying, not catastrophic.
-Workaround: ship a content-hash sidecar (mdsmith already
-has the cache from plan 103) and use timestamp pinning on
-cache restore (the [`mtime_cache` gem][mtime-cache]). Plan
-delta if adopted: ninja replaces some of 116's parallel
-work; everything else stays.
+emits `build.ninja` (Model B). The mtime problem is
+real: docs CIs that cache `_site/` between runs see
+mtimes reset to the cache-restore moment, and ninja
+then either spuriously rebuilds everything or skips
+legitimate rebuilds. `restat = 1` only helps when an
+output's content matches its previous content; it does
+not fix CI cache restore. Open issues [#2740][ninja-2740]
+and [#1459][ninja-1459] confirm the problem is
+unresolved upstream. For hundreds-of-Markdown-files
+docs the practical impact is occasional spurious
+rebuilds — annoying, not catastrophic. Workaround:
+content-hash sidecar (mdsmith already has the cache
+from plan 103) plus timestamp pinning on cache restore
+(the [`mtime_cache` gem][mtime-cache]). Plan delta if
+adopted: ninja replaces some of 116's parallel work;
+everything else stays.
 
-**just.** Rust single binary, 33 k+ stars. **It explicitly
-says it is not a build system and does no file tracking.**
-Adopting it deletes nothing from plans 102 / 103 / 115 /
-117 — it would only replace the orchestration shell of
-plan 116. Net value: low.
+**just.** Rust single binary, 33 k+ stars. **It
+explicitly says it is not a build system and does no
+file tracking.** Adopting it deletes nothing from plans
+102 / 103 / 115 / 117 — it would only replace the
+orchestration shell of plan 116. Net value: low.
 
+[miller-make]: https://aegis.sourceforge.net/auug97.pdf
+[djb-redo]: https://cr.yp.to/redo.html
 [ninja-2740]: https://github.com/ninja-build/ninja/issues/2740
 [ninja-1459]: https://github.com/ninja-build/ninja/issues/1459
 [mtime-cache]: https://github.com/iboB/mtime_cache

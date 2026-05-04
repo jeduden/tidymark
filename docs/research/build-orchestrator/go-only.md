@@ -54,20 +54,22 @@ fold mdsmith into their outer orchestration.
 
 ## Candidates evaluated
 
-| Tool                                | Maintenance                              | Content-hash                                                        | Parallel                 | Dynamic graph               | Format / API               | Distribution                                                                |
-|-------------------------------------|------------------------------------------|---------------------------------------------------------------------|--------------------------|-----------------------------|----------------------------|-----------------------------------------------------------------------------|
-| [go-task / Taskfile][go-task]       | Active (15.5 k stars, v3.50 Apr 2026)    | Yes (`method: checksum`); scope is sources only ([#238][issue-238]) | Yes (`deps`, --parallel) | Static YAML; can read stdin | `Taskfile.yml`             | Single binary, brew/apt                                                     |
-| [magefile/mage][mage]               | Active (4.7 k stars, v1.17.2)            | Function-binary hash only; file deps via `target` package are mtime | Yes (`mg.Deps`)          | Yes (Go code)               | Go function calls          | `go install`                                                                |
-| [goyek/goyek][goyek]                | Active (686 stars, v3.0.1 Dec 2025)      | No                                                                  | Yes (`Task.Parallel`)    | Yes (Go code)               | Go function calls          | `go install` (no separate binary)                                           |
-| [evmar/n2][n2]                      | Hobby — author labels it "hobbyist code" | No (mtime, ninja-compatible)                                        | Yes                      | Partial                     | `build.ninja`              | `cargo install` (Rust, included for completeness — fails the Go constraint) |
-| [benchkram/bob][bob]                | Stale (last commit Mar 2024)             | Yes                                                                 | Yes                      | Static                      | YAML                       | Single binary + Nix                                                         |
-| [thought-machine/please][please]    | Active                                   | Yes (Bazel-style)                                                   | Yes                      | Yes (BUILD files)           | BUILD files (Starlark-ish) | Single binary; standalone CLI, not a library                                |
-| [dagger][dagger]                    | Active                                   | Yes (BuildKit)                                                      | Yes                      | Yes (CUE / Go)              | CUE / Go SDK               | Pulls Docker; heavy                                                         |
-| [buildbarn / bb-storage][buildbarn] | Distributed-build focused                | Yes                                                                 | Yes                      | Yes                         | proto                      | Heavy infrastructure                                                        |
+| Tool                                | Maintenance                              | Content-hash                                                        | Parallel                 | Dynamic graph                | Format / API               | Distribution                                                                |
+|-------------------------------------|------------------------------------------|---------------------------------------------------------------------|--------------------------|------------------------------|----------------------------|-----------------------------------------------------------------------------|
+| [go-task / Taskfile][go-task]       | Active (15.5 k stars, v3.50 Apr 2026)    | Yes (`method: checksum`); scope is sources only ([#238][issue-238]) | Yes (`deps`, --parallel) | Static YAML; can read stdin  | `Taskfile.yml`             | Single binary, brew/apt                                                     |
+| [magefile/mage][mage]               | Active (4.7 k stars, v1.17.2)            | Function-binary hash only; file deps via `target` package are mtime | Yes (`mg.Deps`)          | Yes (Go code)                | Go function calls          | `go install`                                                                |
+| [goyek/goyek][goyek]                | Active (686 stars, v3.0.1 Dec 2025)      | No                                                                  | Yes (`Task.Parallel`)    | Yes (Go code)                | Go function calls          | `go install` (no separate binary)                                           |
+| [ejholmes/walk][walk]               | Dormant (138 stars, v0.3.3 Sep 2017)     | **None — outsourced to the Walkfile script**                        | Yes (semaphore)          | Yes (Walkfile is executable) | Walkfile (executable)      | `go install`                                                                |
+| [evmar/n2][n2]                      | Hobby — author labels it "hobbyist code" | No (mtime, ninja-compatible)                                        | Yes                      | Partial                      | `build.ninja`              | `cargo install` (Rust, included for completeness — fails the Go constraint) |
+| [benchkram/bob][bob]                | Stale (last commit Mar 2024)             | Yes                                                                 | Yes                      | Static                       | YAML                       | Single binary + Nix                                                         |
+| [thought-machine/please][please]    | Active                                   | Yes (Bazel-style)                                                   | Yes                      | Yes (BUILD files)            | BUILD files (Starlark-ish) | Single binary; standalone CLI, not a library                                |
+| [dagger][dagger]                    | Active                                   | Yes (BuildKit)                                                      | Yes                      | Yes (CUE / Go)               | CUE / Go SDK               | Pulls Docker; heavy                                                         |
+| [buildbarn / bb-storage][buildbarn] | Distributed-build focused                | Yes                                                                 | Yes                      | Yes                          | proto                      | Heavy infrastructure                                                        |
 
 [go-task]: https://github.com/go-task/task
 [mage]: https://github.com/magefile/mage
 [goyek]: https://github.com/goyek/goyek
+[walk]: https://github.com/ejholmes/walk
 [n2]: https://github.com/evmar/n2
 [bob]: https://github.com/benchkram/bob
 [please]: https://please.build/
@@ -90,8 +92,22 @@ fold mdsmith into their outer orchestration.
   parallel deps, but neither tracks file content hashes.
   mage's `target` helper is mtime-only ([dependencies
   doc][mage-deps]); goyek does no file tracking.
+- **walk** — interesting design (no DSL; the Walkfile is
+  an executable script that responds to `deps` and `exec`
+  phases) and it gives parallel DAG execution via a
+  semaphore. But [`plan.go`][walk-plan] does no staleness
+  detection at all — that is delegated to the Walkfile
+  script. So walk is a parallel DAG runner, not a build
+  engine; mdsmith would still own staleness, atomic
+  write, trust gate, and post-conditions. The repo is
+  also dormant: 138 stars, last release v0.3.3 in
+  September 2017. Adopting walk would replace 50 lines
+  of `errgroup`-based concurrency with a third-party
+  dependency that has not been updated in 8+ years.
 - **go-task** — the only serious match. Single binary,
   built-in checksum mode, parallel deps. Detailed below.
+
+[walk-plan]: https://github.com/ejholmes/walk/blob/master/plan.go
 
 [mage-deps]: https://magefile.org/dependencies/
 
@@ -280,6 +296,7 @@ enforce output confinement).
 - [magefile/mage][mage]
 - [magefile/mage `target` package (mtime-only)][mage-deps]
 - [goyek/goyek][goyek]
+- [ejholmes/walk][walk] and [walk's `plan.go`][walk-plan]
 - [evmar/n2][n2]
 - [ninja-build manual][ninja-manual]
 - [thought-machine/please][please]
