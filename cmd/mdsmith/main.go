@@ -93,6 +93,7 @@ Commands:
   pre-merge-commit  Install/manage pre-merge-commit hook
   kinds             Inspect declared kinds and resolve effective config per file
   init              Generate a default .mdsmith.yml config file
+  lsp               Run the Language Server Protocol server on stdio
   version           Print version and exit
 
 Global flags:
@@ -145,6 +146,8 @@ func run() int {
 		return runKinds(os.Args[2:])
 	case "init":
 		return runInit(os.Args[2:])
+	case "lsp":
+		return runLSP(os.Args[2:])
 	case "version":
 		printVersion()
 		return 0
