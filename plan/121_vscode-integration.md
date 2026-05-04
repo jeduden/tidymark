@@ -115,8 +115,8 @@ omitted to avoid partial regenerations.
 
 Lives in a new top-level directory `editors/vscode/`
 to keep the Go module clean. TypeScript, built and
-tested with [Bun](https://bun.sh) (`bun build` for
-the bundle, `bun test` for the unit tests),
+tested with [Bun](https://bun.sh) (`bun run build.ts`
+to bundle, `bun test` for the unit tests),
 packaged with `vsce`. The entry point uses
 Microsoft's `vscode-languageclient` package to speak
 to `mdsmith lsp` over stdio.
@@ -211,14 +211,15 @@ then.
    `initialize`, open a buffer with a known
    violation, assert the published diagnostic shape.
 8. Create `editors/vscode/`: `package.json`,
-   `tsconfig.json`, `esbuild` build script, the
+   `tsconfig.json`, a Bun `build.ts` bundler, the
    `LanguageClient` bootstrap, the settings
    contributions, and a README that documents
    install / config.
-9. Add a CI job that runs `npm ci && npm run
-   compile && npx vsce package` in
-   `editors/vscode/` and uploads the `.vsix` as a
-   release artifact.
+9. Add a CI job that runs `bun install
+   --frozen-lockfile && bun test && bun run
+   build.ts --production && bunx @vscode/vsce
+   package` in `editors/vscode/` and uploads the
+   `.vsix` as a release artifact.
 10. Update the Commands table in
     [docs/reference/cli.md](../docs/reference/cli.md)
     to include `lsp`. Update the integration table
@@ -265,10 +266,10 @@ then.
       documents without restarting the editor.
 - [x] `mdsmith lsp --help` documents the
       subcommand; `usageText` lists it.
-- [x] `editors/vscode/` builds with `npm run
-      compile` and packages with `vsce package` in
-      CI; the `.vsix` is attached to release
-      artifacts.
+- [x] `editors/vscode/` builds with `bun run
+      build.ts --production` and packages with
+      `bunx @vscode/vsce package` in CI; the
+      `.vsix` is attached to release artifacts.
 - [x] `docs/reference/cli.md` Commands table
       includes `lsp`;
       `docs/background/markdown-linters.md` no

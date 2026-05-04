@@ -36,12 +36,11 @@ func TestRunLSPRejectsUnknownFlag(t *testing.T) {
 
 func TestRunLSPHelpFlag(t *testing.T) {
 	t.Parallel()
-	// pflag's auto-help prints usage to the configured output and
-	// returns ErrHelp from Parse, which runLSPWith maps to exit 2.
-	// Either exit code is fine; the goal is to exercise the Usage
-	// callback so its body counts toward coverage.
+	// pflag's auto-help prints usage and returns ErrHelp from Parse;
+	// runLSPWith maps that to exit 0 to match the rest of the CLI.
 	var out, errBuf bytes.Buffer
-	_ = runLSPWith([]string{"-h"}, strings.NewReader(""), &out, &errBuf)
+	code := runLSPWith([]string{"-h"}, strings.NewReader(""), &out, &errBuf)
+	assert.Equal(t, 0, code)
 	assert.Contains(t, errBuf.String(), "Usage: mdsmith lsp")
 }
 

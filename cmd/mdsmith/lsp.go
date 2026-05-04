@@ -41,6 +41,11 @@ func runLSPWith(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 	}
 
 	if err := fs.Parse(args); err != nil {
+		// pflag returns ErrHelp for -h/--help; match the rest of the
+		// CLI by treating help as a successful exit.
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
 		return 2
 	}
 	if fs.NArg() > 0 {
