@@ -100,6 +100,26 @@ func TestFixSourceWithRulesAcceptsZeroMaxBytes(t *testing.T) {
 	assert.Equal(t, "# Hi\n\ndirty\n", string(out))
 }
 
+// TestFixSourcePropagatesPrepareError pins the prepareFile error
+// branch: a kind reference in front matter that does not exist in
+// the config trips ValidateFrontMatterKinds and surfaces as an
+// error rather than crashing.
+func TestFixSourcePropagatesPrepareError(t *testing.T) {
+	t.Parallel()
+	cfg := config.Merge(config.Defaults(), nil)
+	// Front matter references an undeclared kind, which prepareFile
+	// rejects via config.ValidateFrontMatterKinds.
+	src := []byte("---\nkinds: [does-not-exist]\n---\n# Hi\n")
+	_, err := fixpkg.Source(fixpkg.SourceOptions{
+		Config:           cfg,
+		Rules:            rule.All(),
+		Path:             "buf.md",
+		Source:           src,
+		StripFrontMatter: true,
+	})
+	require.Error(t, err)
+}
+
 // TestFixSourceNilConfigUsesDefaults pins the nil-Config fallback so
 // callers can pass a zero-value Options without crashing
 // prepareFile (which derefs Fixer.Config via

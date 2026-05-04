@@ -661,6 +661,51 @@ func TestRunSource_BasicDiagnostics(t *testing.T) {
 	}
 }
 
+// fileSnapRule captures the lint.File pointer it was given so a test
+// can assert on the file's FS / GitignoreFunc fields after RunSource
+// returns.
+type fileSnapRule struct {
+	id, name string
+	last     *lint.File
+}
+
+func (r *fileSnapRule) ID() string       { return r.id }
+func (r *fileSnapRule) Name() string     { return r.name }
+func (r *fileSnapRule) Category() string { return "test" }
+func (r *fileSnapRule) Check(f *lint.File) []lint.Diagnostic {
+	r.last = f
+	return nil
+}
+
+func TestRunSource_WiresSourceFSAndGitignore(t *testing.T) {
+	// LSP buffers come without a real on-disk file. RunSource must
+	// still set up FS and GitignoreFunc when SourceFS+RootDir are
+	// supplied so include/catalog/cross-file rules see the same view
+	// processFile sets up for on-disk runs.
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"snap-rule": {Enabled: true},
+		},
+	}
+
+	snap := &fileSnapRule{id: "MDS999", name: "snap-rule"}
+	runner := &Runner{
+		Config:   cfg,
+		Rules:    []rule.Rule{snap},
+		RootDir:  t.TempDir(),
+		SourceFS: os.DirFS(t.TempDir()),
+	}
+
+	result := runner.RunSource("file.md", []byte("# Hi\n"))
+	require.Empty(t, result.Errors)
+	require.NotNil(t, snap.last, "rule should have seen the file")
+	require.NotNil(t, snap.last.FS, "SourceFS should land on lint.File.FS")
+	require.NotNil(t, snap.last.GitignoreFunc, "GitignoreFunc should be wired when RootDir is set")
+	// Exercise the closure so cachedGitignore is hit.
+	matcher := snap.last.GitignoreFunc()
+	require.NotNil(t, matcher)
+}
+
 func TestRunSource_FrontMatterLineOffset(t *testing.T) {
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{

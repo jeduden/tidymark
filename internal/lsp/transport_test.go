@@ -152,6 +152,32 @@ func (failingWriter) Write(p []byte) (int, error) {
 	return 0, io.ErrShortWrite
 }
 
+// secondCallFailsWriter accepts the first Write (the header) and
+// errors on every subsequent call. Used to exercise the body-write
+// failure branch in transport.writeJSON without short-circuiting on
+// the header write first.
+type secondCallFailsWriter struct {
+	calls int
+	buf   bytes.Buffer
+}
+
+func (w *secondCallFailsWriter) Write(p []byte) (int, error) {
+	w.calls++
+	if w.calls == 1 {
+		return w.buf.Write(p)
+	}
+	return 0, io.ErrShortWrite
+}
+
+func TestWriteJSONBodyWriteFails(t *testing.T) {
+	t.Parallel()
+	w := &secondCallFailsWriter{}
+	tr := newTransport(strings.NewReader(""), w)
+	err := tr.writeJSON(map[string]any{"x": 1})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "writing body")
+}
+
 func itoaTransport(i int) string {
 	return strings.TrimSpace(string([]byte{
 		byte('0' + (i/10000)%10),
