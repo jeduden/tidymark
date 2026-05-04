@@ -6,8 +6,83 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/jeduden/mdsmith/internal/rules/markdownflavor"
 )
+
+// validFlavorNames lists the flavor strings accepted in user-defined
+// conventions. This mirrors the flavors markdownflavor.ParseFlavor
+// understands.
+var validFlavorNames = map[string]bool{
+	"commonmark": true,
+	"gfm":        true,
+	"goldmark":   true,
+}
+
+// validateUserConventions checks that every entry in cfg.Conventions:
+//  1. Does not collide with a built-in name.
+//  2. Has a valid flavor string.
+//  3. Only references registered rules.
+//  4. Has settings that pass the rule's ApplySettings validation.
+func validateUserConventions(cfg *Config) error {
+	for name, uc := range cfg.Conventions {
+		if markdownflavor.IsBuiltinName(name) {
+			return fmt.Errorf(
+				"conventions.%s: %q is a reserved built-in convention name",
+				name, name,
+			)
+		}
+		if !validFlavorNames[uc.Flavor] {
+			return fmt.Errorf(
+				"conventions.%s: invalid flavor %q (valid: commonmark, gfm, goldmark)",
+				name, uc.Flavor,
+			)
+		}
+		for ruleName, rc := range uc.Rules {
+			r := rule.ByName(ruleName)
+			if r == nil {
+				return fmt.Errorf(
+					"convention %q rule %q: unknown rule",
+					name, ruleName,
+				)
+			}
+			if c, ok := r.(rule.Configurable); ok && len(rc.Settings) > 0 {
+				if err := c.ApplySettings(rc.Settings); err != nil {
+					return fmt.Errorf(
+						"convention %q rule %q: %w",
+						name, ruleName, err,
+					)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// buildUserConventionMap converts cfg.Conventions into the
+// markdownflavor.Convention map that Lookup expects.
+func buildUserConventionMap(cfg *Config) map[string]markdownflavor.Convention {
+	if len(cfg.Conventions) == 0 {
+		return nil
+	}
+	out := make(map[string]markdownflavor.Convention, len(cfg.Conventions))
+	for name, uc := range cfg.Conventions {
+		flavor, _ := markdownflavor.ParseFlavor(uc.Flavor)
+		rules := make(map[string]markdownflavor.RulePreset, len(uc.Rules))
+		for ruleName, rc := range uc.Rules {
+			rules[ruleName] = markdownflavor.RulePreset{
+				Enabled:  rc.Enabled,
+				Settings: cloneSettings(rc.Settings),
+			}
+		}
+		out[name] = markdownflavor.Convention{
+			Name:   name,
+			Flavor: flavor,
+			Rules:  rules,
+		}
+	}
+	return out
+}
 
 // applyConvention reads the top-level Convention selector from the
 // loaded config (if any) and stores its rule presets on
@@ -20,7 +95,7 @@ import (
 // Validation:
 //
 //   - Unknown convention name → error naming the field and listing
-//     valid names.
+//     valid names (both built-in and user-defined).
 //   - Convention and a user-supplied rules.markdown-flavor.flavor
 //     disagree → error naming both values. A convention sets a
 //     flavor; a user-supplied flavor that does not match is
@@ -30,10 +105,16 @@ func applyConvention(cfg *Config) error {
 	if cfg == nil || cfg.Convention == "" {
 		return nil
 	}
-	convention, err := markdownflavor.Lookup(cfg.Convention)
+	userMap := buildUserConventionMap(cfg)
+	convention, err := markdownflavor.Lookup(cfg.Convention, userMap)
 	if err != nil {
 		return fmt.Errorf("convention: %w", err)
 	}
+
+	// Determine whether this is a user-defined convention for
+	// the provenance label.
+	_, isUser := cfg.Conventions[cfg.Convention]
+
 	if rc, ok := cfg.Rules["markdown-flavor"]; ok {
 		userFlavor, err := stringSetting(
 			rc.Settings, "flavor", "rules.markdown-flavor.flavor",
@@ -57,6 +138,7 @@ func applyConvention(cfg *Config) error {
 		}
 	}
 	cfg.ConventionPreset = preset
+	cfg.ConventionIsUser = isUser
 	return nil
 }
 
@@ -74,6 +156,26 @@ func stringSetting(settings map[string]any, key, fieldPath string) (string, erro
 		return "", fmt.Errorf("%s: must be a string, got %T", fieldPath, v)
 	}
 	return s, nil
+}
+
+// copyUserConventions returns a deep copy of the user-defined
+// conventions map. Returns nil if input is nil.
+func copyUserConventions(convs map[string]UserConventionCfg) map[string]UserConventionCfg {
+	if convs == nil {
+		return nil
+	}
+	out := make(map[string]UserConventionCfg, len(convs))
+	for name, uc := range convs {
+		rules := make(map[string]RuleCfg, len(uc.Rules))
+		for k, v := range uc.Rules {
+			rules[k] = copyRuleCfg(v)
+		}
+		out[name] = UserConventionCfg{
+			Flavor: uc.Flavor,
+			Rules:  rules,
+		}
+	}
+	return out
 }
 
 // copyConventionPreset returns a deep copy of a convention preset

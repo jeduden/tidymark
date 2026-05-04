@@ -12,6 +12,8 @@ import (
 	// Register markdown-flavor so rule.ByName lookups in deep-merge
 	// resolve while the convention mechanism is exercised.
 	_ "github.com/jeduden/mdsmith/internal/rules/markdownflavor"
+	// Register list-marker-style for user-convention validation tests.
+	_ "github.com/jeduden/mdsmith/internal/rules/listmarkerstyle"
 )
 
 func TestApplyConvention_NoConventionSet_NoOp(t *testing.T) {
@@ -367,4 +369,202 @@ func TestMerge_PreservesConvention(t *testing.T) {
 	// Mutating the merged copy must not bleed back into the source.
 	merged.ConventionPreset["line-length"].Settings["max"] = 999
 	assert.Equal(t, 80, loaded.ConventionPreset["line-length"].Settings["max"])
+}
+
+// --- User-defined convention tests (plan 113) ---
+
+func TestLoad_UserConvention_Valid(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        style: dash
+convention: our-team
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, "our-team", cfg.Convention)
+	require.NotNil(t, cfg.ConventionPreset)
+	rc, ok := cfg.ConventionPreset["list-marker-style"]
+	require.True(t, ok, "user convention preset must include list-marker-style")
+	assert.True(t, rc.Enabled)
+	assert.Equal(t, "dash", rc.Settings["style"])
+}
+
+func TestLoad_UserConvention_ReservedNameError(t *testing.T) {
+	for _, reserved := range []string{"portable", "github", "plain"} {
+		t.Run(reserved, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, ".mdsmith.yml")
+			yml := "conventions:\n  " + reserved + ":\n    flavor: gfm\n"
+			require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+			_, err := Load(path)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), reserved)
+		})
+	}
+}
+
+func TestLoad_UserConvention_InvalidFlavor(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `
+conventions:
+  our-team:
+    flavor: bogus-flavor
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "bogus-flavor")
+}
+
+func TestLoad_UserConvention_UnknownRuleName(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      totally-fake-rule:
+        foo: bar
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "totally-fake-rule")
+}
+
+func TestLoad_UserConvention_InvalidRuleSetting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        bad-setting: nope
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "list-marker-style")
+}
+
+func TestLoad_UnknownConventionListsUserAndBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `
+conventions:
+  our-team:
+    flavor: gfm
+convention: no-such-thing
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	_, err := Load(path)
+	require.Error(t, err)
+	// should list both built-ins and user conventions
+	assert.Contains(t, err.Error(), "portable")
+	assert.Contains(t, err.Error(), "our-team")
+}
+
+func TestLoad_UserConvention_TopLevelRulesWin(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        style: dash
+convention: our-team
+rules:
+  list-marker-style:
+    style: asterisk
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	merged := Merge(Defaults(), cfg)
+
+	got := Effective(merged, "doc.md", nil)
+	rc, ok := got["list-marker-style"]
+	require.True(t, ok)
+	assert.Equal(t, "asterisk", rc.Settings["style"],
+		"top-level rules: must win over user convention preset")
+}
+
+func TestProvenance_UserConventionLayerLabel(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        style: dash
+convention: our-team
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+
+	res := ResolveFile(cfg, "doc.md", nil)
+	rr, ok := res.Rules["list-marker-style"]
+	require.True(t, ok)
+
+	var sources []string
+	for _, l := range rr.Layers {
+		sources = append(sources, l.Source)
+	}
+	// user convention should appear with (user) suffix
+	require.Contains(t, sources, "convention.our-team (user)")
+}
+
+func TestMerge_PreservesUserConventions(t *testing.T) {
+	loaded := &Config{
+		Convention: "our-team",
+		Conventions: map[string]UserConventionCfg{
+			"our-team": {
+				Flavor: "gfm",
+				Rules: map[string]RuleCfg{
+					"list-marker-style": {Enabled: true, Settings: map[string]any{"style": "dash"}},
+				},
+			},
+		},
+		ConventionPreset: map[string]RuleCfg{
+			"list-marker-style": {Enabled: true, Settings: map[string]any{"style": "dash"}},
+		},
+	}
+	merged := Merge(&Config{Rules: map[string]RuleCfg{}}, loaded)
+	assert.Equal(t, "our-team", merged.Convention)
+	require.NotNil(t, merged.Conventions)
+	uc, ok := merged.Conventions["our-team"]
+	require.True(t, ok)
+	assert.Equal(t, "gfm", uc.Flavor)
+
+	// Mutating the merged copy must not bleed back into the source.
+	merged.Conventions["our-team"].Rules["list-marker-style"].Settings["style"] = "tampered"
+	assert.Equal(t, "dash", loaded.Conventions["our-team"].Rules["list-marker-style"].Settings["style"],
+		"mutating merged Conventions must not affect source")
 }

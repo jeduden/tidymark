@@ -23,6 +23,16 @@ var ValidCategories = []string{
 // discovery when no file arguments are given on the command line.
 var DefaultFiles = []string{"**/*.md", "**/*.markdown"}
 
+// UserConventionCfg is an inline convention defined in .mdsmith.yml.
+// It has the same shape as the built-in convention table: a target
+// flavor and a map of rule presets. User-defined names must not
+// collide with the three built-in names ("portable", "github",
+// "plain").
+type UserConventionCfg struct {
+	Flavor string             `yaml:"flavor"`
+	Rules  map[string]RuleCfg `yaml:"rules,omitempty"`
+}
+
 // Config is the top-level configuration.
 type Config struct {
 	Rules          map[string]RuleCfg    `yaml:"rules"`
@@ -36,6 +46,12 @@ type Config struct {
 	Kinds          map[string]KindBody   `yaml:"kinds,omitempty"`
 	KindAssignment []KindAssignmentEntry `yaml:"kind-assignment,omitempty"`
 	Build          BuildConfig           `yaml:"build,omitempty"`
+
+	// Conventions holds user-defined convention bundles declared
+	// inline in .mdsmith.yml. Each entry mirrors the built-in
+	// convention table shape. Reserved names ("portable", "github",
+	// "plain") are rejected at config load time.
+	Conventions map[string]UserConventionCfg `yaml:"conventions,omitempty"`
 
 	// Convention names a Markdown convention bundle. Built-in
 	// values: "portable", "github", "plain". Empty means no
@@ -80,6 +96,14 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+
+	// ConventionIsUser is true when the active convention was
+	// declared in the user's `conventions:` block rather than being
+	// a built-in. It controls the provenance label emitted by
+	// `mdsmith kinds resolve`: user conventions append " (user)" to
+	// the source string so they are visually distinct.
+	// Not serialized to YAML.
+	ConventionIsUser bool `yaml:"-"`
 }
 
 // Override applies rule settings to files matching glob patterns.

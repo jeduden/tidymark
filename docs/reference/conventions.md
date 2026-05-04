@@ -172,9 +172,63 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+When the three built-in conventions do not fit your
+team's needs, define your own inline in
+`.mdsmith.yml` using the top-level `conventions:`
+map:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+Each entry under `conventions:` requires a `flavor:`
+field (`commonmark`, `gfm`, or `goldmark`). The
+optional `rules:` map uses rule names as keys.
+Values follow the same schema as the top-level
+`rules:` block.
+
+**Reserved names.** The names `portable`, `github`,
+and `plain` are reserved. Defining a
+`conventions.portable` block in `.mdsmith.yml` is a
+config error.
+
+**Validation.** At config load time mdsmith checks
+that the flavor string is one of the three valid
+values, that every key under `rules:` names a
+registered rule, and that each rule's settings are
+valid according to the rule's own schema. Errors
+name both the convention and the offending rule:
+`convention "our-team" rule "no-inline-html":
+unknown setting "allowed"`.
+
+**Layering.** User conventions apply as a base layer
+beneath your explicit top-level `rules:` overrides,
+exactly like built-in conventions. Setting
+`convention: our-team` and then adding a
+`rules: no-inline-html: false` entry disables that
+rule for the project.
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge
 chain for every rule, including the
-`convention.<name>` layer. Use it to confirm which
-value won and where it came from.
+`convention.<name>` layer. For user-defined
+conventions, the source label reads
+`convention.<name> (user)` so you can distinguish
+them from built-ins at a glance.
+
+Use it to confirm which value won and where it
+came from.

@@ -48,6 +48,8 @@ func Merge(defaults, loaded *Config) *Config {
 		Build:                  copyBuildConfig(loaded.Build),
 		Convention:             loaded.Convention,
 		ConventionPreset:       copyConventionPreset(loaded.ConventionPreset),
+		ConventionIsUser:       loaded.ConventionIsUser,
+		Conventions:            copyUserConventions(loaded.Conventions),
 	}
 }
 
@@ -100,6 +102,8 @@ func copyConfig(cfg *Config) *Config {
 		Build:                  copyBuildConfig(cfg.Build),
 		Convention:             cfg.Convention,
 		ConventionPreset:       copyConventionPreset(cfg.ConventionPreset),
+		ConventionIsUser:       cfg.ConventionIsUser,
+		Conventions:            copyUserConventions(cfg.Conventions),
 	}
 }
 
