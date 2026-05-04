@@ -31,9 +31,11 @@ func newTransport(r io.Reader, w io.Writer) *transport {
 	return &transport{r: bufio.NewReader(r), w: w}
 }
 
-// readMessage reads one framed JSON-RPC message. Returns io.EOF when
-// the stream closes cleanly between frames.
-func (t *transport) readMessage() (*requestMessage, error) {
+// readRaw reads one framed JSON-RPC frame and returns the body bytes
+// without parsing them. The caller decides whether the frame is a
+// request, notification, or response — distinguishing them requires
+// looking at the JSON shape, which we defer to dispatchRaw.
+func (t *transport) readRaw() ([]byte, error) {
 	tp := textproto.NewReader(t.r)
 	header, err := tp.ReadMIMEHeader()
 	if err != nil {
@@ -54,11 +56,7 @@ func (t *transport) readMessage() (*requestMessage, error) {
 	if _, err := io.ReadFull(t.r, body); err != nil {
 		return nil, fmt.Errorf("lsp: reading body: %w", err)
 	}
-	var msg requestMessage
-	if err := json.Unmarshal(body, &msg); err != nil {
-		return nil, fmt.Errorf("lsp: parsing JSON: %w", err)
-	}
-	return &msg, nil
+	return body, nil
 }
 
 // writeJSON marshals v and emits a framed message.

@@ -34,7 +34,9 @@ func TestFixSourceMatchesFixerOnDisk(t *testing.T) {
 		Rules:            rule.All(),
 		StripFrontMatter: true,
 	}
-	_ = fixer.Fix([]string{path})
+	res := fixer.Fix([]string{path})
+	require.Empty(t, res.Errors, "Fixer.Fix reported errors: %v", res.Errors)
+	require.Contains(t, res.Modified, path, "expected fixer to modify the test file")
 	onDisk, err := os.ReadFile(path)
 	require.NoError(t, err)
 

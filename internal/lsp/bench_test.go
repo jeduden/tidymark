@@ -1,9 +1,16 @@
 package lsp
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"net/textproto"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,6 +43,13 @@ func benchLatency(b *testing.B, lines int, budget time.Duration) {
 	h := newBenchHarness(b)
 	defer h.close()
 
+	// Force `mdsmith.run = onType` for the benchmark — it intentionally
+	// drives didChange events that would otherwise be filtered when
+	// run defaults to onSave.
+	h.srv.settingsMu.Lock()
+	h.srv.settings.Run = runOnType
+	h.srv.settingsMu.Unlock()
+
 	uri := "file:///bench/sample.md"
 	source := buildSyntheticMarkdown(lines)
 	h.notify("textDocument/didOpen", map[string]any{
@@ -43,19 +57,18 @@ func benchLatency(b *testing.B, lines int, budget time.Duration) {
 			"uri": uri, "languageId": "markdown", "version": 1, "text": source,
 		},
 	})
-	h.awaitDiagnostics(uri, 5*time.Second)
+	h.awaitDiagnostics(b, uri, 5*time.Second)
 
 	samples := make([]time.Duration, 0, b.N)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Mutate one line so didChange triggers a re-lint.
-		mutated := source + "\n<!-- iter " + itoa(i) + " -->\n"
+		mutated := source + "\n<!-- iter " + strconv.Itoa(i) + " -->\n"
 		start := time.Now()
 		h.notify("textDocument/didChange", map[string]any{
 			"textDocument":   map[string]any{"uri": uri, "version": i + 2},
 			"contentChanges": []map[string]any{{"text": mutated}},
 		})
-		h.awaitDiagnostics(uri, 5*time.Second)
+		h.awaitDiagnostics(b, uri, 5*time.Second)
 		samples = append(samples, time.Since(start))
 	}
 	b.StopTimer()
@@ -90,8 +103,6 @@ func buildSyntheticMarkdown(lines int) string {
 	var b strings.Builder
 	b.WriteString("# Synthetic Document\n\n")
 	for i := 0; i < lines; i++ {
-		// Mix of plain text and one bare URL line every 50 lines so the
-		// linter has work to do; avoid pathological line lengths.
 		if i%50 == 0 {
 			b.WriteString("This paragraph mentions https://example.com inline.\n")
 		} else {
@@ -101,60 +112,147 @@ func buildSyntheticMarkdown(lines int) string {
 	return b.String()
 }
 
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	neg := i < 0
-	if neg {
-		i = -i
-	}
-	var buf [20]byte
-	pos := len(buf)
-	for i > 0 {
-		pos--
-		buf[pos] = byte('0' + i%10)
-		i /= 10
-	}
-	if neg {
-		pos--
-		buf[pos] = '-'
-	}
-	return string(buf[pos:])
-}
-
-// benchHarness is a thin wrapper around testHarness for benchmarks.
-// It re-implements the bits we need without duplicating testing.T
-// dependencies.
+// benchHarness wraps a Server and the in-memory pipes it talks to.
+// It does not depend on testing.T (Cleanup/Helper are not safe with
+// a manually allocated *testing.T per the docs).
 type benchHarness struct {
-	*testHarness
+	srv          *Server
+	cancel       context.CancelFunc
+	clientWriter io.WriteCloser
+	clientReader *bufio.Reader
+	srvDone      chan error
+	mu           sync.Mutex
+	nextID       int
 }
 
 func newBenchHarness(b *testing.B) *benchHarness {
-	t := &testing.T{}
-	h := newHarness(t)
-	// Initialize the server.
-	resultRaw, errResp := h.request("initialize", initializeParams{
-		Capabilities: clientCapabilities{Workspace: &workspaceClientCapabilities{Configuration: true}},
+	b.Helper()
+	srvIn, clientWriter := io.Pipe()
+	clientRawReader, srvOut := io.Pipe()
+	srv := New(Options{
+		Rules:    rule.All(),
+		Reader:   srvIn,
+		Writer:   srvOut,
+		Debounce: -1,
 	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- srv.Run(ctx)
+		_ = srvOut.Close()
+	}()
+	h := &benchHarness{
+		srv:          srv,
+		cancel:       cancel,
+		clientWriter: clientWriter,
+		clientReader: bufio.NewReader(clientRawReader),
+		srvDone:      done,
+	}
+	b.Cleanup(h.close)
+
+	// Initialize so the server reaches a steady state.
+	resultRaw, errResp := h.request(b, "initialize", map[string]any{"capabilities": map[string]any{}})
 	if errResp != nil || resultRaw == nil {
 		b.Fatalf("initialize failed: %v", errResp)
 	}
-	// Configure rule set explicitly so the registry pulled in by the
-	// blank imports is the production set.
-	_ = rule.All()
-	return &benchHarness{testHarness: h}
+	return h
 }
 
 func (h *benchHarness) close() {
 	if h.cancel != nil {
 		h.cancel()
 	}
+	_ = h.clientWriter.Close()
+	select {
+	case <-h.srvDone:
+	case <-time.After(2 * time.Second):
+	}
+}
+
+func (h *benchHarness) write(v any) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	if _, err := fmt.Fprintf(h.clientWriter, "Content-Length: %d\r\n\r\n", len(body)); err != nil {
+		panic(err)
+	}
+	if _, err := h.clientWriter.Write(body); err != nil {
+		panic(err)
+	}
+}
+
+func (h *benchHarness) read() []byte {
+	tp := textproto.NewReader(h.clientReader)
+	hdr, err := tp.ReadMIMEHeader()
+	if err != nil {
+		panic(err)
+	}
+	cl := hdr.Get("Content-Length")
+	n, err := strconv.Atoi(cl)
+	if err != nil {
+		panic(err)
+	}
+	body := make([]byte, n)
+	if _, err := io.ReadFull(h.clientReader, body); err != nil {
+		panic(err)
+	}
+	return body
+}
+
+func (h *benchHarness) request(b *testing.B, method string, params any) (json.RawMessage, *responseError) {
+	b.Helper()
+	h.mu.Lock()
+	h.nextID++
+	id := h.nextID
+	h.mu.Unlock()
+	idJSON, _ := json.Marshal(id)
+	h.write(struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Method  string          `json:"method"`
+		Params  any             `json:"params,omitempty"`
+	}{JSONRPC: "2.0", ID: idJSON, Method: method, Params: params})
+	for {
+		raw := h.read()
+		var probe struct {
+			ID     json.RawMessage `json:"id,omitempty"`
+			Method string          `json:"method,omitempty"`
+		}
+		if err := json.Unmarshal(raw, &probe); err != nil {
+			continue
+		}
+		if probe.Method != "" {
+			// Server-initiated request: ack with empty result.
+			if len(probe.ID) > 0 {
+				h.write(struct {
+					JSONRPC string          `json:"jsonrpc"`
+					ID      json.RawMessage `json:"id"`
+					Result  any             `json:"result"`
+				}{JSONRPC: "2.0", ID: probe.ID, Result: nil})
+			}
+			continue
+		}
+		var resp responseMessage
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			continue
+		}
+		if string(resp.ID) != string(idJSON) {
+			continue
+		}
+		return resp.Result, resp.Error
+	}
+}
+
+func (h *benchHarness) notify(method string, params any) {
+	h.write(notificationMessage{JSONRPC: "2.0", Method: method, Params: params})
 }
 
 // awaitDiagnostics reads frames until publishDiagnostics arrives for
-// the given URI.
-func (h *benchHarness) awaitDiagnostics(uri string, timeout time.Duration) {
+// uri. Fails the benchmark on timeout so a stuck server doesn't
+// silently produce meaningless samples.
+func (h *benchHarness) awaitDiagnostics(b *testing.B, uri string, timeout time.Duration) {
+	b.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		raw := h.read()
@@ -176,7 +274,7 @@ func (h *benchHarness) awaitDiagnostics(uri string, timeout time.Duration) {
 			}
 			continue
 		}
-		// Server-side request: ack with empty result so it can proceed.
+		// Server-side request: ack with empty result.
 		if len(probe.ID) > 0 {
 			h.write(struct {
 				JSONRPC string          `json:"jsonrpc"`
@@ -185,4 +283,5 @@ func (h *benchHarness) awaitDiagnostics(uri string, timeout time.Duration) {
 			}{JSONRPC: "2.0", ID: probe.ID, Result: nil})
 		}
 	}
+	b.Fatalf("timeout waiting for publishDiagnostics on %s", uri)
 }

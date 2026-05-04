@@ -153,7 +153,17 @@ func (p *lspPipe) awaitDiagnostics(t *testing.T, uri string, deadline time.Time)
 		if method == "" {
 			continue
 		}
-		if method == "workspace/configuration" || method == "client/registerCapability" {
+		if method == "workspace/configuration" {
+			// Reply with run=onType so didChange events trigger lint
+			// passes — the test exercises that flow explicitly.
+			id := m["id"]
+			p.writeFrame(map[string]any{
+				"jsonrpc": "2.0", "id": id,
+				"result": []map[string]any{{"run": "onType"}},
+			})
+			continue
+		}
+		if method == "client/registerCapability" {
 			id := m["id"]
 			p.writeFrame(map[string]any{"jsonrpc": "2.0", "id": id, "result": nil})
 			continue

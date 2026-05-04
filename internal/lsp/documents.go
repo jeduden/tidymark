@@ -20,6 +20,12 @@ func newDocumentStore() *documentStore {
 	return &documentStore{m: make(map[string]*document)}
 }
 
+// get returns a shallow copy of the stored document. The copy
+// prevents callers from racing the stored *document pointer (e.g.
+// when set() replaces it), but does not deep-copy the `text` byte
+// slice — both copies share the underlying array. Callers must treat
+// `text` as read-only and never mutate it in place. Updates go
+// through set() with a fresh slice instead.
 func (s *documentStore) get(uri string) (*document, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -27,7 +33,6 @@ func (s *documentStore) get(uri string) (*document, bool) {
 	if !ok {
 		return nil, false
 	}
-	// Return a shallow copy so callers can't race the stored slice.
 	cp := *d
 	return &cp, true
 }

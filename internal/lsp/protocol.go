@@ -102,6 +102,11 @@ const (
 type textDocumentSyncOptions struct {
 	OpenClose bool                 `json:"openClose"`
 	Change    textDocumentSyncKind `json:"change"`
+	Save      *saveOptions         `json:"save,omitempty"`
+}
+
+type saveOptions struct {
+	IncludeText bool `json:"includeText,omitempty"`
 }
 
 type codeActionOptions struct {

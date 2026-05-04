@@ -23,22 +23,29 @@ import (
 // Server runs the LSP loop over a transport pair. One Server instance
 // serves one client.
 type Server struct {
-	t          *transport
-	rules      []rule.Rule
-	clock      func() time.Time
-	debounce   time.Duration
-	logger     *vlog.Logger
-	docs       *documentStore
+	t        *transport
+	rules    []rule.Rule
+	clock    func() time.Time
+	debounce time.Duration
+	logger   *vlog.Logger
+	docs     *documentStore
+
 	configMu   sync.RWMutex
 	config     *config.Config
 	configPath string
 	rootDir    string
-	settings   userSettings
+
 	settingsMu sync.RWMutex
-	pendingMu  sync.Mutex
-	pending    map[string]*time.Timer
-	nextReqID  atomic.Int64
-	shutdown   atomic.Bool
+	settings   userSettings
+
+	pendingMu     sync.Mutex
+	pending       map[string]*time.Timer
+	pendingRespMu sync.Mutex
+	pendingResp   map[string]chan rpcResponse
+
+	nextReqID     atomic.Int64
+	shutdown      atomic.Bool
+	exitRequested atomic.Bool
 }
 
 // userSettings mirrors the subset of `mdsmith.*` VS Code keys the
@@ -47,6 +54,20 @@ type Server struct {
 type userSettings struct {
 	ConfigPath string `json:"config"`
 	Run        string `json:"run"`
+}
+
+// runMode enumerates valid `mdsmith.run` values. Anything else is
+// treated as the documented default.
+const (
+	runOnSave = "onSave"
+	runOnType = "onType"
+	runOff    = "off"
+)
+
+// rpcResponse is what dispatch hands to a waiting requester.
+type rpcResponse struct {
+	Result json.RawMessage
+	Error  *responseError
 }
 
 // Options configures a new Server.
@@ -79,14 +100,15 @@ func New(opts Options) *Server {
 		logger = &vlog.Logger{}
 	}
 	return &Server{
-		t:        newTransport(opts.Reader, opts.Writer),
-		rules:    opts.Rules,
-		clock:    time.Now,
-		debounce: debounce,
-		logger:   logger,
-		docs:     newDocumentStore(),
-		settings: userSettings{Run: "onSave"},
-		pending:  make(map[string]*time.Timer),
+		t:           newTransport(opts.Reader, opts.Writer),
+		rules:       opts.Rules,
+		clock:       time.Now,
+		debounce:    debounce,
+		logger:      logger,
+		docs:        newDocumentStore(),
+		settings:    userSettings{Run: runOnSave},
+		pending:     make(map[string]*time.Timer),
+		pendingResp: make(map[string]chan rpcResponse),
 	}
 }
 
@@ -97,24 +119,58 @@ func (s *Server) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		msg, err := s.t.readMessage()
+		raw, err := s.t.readRaw()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return err
 		}
-		s.dispatch(ctx, msg)
+		s.dispatchRaw(ctx, raw)
+		if s.shutdown.Load() && s.exitRequested.Load() {
+			return nil
+		}
 	}
 }
 
-func (s *Server) dispatch(ctx context.Context, msg *requestMessage) {
-	if msg.JSONRPC != "2.0" {
-		if msg.ID != nil {
-			_ = s.t.writeError(msg.ID, codeInvalidRequest, "jsonrpc must be 2.0")
+// dispatchRaw routes one frame to either request/notification handling
+// or response handling based on the message shape.
+//
+// JSON-RPC distinguishes the two by the presence of `method` (request
+// or notification) versus `result`/`error` (response to a server-side
+// request). Treating responses as unknown methods would break reply
+// flow for `workspace/configuration`, `client/registerCapability`,
+// and any future server-initiated request.
+func (s *Server) dispatchRaw(ctx context.Context, raw []byte) {
+	var probe struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id,omitempty"`
+		Method  string          `json:"method,omitempty"`
+		Result  json.RawMessage `json:"result,omitempty"`
+		Error   *responseError  `json:"error,omitempty"`
+		Params  json.RawMessage `json:"params,omitempty"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return
+	}
+	if probe.JSONRPC != "2.0" {
+		if probe.ID != nil {
+			_ = s.t.writeError(probe.ID, codeInvalidRequest, "jsonrpc must be 2.0")
 		}
 		return
 	}
+	// Response: has id, no method.
+	if probe.Method == "" && len(probe.ID) > 0 {
+		s.deliverResponse(string(probe.ID), rpcResponse{Result: probe.Result, Error: probe.Error})
+		return
+	}
+	msg := &requestMessage{
+		JSONRPC: probe.JSONRPC, ID: probe.ID, Method: probe.Method, Params: probe.Params,
+	}
+	s.dispatch(ctx, msg)
+}
+
+func (s *Server) dispatch(ctx context.Context, msg *requestMessage) {
 	switch msg.Method {
 	case "initialize":
 		s.handleInitialize(msg)
@@ -124,14 +180,14 @@ func (s *Server) dispatch(ctx context.Context, msg *requestMessage) {
 		s.shutdown.Store(true)
 		_ = s.t.writeResponse(msg.ID, nil)
 	case "exit":
-		// Force the transport to surface EOF on the next read.
-		// Run() will return cleanly. We do not call os.Exit here
-		// because the caller (cmd/mdsmith) decides exit codes.
 		s.shutdown.Store(true)
+		s.exitRequested.Store(true)
 	case "textDocument/didOpen":
 		s.handleDidOpen(ctx, msg.Params)
 	case "textDocument/didChange":
 		s.handleDidChange(ctx, msg.Params)
+	case "textDocument/didSave":
+		s.handleDidSave(ctx, msg.Params)
 	case "textDocument/didClose":
 		s.handleDidClose(msg.Params)
 	case "textDocument/codeAction":
@@ -140,9 +196,11 @@ func (s *Server) dispatch(ctx context.Context, msg *requestMessage) {
 		s.handleDidChangeWatchedFiles(ctx, msg.Params)
 	case "workspace/didChangeConfiguration":
 		s.handleDidChangeConfiguration(ctx)
-	case "$/cancelRequest", "$/setTrace":
+	case "$/cancelRequest", "$/setTrace", "$/progress":
 		// Notifications we silently accept.
 	default:
+		// Notifications (no ID) are silently ignored per the LSP
+		// spec; only requests get a method-not-found error.
 		if msg.ID != nil {
 			_ = s.t.writeError(msg.ID, codeMethodNotFound, "method not supported: "+msg.Method)
 		}
@@ -167,6 +225,7 @@ func (s *Server) handleInitialize(msg *requestMessage) {
 			TextDocumentSync: textDocumentSyncOptions{
 				OpenClose: true,
 				Change:    syncFull,
+				Save:      &saveOptions{IncludeText: false},
 			},
 			CodeActionProvider: codeActionOptions{
 				CodeActionKinds: []string{kindQuickFix, kindSourceFixAll},
@@ -181,7 +240,9 @@ func (s *Server) handleInitialized(ctx context.Context) {
 	// Load the workspace config eagerly so the first document event
 	// already finds it cached.
 	s.reloadConfig()
-	s.fetchClientSettings(ctx)
+	// fetchClientSettings runs in a goroutine because dispatch must
+	// remain available to deliver the response.
+	go s.fetchClientSettings(ctx)
 	s.registerWatchers()
 }
 
@@ -200,7 +261,9 @@ func (s *Server) handleDidOpen(ctx context.Context, raw json.RawMessage) {
 		text:    []byte(p.TextDocument.Text),
 		version: p.TextDocument.Version,
 	})
-	s.scheduleLint(ctx, p.TextDocument.URI, true)
+	// didOpen always lints regardless of run setting; the user is
+	// asking for an initial diagnostic snapshot.
+	s.scheduleLint(ctx, p.TextDocument.URI, lintTriggerOpen)
 }
 
 func (s *Server) handleDidChange(ctx context.Context, raw json.RawMessage) {
@@ -215,12 +278,23 @@ func (s *Server) handleDidChange(ctx context.Context, raw json.RawMessage) {
 	if !ok {
 		return
 	}
-	// Full sync: the last change carries the entire buffer.
 	last := p.ContentChanges[len(p.ContentChanges)-1]
 	doc.text = []byte(last.Text)
 	doc.version = p.TextDocument.Version
 	s.docs.set(p.TextDocument.URI, doc)
-	s.scheduleLint(ctx, p.TextDocument.URI, false)
+	s.scheduleLint(ctx, p.TextDocument.URI, lintTriggerChange)
+}
+
+// handleDidSave re-lints when the user saves. This is the only event
+// that triggers a lint when run=onSave.
+func (s *Server) handleDidSave(ctx context.Context, raw json.RawMessage) {
+	var p struct {
+		TextDocument textDocumentIdentifier `json:"textDocument"`
+	}
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return
+	}
+	s.scheduleLint(ctx, p.TextDocument.URI, lintTriggerSave)
 }
 
 func (s *Server) handleDidClose(raw json.RawMessage) {
@@ -251,24 +325,50 @@ func (s *Server) handleDidChangeWatchedFiles(ctx context.Context, raw json.RawMe
 	}
 	s.reloadConfig()
 	for _, uri := range s.docs.openURIs() {
-		s.scheduleLint(ctx, uri, true)
+		s.scheduleLint(ctx, uri, lintTriggerConfig)
 	}
 }
 
 func (s *Server) handleDidChangeConfiguration(ctx context.Context) {
-	s.fetchClientSettings(ctx)
+	go s.fetchClientSettings(ctx)
 	for _, uri := range s.docs.openURIs() {
-		s.scheduleLint(ctx, uri, true)
+		s.scheduleLint(ctx, uri, lintTriggerConfig)
 	}
 }
 
-// scheduleLint debounces lint runs per document. When immediate is
-// true the lint runs synchronously without debouncing — used after
-// didOpen so the first batch of diagnostics shows up promptly.
-func (s *Server) scheduleLint(ctx context.Context, uri string, immediate bool) {
+// lintTrigger names what caused a lint pass to be scheduled.
+type lintTrigger int
+
+const (
+	lintTriggerOpen   lintTrigger = iota // textDocument/didOpen
+	lintTriggerChange                    // textDocument/didChange
+	lintTriggerSave                      // textDocument/didSave
+	lintTriggerConfig                    // config or settings change
+)
+
+// scheduleLint debounces lint runs per document. The mdsmith.run
+// setting filters which triggers actually result in a lint pass:
+//
+//   - off:    never lints (still allows fix-all code actions on
+//     explicit user request).
+//   - onSave: lints on open, save, and config-change triggers; skips
+//     didChange.
+//   - onType: lints on every trigger, debounced by `debounce`.
+//
+// open/save/config triggers always run synchronously so the user sees
+// the result without waiting for the debounce timer.
+func (s *Server) scheduleLint(ctx context.Context, uri string, trigger lintTrigger) {
 	if s.shutdown.Load() {
 		return
 	}
+	mode := s.runMode()
+	if mode == runOff {
+		return
+	}
+	if mode == runOnSave && trigger == lintTriggerChange {
+		return
+	}
+	immediate := trigger != lintTriggerChange
 	if immediate || s.debounce == 0 {
 		s.runLint(uri)
 		return
@@ -285,6 +385,17 @@ func (s *Server) scheduleLint(ctx context.Context, uri string, immediate bool) {
 	})
 	s.pendingMu.Unlock()
 	_ = ctx
+}
+
+func (s *Server) runMode() string {
+	s.settingsMu.RLock()
+	defer s.settingsMu.RUnlock()
+	switch s.settings.Run {
+	case runOff, runOnSave, runOnType:
+		return s.settings.Run
+	default:
+		return runOnSave
+	}
 }
 
 // runLint executes one lint pass on the buffer and publishes the
@@ -335,72 +446,109 @@ func (s *Server) handleCodeAction(msg *requestMessage) {
 	_ = s.t.writeResponse(msg.ID, actions)
 }
 
+// computeCodeActions returns the set of code actions for one
+// codeAction request. When `Only` is supplied we short-circuit kinds
+// the client did not ask for so we don't run fix passes whose output
+// the client will discard.
 func (s *Server) computeCodeActions(
 	p codeActionParams, doc *document, cfg *config.Config, root string,
 ) []codeAction {
+	wantQuickFix := wantsKind(p.Context.Only, kindQuickFix)
+	wantFixAll := wantsKind(p.Context.Only, kindSourceFixAll)
+
 	actions := make([]codeAction, 0, len(p.Context.Diagnostics)+1)
 
-	// Per-diagnostic quick fixes — one per fixable rule.
-	for _, d := range p.Context.Diagnostics {
-		if d.Data == nil || d.Data.RuleName == "" {
-			continue
+	if wantQuickFix {
+		for _, d := range p.Context.Diagnostics {
+			action, ok := s.quickFixFor(d, doc, cfg, root, p.TextDocument.URI)
+			if !ok {
+				continue
+			}
+			actions = append(actions, action)
 		}
-		if !isFixable(s.rules, d.Data.RuleName) {
-			continue
-		}
-		if isWholeFileOnly(d.Data.RuleName) {
-			continue
-		}
-		fixed, err := fixpkg.SourceWithRules(fixpkg.SourceOptions{
+	}
+
+	if wantFixAll {
+		fixed, err := fixpkg.Source(fixpkg.SourceOptions{
 			Config:           cfg,
 			Rules:            s.rules,
 			Path:             doc.path,
 			Source:           doc.text,
 			RootDir:          root,
 			StripFrontMatter: frontMatterEnabled(cfg),
-		}, []string{d.Data.RuleName})
-		if err != nil || string(fixed) == string(doc.text) {
-			continue
-		}
-		actions = append(actions, codeAction{
-			Title:       quickFixTitle(d.Data.RuleName),
-			Kind:        kindQuickFix,
-			Diagnostics: []Diagnostic{d},
-			Edit:        fullFileEdit(p.TextDocument.URI, doc.text, fixed),
 		})
+		if err == nil && string(fixed) != string(doc.text) {
+			actions = append(actions, codeAction{
+				Title: titleFixAllMdsmith,
+				Kind:  kindSourceFixAll,
+				Edit:  fullFileEdit(p.TextDocument.URI, doc.text, fixed),
+			})
+		}
 	}
 
-	// Source action: fix-all.
-	fixed, err := fixpkg.Source(fixpkg.SourceOptions{
+	return actions
+}
+
+func (s *Server) quickFixFor(
+	d Diagnostic, doc *document, cfg *config.Config, root, uri string,
+) (codeAction, bool) {
+	if d.Data == nil || d.Data.RuleName == "" {
+		return codeAction{}, false
+	}
+	if !isFixable(s.rules, d.Data.RuleName) {
+		return codeAction{}, false
+	}
+	if isWholeFileOnly(d.Data.RuleName) {
+		return codeAction{}, false
+	}
+	fixed, err := fixpkg.SourceWithRules(fixpkg.SourceOptions{
 		Config:           cfg,
 		Rules:            s.rules,
 		Path:             doc.path,
 		Source:           doc.text,
 		RootDir:          root,
 		StripFrontMatter: frontMatterEnabled(cfg),
-	})
-	if err == nil && string(fixed) != string(doc.text) {
-		actions = append(actions, codeAction{
-			Title: titleFixAllMdsmith,
-			Kind:  kindSourceFixAll,
-			Edit:  fullFileEdit(p.TextDocument.URI, doc.text, fixed),
-		})
+	}, []string{d.Data.RuleName})
+	if err != nil || string(fixed) == string(doc.text) {
+		return codeAction{}, false
 	}
+	return codeAction{
+		Title:       quickFixTitle(d.Data.RuleName),
+		Kind:        kindQuickFix,
+		Diagnostics: []Diagnostic{d},
+		Edit:        fullFileEdit(uri, doc.text, fixed),
+	}, true
+}
 
-	return actions
+// wantsKind reports whether the client's `Only` filter accepts the
+// given action kind. An empty/missing filter means "all kinds wanted",
+// matching the LSP spec.
+func wantsKind(only []string, kind string) bool {
+	if len(only) == 0 {
+		return true
+	}
+	for _, k := range only {
+		// LSP allows kind prefixes (e.g. "source" matches
+		// "source.fixAll.mdsmith"); follow that convention.
+		if k == kind || strings.HasPrefix(kind, k+".") {
+			return true
+		}
+	}
+	return false
 }
 
 func quickFixTitle(rule string) string {
 	return "Fix " + rule + " with mdsmith"
 }
 
+// fullFileEdit returns a WorkspaceEdit that replaces the entire
+// document with `after`. The end position uses
+// {Line: lineCount, Character: 0} per the LSP convention for
+// "everything in the document" edits. Counting `after` lines covers
+// trailing newlines and avoids handing VS Code a position past the
+// last existing line.
 func fullFileEdit(uri string, before, after []byte) *workspaceEdit {
-	lines := splitLines(before)
-	endLine := len(lines)
-	endChar := 0
-	if endLine > 0 {
-		endChar = utf16Column(string(lines[endLine-1]), runeLen(string(lines[endLine-1])))
-	}
+	endLine, endChar := documentEndPosition(before)
 	return &workspaceEdit{
 		Changes: map[string][]textEdit{
 			uri: {
@@ -414,6 +562,34 @@ func fullFileEdit(uri string, before, after []byte) *workspaceEdit {
 			},
 		},
 	}
+}
+
+// documentEndPosition returns the LSP end position covering the
+// entire `source`. Trailing-newline-terminated files end at
+// {Line: lineCount, Character: 0}; files without a trailing newline
+// end at the last line's UTF-16 length. Empty input returns (0, 0).
+func documentEndPosition(source []byte) (int, int) {
+	if len(source) == 0 {
+		return 0, 0
+	}
+	if source[len(source)-1] == '\n' {
+		// Count newlines; the position past the final \n is the
+		// one-past-the-end line, character 0.
+		nl := 0
+		for _, b := range source {
+			if b == '\n' {
+				nl++
+			}
+		}
+		return nl, 0
+	}
+	// No trailing newline: end at last line's UTF-16 length.
+	lines := splitLines(source)
+	if len(lines) == 0 {
+		return 0, 0
+	}
+	last := string(lines[len(lines)-1])
+	return len(lines) - 1, utf16Column(last, runeLen(last))
 }
 
 // snapshotConfig returns the cached config, its source path, and the
@@ -473,21 +649,90 @@ func (s *Server) reloadConfig() {
 }
 
 // fetchClientSettings asks the client for its `mdsmith` configuration
-// section and updates the cached settings if it answers. Errors are
-// silently ignored — the defaults are good enough.
+// section, waits for the response, and applies it to s.settings. If
+// the client does not respond within fetchTimeout the call returns
+// without touching the cached settings — the previous values stand.
+//
+// Must be called from a goroutine other than the dispatch loop, since
+// the response arrives on the same loop.
 func (s *Server) fetchClientSettings(ctx context.Context) {
+	const fetchTimeout = 2 * time.Second
 	id := s.nextReqID.Add(1)
-	idJSON, _ := json.Marshal(id)
+	idJSON, err := json.Marshal(id)
+	if err != nil {
+		return
+	}
+	ch := s.registerPendingResponse(string(idJSON))
+	defer s.unregisterPendingResponse(string(idJSON))
+
 	if err := s.t.writeRequest(idJSON, "workspace/configuration",
 		configurationParams{Items: []configurationItem{{Section: "mdsmith"}}}); err != nil {
 		return
 	}
-	_ = ctx
-	// We do not wait for the response synchronously — handling it here
-	// would require routing the response back through the dispatch
-	// loop. Instead we use the registered handler in
-	// dispatchResponse. For now, just request it — the server
-	// continues with its previous settings.
+
+	select {
+	case resp := <-ch:
+		if resp.Error != nil || len(resp.Result) == 0 {
+			return
+		}
+		// The result is an array (one entry per requested item). Our
+		// single item ("mdsmith") yields a one-element array.
+		var arr []userSettings
+		if err := json.Unmarshal(resp.Result, &arr); err != nil || len(arr) == 0 {
+			return
+		}
+		s.settingsMu.Lock()
+		// Only overwrite values the client supplied — VS Code returns
+		// `null` for unset entries, which Unmarshal turns into the
+		// zero value, so we'd otherwise wipe defaults.
+		next := arr[0]
+		current := s.settings
+		if next.ConfigPath != "" {
+			current.ConfigPath = next.ConfigPath
+		}
+		if next.Run != "" {
+			current.Run = next.Run
+		}
+		s.settings = current
+		s.settingsMu.Unlock()
+		// Reload config in case `mdsmith.config` changed.
+		s.reloadConfig()
+	case <-time.After(fetchTimeout):
+		// Client never replied; defaults stand.
+	case <-ctx.Done():
+	}
+}
+
+// registerPendingResponse returns a channel that will receive the
+// reply for the given request id.
+func (s *Server) registerPendingResponse(id string) chan rpcResponse {
+	ch := make(chan rpcResponse, 1)
+	s.pendingRespMu.Lock()
+	s.pendingResp[id] = ch
+	s.pendingRespMu.Unlock()
+	return ch
+}
+
+func (s *Server) unregisterPendingResponse(id string) {
+	s.pendingRespMu.Lock()
+	delete(s.pendingResp, id)
+	s.pendingRespMu.Unlock()
+}
+
+// deliverResponse routes an incoming response to the channel the
+// requester registered. Unknown ids are silently dropped — the client
+// may legitimately reply to a request that has already timed out.
+func (s *Server) deliverResponse(id string, resp rpcResponse) {
+	s.pendingRespMu.Lock()
+	ch, ok := s.pendingResp[id]
+	s.pendingRespMu.Unlock()
+	if !ok {
+		return
+	}
+	select {
+	case ch <- resp:
+	default:
+	}
 }
 
 // registerWatchers asks the client to watch the project's
@@ -496,7 +741,10 @@ func (s *Server) fetchClientSettings(ctx context.Context) {
 // back to the polled config.
 func (s *Server) registerWatchers() {
 	id := s.nextReqID.Add(1)
-	idJSON, _ := json.Marshal(id)
+	idJSON, err := json.Marshal(id)
+	if err != nil {
+		return
+	}
 	_ = s.t.writeRequest(idJSON, "client/registerCapability",
 		registrationParams{Registrations: []registration{{
 			ID:     "mdsmith-watch",

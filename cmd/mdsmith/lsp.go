@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,10 +18,18 @@ import (
 // Protocol over stdio. The server lives in internal/lsp; this file is
 // only the CLI entry point.
 func runLSP(args []string) int {
+	return runLSPWith(args, os.Stdin, os.Stdout, os.Stderr)
+}
+
+// runLSPWith is the testable variant. The ctor is split so unit tests
+// can drive the server with in-memory pipes; production goes through
+// runLSP and uses the process's actual stdio.
+func runLSPWith(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
 	fs := flag.NewFlagSet("lsp", flag.ContinueOnError)
+	fs.SetOutput(stderr)
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: mdsmith lsp\n\n"+
+		_, _ = fmt.Fprintf(stderr, "Usage: mdsmith lsp\n\n"+
 			"Run the mdsmith Language Server Protocol server over stdio.\n"+
 			"Designed to be spawned by an LSP client (VS Code, Neovim,\n"+
 			"Helix, JetBrains LSP plugin). Reads JSON-RPC frames on\n"+
@@ -34,7 +43,7 @@ func runLSP(args []string) int {
 		return 2
 	}
 	if fs.NArg() > 0 {
-		fmt.Fprintf(os.Stderr, "mdsmith: lsp takes no positional arguments\n")
+		_, _ = fmt.Fprintf(stderr, "mdsmith: lsp takes no positional arguments\n")
 		return 2
 	}
 
@@ -43,11 +52,11 @@ func runLSP(args []string) int {
 
 	srv := lsp.New(lsp.Options{
 		Rules:  rule.All(),
-		Reader: os.Stdin,
-		Writer: os.Stdout,
+		Reader: stdin,
+		Writer: stdout,
 	})
 	if err := srv.Run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: lsp: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "mdsmith: lsp: %v\n", err)
 		return 2
 	}
 	return 0

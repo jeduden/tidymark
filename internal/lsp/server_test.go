@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/textproto"
+	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,20 +25,49 @@ import (
 )
 
 // testHarness wires a Server to a pair of in-memory pipes plus a
-// helper for the test side to read framed messages without racing the
-// server.
+// dedicated reader goroutine that demultiplexes incoming frames so
+// tests can wait for specific notifications without racing on the
+// underlying bufio.Reader.
 type testHarness struct {
 	t            *testing.T
 	srv          *Server
 	clientWriter io.WriteCloser
-	clientReader *bufio.Reader
 	srvDone      chan error
 	cancel       context.CancelFunc
-	mu           sync.Mutex
-	nextID       int
+
+	writeMu sync.Mutex
+	nextID  atomic.Int64
+
+	// Channels populated by the reader goroutine.
+	notifications chan parsedNotification
+	responses     chan parsedResponse
+
+	// serverRequests holds method names of server-initiated requests
+	// the reader has already auto-acked. Tests can assert their
+	// presence without driving the read loop themselves.
+	seenMu     sync.Mutex
+	seenServer map[string]int
+}
+
+type parsedNotification struct {
+	Method string
+	Params json.RawMessage
+}
+
+type parsedResponse struct {
+	ID   string
+	Resp rpcResponse
 }
 
 func newHarness(t *testing.T) *testHarness {
+	return newHarnessWithDebounce(t, -1)
+}
+
+func newDebouncedHarness(t *testing.T, debounce time.Duration) *testHarness {
+	return newHarnessWithDebounce(t, debounce)
+}
+
+func newHarnessWithDebounce(t *testing.T, debounce time.Duration) *testHarness {
 	t.Helper()
 	srvIn, clientWriter := io.Pipe()
 	clientRawReader, srvOut := io.Pipe()
@@ -44,22 +75,35 @@ func newHarness(t *testing.T) *testHarness {
 		Rules:    rule.All(),
 		Reader:   srvIn,
 		Writer:   srvOut,
-		Debounce: -1,
+		Debounce: debounce,
 	})
+	// Tests want lint-on-didChange to fire so they can verify the
+	// pipeline. Production defaults to onSave (skipping didChange);
+	// flipping to onType keeps the existing tests deterministic.
+	srv.settingsMu.Lock()
+	srv.settings.Run = runOnType
+	srv.settingsMu.Unlock()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
 		done <- srv.Run(ctx)
 		_ = srvOut.Close()
 	}()
+
 	h := &testHarness{
-		t:            t,
-		srv:          srv,
-		clientWriter: clientWriter,
-		clientReader: bufio.NewReader(clientRawReader),
-		srvDone:      done,
-		cancel:       cancel,
+		t:             t,
+		srv:           srv,
+		clientWriter:  clientWriter,
+		srvDone:       done,
+		cancel:        cancel,
+		notifications: make(chan parsedNotification, 64),
+		responses:     make(chan parsedResponse, 64),
+		seenServer:    make(map[string]int),
 	}
+
+	go h.readPump(bufio.NewReader(clientRawReader))
+
 	t.Cleanup(func() {
 		_ = clientWriter.Close()
 		cancel()
@@ -72,133 +116,152 @@ func newHarness(t *testing.T) *testHarness {
 	return h
 }
 
-func (h *testHarness) request(method string, params any) (json.RawMessage, *responseError) {
-	h.t.Helper()
-	h.mu.Lock()
-	h.nextID++
-	id := h.nextID
-	h.mu.Unlock()
-	idJSON, err := json.Marshal(id)
-	require.NoError(h.t, err)
-	body := struct {
-		JSONRPC string          `json:"jsonrpc"`
-		ID      json.RawMessage `json:"id"`
-		Method  string          `json:"method"`
-		Params  any             `json:"params,omitempty"`
-	}{JSONRPC: "2.0", ID: idJSON, Method: method, Params: params}
-	h.write(body)
+// readPump is the only goroutine that reads from the pipe. It demuxes
+// frames into the notifications / responses channels, and auto-acks
+// server-initiated requests so the dispatch loop never blocks.
+func (h *testHarness) readPump(r *bufio.Reader) {
 	for {
-		raw := h.read()
+		raw, err := readFrame(r)
+		if err != nil {
+			return
+		}
 		var probe struct {
 			ID     json.RawMessage `json:"id,omitempty"`
 			Method string          `json:"method,omitempty"`
+			Params json.RawMessage `json:"params,omitempty"`
+			Result json.RawMessage `json:"result,omitempty"`
+			Error  *responseError  `json:"error,omitempty"`
 		}
-		require.NoError(h.t, json.Unmarshal(raw, &probe))
-		if probe.Method != "" && len(probe.ID) == 0 {
-			continue // server-side notification; skip while waiting for our reply
+		if err := json.Unmarshal(raw, &probe); err != nil {
+			continue
 		}
-		var resp responseMessage
-		require.NoError(h.t, json.Unmarshal(raw, &resp))
-		// Skip server-to-client requests (they have a Method).
-		if probe.Method != "" {
-			// Acknowledge with an empty result so the server can proceed.
+
+		// Server-initiated request: auto-ack with nil result so the
+		// server's dispatch loop can move on, then record that we saw it.
+		if probe.Method != "" && len(probe.ID) > 0 {
 			h.write(struct {
 				JSONRPC string          `json:"jsonrpc"`
 				ID      json.RawMessage `json:"id"`
 				Result  any             `json:"result"`
 			}{JSONRPC: "2.0", ID: probe.ID, Result: nil})
+			h.seenMu.Lock()
+			h.seenServer[probe.Method]++
+			h.seenMu.Unlock()
 			continue
 		}
-		if string(resp.ID) != string(idJSON) {
+
+		// Notification (no id, has method).
+		if probe.Method != "" {
+			select {
+			case h.notifications <- parsedNotification{Method: probe.Method, Params: probe.Params}:
+			default:
+				// Drop on overflow — tests only care about a small
+				// suffix of notifications.
+			}
 			continue
 		}
-		var resultRaw json.RawMessage
-		if resp.Result != nil {
-			resultRaw, _ = json.Marshal(resp.Result)
+
+		// Response to a client request.
+		if len(probe.ID) > 0 {
+			select {
+			case h.responses <- parsedResponse{
+				ID:   string(probe.ID),
+				Resp: rpcResponse{Result: probe.Result, Error: probe.Error},
+			}:
+			default:
+			}
 		}
-		return resultRaw, resp.Error
+	}
+}
+
+func readFrame(r *bufio.Reader) ([]byte, error) {
+	tp := textproto.NewReader(r)
+	hdr, err := tp.ReadMIMEHeader()
+	if err != nil {
+		return nil, err
+	}
+	cl := hdr.Get("Content-Length")
+	if cl == "" {
+		return nil, fmt.Errorf("missing Content-Length")
+	}
+	n, err := strconv.Atoi(cl)
+	if err != nil {
+		return nil, err
+	}
+	body := make([]byte, n)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func (h *testHarness) write(v any) {
+	body, err := json.Marshal(v)
+	require.NoError(h.t, err)
+	h.writeMu.Lock()
+	defer h.writeMu.Unlock()
+	if _, err := fmt.Fprintf(h.clientWriter, "Content-Length: %d\r\n\r\n", len(body)); err != nil {
+		return
+	}
+	_, _ = h.clientWriter.Write(body)
+}
+
+func (h *testHarness) request(method string, params any) (json.RawMessage, *responseError) {
+	h.t.Helper()
+	id := h.nextID.Add(1)
+	idJSON, err := json.Marshal(id)
+	require.NoError(h.t, err)
+	h.write(struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Method  string          `json:"method"`
+		Params  any             `json:"params,omitempty"`
+	}{JSONRPC: "2.0", ID: idJSON, Method: method, Params: params})
+
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case r := <-h.responses:
+			if r.ID == string(idJSON) {
+				return r.Resp.Result, r.Resp.Error
+			}
+		case <-deadline:
+			h.t.Fatalf("timeout waiting for response to %s", method)
+			return nil, nil
+		}
 	}
 }
 
 func (h *testHarness) notify(method string, params any) {
 	h.t.Helper()
-	body := notificationMessage{JSONRPC: "2.0", Method: method, Params: params}
-	h.write(body)
+	h.write(notificationMessage{JSONRPC: "2.0", Method: method, Params: params})
 }
 
-func (h *testHarness) write(v any) {
-	h.t.Helper()
-	body, err := json.Marshal(v)
-	require.NoError(h.t, err)
-	_, err = fmt.Fprintf(h.clientWriter, "Content-Length: %d\r\n\r\n", len(body))
-	require.NoError(h.t, err)
-	_, err = h.clientWriter.Write(body)
-	require.NoError(h.t, err)
-}
-
-func (h *testHarness) read() []byte {
-	h.t.Helper()
-	tp := textproto.NewReader(h.clientReader)
-	hdr, err := tp.ReadMIMEHeader()
-	require.NoError(h.t, err)
-	cl := hdr.Get("Content-Length")
-	require.NotEmpty(h.t, cl)
-	n, err := strconv.Atoi(cl)
-	require.NoError(h.t, err)
-	body := make([]byte, n)
-	_, err = io.ReadFull(h.clientReader, body)
-	require.NoError(h.t, err)
-	return body
-}
-
-// awaitNotification reads frames until one matches the requested
-// method. Server-to-client requests are answered with a nil result so
-// the dispatch loop keeps running. The deadline guards against a
-// silent server.
+// awaitNotification consumes from the notifications channel until it
+// finds one matching method or hits the timeout.
 func (h *testHarness) awaitNotification(method string, timeout time.Duration) json.RawMessage {
 	h.t.Helper()
-	deadline := time.Now().Add(timeout)
-	type frame struct {
-		raw []byte
-		err error
-	}
-	ch := make(chan frame, 1)
-	go func() {
-		raw := h.read()
-		ch <- frame{raw: raw}
-	}()
+	deadline := time.After(timeout)
 	for {
 		select {
-		case f := <-ch:
-			if f.err != nil {
-				h.t.Fatalf("read error: %v", f.err)
+		case n := <-h.notifications:
+			if n.Method == method {
+				return n.Params
 			}
-			var probe struct {
-				ID     json.RawMessage `json:"id,omitempty"`
-				Method string          `json:"method,omitempty"`
-				Params json.RawMessage `json:"params,omitempty"`
-			}
-			require.NoError(h.t, json.Unmarshal(f.raw, &probe))
-			if probe.Method == method && len(probe.ID) == 0 {
-				return probe.Params
-			}
-			if probe.Method != "" && len(probe.ID) > 0 {
-				h.write(struct {
-					JSONRPC string          `json:"jsonrpc"`
-					ID      json.RawMessage `json:"id"`
-					Result  any             `json:"result"`
-				}{JSONRPC: "2.0", ID: probe.ID, Result: nil})
-			}
-			// Spin up another reader.
-			go func() {
-				raw := h.read()
-				ch <- frame{raw: raw}
-			}()
-		case <-time.After(time.Until(deadline)):
-			h.t.Fatalf("timeout waiting for %s", method)
+		case <-deadline:
+			h.t.Fatalf("timeout waiting for notification %s", method)
 			return nil
 		}
 	}
+}
+
+// serverRequestCount returns how many times the server sent the named
+// method as a request. Useful for asserting the server registered
+// watchers / pulled configuration during initialization.
+func (h *testHarness) serverRequestCount(method string) int {
+	h.seenMu.Lock()
+	defer h.seenMu.Unlock()
+	return h.seenServer[method]
 }
 
 func TestInitializeAdvertisesCapabilities(t *testing.T) {
@@ -241,15 +304,10 @@ func TestDidOpenPublishesDiagnostics(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &p))
 	assert.Equal(t, doc.TextDocument.URI, p.URI)
 
-	// The body has trailing whitespace on line 3, which MDS006 catches.
 	var found bool
 	for _, d := range p.Diagnostics {
 		if d.Code == "MDS006" {
 			found = true
-			// MDS006 is a warning. The exact severity is not what the
-			// LSP transport guarantees; what matters here is that the
-			// mapping populated severity, code, source, and the
-			// rule-name data field.
 			assert.NotZero(t, int(d.Severity))
 			assert.Equal(t, "mdsmith", d.Source)
 			require.NotNil(t, d.Data)
@@ -313,7 +371,6 @@ func TestDidChangeUpdatesDiagnostics(t *testing.T) {
 	require.NoError(t, json.Unmarshal(first, &p1))
 	assert.Empty(t, p1.Diagnostics)
 
-	// Inject a trailing-spaces violation.
 	h.notify("textDocument/didChange", didChangeTextDocumentParams{
 		TextDocument: versionedTextDocumentIdentifier{URI: uri, Version: 2},
 		ContentChanges: []textDocumentContentChangeEvent{
@@ -367,7 +424,7 @@ func TestCodeActionQuickFix(t *testing.T) {
 
 	var actions []codeAction
 	require.NoError(t, json.Unmarshal(resultRaw, &actions))
-	require.NotEmpty(t, actions, "expected at least one code action")
+	require.NotEmpty(t, actions)
 
 	var qf *codeAction
 	for i, a := range actions {
@@ -376,7 +433,7 @@ func TestCodeActionQuickFix(t *testing.T) {
 			break
 		}
 	}
-	require.NotNil(t, qf, "expected quickfix action; got %+v", actions)
+	require.NotNil(t, qf)
 	require.NotNil(t, qf.Edit)
 	edits, ok := qf.Edit.Changes[uri]
 	require.True(t, ok)
@@ -422,6 +479,35 @@ func TestCodeActionSourceFixAll(t *testing.T) {
 	assert.Equal(t, clean, edits[0].NewText)
 }
 
+func TestCodeActionOnlyFiltersOutQuickFix(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	uri := "file:///workspace/only.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hi\n\ndirty   \n"},
+	})
+	raw := h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	var p publishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(raw, &p))
+	require.NotEmpty(t, p.Diagnostics)
+
+	// Ask only for source.fixAll — quickfix actions must not be returned.
+	resultRaw, errResp := h.request("textDocument/codeAction", codeActionParams{
+		TextDocument: textDocumentIdentifier{URI: uri},
+		Range:        Range{},
+		Context:      codeActionContext{Diagnostics: p.Diagnostics, Only: []string{kindSourceFixAll}},
+	})
+	require.Nil(t, errResp)
+	var actions []codeAction
+	require.NoError(t, json.Unmarshal(resultRaw, &actions))
+	for _, a := range actions {
+		assert.NotEqual(t, kindQuickFix, a.Kind, "Only=source.fixAll filter should suppress quickfix actions")
+	}
+}
+
 func TestUnknownMethodReturnsError(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
@@ -430,4 +516,312 @@ func TestUnknownMethodReturnsError(t *testing.T) {
 	_, errResp = h.request("textDocument/bogus", nil)
 	require.NotNil(t, errResp)
 	assert.Equal(t, codeMethodNotFound, errResp.Code)
+}
+
+func TestInitializedTriggersRegistration(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	h.notify("initialized", map[string]any{})
+	// The reader pump auto-acks server requests and tracks them.
+	// Wait briefly for the server to send both expected requests.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if h.serverRequestCount("workspace/configuration") > 0 &&
+			h.serverRequestCount("client/registerCapability") > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Positive(t, h.serverRequestCount("workspace/configuration"))
+	assert.Positive(t, h.serverRequestCount("client/registerCapability"))
+}
+
+func TestDidChangeWatchedFilesRelintsOpenDocs(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	uri := "file:///workspace/watched.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hi\n\ndirty   \n"},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+
+	h.notify("workspace/didChangeWatchedFiles", didChangeWatchedFilesParams{
+		Changes: []fileEvent{{URI: "file:///workspace/.mdsmith.yml", Type: 2}},
+	})
+
+	raw := h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	var p publishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(raw, &p))
+	assert.Equal(t, uri, p.URI)
+}
+
+func TestDidChangeWatchedFilesIgnoresUnrelatedFiles(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+	// Unrelated file: must not crash, no notification expected.
+	h.notify("workspace/didChangeWatchedFiles", didChangeWatchedFilesParams{
+		Changes: []fileEvent{{URI: "file:///workspace/other.txt", Type: 2}},
+	})
+	// Give the server a moment to process. We assert no diagnostics arrive.
+	select {
+	case n := <-h.notifications:
+		t.Fatalf("unexpected notification: %s", n.Method)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestDidChangeConfigurationRelintsOpenDocs(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	uri := "file:///workspace/cfg.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hi\n\ndirty   \n"},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+
+	h.notify("workspace/didChangeConfiguration", map[string]any{"settings": map[string]any{}})
+	raw := h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	var p publishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(raw, &p))
+	assert.Equal(t, uri, p.URI)
+}
+
+func TestDebouncedLintCollapsesRapidChanges(t *testing.T) {
+	t.Parallel()
+	h := newDebouncedHarness(t, 50*time.Millisecond)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	uri := "file:///workspace/debounce.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hi\n\nclean\n"},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+
+	for i, txt := range []string{"# Hi\n\ndirty1   \n", "# Hi\n\ndirty2   \n", "# Hi\n\nfinal   \n"} {
+		h.notify("textDocument/didChange", didChangeTextDocumentParams{
+			TextDocument:   versionedTextDocumentIdentifier{URI: uri, Version: i + 2},
+			ContentChanges: []textDocumentContentChangeEvent{{Text: txt}},
+		})
+	}
+	raw := h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	var p publishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(raw, &p))
+	assert.Equal(t, uri, p.URI)
+	var saw006 bool
+	for _, d := range p.Diagnostics {
+		if d.Code == "MDS006" {
+			saw006 = true
+			break
+		}
+	}
+	assert.True(t, saw006)
+}
+
+// TestDidSaveLintsWhenRunOnSave verifies that save events still
+// produce diagnostics when run=onSave.
+func TestDidSaveLintsWhenRunOnSave(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	// Reset to onSave to exercise the save-only path.
+	h.srv.settingsMu.Lock()
+	h.srv.settings.Run = runOnSave
+	h.srv.settingsMu.Unlock()
+
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	uri := "file:///workspace/save.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hi\n\ndirty   \n"},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+
+	h.notify("textDocument/didSave", map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+	})
+	raw := h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	var p publishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(raw, &p))
+	assert.Equal(t, uri, p.URI)
+}
+
+// TestRunOffSuppressesLint verifies run=off skips lint passes from
+// didChange but didOpen still produces an initial snapshot.
+func TestRunOffSuppressesLint(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	uri := "file:///workspace/off.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hi\n\nclean\n"},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+
+	// Switch run mode to off.
+	h.srv.settingsMu.Lock()
+	h.srv.settings.Run = runOff
+	h.srv.settingsMu.Unlock()
+
+	h.notify("textDocument/didChange", didChangeTextDocumentParams{
+		TextDocument:   versionedTextDocumentIdentifier{URI: uri, Version: 2},
+		ContentChanges: []textDocumentContentChangeEvent{{Text: "# Hi\n\ndirty   \n"}},
+	})
+	select {
+	case n := <-h.notifications:
+		t.Fatalf("unexpected diagnostic notification when run=off: %s", n.Method)
+	case <-time.After(150 * time.Millisecond):
+	}
+}
+
+func TestUriToPathRoundTrip(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		uri  string
+		want string
+	}{
+		{"file:///tmp/foo.md", "/tmp/foo.md"},
+		{"file:///C:/Users/x/foo.md", "C:/Users/x/foo.md"},
+		{"https://example.com", ""},
+		{"untitled:Untitled-1", ""},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, uriToPath(tc.uri), "uri=%s", tc.uri)
+	}
+}
+
+func TestIsWholeFileOnly(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"catalog", "toc", "toc-directive", "include"} {
+		assert.True(t, isWholeFileOnly(name), "expected %s to be whole-file-only", name)
+	}
+	assert.False(t, isWholeFileOnly("line-length"))
+}
+
+func TestIsFixableUsesRegistry(t *testing.T) {
+	t.Parallel()
+	rules := rule.All()
+	assert.True(t, isFixable(rules, "no-trailing-spaces"))
+	assert.False(t, isFixable(rules, "no-such-rule"))
+}
+
+func TestDocumentStoreOpenURIs(t *testing.T) {
+	t.Parallel()
+	s := newDocumentStore()
+	s.set("file:///a", &document{uri: "file:///a", path: "/a"})
+	s.set("file:///b", &document{uri: "file:///b", path: "/b"})
+	got := s.openURIs()
+	assert.ElementsMatch(t, []string{"file:///a", "file:///b"}, got)
+}
+
+func TestPickRootPrefersWorkspaceFolder(t *testing.T) {
+	t.Parallel()
+	got := pickRoot(initializeParams{
+		WorkspaceFolders: []workspaceFolder{{URI: "file:///ws/root", Name: "ws"}},
+		RootURI:          "file:///fallback",
+	})
+	assert.Equal(t, "/ws/root", got)
+
+	got = pickRoot(initializeParams{RootURI: "file:///legacy"})
+	assert.Equal(t, "/legacy", got)
+
+	got = pickRoot(initializeParams{})
+	assert.Equal(t, "", got)
+}
+
+func TestWantsKind(t *testing.T) {
+	t.Parallel()
+	assert.True(t, wantsKind(nil, "quickfix"))
+	assert.True(t, wantsKind([]string{"quickfix"}, "quickfix"))
+	assert.True(t, wantsKind([]string{"source"}, "source.fixAll.mdsmith"))
+	assert.False(t, wantsKind([]string{"refactor"}, "quickfix"))
+}
+
+func TestDocumentEndPositionTrailingNewline(t *testing.T) {
+	t.Parallel()
+	endLine, endChar := documentEndPosition([]byte("hello\nworld\n"))
+	assert.Equal(t, 2, endLine)
+	assert.Equal(t, 0, endChar)
+}
+
+func TestDocumentEndPositionNoTrailingNewline(t *testing.T) {
+	t.Parallel()
+	endLine, endChar := documentEndPosition([]byte("hello\nworld"))
+	assert.Equal(t, 1, endLine)
+	assert.Equal(t, 5, endChar)
+}
+
+func TestDocumentEndPositionEmpty(t *testing.T) {
+	t.Parallel()
+	endLine, endChar := documentEndPosition(nil)
+	assert.Equal(t, 0, endLine)
+	assert.Equal(t, 0, endChar)
+}
+
+func TestReloadConfigEmptyRoot(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	s.reloadConfig()
+	cfg, _, _ := s.snapshotConfig()
+	assert.NotNil(t, cfg, "expected default config when no root is set")
+}
+
+func TestReloadConfigDiscoverInTempDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, writeFile(dir+"/.mdsmith.yml", "rules:\n  line-length: false\n"))
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	s.configMu.Lock()
+	s.rootDir = dir
+	s.configMu.Unlock()
+	s.reloadConfig()
+	cfg, path, _ := s.snapshotConfig()
+	require.NotNil(t, cfg)
+	assert.Equal(t, dir+"/.mdsmith.yml", path)
+}
+
+func TestReloadConfigOverridePath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cfgPath := dir + "/custom.yml"
+	require.NoError(t, writeFile(cfgPath, "rules:\n  line-length: false\n"))
+
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	s.settingsMu.Lock()
+	s.settings.ConfigPath = cfgPath
+	s.settingsMu.Unlock()
+	s.reloadConfig()
+	cfg, path, _ := s.snapshotConfig()
+	require.NotNil(t, cfg)
+	assert.Equal(t, cfgPath, path)
+}
+
+func TestReloadConfigOverridePathInvalidUsesDefaults(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	s.settingsMu.Lock()
+	s.settings.ConfigPath = "/no/such/path.yml"
+	s.settingsMu.Unlock()
+	s.reloadConfig()
+	cfg, path, _ := s.snapshotConfig()
+	require.NotNil(t, cfg, "expected fallback to defaults on missing override")
+	assert.Empty(t, path)
+}
+
+// writeFile is a tiny test helper that writes a file.
+func writeFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0o644)
 }
