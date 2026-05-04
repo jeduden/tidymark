@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/url"
@@ -501,7 +502,7 @@ func (s *Server) runLint(uri string) {
 	if !ok {
 		return
 	}
-	cfg, _, root := s.snapshotConfig()
+	cfg, configPath, root := s.snapshotConfig()
 	if cfg == nil {
 		cfg = config.Merge(config.Defaults(), nil)
 	}
@@ -518,6 +519,11 @@ func (s *Server) runLint(uri string) {
 		RootDir:          root,
 		MaxInputBytes:    lint.DefaultMaxInputBytes,
 		SourceFS:         dirFSForPath(doc.path),
+		// ConfigPath gates whether config-target rules execute (see
+		// engine.Runner.runConfigTargetRules); without it, LSP
+		// linting silently skips those rules even when a config is
+		// loaded.
+		ConfigPath: configPath,
 	}
 	res := r.RunSource(relPath, doc.text)
 	// Mirror `mdsmith check`: surface lint pipeline errors (parse
@@ -803,11 +809,28 @@ func (s *Server) snapshotConfig() (*config.Config, string, string) {
 }
 
 // reloadConfig walks from rootDir (or the user-supplied
-// `mdsmith.config`) and refreshes the cached config.
+// `mdsmith.config`) and refreshes the cached config. Any load /
+// discover failure falls back to defaults and is surfaced via
+// window/logMessage so the editor user can diagnose
+// misconfiguration instead of silently seeing stale or default
+// diagnostics.
 func (s *Server) reloadConfig() {
 	s.settingsMu.RLock()
 	override := s.settings.ConfigPath
 	s.settingsMu.RUnlock()
+
+	// Collect any error to surface after releasing configMu so the
+	// transport write can't deadlock against a future reader (or
+	// itself, on a slow stdout pipe).
+	var loadErr string
+	defer func() {
+		if loadErr == "" {
+			return
+		}
+		s.logger.Printf("config: %s", loadErr)
+		_ = s.t.writeNotification("window/logMessage",
+			logMessageParams{Type: messageTypeError, Message: "mdsmith: " + loadErr})
+	}()
 
 	s.configMu.Lock()
 	defer s.configMu.Unlock()
@@ -820,6 +843,7 @@ func (s *Server) reloadConfig() {
 		}
 		loaded, err := config.Load(path)
 		if err != nil {
+			loadErr = fmt.Sprintf("loading %q: %v", path, err)
 			s.config = config.Merge(defaults, nil)
 			s.configPath = ""
 			return
@@ -834,13 +858,20 @@ func (s *Server) reloadConfig() {
 		return
 	}
 	discovered, err := config.Discover(s.rootDir)
-	if err != nil || discovered == "" {
+	if err != nil {
+		loadErr = fmt.Sprintf("discovering config under %q: %v", s.rootDir, err)
+		s.config = config.Merge(defaults, nil)
+		s.configPath = ""
+		return
+	}
+	if discovered == "" {
 		s.config = config.Merge(defaults, nil)
 		s.configPath = ""
 		return
 	}
 	loaded, err := config.Load(discovered)
 	if err != nil {
+		loadErr = fmt.Sprintf("loading %q: %v", discovered, err)
 		s.config = config.Merge(defaults, nil)
 		s.configPath = ""
 		return

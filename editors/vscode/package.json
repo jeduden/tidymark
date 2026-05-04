@@ -10,11 +10,13 @@
   },
   "categories": [
     "Linters",
+    "Formatters",
     "Programming Languages"
   ],
   "keywords": [
     "markdown",
     "linter",
+    "formatter",
     "mdsmith",
     "language-server"
   ],

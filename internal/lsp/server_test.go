@@ -1188,6 +1188,27 @@ func TestReloadConfigBadYAMLFallsBack(t *testing.T) {
 	assert.Empty(t, path, "path should be empty when load fails")
 }
 
+// Regression: reloadConfig must surface load failures via
+// window/logMessage instead of silently falling back to defaults,
+// so the editor user can diagnose misconfiguration.
+func TestReloadConfigSurfacesLoadFailure(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, writeFile(dir+"/.mdsmith.yml", "rules: [not-a-map\n"))
+
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf})
+	s.configMu.Lock()
+	s.rootDir = dir
+	s.configMu.Unlock()
+	s.reloadConfig()
+
+	out := buf.String()
+	assert.Contains(t, out, `"window/logMessage"`)
+	assert.Contains(t, out, "loading")
+	assert.Contains(t, out, ".mdsmith.yml")
+}
+
 func TestReloadConfigOverrideRelativePath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

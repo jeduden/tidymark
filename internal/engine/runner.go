@@ -197,6 +197,13 @@ func DedupeDiagnostics(diags []lint.Diagnostic) []lint.Diagnostic {
 func (r *Runner) RunSource(path string, source []byte) *Result {
 	res := &Result{FilesChecked: 1}
 
+	// Run config-target rules once before processing the in-memory source,
+	// matching the behavior of Run() so config diagnostics surface via stdin.
+	// This must happen before the size guard so an oversized buffer cannot
+	// hide config-level errors that Run() would have surfaced regardless of
+	// any individual file's size.
+	r.runConfigTargetRules(res)
+
 	// Mirror the on-disk size cap that lint.ReadFileLimited /
 	// readStdinLimited apply to file and stdin reads. Without this
 	// guard, in-memory callers (LSP, other integrations) would parse
@@ -209,10 +216,6 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 				path, len(source), r.MaxInputBytes))
 		return res
 	}
-
-	// Run config-target rules once before processing the in-memory source,
-	// matching the behavior of Run() so config diagnostics surface via stdin.
-	r.runConfigTargetRules(res)
 
 	r.log().Printf("file: %s", path)
 

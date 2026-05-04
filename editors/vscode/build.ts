@@ -3,6 +3,8 @@
 // file consumed by VS Code, marking `vscode` as external because
 // the host supplies it at runtime.
 
+import { join } from "node:path";
+
 const args = Bun.argv.slice(2);
 const watch = args.includes("--watch");
 const production = args.includes("--production");
@@ -44,13 +46,18 @@ if (watch) {
   })()) {
     const glob = new Bun.Glob("src/**/*.ts");
     let changed = false;
-    for await (const file of glob.scan({ cwd: import.meta.dir })) {
-      const stat = await Bun.file(file).stat();
-      const prev = seen.get(file);
+    // glob.scan returns paths relative to its cwd; resolve each one
+    // against import.meta.dir so the subsequent Bun.file().stat()
+    // calls do not depend on the process working directory (which
+    // may differ from the script's directory under `bun run`).
+    for await (const rel of glob.scan({ cwd: import.meta.dir })) {
+      const abs = join(import.meta.dir, rel);
+      const stat = await Bun.file(abs).stat();
+      const prev = seen.get(abs);
       if (prev !== undefined && prev !== stat.mtimeMs) {
         changed = true;
       }
-      seen.set(file, stat.mtimeMs);
+      seen.set(abs, stat.mtimeMs);
     }
     if (changed) {
       await buildOnce();
