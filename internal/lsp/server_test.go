@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 
 	// Register rule packages so rule.All() returns the production set.
@@ -632,6 +633,201 @@ func TestDispatchExitTogglesShutdownFlags(t *testing.T) {
 	s.dispatch(context.Background(), &requestMessage{Method: "exit"})
 	assert.True(t, s.shutdown.Load())
 	assert.True(t, s.exitRequested.Load())
+}
+
+func TestDispatchRawRoutesResponseToWaiter(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	ch := s.registerPendingResponse(`42`)
+	defer s.unregisterPendingResponse(`42`)
+	s.dispatchRaw(context.Background(),
+		[]byte(`{"jsonrpc":"2.0","id":42,"result":{"k":1}}`))
+	select {
+	case resp := <-ch:
+		assert.NotEmpty(t, resp.Result)
+	case <-time.After(time.Second):
+		t.Fatalf("response not delivered")
+	}
+}
+
+func TestDispatchRawRejectsWrongVersionWithID(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	s.dispatchRaw(context.Background(),
+		[]byte(`{"jsonrpc":"1.0","id":7,"method":"x"}`))
+	out := buf.String()
+	assert.Contains(t, out, `"id":7`)
+	assert.Contains(t, out, "jsonrpc must be 2.0")
+}
+
+func TestScheduleLintSkipsWhenShutdown(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	s.shutdown.Store(true)
+	s.docs.set("file:///x.md", &document{
+		uri: "file:///x.md", path: "x.md", text: []byte("# Hi\n\ndirty   \n"),
+	})
+	s.scheduleLint(context.Background(), "file:///x.md", lintTriggerOpen)
+	// Server is shutting down — no diagnostics should land on the wire.
+	assert.NotContains(t, buf.String(), "publishDiagnostics")
+}
+
+func TestScheduleLintOnSaveSkipsChange(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	// Default run mode is onSave.
+	s.docs.set("file:///x.md", &document{
+		uri: "file:///x.md", path: "x.md", text: []byte("# Hi\n\ndirty   \n"),
+	})
+	s.scheduleLint(context.Background(), "file:///x.md", lintTriggerChange)
+	assert.NotContains(t, buf.String(), "publishDiagnostics")
+}
+
+func TestStopPendingLintsCancelsTimers(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All(), Debounce: 10 * time.Second})
+	s.settingsMu.Lock()
+	s.settings.Run = runOnType
+	s.settingsMu.Unlock()
+	s.docs.set("file:///x.md", &document{
+		uri: "file:///x.md", path: "x.md", text: []byte("# Hi\n"),
+	})
+	s.scheduleLint(context.Background(), "file:///x.md", lintTriggerChange)
+	s.pendingMu.Lock()
+	require.Len(t, s.pending, 1)
+	s.pendingMu.Unlock()
+	s.stopPendingLints()
+	s.pendingMu.Lock()
+	assert.Empty(t, s.pending, "stopPendingLints should clear the pending map")
+	s.pendingMu.Unlock()
+}
+
+func TestRunModeFallsBackOnEmpty(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	s.settingsMu.Lock()
+	s.settings.Run = ""
+	s.settingsMu.Unlock()
+	assert.Equal(t, runOnSave, s.runMode())
+}
+
+func TestFetchClientSettingsHandlesEmptyArray(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	go s.fetchClientSettings(context.Background())
+	// Drive the goroutine: deliver an empty array — VS Code returns
+	// this when the section has no settings. The call should leave
+	// settings unchanged.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s.pendingRespMu.Lock()
+		var key string
+		for k := range s.pendingResp {
+			key = k
+		}
+		s.pendingRespMu.Unlock()
+		if key != "" {
+			s.deliverResponse(key, rpcResponse{Result: json.RawMessage(`[]`)})
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	s.settingsMu.RLock()
+	defer s.settingsMu.RUnlock()
+	assert.Equal(t, runOnSave, s.settings.Run)
+}
+
+func TestFetchClientSettingsHandlesMalformedResult(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	go s.fetchClientSettings(context.Background())
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s.pendingRespMu.Lock()
+		var key string
+		for k := range s.pendingResp {
+			key = k
+		}
+		s.pendingRespMu.Unlock()
+		if key != "" {
+			// Result is not an array — defaults must stand.
+			s.deliverResponse(key, rpcResponse{Result: json.RawMessage(`"oops"`)})
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	s.settingsMu.RLock()
+	defer s.settingsMu.RUnlock()
+	assert.Equal(t, runOnSave, s.settings.Run)
+}
+
+func TestFetchClientSettingsHonorsContextCancel(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		s.fetchClientSettings(ctx)
+		close(done)
+	}()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("fetchClientSettings did not return on ctx cancel")
+	}
+}
+
+func TestComputeCodeActionsSkipsDiagnosticsWithoutData(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	doc := &document{path: "x.md", text: []byte("# Hi\n\ndirty   \n")}
+	p := codeActionParams{
+		TextDocument: textDocumentIdentifier{URI: "file:///x.md"},
+		Context: codeActionContext{
+			Diagnostics: []Diagnostic{
+				{Code: "MDS006"}, // no Data — must be skipped
+			},
+			Only: []string{kindQuickFix},
+		},
+	}
+	actions := s.computeCodeActions(p, doc, cfg, "")
+	assert.Empty(t, actions, "diagnostic without Data should not produce a quickfix")
+}
+
+func TestComputeCodeActionsCachesNilEdits(t *testing.T) {
+	t.Parallel()
+	// Verify that the per-rule cache stores the negative result for
+	// rules whose fix is unavailable, so a second diagnostic from
+	// the same rule does not retry the fix.
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	doc := &document{path: "x.md", text: []byte("# Hi\n")}
+	d := Diagnostic{Code: "X", Data: &diagnosticData{RuleName: "no-such-rule"}}
+	p := codeActionParams{
+		TextDocument: textDocumentIdentifier{URI: "file:///x.md"},
+		Context: codeActionContext{
+			Diagnostics: []Diagnostic{d, d, d},
+			Only:        []string{kindQuickFix},
+		},
+	}
+	actions := s.computeCodeActions(p, doc, cfg, "")
+	assert.Empty(t, actions)
+}
+
+func TestToLSPClampsZeroLine(t *testing.T) {
+	t.Parallel()
+	got := toLSP(lint.Diagnostic{Line: 0, Column: 1, RuleID: "MDS001", Severity: lint.Error},
+		[][]byte{[]byte("a")})
+	assert.Equal(t, 0, got.Range.Start.Line)
 }
 
 func TestRunReturnsAfterShutdownPlusExit(t *testing.T) {

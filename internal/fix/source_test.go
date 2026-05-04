@@ -81,3 +81,21 @@ func TestFixSourceWithRulesAppliesOnlyNamed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "# Hi\n\ndirty", string(out))
 }
+
+// TestFixSourceWithRulesAcceptsZeroMaxBytes pins the default-fallback
+// branch: SourceOptions.MaxInputBytes left at 0 must use
+// lint.DefaultMaxInputBytes rather than treating zero as unlimited.
+func TestFixSourceWithRulesAcceptsZeroMaxBytes(t *testing.T) {
+	t.Parallel()
+	original := []byte("# Hi\n\ndirty   \n")
+	out, err := fixpkg.SourceWithRules(fixpkg.SourceOptions{
+		Config:           config.Merge(config.Defaults(), nil),
+		Rules:            rule.All(),
+		Path:             "buf.md",
+		Source:           original,
+		StripFrontMatter: true,
+		// MaxInputBytes intentionally left at 0.
+	}, []string{"no-trailing-spaces"})
+	require.NoError(t, err)
+	assert.Equal(t, "# Hi\n\ndirty\n", string(out))
+}

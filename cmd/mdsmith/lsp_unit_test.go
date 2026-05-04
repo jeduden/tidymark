@@ -45,6 +45,23 @@ func TestRunLSPHelpFlag(t *testing.T) {
 	assert.Contains(t, errBuf.String(), "Usage: mdsmith lsp")
 }
 
+// failingReader returns an error on every Read so the LSP server's
+// transport.readRaw surfaces a non-EOF error and runLSPWith takes
+// the "print to stderr, exit 2" branch.
+type failingReader struct{}
+
+func (failingReader) Read(p []byte) (int, error) {
+	return 0, fmt.Errorf("synthetic read error")
+}
+
+func TestRunLSPRunFailurePrintsStderr(t *testing.T) {
+	t.Parallel()
+	var stdout, stderr bytes.Buffer
+	code := runLSPWith(nil, failingReader{}, &stdout, &stderr)
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr.String(), "mdsmith: lsp:")
+}
+
 // TestRunLSPRoundTrip drives the server end to end through
 // runLSPWith using in-memory pipes. Exercises the CLI entry point
 // and the full Run loop including a clean shutdown.
