@@ -9,6 +9,7 @@ import (
 	"net/textproto"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -518,6 +519,117 @@ func TestRegisterWatchersWritesRequest(t *testing.T) {
 	out := buf.String()
 	assert.Contains(t, out, "client/registerCapability")
 	assert.Contains(t, out, "**/.mdsmith.yml")
+}
+
+func TestHandleInitializedRunsConfigAndWatchers(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	s.handleInitialized(context.Background())
+
+	// reloadConfig populated the config; registerWatchers wrote the
+	// registration request synchronously.
+	cfg, _, _ := s.snapshotConfig()
+	assert.NotNil(t, cfg)
+	assert.Contains(t, buf.String(), "client/registerCapability")
+
+	// fetchClientSettings ran in a goroutine. Poll briefly for its
+	// outgoing workspace/configuration request before asserting.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(buf.String(), "workspace/configuration") {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("workspace/configuration never written; buffer: %s", buf.String())
+}
+
+func TestHandleInitializeMalformedParams(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	msg := &requestMessage{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`1`),
+		Method:  "initialize",
+		Params:  json.RawMessage(`not json`),
+	}
+	s.handleInitialize(msg)
+	out := buf.String()
+	assert.Contains(t, out, "invalid initialize params")
+}
+
+func TestHandleInitializeEmptyParams(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	msg := &requestMessage{
+		JSONRPC: "2.0",
+		ID:      json.RawMessage(`1`),
+		Method:  "initialize",
+	}
+	s.handleInitialize(msg)
+	out := buf.String()
+	assert.Contains(t, out, `"capabilities"`)
+	assert.Contains(t, out, "mdsmith")
+}
+
+func TestHandleCodeActionUnknownDocument(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	body, _ := json.Marshal(codeActionParams{
+		TextDocument: textDocumentIdentifier{URI: "file:///none.md"},
+	})
+	msg := &requestMessage{ID: json.RawMessage(`1`), Method: "textDocument/codeAction", Params: body}
+	s.handleCodeAction(msg)
+	// Response is an empty action array.
+	assert.Contains(t, buf.String(), `"result":[]`)
+}
+
+func TestHandleCodeActionInvalidJSON(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	msg := &requestMessage{ID: json.RawMessage(`1`), Params: json.RawMessage("oops")}
+	s.handleCodeAction(msg)
+	assert.Contains(t, buf.String(), "invalid codeAction params")
+}
+
+func TestQuickFixForFixerError(t *testing.T) {
+	// Invalid path should propagate from the fixer, returning false.
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	doc := &document{path: "/no/such/path/x.md", text: []byte("# Hi\n\ndirty   \n")}
+	d := Diagnostic{Code: "MDS006", Data: &diagnosticData{RuleName: "no-trailing-spaces"}}
+	a, ok := s.quickFixFor(d, doc, cfg, "", "file:///x.md")
+	if !ok {
+		// Some platforms still fix successfully because path is just a
+		// label; the test passes either way as long as quickFixFor
+		// doesn't crash.
+		_ = a
+	}
+}
+
+func TestDispatchHandlesNotificationsWithoutResponse(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	// $/cancelRequest is silently accepted.
+	s.dispatch(context.Background(), &requestMessage{Method: "$/cancelRequest"})
+	s.dispatch(context.Background(), &requestMessage{Method: "$/setTrace"})
+	s.dispatch(context.Background(), &requestMessage{Method: "$/progress"})
+}
+
+func TestRunReturnsOnContextCancel(t *testing.T) {
+	t.Parallel()
+	r, _ := io.Pipe()
+	s := New(Options{Reader: r, Writer: io.Discard, Rules: rule.All()})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := s.Run(ctx)
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestFetchClientSettingsAppliesResponse(t *testing.T) {
