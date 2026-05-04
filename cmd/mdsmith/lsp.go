@@ -29,8 +29,20 @@ func runLSPWith(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 	fs := flag.NewFlagSet("lsp", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
+	// --stdio is a no-op accepted for client compatibility.
+	// vscode-languageclient appends `--stdio` whenever
+	// `TransportKind.stdio` is selected (and other LSP servers like
+	// rust-analyzer / typescript-language-server document the flag
+	// the same way). The transport is always stdio for `mdsmith lsp`,
+	// so we just accept and ignore the flag — without it,
+	// fs.Parse would return "unknown flag: --stdio" and the server
+	// would exit 2 on every VS Code launch.
+	var stdioFlag bool
+	fs.BoolVar(&stdioFlag, "stdio", false,
+		"Use stdio transport (always on; accepted for LSP-client compatibility)")
+
 	fs.Usage = func() {
-		_, _ = fmt.Fprintf(stderr, "Usage: mdsmith lsp\n\n"+
+		_, _ = fmt.Fprintf(stderr, "Usage: mdsmith lsp [--stdio]\n\n"+
 			"Run the mdsmith Language Server Protocol server over stdio.\n"+
 			"Designed to be spawned by an LSP client (VS Code, Neovim,\n"+
 			"Helix, JetBrains LSP plugin). Reads JSON-RPC frames on\n"+
@@ -46,6 +58,11 @@ func runLSPWith(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
+		// Surface the parse error so the LSP client (or anyone
+		// reading stderr) can see WHY the server bailed instead of
+		// looking at a silent exit 2. pflag's own ContinueOnError
+		// path does not write to fs.Output() reliably.
+		_, _ = fmt.Fprintf(stderr, "mdsmith: lsp: %v\n", err)
 		return 2
 	}
 	if fs.NArg() > 0 {

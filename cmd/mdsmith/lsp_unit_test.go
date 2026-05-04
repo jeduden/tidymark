@@ -32,6 +32,23 @@ func TestRunLSPRejectsUnknownFlag(t *testing.T) {
 	var out, errBuf bytes.Buffer
 	code := runLSPWith([]string{"--no-such-flag"}, strings.NewReader(""), &out, &errBuf)
 	assert.Equal(t, 2, code)
+	// The error should be visible on stderr — silently exiting on
+	// fs.Parse failure (the previous behavior) made VS Code's
+	// "spawn ENOENT" / "exit code 2" trace impossible to debug.
+	assert.Contains(t, errBuf.String(), "mdsmith: lsp:")
+}
+
+// Regression: vscode-languageclient appends `--stdio` to the
+// command's args whenever TransportKind.stdio is selected. Without
+// the no-op flag, fs.Parse would return "unknown flag: --stdio"
+// and the server would exit 2 on every VS Code launch.
+func TestRunLSPAcceptsStdioFlag(t *testing.T) {
+	t.Parallel()
+	// EOF on stdin → Run returns nil → exit 0. The point is just
+	// to get past fs.Parse with the --stdio arg present.
+	var out, errBuf bytes.Buffer
+	code := runLSPWith([]string{"--stdio"}, strings.NewReader(""), &out, &errBuf)
+	assert.Equal(t, 0, code, "stderr=%q", errBuf.String())
 }
 
 func TestRunLSPHelpFlag(t *testing.T) {
