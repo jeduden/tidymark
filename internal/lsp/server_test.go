@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jeduden/mdsmith/internal/config"
 	"github.com/jeduden/mdsmith/internal/rule"
 
 	// Register rule packages so rule.All() returns the production set.
@@ -42,9 +43,9 @@ type testHarness struct {
 	notifications chan parsedNotification
 	responses     chan parsedResponse
 
-	// serverRequests holds method names of server-initiated requests
-	// the reader has already auto-acked. Tests can assert their
-	// presence without driving the read loop themselves.
+	// seenServer counts auto-acked server-initiated requests by
+	// method, in case a test wants to assert they fired without
+	// driving the read loop itself.
 	seenMu     sync.Mutex
 	seenServer map[string]int
 }
@@ -253,15 +254,6 @@ func (h *testHarness) awaitNotification(method string, timeout time.Duration) js
 			return nil
 		}
 	}
-}
-
-// serverRequestCount returns how many times the server sent the named
-// method as a request. Useful for asserting the server registered
-// watchers / pulled configuration during initialization.
-func (h *testHarness) serverRequestCount(method string) int {
-	h.seenMu.Lock()
-	defer h.seenMu.Unlock()
-	return h.seenServer[method]
 }
 
 func TestInitializeAdvertisesCapabilities(t *testing.T) {
@@ -518,25 +510,100 @@ func TestUnknownMethodReturnsError(t *testing.T) {
 	assert.Equal(t, codeMethodNotFound, errResp.Code)
 }
 
-func TestInitializedTriggersRegistration(t *testing.T) {
+func TestRegisterWatchersWritesRequest(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t)
-	_, errResp := h.request("initialize", initializeParams{})
-	require.Nil(t, errResp)
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	s.registerWatchers()
+	out := buf.String()
+	assert.Contains(t, out, "client/registerCapability")
+	assert.Contains(t, out, "**/.mdsmith.yml")
+}
 
-	h.notify("initialized", map[string]any{})
-	// The reader pump auto-acks server requests and tracks them.
-	// Wait briefly for the server to send both expected requests.
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if h.serverRequestCount("workspace/configuration") > 0 &&
-			h.serverRequestCount("client/registerCapability") > 0 {
+func TestFetchClientSettingsAppliesResponse(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	// fetchClientSettings registers a pending channel keyed by the
+	// JSON-encoded id. We deliver a synthetic response right after
+	// the call publishes, so the goroutine receives it before its
+	// internal timeout fires.
+	done := make(chan struct{})
+	go func() {
+		s.fetchClientSettings(context.Background())
+		close(done)
+	}()
+
+	// Wait until fetchClientSettings has registered a pending channel.
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatalf("fetchClientSettings never registered a pending response")
+			return
+		default:
+		}
+		s.pendingRespMu.Lock()
+		var key string
+		for k := range s.pendingResp {
+			key = k
+		}
+		s.pendingRespMu.Unlock()
+		if key != "" {
+			s.deliverResponse(key, rpcResponse{
+				Result: json.RawMessage(`[{"run":"onType","config":"/tmp/x.yml"}]`),
+			})
 			break
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(time.Millisecond)
 	}
-	assert.Positive(t, h.serverRequestCount("workspace/configuration"))
-	assert.Positive(t, h.serverRequestCount("client/registerCapability"))
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("fetchClientSettings never returned")
+	}
+
+	s.settingsMu.RLock()
+	defer s.settingsMu.RUnlock()
+	assert.Equal(t, "onType", s.settings.Run)
+	assert.Equal(t, "/tmp/x.yml", s.settings.ConfigPath)
+}
+
+func TestFetchClientSettingsIgnoresErrorResponse(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+
+	go func() {
+		s.fetchClientSettings(context.Background())
+	}()
+
+	// Wait for the pending channel and reply with an error.
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatalf("never registered pending response")
+		default:
+		}
+		s.pendingRespMu.Lock()
+		var key string
+		for k := range s.pendingResp {
+			key = k
+		}
+		s.pendingRespMu.Unlock()
+		if key != "" {
+			s.deliverResponse(key, rpcResponse{Error: &responseError{Code: -32000, Message: "fail"}})
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	// Run should remain at the default; we just verify no panic.
+	time.Sleep(50 * time.Millisecond)
+	s.settingsMu.RLock()
+	defer s.settingsMu.RUnlock()
+	assert.Equal(t, runOnSave, s.settings.Run)
 }
 
 func TestDidChangeWatchedFilesRelintsOpenDocs(t *testing.T) {
@@ -578,23 +645,24 @@ func TestDidChangeWatchedFilesIgnoresUnrelatedFiles(t *testing.T) {
 	}
 }
 
-func TestDidChangeConfigurationRelintsOpenDocs(t *testing.T) {
+// TestHandleDidChangeConfigurationRelintsOpenDocs exercises the
+// handler directly so the test does not race the server-initiated
+// workspace/configuration request that runs in a goroutine.
+func TestHandleDidChangeConfigurationRelintsOpenDocs(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t)
-	_, errResp := h.request("initialize", initializeParams{})
-	require.Nil(t, errResp)
-
-	uri := "file:///workspace/cfg.md"
-	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
-		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hi\n\ndirty   \n"},
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	s.settingsMu.Lock()
+	s.settings.Run = runOnType
+	s.settingsMu.Unlock()
+	s.docs.set("file:///x.md", &document{
+		uri: "file:///x.md", path: "x.md", text: []byte("# Hi\n\ndirty   \n"),
 	})
-	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
-
-	h.notify("workspace/didChangeConfiguration", map[string]any{"settings": map[string]any{}})
-	raw := h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
-	var p publishDiagnosticsParams
-	require.NoError(t, json.Unmarshal(raw, &p))
-	assert.Equal(t, uri, p.URI)
+	// We don't care about the goroutine fetchClientSettings spawns;
+	// the contract being checked is that scheduleLint fires for
+	// every open doc.
+	s.handleDidChangeConfiguration(context.Background())
+	assert.Contains(t, buf.String(), "MDS006")
 }
 
 func TestDebouncedLintCollapsesRapidChanges(t *testing.T) {
@@ -824,4 +892,244 @@ func TestReloadConfigOverridePathInvalidUsesDefaults(t *testing.T) {
 // writeFile is a tiny test helper that writes a file.
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
+}
+
+func TestSeverityForMappings(t *testing.T) {
+	t.Parallel()
+	// lint.Warning maps to severityWarning; everything else (including
+	// Error and any future severity) defaults to severityError, since
+	// LSP only knows error/warning/info/hint and we conservatively
+	// elevate unknown severities.
+	assert.Equal(t, severityWarning, severityFor("warning"))
+	assert.Equal(t, severityError, severityFor("error"))
+	assert.Equal(t, severityError, severityFor("note"))
+}
+
+func TestCurrentLineOutOfRange(t *testing.T) {
+	t.Parallel()
+	lines := [][]byte{[]byte("first"), []byte("second")}
+	assert.Equal(t, "first", currentLine(lines, 1))
+	assert.Equal(t, "second", currentLine(lines, 2))
+	assert.Equal(t, "", currentLine(lines, 0))
+	assert.Equal(t, "", currentLine(lines, 99))
+}
+
+func TestSplitLinesEmpty(t *testing.T) {
+	t.Parallel()
+	assert.Nil(t, splitLines(nil))
+	assert.Equal(t, [][]byte{[]byte("a"), []byte("b")}, splitLines([]byte("a\nb")))
+	assert.Equal(t, [][]byte{[]byte("a"), []byte("b")}, splitLines([]byte("a\nb\n")))
+}
+
+func TestUtf16ColumnSurrogatePair(t *testing.T) {
+	t.Parallel()
+	// A non-BMP rune (\U0001F600 — 😀) takes two UTF-16 code units.
+	// utf16Column at rune 1 should report 2.
+	assert.Equal(t, 0, utf16Column("😀x", 0))
+	assert.Equal(t, 2, utf16Column("😀x", 1))
+	assert.Equal(t, 3, utf16Column("😀x", 2))
+}
+
+func TestFrontMatterEnabledExplicit(t *testing.T) {
+	t.Parallel()
+	// nil cfg → default true.
+	assert.True(t, frontMatterEnabled(nil))
+	// nil pointer → default true.
+	cfg := &config.Config{}
+	assert.True(t, frontMatterEnabled(cfg))
+	// Explicit false.
+	f := false
+	cfg.FrontMatter = &f
+	assert.False(t, frontMatterEnabled(cfg))
+	// Explicit true.
+	tr := true
+	cfg.FrontMatter = &tr
+	assert.True(t, frontMatterEnabled(cfg))
+}
+
+func TestDispatchRawIgnoresInvalidJSON(t *testing.T) {
+	t.Parallel()
+	srv := New(Options{Reader: nil, Writer: io.Discard})
+	// Should not panic on invalid JSON.
+	srv.dispatchRaw(context.Background(), []byte("not json"))
+}
+
+func TestDispatchRawRejectsWrongVersion(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	srv := New(Options{Reader: nil, Writer: &buf})
+	srv.dispatchRaw(context.Background(), []byte(`{"jsonrpc":"1.0","id":1,"method":"x"}`))
+	out := buf.String()
+	assert.Contains(t, out, "jsonrpc must be 2.0")
+}
+
+func TestRunModeFallsBackOnUnknown(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	s.settingsMu.Lock()
+	s.settings.Run = "garbage-mode"
+	s.settingsMu.Unlock()
+	assert.Equal(t, runOnSave, s.runMode())
+}
+
+func TestQuickFixForRejectsNilData(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	doc := &document{path: "x.md", text: []byte("# Hi\n")}
+	_, ok := s.quickFixFor(Diagnostic{Code: "MDS006"}, doc, cfg, "", "file:///x.md")
+	assert.False(t, ok, "diagnostic with no data must not produce a quick fix")
+}
+
+func TestQuickFixForRejectsWholeFileRule(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	doc := &document{path: "x.md", text: []byte("# Hi\n")}
+	d := Diagnostic{Code: "MDS019", Data: &diagnosticData{RuleName: "catalog"}}
+	_, ok := s.quickFixFor(d, doc, cfg, "", "file:///x.md")
+	assert.False(t, ok, "whole-file-only rules must not produce per-diagnostic fixes")
+}
+
+func TestQuickFixForUnknownRule(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	doc := &document{path: "x.md", text: []byte("# Hi\n")}
+	d := Diagnostic{Code: "X", Data: &diagnosticData{RuleName: "no-such-rule"}}
+	_, ok := s.quickFixFor(d, doc, cfg, "", "file:///x.md")
+	assert.False(t, ok)
+}
+
+func TestRunLintIgnoredFile(t *testing.T) {
+	t.Parallel()
+	// runLint publishes empty diagnostics for files matched by
+	// cfg.Ignore. We use a configMu-locked ignore list and a
+	// in-memory writer so we can inspect what the server emitted.
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+	cfg := config.Merge(config.Defaults(), nil)
+	cfg.Ignore = []string{"**/ignored.md"}
+	s.configMu.Lock()
+	s.config = cfg
+	s.configMu.Unlock()
+	s.docs.set("file:///x/ignored.md", &document{
+		uri: "file:///x/ignored.md", path: "x/ignored.md", text: []byte("# Hi\n"),
+	})
+	s.runLint("file:///x/ignored.md")
+	out := buf.String()
+	assert.Contains(t, out, `"diagnostics":[]`)
+}
+
+func TestRunLintMissingDoc(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	// No-op when uri is unknown.
+	s.runLint("file:///none.md")
+}
+
+// safeBuffer is a goroutine-safe bytes.Buffer used as an LSP writer
+// when we want to inspect what was written.
+type safeBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (b *safeBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+	return len(p), nil
+}
+
+func (b *safeBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.buf)
+}
+
+func TestHandleDidOpenInvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	// Should silently return on invalid JSON.
+	s.handleDidOpen(context.Background(), json.RawMessage("not json"))
+}
+
+func TestHandleDidOpenNonFileURI(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	body, _ := json.Marshal(didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: "untitled:Untitled-1", Text: ""},
+	})
+	s.handleDidOpen(context.Background(), body)
+	assert.Empty(t, s.docs.openURIs(), "non-file URI should be skipped")
+}
+
+func TestHandleDidChangeInvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	s.handleDidChange(context.Background(), json.RawMessage("oops"))
+}
+
+func TestHandleDidChangeUnknownURI(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	body, _ := json.Marshal(didChangeTextDocumentParams{
+		TextDocument:   versionedTextDocumentIdentifier{URI: "file:///none.md", Version: 1},
+		ContentChanges: []textDocumentContentChangeEvent{{Text: "x"}},
+	})
+	s.handleDidChange(context.Background(), body)
+}
+
+func TestHandleDidChangeEmptyContentChanges(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	s.docs.set("file:///x.md", &document{uri: "file:///x.md", path: "x.md", text: []byte("# Hi\n")})
+	body, _ := json.Marshal(didChangeTextDocumentParams{
+		TextDocument: versionedTextDocumentIdentifier{URI: "file:///x.md", Version: 2},
+	})
+	s.handleDidChange(context.Background(), body)
+}
+
+func TestHandleDidCloseInvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	s.handleDidClose(json.RawMessage("oops"))
+}
+
+func TestHandleDidSaveInvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	s.handleDidSave(context.Background(), json.RawMessage("oops"))
+}
+
+func TestHandleDidChangeWatchedFilesInvalidJSON(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})
+	s.handleDidChangeWatchedFiles(context.Background(), json.RawMessage("oops"))
+}
+
+func TestDocumentStoreGetMissing(t *testing.T) {
+	t.Parallel()
+	s := newDocumentStore()
+	d, ok := s.get("file:///none")
+	assert.Nil(t, d)
+	assert.False(t, ok)
+}
+
+func TestUnregisterPendingResponseClearsSlot(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	ch := s.registerPendingResponse("1")
+	require.NotNil(t, ch)
+	s.unregisterPendingResponse("1")
+	// deliverResponse for an id with no waiter is a no-op.
+	s.deliverResponse("1", rpcResponse{})
+}
+
+func TestDeliverResponseUnknownIDIsNoOp(t *testing.T) {
+	t.Parallel()
+	s := New(Options{Reader: nil, Writer: io.Discard})
+	// Must not panic and must not block.
+	s.deliverResponse("999", rpcResponse{})
 }

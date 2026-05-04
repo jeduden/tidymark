@@ -17,20 +17,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestLSPInitializeOverPipe spawns `go run ./cmd/mdsmith lsp`, drives
+// TestLSPInitializeOverPipe builds and spawns `mdsmith lsp`, drives
 // the server through a single initialize → didOpen → didChange →
 // shutdown round trip over the process's stdio pipes, and asserts
 // that diagnostics appear after didOpen. This is the acceptance gate
 // for plan 121's "speaks LSP over stdio" criterion.
+//
+// We build once via `go build -o bin/mdsmith` (cached by package
+// hash) instead of `go run`, so subsequent runs in the same package
+// don't pay compilation latency twice — that shaved seconds were
+// being eaten by the per-step deadline under parallel load.
 func TestLSPInitializeOverPipe(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping LSP subprocess test in -short mode")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
-	pipe := startLSPSubprocess(t, ctx)
-	deadline := time.Now().Add(20 * time.Second)
+	binary := buildMdsmithBinary(t)
+
+	pipe := startLSPSubprocess(t, ctx, binary)
 
 	pipe.assertInitializeAck(t)
 	pipe.notify("initialized", map[string]any{})
@@ -38,14 +44,30 @@ func TestLSPInitializeOverPipe(t *testing.T) {
 	uri := "file:///tmp/lsp-e2e.md"
 	pipe.openDocument(uri, "# Hi\n\ndirty line   \n")
 
-	diags := pipe.awaitDiagnostics(t, uri, deadline)
+	// Give each step its own deadline so a slow first step doesn't
+	// starve the next one.
+	diags := pipe.awaitDiagnostics(t, uri, time.Now().Add(30*time.Second))
 	assertHasMDS006(t, diags)
 
 	pipe.changeDocument(uri, 2, "# Hi\n\nclean line\n")
-	cleared := pipe.awaitDiagnostics(t, uri, deadline)
+	cleared := pipe.awaitDiagnostics(t, uri, time.Now().Add(30*time.Second))
 	assertNoMDS006(t, cleared)
 
 	pipe.shutdown(t)
+}
+
+// buildMdsmithBinary builds the cmd/mdsmith binary into a temp dir
+// once per test invocation. Subsequent `go build`s are nearly free
+// because the Go build cache is content-addressed.
+func buildMdsmithBinary(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	binary := dir + "/mdsmith"
+	cmd := exec.Command("go", "build", "-o", binary, "./cmd/mdsmith")
+	cmd.Dir = repoRoot(t)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "go build failed: %s", out)
+	return binary
 }
 
 // lspPipe wraps a child process's stdio so individual test steps stay
@@ -58,9 +80,9 @@ type lspPipe struct {
 	stdout *bufio.Reader
 }
 
-func startLSPSubprocess(t *testing.T, ctx context.Context) *lspPipe {
+func startLSPSubprocess(t *testing.T, ctx context.Context, binary string) *lspPipe {
 	t.Helper()
-	cmd := exec.CommandContext(ctx, "go", "run", "./cmd/mdsmith", "lsp")
+	cmd := exec.CommandContext(ctx, binary, "lsp")
 	cmd.Dir = repoRoot(t)
 	stdin, err := cmd.StdinPipe()
 	require.NoError(t, err)
