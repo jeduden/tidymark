@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -577,15 +578,20 @@ func (s *Server) computeCodeActions(
 	}
 
 	if wantFixAll {
+		// fix.Source's Path is fed to config glob matching (ignore /
+		// override / kind-assignment), which works against repo-style
+		// relative paths. Pass the workspace-relative form so LSP
+		// fixes match `mdsmith fix` on disk.
+		relPath := workspaceRelative(root, doc.path)
 		fixed, err := fixpkg.Source(fixpkg.SourceOptions{
 			Config:           cfg,
 			Rules:            s.rules,
-			Path:             doc.path,
+			Path:             relPath,
 			Source:           doc.text,
 			RootDir:          root,
 			StripFrontMatter: frontMatterEnabled(cfg),
 		})
-		if err == nil && string(fixed) != string(doc.text) {
+		if err == nil && !bytes.Equal(fixed, doc.text) {
 			actions = append(actions, codeAction{
 				Title: titleFixAllMdsmith,
 				Kind:  kindSourceFixAll,
@@ -615,15 +621,16 @@ func (s *Server) quickFixEditFor(
 	if isWholeFileOnly(rule) {
 		return nil
 	}
+	relPath := workspaceRelative(root, doc.path)
 	fixed, err := fixpkg.SourceWithRules(fixpkg.SourceOptions{
 		Config:           cfg,
 		Rules:            s.rules,
-		Path:             doc.path,
+		Path:             relPath,
 		Source:           doc.text,
 		RootDir:          root,
 		StripFrontMatter: frontMatterEnabled(cfg),
 	}, []string{rule})
-	if err != nil || string(fixed) == string(doc.text) {
+	if err != nil || bytes.Equal(fixed, doc.text) {
 		return nil
 	}
 	return fullFileEdit(uri, doc.text, fixed)

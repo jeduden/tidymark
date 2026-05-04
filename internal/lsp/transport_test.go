@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -179,11 +180,5 @@ func TestWriteJSONBodyWriteFails(t *testing.T) {
 }
 
 func itoaTransport(i int) string {
-	return strings.TrimSpace(string([]byte{
-		byte('0' + (i/10000)%10),
-		byte('0' + (i/1000)%10),
-		byte('0' + (i/100)%10),
-		byte('0' + (i/10)%10),
-		byte('0' + i%10),
-	}))
+	return strconv.Itoa(i)
 }

@@ -1,7 +1,7 @@
 package lsp
 
 import (
-	"strings"
+	"bytes"
 	"unicode/utf16"
 
 	"github.com/jeduden/mdsmith/internal/lint"
@@ -66,22 +66,28 @@ func severityFor(s lint.Severity) DiagnosticSeverity {
 
 // splitLines splits source into per-line byte slices, preserving
 // trailing empty lines so the indexing matches lint.File.Lines (which
-// uses bytes.Split). Rules such as single-trailing-newline emit
+// also uses bytes.Split). Rules such as single-trailing-newline emit
 // diagnostics anchored at len(f.Lines) for trailing whitespace runs;
 // trimming the trailing newlines here would make currentLine() return
-// "" and toLSP would clamp to a position past the document. Each line
-// has its trailing CR stripped so Windows-style line endings produce
-// matching positions on the wire.
+// "" and toLSP would clamp to a position past the document. Each
+// line has its trailing CR stripped so Windows-style line endings
+// produce matching positions on the wire.
+//
+// The function operates entirely on []byte (no string round-trip)
+// because it is on the diagnostics-publish hot path; allocating a
+// full-document string once per publish was a noticeable per-request
+// overhead on large files.
 func splitLines(source []byte) [][]byte {
 	if len(source) == 0 {
 		return nil
 	}
-	parts := strings.Split(string(source), "\n")
-	out := make([][]byte, len(parts))
+	parts := bytes.Split(source, []byte{'\n'})
 	for i, p := range parts {
-		out[i] = []byte(strings.TrimRight(p, "\r"))
+		if n := len(p); n > 0 && p[n-1] == '\r' {
+			parts[i] = p[:n-1]
+		}
 	}
-	return out
+	return parts
 }
 
 // currentLine returns the content of 1-based line number n as a

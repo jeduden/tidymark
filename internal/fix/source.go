@@ -1,6 +1,8 @@
 package fix
 
 import (
+	"errors"
+
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	"github.com/jeduden/mdsmith/internal/config"
 	"github.com/jeduden/mdsmith/internal/lint"
@@ -61,7 +63,14 @@ func fixSourceImpl(opts SourceOptions, only []string) ([]byte, error) {
 		return nil, err
 	}
 	effective := f.effectiveWithCategories(opts.Path, fmKinds)
-	fixable, _ := f.fixableRules(effective)
+	// Surface configuration errors (invalid rule settings, etc.)
+	// instead of silently producing a fix that omits the affected
+	// rules. Callers (LSP / `mdsmith fix`) decide how to render the
+	// failure.
+	fixable, settingsErrs := f.fixableRules(effective)
+	if len(settingsErrs) > 0 {
+		return nil, errors.Join(settingsErrs...)
+	}
 	if only != nil {
 		set := make(map[string]struct{}, len(only))
 		for _, n := range only {
