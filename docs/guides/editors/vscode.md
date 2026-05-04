@@ -53,13 +53,13 @@ The extension contributes the following settings.
 Project-level overrides go in `.vscode/settings.json`;
 global preferences go in your user settings.
 
-| Setting                | Default     | Purpose                                           |
-|------------------------|-------------|---------------------------------------------------|
-| `mdsmith.path`         | `"mdsmith"` | Binary path; resolved against `$PATH`             |
-| `mdsmith.config`       | `""`        | Override `-c` config path (absolute or workspace) |
-| `mdsmith.run`          | `"onSave"`  | When to lint: `onType`, `onSave`, or `off`        |
-| `mdsmith.fixOnSave`    | `false`     | Wires `source.fixAll.mdsmith` on save             |
-| `mdsmith.trace.server` | `"off"`     | LSP trace verbosity: `off`, `messages`, `verbose` |
+| Setting                | Default     | Purpose                                                                     |
+|------------------------|-------------|-----------------------------------------------------------------------------|
+| `mdsmith.path`         | `"mdsmith"` | Binary path; resolved against the extension-host PATH (see Troubleshooting) |
+| `mdsmith.config`       | `""`        | Override `-c` config path (absolute or workspace)                           |
+| `mdsmith.run`          | `"onSave"`  | When to lint: `onType`, `onSave`, or `off`                                  |
+| `mdsmith.fixOnSave`    | `false`     | Wires `source.fixAll.mdsmith` on save                                       |
+| `mdsmith.trace.server` | `"off"`     | LSP trace verbosity: `off`, `messages`, `verbose`                           |
 
 `mdsmith.path` is read by the extension to spawn the
 server. The remaining settings are pulled by the
@@ -169,6 +169,22 @@ resolves: open the integrated terminal and run
 trace by setting `mdsmith.trace.server` to
 `messages`; the trace appears in the Output panel
 under "mdsmith".
+
+**`spawn mdsmith ENOENT`.** `which mdsmith` works in
+the terminal but the extension still fails to spawn.
+VS Code's extension host is a non-interactive Node
+process that inherits the container/login-shell
+PATH. It does NOT source `~/.bashrc` or `~/.zshrc`,
+so `PATH` entries added there (a Go install often
+puts the binary in `/go/bin` or `~/go/bin`) are
+invisible to the extension. Either:
+
+- Set `mdsmith.path` to the absolute path
+  (`/go/bin/mdsmith`, `~/go/bin/mdsmith`, …); or
+- Symlink the binary into a directory that is on the
+  default PATH:
+  `sudo ln -sf "$(which mdsmith)" /usr/local/bin/mdsmith`,
+  then `Developer: Reload Window`.
 
 **"Download mdsmith" error.** The extension cannot
 find the binary. Either install it as above or set

@@ -24,13 +24,13 @@ code --install-extension mdsmith-<version>.vsix
 
 ## Settings
 
-| Setting                | Default     | Purpose                                    |
-|------------------------|-------------|--------------------------------------------|
-| `mdsmith.path`         | `"mdsmith"` | Binary path; resolved against `$PATH`      |
-| `mdsmith.config`       | `""`        | Override `-c` config path                  |
-| `mdsmith.run`          | `"onSave"`  | When to lint: `onType`, `onSave`, or `off` |
-| `mdsmith.fixOnSave`    | `false`     | Wires `source.fixAll.mdsmith` on save      |
-| `mdsmith.trace.server` | `"off"`     | LSP trace verbosity                        |
+| Setting                | Default     | Purpose                                                                                                                                                                                                  |
+|------------------------|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mdsmith.path`         | `"mdsmith"` | Binary path; resolved against the extension-host PATH (use an absolute path if `which mdsmith` works in your terminal but the extension reports `spawn ENOENT` — `~/.bashrc`/`~/.zshrc` are not sourced) |
+| `mdsmith.config`       | `""`        | Override `-c` config path                                                                                                                                                                                |
+| `mdsmith.run`          | `"onSave"`  | When to lint: `onType`, `onSave`, or `off`                                                                                                                                                               |
+| `mdsmith.fixOnSave`    | `false`     | Wires `source.fixAll.mdsmith` on save                                                                                                                                                                    |
+| `mdsmith.trace.server` | `"off"`     | LSP trace verbosity                                                                                                                                                                                      |
 
 See the
 [full guide](https://github.com/jeduden/mdsmith/blob/main/docs/guides/editors/vscode.md)
