@@ -23,6 +23,16 @@ var ValidCategories = []string{
 // discovery when no file arguments are given on the command line.
 var DefaultFiles = []string{"**/*.md", "**/*.markdown"}
 
+// ConventionBody is the YAML shape of one user-defined convention
+// entry inside the `conventions:` map. It mirrors the built-in
+// convention table shape: a Markdown flavor plus per-rule presets.
+// The Rules map uses the same RuleCfg union type as the top-level
+// rules: block.
+type ConventionBody struct {
+	Flavor string             `yaml:"flavor"`
+	Rules  map[string]RuleCfg `yaml:"rules,omitempty"`
+}
+
 // Config is the top-level configuration.
 type Config struct {
 	Rules          map[string]RuleCfg    `yaml:"rules"`
@@ -37,9 +47,17 @@ type Config struct {
 	KindAssignment []KindAssignmentEntry `yaml:"kind-assignment,omitempty"`
 	Build          BuildConfig           `yaml:"build,omitempty"`
 
+	// Conventions is the user-defined convention map from the
+	// `conventions:` block in .mdsmith.yml. Each entry is a
+	// ConventionBody (flavor + rules). Names that collide with
+	// built-in convention names ("portable", "github", "plain")
+	// are rejected at config load.
+	Conventions map[string]ConventionBody `yaml:"conventions,omitempty"`
+
 	// Convention names a Markdown convention bundle. Built-in
-	// values: "portable", "github", "plain". Empty means no
-	// convention; the user's top-level rules and the built-in
+	// values: "portable", "github", "plain". User-defined names
+	// from the `conventions:` block are also accepted. Empty means
+	// no convention; the user's top-level rules and the built-in
 	// defaults are the only base layers. See
 	// internal/rules/markdownflavor/conventions.go for the table
 	// and docs/reference/conventions.md for end-user docs.
@@ -80,6 +98,13 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+
+	// ConventionIsUser is true when the selected convention was defined
+	// in the user's conventions: block (as opposed to being a built-in).
+	// Used by provenance rendering to append a "(user)" suffix to the
+	// convention layer source label in `mdsmith kinds resolve` output.
+	// Not serialized to YAML.
+	ConventionIsUser bool `yaml:"-"`
 }
 
 // Override applies rule settings to files matching glob patterns.

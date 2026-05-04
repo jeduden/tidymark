@@ -172,9 +172,69 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+When none of the three built-in conventions fits,
+define one inline in `.mdsmith.yml`:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+The `conventions:` map is a sibling of `kinds:`.
+Each entry is a `{ flavor, rules }` pair with the
+same schema as the built-in convention table.
+`flavor` is required; `rules` is optional.
+
+### Constraints
+
+- **Reserved names.** The built-in names (`portable`,
+  `github`, `plain`) cannot be used for user-defined
+  conventions. Defining them is a config error at
+  load time.
+- **No inheritance.** Each convention stands alone.
+  There is no `extends:` key.
+- **Validation.** Each rule name must be registered;
+  each rule's settings must pass that rule's existing
+  schema check. Errors name the convention and the
+  rule: `convention "our-team" rule "no-inline-html":
+  unknown setting "allowed"`.
+
+### Resolution order
+
+When `convention:` names a convention:
+
+1. The name is looked up in `conventions:` first.
+2. If not found there, the built-in table is checked.
+3. If not found in either, the error lists both sets
+   of names so the user can spot a typo.
+
+User conventions cannot shadow built-ins: collisions
+are rejected at parse time, so the lookup order is
+documentation only.
+
+### `mdsmith kinds resolve` output
+
+`mdsmith kinds resolve <file>` labels a user
+convention layer as `convention.<name> (user)`.
+A built-in convention layer is labelled
+`convention.<name>` with no suffix.
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge
 chain for every rule, including the
-`convention.<name>` layer. Use it to confirm which
-value won and where it came from.
+`convention.<name>` layer (with `(user)` appended
+for user-defined conventions). Use it to confirm
+which value won and where it came from.

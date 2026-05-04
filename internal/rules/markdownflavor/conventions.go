@@ -163,22 +163,36 @@ var conventions = map[string]Convention{
 	},
 }
 
-// Lookup returns the convention table entry for name. It returns an
-// error naming the field and listing valid names when name is not a
-// known convention, matching the failure-mode contract in plan 112.
+// Lookup returns the convention for name, consulting userConventions
+// first, then the built-in table. It returns an error when name is
+// not found in either set, listing both user and built-in names so the
+// caller can offer a complete correction list.
 //
-// The returned Convention is a deep copy of the package-level table
-// entry. Callers may mutate the result without corrupting the
-// shared built-in table.
-func Lookup(name string) (Convention, error) {
-	c, ok := conventions[name]
-	if !ok {
-		return Convention{}, fmt.Errorf(
-			"unknown convention %q (valid: %s)",
-			name, strings.Join(ConventionNames(), ", "),
-		)
+// userConventions may be nil; a nil map is treated as empty and the
+// search falls through to built-ins only.
+//
+// The returned Convention is a deep copy. Callers may mutate the
+// result without corrupting the shared built-in table or the caller's
+// userConventions map.
+func Lookup(name string, userConventions map[string]Convention) (Convention, error) {
+	// User-defined conventions take precedence (name collisions are
+	// rejected at config load, so reaching here means the user map
+	// does not shadow a built-in).
+	if c, ok := userConventions[name]; ok {
+		return cloneConvention(c), nil
 	}
-	return cloneConvention(c), nil
+	if c, ok := conventions[name]; ok {
+		return cloneConvention(c), nil
+	}
+	allNames := ConventionNames()
+	for uName := range userConventions {
+		allNames = append(allNames, uName)
+	}
+	sort.Strings(allNames)
+	return Convention{}, fmt.Errorf(
+		"unknown convention %q (valid: %s)",
+		name, strings.Join(allNames, ", "),
+	)
 }
 
 // cloneConvention returns a deep copy of c. Each rule preset's

@@ -555,3 +555,37 @@ func TestKinds_PathPreservesAbsoluteSchema(t *testing.T) {
 	require.Equal(t, 0, code)
 	assert.Equal(t, "/etc/passwd", strings.TrimSpace(stdout))
 }
+
+func TestKinds_ResolveUserConventionShowsUserSuffix(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        style: dash
+convention: our-team
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# Title\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.our-team (user)",
+		"user convention layer source must include (user) suffix in resolve output")
+}
+
+func TestKinds_ResolveBuiltInConventionNoUserSuffix(t *testing.T) {
+	cfg := "convention: portable\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# Title\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.portable")
+	assert.NotContains(t, stdout, "(user)",
+		"built-in convention layer must not show (user) suffix")
+}
+
+func TestKinds_LoadUserConventionReservedNameFails(t *testing.T) {
+	cfg := "conventions:\n  portable:\n    flavor: gfm\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# Title\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "portable")
+}
