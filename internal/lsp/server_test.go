@@ -2056,6 +2056,34 @@ func TestRunLintIgnoredFile(t *testing.T) {
 	assert.Contains(t, out, `"diagnostics":[]`)
 }
 
+// Regression: partitionDocDiagnostics keeps document-scoped
+// diagnostics (matching File, or empty File) for the squiggle
+// publish path and peels off config-target findings (different
+// File) for window/logMessage. Without this filter, a config-file
+// finding would appear as a squiggle at its (file, line) inside
+// the markdown buffer that triggered the lint — wrong file, wrong
+// line.
+func TestPartitionDocDiagnosticsRoutesByFile(t *testing.T) {
+	t.Parallel()
+	docPath := "docs/foo.md"
+	configPath := "/repo/.mdsmith.yml"
+	diags := []lint.Diagnostic{
+		{File: docPath, Line: 1, RuleName: "line-length", Message: "too long"},
+		{File: "", Line: 2, RuleName: "old-rule", Message: "no file set"},
+		{File: configPath, Line: 7, RuleName: "directory-structure", Message: "config issue"},
+	}
+
+	forDoc, other := partitionDocDiagnostics(diags, docPath)
+
+	require.Len(t, forDoc, 2, "doc-scoped + empty-File entries belong to forDoc")
+	assert.Equal(t, "line-length", forDoc[0].RuleName)
+	assert.Equal(t, "old-rule", forDoc[1].RuleName)
+
+	require.Len(t, other, 1, "config-file diagnostic is routed to other")
+	assert.Equal(t, configPath, other[0].File)
+	assert.Equal(t, "directory-structure", other[0].RuleName)
+}
+
 // Regression: runLint must not silently swallow Runner.RunSource
 // errors. Triggering the size guard yields a Runner error; the
 // server should both publish empty diagnostics and emit a

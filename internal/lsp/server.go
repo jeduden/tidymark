@@ -539,9 +539,42 @@ func (s *Server) runLint(uri string) {
 		_ = s.t.writeNotification("window/logMessage",
 			logMessageParams{Type: messageTypeError, Message: "mdsmith: " + e.Error()})
 	}
-	lspDiags := toLSPAll(res.Diagnostics, doc.text)
+	// engine.RunSource also fires config-target rules whose
+	// Diagnostic.File is the .mdsmith.yml path, not relPath. Showing
+	// those as squiggles in the markdown buffer would put a finding
+	// at the wrong file/line; route them to window/logMessage with
+	// the file:line prefix the user needs to locate the issue, and
+	// only publish diagnostics whose File matches the document we
+	// just linted.
+	docDiags, otherDiags := partitionDocDiagnostics(res.Diagnostics, relPath)
+	for _, d := range otherDiags {
+		s.logger.Printf("lint %s: %s:%d %s [%s]", uri, d.File, d.Line, d.Message, d.RuleName)
+		_ = s.t.writeNotification("window/logMessage", logMessageParams{
+			Type:    messageTypeError,
+			Message: fmt.Sprintf("mdsmith: %s:%d %s [%s]", d.File, d.Line, d.Message, d.RuleName),
+		})
+	}
+	lspDiags := toLSPAll(docDiags, doc.text)
 	_ = s.t.writeNotification("textDocument/publishDiagnostics",
 		publishDiagnosticsParams{URI: uri, Diagnostics: lspDiags})
+}
+
+// partitionDocDiagnostics splits Runner-produced diagnostics into
+// the ones that belong to the document we just linted and the ones
+// that came from a different file (typically config-target rule
+// findings against .mdsmith.yml). A diagnostic with an empty File
+// is treated as belonging to the document — older rules left File
+// blank when they only ever ran in single-file mode, and the LSP
+// publishes against the document URI either way.
+func partitionDocDiagnostics(diags []lint.Diagnostic, docPath string) (forDoc, other []lint.Diagnostic) {
+	for _, d := range diags {
+		if d.File == "" || d.File == docPath {
+			forDoc = append(forDoc, d)
+		} else {
+			other = append(other, d)
+		}
+	}
+	return forDoc, other
 }
 
 // workspaceRelative converts an absolute filesystem path to a path
