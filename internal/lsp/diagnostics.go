@@ -22,10 +22,16 @@ func toLSP(d lint.Diagnostic, lines [][]byte) Diagnostic {
 	if startLine < 0 {
 		startLine = 0
 	}
-	startCol := utf16Column(currentLine(lines, d.Line), d.Column-1)
-	endCol := startCol + 1
-	if l := currentLine(lines, d.Line); l != "" {
-		endCol = utf16Column(l, runeLen(l))
+	line := currentLine(lines, d.Line)
+	startCol := utf16Column(line, d.Column-1)
+	// End at the line's UTF-16 length so empty lines produce a
+	// zero-width range (start == end) instead of a range whose end
+	// character (1) lies past the actual line length. Clients
+	// typically clamp out-of-range positions, but emitting a valid
+	// range is cheaper and avoids surprising downstream tooling.
+	endCol := utf16Column(line, runeLen(line))
+	if endCol < startCol {
+		endCol = startCol
 	}
 	return Diagnostic{
 		Range: Range{
@@ -95,6 +101,11 @@ func runeLen(s string) int {
 
 // utf16Column returns the UTF-16 code-unit offset that corresponds to
 // rune offset col in s. Clamps to the string's UTF-16 length.
+//
+// utf16.RuneLen returns -1 for unpaired surrogates and other invalid
+// code points; we treat those as a single UTF-16 unit so positions
+// stay non-negative even when the document contains adversarial
+// input.
 func utf16Column(s string, col int) int {
 	if col <= 0 {
 		return 0
@@ -105,7 +116,11 @@ func utf16Column(s string, col int) int {
 		if consumed >= col {
 			break
 		}
-		units += utf16.RuneLen(r)
+		w := utf16.RuneLen(r)
+		if w < 0 {
+			w = 1
+		}
+		units += w
 		consumed++
 	}
 	return units

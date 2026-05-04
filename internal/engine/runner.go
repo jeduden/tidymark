@@ -179,11 +179,13 @@ func DedupeDiagnostics(diags []lint.Diagnostic) []lint.Diagnostic {
 // adjustment).
 //
 // When Runner.SourceFS is non-nil, RunSource wires it onto the File
-// as f.FS and configures f.GitignoreFunc against the runner's
-// rootDir (or the SourceFS's directory when no rootDir is set). This
-// lets in-memory linting see the same filesystem view processFile
-// sets up for on-disk runs, so include/catalog/cross-file rules
-// behave identically.
+// as f.FS so include/catalog/cross-file rules see the same
+// filesystem view processFile sets up for on-disk runs.
+// f.GitignoreFunc is wired only when Runner.RootDir is also set —
+// gitignore matching is rooted at that directory. With a SourceFS
+// but no RootDir (an unusual combination, but legal), gitignore
+// rules are not consulted; FS-aware rules still see the supplied
+// filesystem.
 //
 // When SourceFS is nil (the stdin case), FS stays nil and rules that
 // require it short-circuit just as they did before.

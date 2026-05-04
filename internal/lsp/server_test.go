@@ -830,6 +830,32 @@ func TestToLSPClampsZeroLine(t *testing.T) {
 	assert.Equal(t, 0, got.Range.Start.Line)
 }
 
+func TestToLSPEmptyLineProducesZeroWidthRange(t *testing.T) {
+	t.Parallel()
+	// Diagnostic on an empty line: the range must end at column 0,
+	// not column 1 — column 1 would be past the line.
+	got := toLSP(
+		lint.Diagnostic{Line: 2, Column: 1, RuleID: "MDS001", Severity: lint.Error},
+		[][]byte{[]byte("first"), []byte("")},
+	)
+	assert.Equal(t, 1, got.Range.Start.Line)
+	assert.Equal(t, 0, got.Range.Start.Character)
+	assert.Equal(t, 0, got.Range.End.Character,
+		"empty line should produce a zero-width range, not extend past the line")
+}
+
+func TestUtf16ColumnTreatsInvalidRunesAsOneUnit(t *testing.T) {
+	t.Parallel()
+	// Unpaired high surrogate (\uD800). Go's range over a string
+	// yields utf8.RuneError for invalid sequences, which has
+	// RuneLen 1 — but we want to make sure the helper never adds a
+	// negative width even when an actual lone surrogate sneaks in
+	// via the rune literal.
+	s := string([]rune{0xD800, 'a'})
+	got := utf16Column(s, 2)
+	assert.Positive(t, got, "utf16Column must stay non-negative on invalid runes")
+}
+
 func TestDispatchRawInvalidJSONRespondsWithParseError(t *testing.T) {
 	t.Parallel()
 	var buf safeBuffer
