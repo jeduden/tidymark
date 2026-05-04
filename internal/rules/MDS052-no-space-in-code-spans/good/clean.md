@@ -2,6 +2,6 @@
 
 Use `x` for the value.
 
-Use ` x ` when balanced single space is intentional.
+Use ` x ` — CommonMark's single-space trim strips both outer spaces.
 
 Use `foo bar` for multi-word.

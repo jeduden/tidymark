@@ -226,20 +226,20 @@ func TestSpanBounds_NonTextChild(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestFix_LeadingSpaceBeforeBacktick covers the bytes.Equal guard in Fix: when
-// the trimmed+protective-space result equals the raw content, Fix leaves the
-// source unchanged (emitting the diagnostic but not auto-fixing).
-// Input: “ `abc“ — the content " `abc" has a leading space but trimming gives
-// "`abc" whose protective prepend " `abc" equals the original raw, so no cut.
+// TestFix_LeadingSpaceBeforeBacktick verifies Fix repairs a span whose content
+// starts with a backtick by adding a balancing trailing space so CommonMark's
+// single-space trim strips both outer spaces symmetrically.
+// Input: content is ` `abc`; trimmed is “abc`; fix writes ` `abc ` so
+// CommonMark trims both outer spaces and renders “abc` unchanged.
 func TestFix_LeadingSpaceBeforeBacktick(t *testing.T) {
 	src := "Use `` `abc`` here.\n"
 	f := newFile(t, src)
 	got := string((&Rule{}).Fix(f))
-	assert.Equal(t, src, got)
+	assert.Equal(t, "Use `` `abc `` here.\n", got)
 }
 
-// TestCheck_LeadingSpaceBeforeBacktick verifies Check still emits a diagnostic
-// for the same span that Fix cannot safely auto-fix.
+// TestCheck_LeadingSpaceBeforeBacktick verifies Check emits a diagnostic
+// for the leading space before a content backtick (Fix repairs this).
 func TestCheck_LeadingSpaceBeforeBacktick(t *testing.T) {
 	f := newFile(t, "Use `` `abc`` here.\n")
 	diags := (&Rule{}).Check(f)

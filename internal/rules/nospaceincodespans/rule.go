@@ -95,8 +95,9 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 // Fix implements rule.FixableRule. It trims leading and trailing whitespace
 // from code span content in the source file. Spans that become empty after
 // trimming are left unchanged. When the trimmed content starts or ends with a
-// backtick, one protective space is kept on that side so the backtick does not
-// merge into the delimiter run and change the parsed value.
+// backtick, balanced spaces are added on both sides so CommonMark's
+// single-space trim removes them symmetrically, preserving the rendered
+// content without merging the content backtick into the delimiter run.
 func (r *Rule) Fix(f *lint.File) []byte {
 	type cut struct {
 		start, end int
@@ -132,13 +133,11 @@ func (r *Rule) Fix(f *lint.File) []byte {
 		}
 		// If the trimmed content starts or ends with a backtick, naively
 		// removing the surrounding spaces would merge those backticks into
-		// the delimiter run and change the rendered code span. Preserve one
-		// protective space on the affected side instead.
-		if trimmed[0] == '`' {
-			trimmed = append([]byte{' '}, trimmed...)
-		}
-		if trimmed[len(trimmed)-1] == '`' {
-			trimmed = append(trimmed, ' ')
+		// the delimiter run and change the rendered code span. Add balanced
+		// spaces on both sides so CommonMark's single-space trim removes them
+		// symmetrically, leaving the correct content.
+		if trimmed[0] == '`' || trimmed[len(trimmed)-1] == '`' {
+			trimmed = append(append([]byte{' '}, trimmed...), ' ')
 		}
 		if bytes.Equal(trimmed, raw) {
 			return ast.WalkContinue, nil
