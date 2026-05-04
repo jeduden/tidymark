@@ -203,7 +203,7 @@ pass-through name is empty or contains `=`.
 1. Implement the trust gate in
    `internal/build/trust.go`: read
    `.mdsmith.yml.trust`, compare its bytes
-   to the current `.mdsmith.yml`, honour
+   to the current `.mdsmith.yml`, honor
    `MDSMITH_TRUST_BUILD=1`, and refuse the
    build pass on mismatch.
 2. Add `mdsmith trust` subcommand: print

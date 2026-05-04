@@ -36,13 +36,12 @@ explain a freshness verdict. Five gotchas
 drive this plan:
 
 - Buffered stdout hides hangs.
-- Failure messages without argv, cwd,
-  exit code, and log path are useless.
-- Stale-cache surprises drive `make
-  clean` unless mdsmith can explain
-  freshness.
-- Non-deterministic recipes silently
-  defeat caching.
+- Failure messages without argv, cwd, exit
+  code, and log path are useless.
+- Stale-cache surprises drive `make clean`
+  unless mdsmith can explain freshness.
+- Non-deterministic recipes silently defeat
+  caching.
 - Parallel builds collide on undeclared
   shared state.
 
@@ -74,15 +73,16 @@ chapter 1...`). The log file is still
 written. Useful for a single-target debug
 run.
 
-Log files are kept until the cache entry
-that names them is invalidated; a plan 103
-schema-version bump deletes the matching
-log. `--build-no-cache` writes logs but no
-cache entry. At the start of the next
-`mdsmith fix`, mdsmith deletes any
-`build-logs/<id>.log` whose `<id>` has no
-cache entry, bounding orphans to one
-`--build-no-cache` run.
+Each cache entry (plan 103) carries an
+`action-id` whose log lives at
+`build-logs/<action-id>.log`. Logs survive
+until their entry is invalidated; a plan
+103 schema-version bump removes both.
+`--build-no-cache` writes logs but no entry,
+so at the start of the next `mdsmith fix`,
+mdsmith deletes any `build-logs/<id>.log`
+whose `<id>` matches no cache entry's
+`action-id` — bounding orphans to one run.
 
 ### Failure diagnostic format
 
@@ -218,9 +218,9 @@ output (future, behind `--build-format json`).
    (prints before SIGTERM, per plan 117's
    process-group kill).
 4. Implement `--build-stream`: forward
-   recipe streams to the user's terminal
-   line-by-line with target-name prefix;
-   log file still written.
+   recipe streams line-by-line to the
+   terminal with target-name prefix; log
+   file still written.
 5. Implement `--build-explain TARGET`:
    match `TARGET` against each directive's
    first declared output (string equality
