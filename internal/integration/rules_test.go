@@ -50,6 +50,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/noinlinehtml"
 	_ "github.com/jeduden/mdsmith/internal/rules/nomultipleblanks"
 	_ "github.com/jeduden/mdsmith/internal/rules/noreferencestyle"
+	_ "github.com/jeduden/mdsmith/internal/rules/nospaceincodespans"
 	_ "github.com/jeduden/mdsmith/internal/rules/nospaceinlinktext"
 	_ "github.com/jeduden/mdsmith/internal/rules/notrailingpunctuation"
 	_ "github.com/jeduden/mdsmith/internal/rules/notrailingspaces"

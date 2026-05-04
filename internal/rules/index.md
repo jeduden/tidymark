@@ -70,5 +70,6 @@ row: "| [{id}]({filename}) | `{name}` | {status} | {description} |"
 | [MDS049](MDS049-no-space-in-link-text/README.md)              | `no-space-in-link-text`              | ready     | Link text and image alt text must not have leading or trailing whitespace inside the brackets.                                |
 | [MDS050](MDS050-proper-names/README.md)                       | `proper-names`                       | ready     | Configured proper names (e.g. JavaScript, GitHub) must appear with their canonical casing.                                    |
 | [MDS051](MDS051-single-h1/README.md)                          | `single-h1`                          | ready     | At most one H1 heading is allowed per file.                                                                                   |
+| [MDS052](MDS052-no-space-in-code-spans/README.md)             | `no-space-in-code-spans`             | ready     | Inline code spans with leading or trailing whitespace inside the backticks are almost always typos; flag them.                |
 | [MDS053](MDS053-no-unused-link-definitions/README.md)         | `no-unused-link-definitions`         | ready     | Every `[label]: url` definition must be consumed by at least one reference-style link or image; duplicate labels are flagged. |
 <?/catalog?>

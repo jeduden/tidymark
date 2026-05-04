@@ -5,7 +5,7 @@ status: "✅"
 summary: >-
   New rule MDS051 that requires at most one top-level
   H1 heading per Markdown file. Closes the gap with
-  markdownlint MD025/MD047 and complements MDS004
+  markdownlint MD025 and complements MDS004
   (first-line-heading) by catching extra H1s further
   down the document.
 model: sonnet
