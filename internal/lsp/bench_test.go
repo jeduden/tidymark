@@ -42,8 +42,11 @@ func benchLatency(b *testing.B, lines int, budget time.Duration) {
 		b.Skip("benchmark skipped in -short mode")
 	}
 
+	// newBenchHarness already registers `b.Cleanup(h.close)`; do
+	// not also `defer h.close()` — the second close would block on
+	// the already-drained srvDone channel and add a 2-second
+	// timeout to every benchmark run.
 	h := newBenchHarness(b)
-	defer h.close()
 
 	// Force `mdsmith.run = onType` for the benchmark — it intentionally
 	// drives didChange events that would otherwise be filtered when
@@ -53,10 +56,19 @@ func benchLatency(b *testing.B, lines int, budget time.Duration) {
 	h.srv.settingsMu.Unlock()
 
 	uri := "file:///bench/sample.md"
-	source := buildSyntheticMarkdown(lines)
+	// Two same-sized buffers swapped each iteration so the document
+	// length stays constant across the run. With Go's time-based
+	// benchtime b.N can grow unbounded; an `append`-style mutation
+	// would balloon the document and skew later samples toward
+	// larger files than earlier ones.
+	bufA := buildSyntheticMarkdown(lines)
+	bufB := flipFirstParagraph(bufA)
+	if len(bufA) != len(bufB) {
+		b.Fatalf("benchmark buffers must match in length: %d vs %d", len(bufA), len(bufB))
+	}
 	h.notify("textDocument/didOpen", map[string]any{
 		"textDocument": map[string]any{
-			"uri": uri, "languageId": "markdown", "version": 1, "text": source,
+			"uri": uri, "languageId": "markdown", "version": 1, "text": bufA,
 		},
 	})
 	h.awaitDiagnostics(b, uri, 5*time.Second)
@@ -64,11 +76,14 @@ func benchLatency(b *testing.B, lines int, budget time.Duration) {
 	samples := make([]time.Duration, 0, b.N)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		mutated := source + "\n<!-- iter " + strconv.Itoa(i) + " -->\n"
+		text := bufA
+		if i%2 == 1 {
+			text = bufB
+		}
 		start := time.Now()
 		h.notify("textDocument/didChange", map[string]any{
 			"textDocument":   map[string]any{"uri": uri, "version": i + 2},
-			"contentChanges": []map[string]any{{"text": mutated}},
+			"contentChanges": []map[string]any{{"text": text}},
 		})
 		h.awaitDiagnostics(b, uri, 5*time.Second)
 		samples = append(samples, time.Since(start))
@@ -112,6 +127,21 @@ func buildSyntheticMarkdown(lines int) string {
 		}
 	}
 	return b.String()
+}
+
+// flipFirstParagraph returns a same-length copy of src with its
+// first content paragraph rewritten. Used by benchLatency to swap
+// between two stable-size buffers so the benchmark drives didChange
+// without growing the document over time. The replacement string
+// has identical byte length to the original "Synthetic line ..."
+// line so the resulting buffer's length matches the input exactly.
+func flipFirstParagraph(src string) string {
+	const original = "Synthetic line content for benchmarking purposes."
+	const swapped = "Alternate line content for benchmarking purposes."
+	if len(original) != len(swapped) {
+		panic("flipFirstParagraph requires same-length strings")
+	}
+	return strings.Replace(src, original, swapped, 1)
 }
 
 // benchHarness wraps a Server and the in-memory pipes it talks to.

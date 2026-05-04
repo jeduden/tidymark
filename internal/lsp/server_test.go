@@ -23,9 +23,10 @@ import (
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 
-	// Register rule packages so rule.All() returns the production set.
-	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
-	_ "github.com/jeduden/mdsmith/internal/rules/notrailingspaces"
+	// Register the production rule set so rule.All() returns what an
+	// editor would actually see. The barrel keeps "what rules ship"
+	// in a single place rather than duplicating the import list.
+	_ "github.com/jeduden/mdsmith/internal/rules/all"
 )
 
 // testHarness wires a Server to a pair of in-memory pipes plus a

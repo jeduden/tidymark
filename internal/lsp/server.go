@@ -332,8 +332,10 @@ func (s *Server) handleDidChange(ctx context.Context, raw json.RawMessage) {
 	s.scheduleLint(p.TextDocument.URI, lintTriggerChange)
 }
 
-// handleDidSave re-lints when the user saves. This is the only event
-// that triggers a lint when run=onSave.
+// handleDidSave re-lints when the user saves. The onSave run mode
+// triggers a lint pass on save, on document open, and on
+// config-change events; the only event it skips is didChange. See
+// scheduleLint for the full per-trigger / per-mode table.
 func (s *Server) handleDidSave(ctx context.Context, raw json.RawMessage) {
 	var p struct {
 		TextDocument textDocumentIdentifier `json:"textDocument"`
@@ -418,6 +420,18 @@ func (s *Server) scheduleLint(uri string, trigger lintTrigger) {
 	}
 	immediate := trigger != lintTriggerChange
 	if immediate || s.debounce == 0 {
+		// Cancel any debounce timer armed by an earlier didChange
+		// for the same URI. Without this an open/save/config-change
+		// can fire its lint synchronously, then the older timer
+		// fires too and republishes diagnostics for the same buffer
+		// version a moment later — wasted work and a flicker for
+		// the user.
+		s.pendingMu.Lock()
+		if existing, ok := s.pending[uri]; ok {
+			existing.Stop()
+			delete(s.pending, uri)
+		}
+		s.pendingMu.Unlock()
 		s.runLint(uri)
 		return
 	}
