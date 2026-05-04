@@ -475,3 +475,46 @@ func TestWriteRuleResolutionText_ShowsConventionLayer(t *testing.T) {
 	assert.Contains(t, out, "winning source: user",
 		"user value wins over convention preset")
 }
+
+func TestWriteRuleResolutionText_ShowsUserConventionSuffix(t *testing.T) {
+	// A user-defined convention must appear with "(user)" suffix in
+	// the merge chain to distinguish it from built-in conventions.
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 120}},
+		},
+		ExplicitRules:    map[string]bool{"line-length": true},
+		Convention:       "our-team",
+		ConventionIsUser: true,
+		ConventionPreset: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
+		},
+	}
+	res := config.ResolveFile(cfg, "x.md", nil)
+	rr := res.Rules["line-length"]
+	var buf bytes.Buffer
+	require.NoError(t, WriteRuleResolutionText(&buf, "x.md", rr))
+	out := buf.String()
+	assert.Contains(t, out, "convention.our-team (user)",
+		"user convention must appear with (user) suffix in chain")
+}
+
+func TestWriteFileResolutionText_ShowsUserConventionSuffix(t *testing.T) {
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 120}},
+		},
+		ExplicitRules:    map[string]bool{"line-length": true},
+		Convention:       "our-team",
+		ConventionIsUser: true,
+		ConventionPreset: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
+		},
+	}
+	res := config.ResolveFile(cfg, "x.md", nil)
+	var buf bytes.Buffer
+	require.NoError(t, WriteFileResolutionText(&buf, res))
+	out := buf.String()
+	assert.Contains(t, out, "(from user)",
+		"user rule layer must appear as 'user'")
+}

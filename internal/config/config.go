@@ -45,6 +45,14 @@ type Config struct {
 	// and docs/reference/conventions.md for end-user docs.
 	Convention string `yaml:"convention,omitempty"`
 
+	// Conventions holds user-defined convention bundles declared
+	// inline in .mdsmith.yml. Each entry mirrors the shape of the
+	// built-in convention table: a flavor and a rules preset map.
+	// Reserved names (portable, github, plain) are rejected at load
+	// time. User conventions are consulted first by Lookup before
+	// falling back to built-ins.
+	Conventions map[string]UserConvention `yaml:"conventions,omitempty"`
+
 	// LegacyNoFollowSymlinks captures the removed `no-follow-symlinks`
 	// key. Its presence surfaces a deprecation warning via
 	// Deprecations; its contents are otherwise ignored now that
@@ -80,6 +88,27 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+
+	// ConventionIsUser is true when Convention names a user-defined
+	// convention (from the conventions: block) rather than a built-in.
+	// Used to emit the "(user)" suffix in provenance layer sources.
+	// Not serialized to YAML.
+	ConventionIsUser bool `yaml:"-"`
+}
+
+// UserConvention is one entry in the user-defined conventions: map.
+// It mirrors the shape of the built-in Convention struct from
+// markdownflavor, but is kept in the config package to avoid an
+// import cycle: the config package depends on markdownflavor (to call
+// Lookup), so markdownflavor cannot depend on config.
+type UserConvention struct {
+	// Flavor is the Markdown flavor this convention targets.
+	// Accepted values: "commonmark", "gfm", "goldmark".
+	Flavor string `yaml:"flavor"`
+	// Rules maps rule names to their presets. The map shape is
+	// identical to the top-level rules: block — each value is a
+	// RuleCfg (bool or settings map).
+	Rules map[string]RuleCfg `yaml:"rules"`
 }
 
 // Override applies rule settings to files matching glob patterns.

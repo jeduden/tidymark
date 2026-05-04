@@ -11,6 +11,7 @@ import (
 
 	// Register markdown-flavor so rule.ByName lookups in deep-merge
 	// resolve while the convention mechanism is exercised.
+	_ "github.com/jeduden/mdsmith/internal/rules/listmarkerstyle"
 	_ "github.com/jeduden/mdsmith/internal/rules/markdownflavor"
 )
 
@@ -367,4 +368,173 @@ func TestMerge_PreservesConvention(t *testing.T) {
 	// Mutating the merged copy must not bleed back into the source.
 	merged.ConventionPreset["line-length"].Settings["max"] = 999
 	assert.Equal(t, 80, loaded.ConventionPreset["line-length"].Settings["max"])
+}
+
+// --- Tests for user-defined conventions (plan 113) ---
+
+func TestLoad_UserConvention_ValidYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yaml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html: true
+      list-marker-style:
+        style: dash
+convention: our-team
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, "our-team", cfg.Convention)
+	require.NotNil(t, cfg.ConventionPreset)
+	assert.Contains(t, cfg.ConventionPreset, "no-inline-html")
+	assert.Contains(t, cfg.ConventionPreset, "list-marker-style")
+	lm := cfg.ConventionPreset["list-marker-style"]
+	assert.Equal(t, "dash", lm.Settings["style"])
+}
+
+func TestLoad_UserConvention_ReservedNamePortable(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yaml := `
+conventions:
+  portable:
+    flavor: gfm
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "portable")
+	assert.Contains(t, err.Error(), "reserved")
+}
+
+func TestLoad_UserConvention_ReservedNameGithub(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yaml := `
+conventions:
+  github:
+    flavor: gfm
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "github")
+	assert.Contains(t, err.Error(), "reserved")
+}
+
+func TestLoad_UserConvention_ReservedNamePlain(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yaml := `
+conventions:
+  plain:
+    flavor: commonmark
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "plain")
+	assert.Contains(t, err.Error(), "reserved")
+}
+
+func TestLoad_UserConvention_UnknownNameListsBothSets(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yaml := `
+conventions:
+  our-team:
+    flavor: gfm
+convention: no-such-thing
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no-such-thing")
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "portable")
+}
+
+func TestLoad_UserConvention_UserRulesWinOverPreset(t *testing.T) {
+	// User defines a convention that sets list-marker-style to dash,
+	// then overrides it to plus in the top-level rules block.
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yaml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        style: dash
+convention: our-team
+rules:
+  list-marker-style:
+    style: plus
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	cfg, err := Load(path)
+	require.NoError(t, err)
+
+	merged := Merge(Defaults(), cfg)
+	got := Effective(merged, "doc.md", nil)
+	lm := got["list-marker-style"]
+	assert.Equal(t, "plus", lm.Settings["style"],
+		"top-level rules: block must win over user convention preset")
+}
+
+func TestLoad_UserConvention_InvalidRuleSetting(t *testing.T) {
+	// An invalid rule setting inside a user convention should produce a
+	// config error naming the convention and the rule.
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	// list-marker-style has a "style" setting; "bogus" is not valid.
+	yaml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        unknown-setting: something
+convention: our-team
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "list-marker-style")
+}
+
+func TestLoad_UserConvention_KindsResolve_UserSuffix(t *testing.T) {
+	// conventions: our-team should appear with "(user)" suffix in
+	// ResolveFile provenance layer sources.
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yaml := `
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      line-length:
+        max: 100
+convention: our-team
+`
+	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	cfg, err := Load(path)
+	require.NoError(t, err)
+
+	merged := Merge(Defaults(), cfg)
+	res := ResolveFile(merged, "doc.md", nil)
+	rr, ok := res.Rules["line-length"]
+	require.True(t, ok)
+	var sources []string
+	for _, l := range rr.Layers {
+		sources = append(sources, l.Source)
+	}
+	assert.Contains(t, sources, "convention.our-team (user)",
+		"user convention must appear with (user) suffix in layer sources")
 }
