@@ -527,6 +527,15 @@ func (s *Server) handleCodeAction(msg *requestMessage) {
 	if cfg == nil {
 		cfg = config.Merge(config.Defaults(), nil)
 	}
+	// Mirror `mdsmith fix`'s on-disk behavior: skip every code
+	// action when the document is in the project ignore list.
+	// VS Code's editor.codeActionsOnSave can fire `source.fixAll`
+	// even on files that never produced diagnostics, so without
+	// this guard an ignored buffer would still be rewritten.
+	if config.IsIgnored(cfg.Ignore, workspaceRelative(root, doc.path)) {
+		_ = s.t.writeResponse(msg.ID, []codeAction{})
+		return
+	}
 	actions := s.computeCodeActions(p, doc, cfg, root)
 	_ = s.t.writeResponse(msg.ID, actions)
 }
@@ -581,7 +590,10 @@ func (s *Server) computeCodeActions(
 		// fix.Source's Path is fed to config glob matching (ignore /
 		// override / kind-assignment), which works against repo-style
 		// relative paths. Pass the workspace-relative form so LSP
-		// fixes match `mdsmith fix` on disk.
+		// fixes match `mdsmith fix` on disk, and a SourceFS rooted
+		// at the document's real directory so include/catalog rules
+		// still resolve neighbour files independent of the process
+		// CWD.
 		relPath := workspaceRelative(root, doc.path)
 		fixed, err := fixpkg.Source(fixpkg.SourceOptions{
 			Config:           cfg,
@@ -589,6 +601,7 @@ func (s *Server) computeCodeActions(
 			Path:             relPath,
 			Source:           doc.text,
 			RootDir:          root,
+			SourceFS:         dirFSForPath(doc.path),
 			StripFrontMatter: frontMatterEnabled(cfg),
 		})
 		if err == nil && !bytes.Equal(fixed, doc.text) {
@@ -628,6 +641,7 @@ func (s *Server) quickFixEditFor(
 		Path:             relPath,
 		Source:           doc.text,
 		RootDir:          root,
+		SourceFS:         dirFSForPath(doc.path),
 		StripFrontMatter: frontMatterEnabled(cfg),
 	}, []string{rule})
 	if err != nil || bytes.Equal(fixed, doc.text) {

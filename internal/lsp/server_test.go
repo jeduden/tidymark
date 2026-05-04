@@ -1687,6 +1687,43 @@ func TestQuickFixEditForNoOpReturnsNil(t *testing.T) {
 // N diagnostics from the same rule trigger only one fix.SourceWithRules
 // pass. Without dedup, the codeAction request would re-run the fix
 // per-diagnostic and blow the latency budget on noisy files.
+// TestHandleCodeActionRespectsIgnoreList pins the contract that
+// VS Code's `source.fixAll.mdsmith` (which can fire on save even
+// when no diagnostics were published) does not rewrite a buffer
+// that the project's ignore globs would skip in `mdsmith fix`.
+func TestHandleCodeActionRespectsIgnoreList(t *testing.T) {
+	t.Parallel()
+	var buf safeBuffer
+	s := New(Options{Reader: nil, Writer: &buf, Rules: rule.All()})
+
+	// Wire a config that ignores the doc's path; share rootDir so
+	// the relative path inside computeCodeActions matches the glob.
+	cfg := config.Merge(config.Defaults(), nil)
+	cfg.Ignore = []string{"ignored.md"}
+	s.configMu.Lock()
+	s.config = cfg
+	s.rootDir = "/repo"
+	s.configMu.Unlock()
+	s.docs.set("file:///repo/ignored.md", &document{
+		uri:  "file:///repo/ignored.md",
+		path: "/repo/ignored.md",
+		text: []byte("# Hi\n\ndirty   \n"),
+	})
+
+	body, _ := json.Marshal(codeActionParams{
+		TextDocument: textDocumentIdentifier{URI: "file:///repo/ignored.md"},
+		Context: codeActionContext{
+			Diagnostics: []Diagnostic{{
+				Code: "MDS006",
+				Data: &diagnosticData{RuleName: "no-trailing-spaces"},
+			}},
+		},
+	})
+	s.handleCodeAction(&requestMessage{ID: json.RawMessage(`1`), Params: body})
+	// Empty action array — no quick fixes, no fix-all.
+	assert.Contains(t, buf.String(), `"result":[]`)
+}
+
 func TestComputeCodeActionsDedupesPerRule(t *testing.T) {
 	t.Parallel()
 	s := New(Options{Reader: nil, Writer: io.Discard, Rules: rule.All()})

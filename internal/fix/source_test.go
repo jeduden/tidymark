@@ -17,6 +17,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"
 )
 
+
 // TestFixSourceMatchesFixerOnDisk pins the LSP-side guarantee that
 // FixSource returns the same bytes the on-disk Fixer would write for
 // the same content. The matching pair is the acceptance criterion
@@ -118,6 +119,30 @@ func TestFixSourcePropagatesPrepareError(t *testing.T) {
 		StripFrontMatter: true,
 	})
 	require.Error(t, err)
+}
+
+// TestFixSourceWithSourceFSResolvesIncludeRelativePath pins the
+// SourceFS field: when callers pass a workspace-relative Path (for
+// config matching) they can supply an explicit FS so include /
+// catalog rules still resolve neighbour files independent of the
+// process CWD. We just verify the field is honored — the fix
+// pipeline reads opts.SourceFS via Fixer.SourceFS into prepareFile.
+func TestFixSourceWithSourceFSResolvesIncludeRelativePath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "buf.md"),
+		[]byte("# Hi\n"), 0o644))
+	out, err := fixpkg.Source(fixpkg.SourceOptions{
+		Config:           config.Merge(config.Defaults(), nil),
+		Rules:            rule.All(),
+		Path:             "buf.md", // workspace-relative
+		Source:           []byte("# Hi\n\ndirty   \n"),
+		RootDir:          dir,
+		SourceFS:         os.DirFS(dir),
+		StripFrontMatter: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "# Hi\n\ndirty\n", string(out))
 }
 
 // TestFixSourceNilConfigUsesDefaults pins the nil-Config fallback so

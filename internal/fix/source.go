@@ -2,6 +2,7 @@ package fix
 
 import (
 	"errors"
+	"io/fs"
 
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	"github.com/jeduden/mdsmith/internal/config"
@@ -20,6 +21,15 @@ type SourceOptions struct {
 	RootDir          string
 	StripFrontMatter bool
 	MaxInputBytes    int64
+	// SourceFS, when non-nil, is the filesystem the fixable rules
+	// (include/catalog/cross-file) see for the buffer. Callers that
+	// pass a workspace-relative Path (for config glob matching) MUST
+	// also supply a SourceFS rooted at the document's real
+	// directory; otherwise the dirFS derived from the relative path
+	// would be resolved against the process CWD, breaking
+	// neighbour-file lookups when the editor is launched from
+	// elsewhere.
+	SourceFS fs.FS
 }
 
 // Source applies every fixable rule allowed by the effective
@@ -57,6 +67,7 @@ func fixSourceImpl(opts SourceOptions, only []string) ([]byte, error) {
 		StripFrontMatter: opts.StripFrontMatter,
 		RootDir:          opts.RootDir,
 		MaxInputBytes:    maxBytes,
+		SourceFS:         opts.SourceFS,
 	}
 	lf, dirFS, fmKinds, err := f.prepareFile(opts.Path, opts.Source)
 	if err != nil {
