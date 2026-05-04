@@ -29,6 +29,18 @@
     "onLanguage:markdown"
   ],
   "contributes": {
+    "commands": [
+      {
+        "command": "mdsmith.restartServer",
+        "title": "Restart Language Server",
+        "category": "mdsmith"
+      },
+      {
+        "command": "mdsmith.showOutput",
+        "title": "Show Output Channel",
+        "category": "mdsmith"
+      }
+    ],
     "configuration": {
       "title": "mdsmith",
       "properties": {

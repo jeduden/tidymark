@@ -160,6 +160,16 @@ drives both the CLI and the LSP server. If you see a
 diagnostic shape over LSP that does not match the
 CLI, file an issue.
 
+## Commands
+
+The extension contributes two commands available in the
+Command Palette under the `mdsmith:` category:
+
+| Command                            | Action                                                                                                                                                                 |
+|------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mdsmith: Restart Language Server` | Stop the LSP client and spawn a fresh one. Use after editing `mdsmith.path`, rebuilding the binary, or recovering from a startup failure without reloading the window. |
+| `mdsmith: Show Output Channel`     | Reveal the "mdsmith" Output channel where the client logs RPC traffic and the server's stderr. Quickest way to read a startup error.                                   |
+
 ## Troubleshooting
 
 **No diagnostics appear.** Confirm the binary
