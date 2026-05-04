@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/jeduden/mdsmith/internal/rules/markdownflavor"
 )
 
 // ValidCategories lists the recognized rule category names.
@@ -44,6 +46,17 @@ type Config struct {
 	// internal/rules/markdownflavor/conventions.go for the table
 	// and docs/reference/conventions.md for end-user docs.
 	Convention string `yaml:"convention,omitempty"`
+
+	// Conventions defines user-declared convention bundles. Each entry
+	// has the same shape as the built-in convention table: a flavor
+	// and a rules block. The names must not collide with the built-in
+	// names "portable", "github", or "plain". Validated at config load.
+	Conventions map[string]UserConventionEntry `yaml:"conventions,omitempty"`
+
+	// UserConventions is the validated user-defined convention map,
+	// keyed by name. It is populated from cfg.Conventions at config
+	// load after validation. Not serialized to YAML.
+	UserConventions map[string]markdownflavor.Convention `yaml:"-"`
 
 	// LegacyNoFollowSymlinks captures the removed `no-follow-symlinks`
 	// key. Its presence surfaces a deprecation warning via
@@ -109,6 +122,14 @@ func (o Override) Patterns() []string {
 type KindBody struct {
 	Rules      map[string]RuleCfg `yaml:"rules"`
 	Categories map[string]bool    `yaml:"categories"`
+}
+
+// UserConventionEntry is the YAML shape for a single user-defined
+// convention. It mirrors the structure of the built-in convention
+// table: a flavor name and a rule preset map.
+type UserConventionEntry struct {
+	Flavor string             `yaml:"flavor"`
+	Rules  map[string]RuleCfg `yaml:"rules"`
 }
 
 // KindAssignmentEntry assigns one or more kinds to files matching glob

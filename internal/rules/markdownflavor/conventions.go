@@ -163,22 +163,41 @@ var conventions = map[string]Convention{
 	},
 }
 
-// Lookup returns the convention table entry for name. It returns an
-// error naming the field and listing valid names when name is not a
-// known convention, matching the failure-mode contract in plan 112.
+// Lookup returns the convention for name. It consults userConventions
+// first, then the built-in table. It returns an error naming the field
+// and listing all valid names (built-in and user-defined) when name is
+// not found in either map.
 //
-// The returned Convention is a deep copy of the package-level table
-// entry. Callers may mutate the result without corrupting the
-// shared built-in table.
-func Lookup(name string) (Convention, error) {
-	c, ok := conventions[name]
-	if !ok {
-		return Convention{}, fmt.Errorf(
-			"unknown convention %q (valid: %s)",
-			name, strings.Join(ConventionNames(), ", "),
-		)
+// The returned Convention is a deep copy. Callers may mutate the result
+// without corrupting the source tables.
+func Lookup(name string, userConventions map[string]Convention) (Convention, error) {
+	if c, ok := userConventions[name]; ok {
+		return cloneConvention(c), nil
 	}
-	return cloneConvention(c), nil
+	if c, ok := conventions[name]; ok {
+		return cloneConvention(c), nil
+	}
+	// Build the sorted list of all valid names for the error message.
+	all := ConventionNames()
+	all = append(all, sortedUserNames(userConventions)...)
+	sort.Strings(all)
+	return Convention{}, fmt.Errorf(
+		"unknown convention %q (valid: %s)",
+		name, strings.Join(all, ", "),
+	)
+}
+
+// sortedUserNames returns the names of userConventions in sorted order.
+func sortedUserNames(m map[string]Convention) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(m))
+	for k := range m {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // cloneConvention returns a deep copy of c. Each rule preset's

@@ -146,6 +146,47 @@ allowlist becomes `[sub, sup]`. To keep the
 preset's entries, list them explicitly:
 `allow: [details, summary, sub, sup]`.
 
+## User-defined conventions
+
+Add a top-level `conventions:` block in `.mdsmith.yml` to define your
+own convention. Each entry has the same shape as a built-in convention:
+a `flavor` and a `rules` map.
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+The `flavor` field must be a recognized flavor name (`commonmark`, `gfm`,
+`goldmark`, etc.). Each key in `rules` must name a registered rule.
+Each value is `true`, `false`, or a settings map. Settings are validated
+against the rule's own schema at config load.
+
+**Reserved names.** The built-in names `portable`, `github`, and `plain`
+are reserved. Defining a `conventions.portable` entry (or `github` or
+`plain`) produces a config error naming the reserved name.
+
+**Error messages.** An unknown convention name in `convention:` lists
+both built-in and user-defined options. An invalid setting produces an
+error naming the convention and the rule.
+
+**Provenance.** `mdsmith kinds resolve` labels the layer from a
+user-defined convention as `convention.<name> (user)`.
+Built-in layers show `convention.<name>` without a suffix.
+
+User-defined conventions do not support inheritance. Each stands alone.
+Copy the `conventions:` block for cross-repo reuse.
+
 ## Disabling MDS034
 
 A convention applies its rule presets at config

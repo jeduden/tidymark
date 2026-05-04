@@ -9,7 +9,7 @@ import (
 )
 
 func TestLookup_Portable(t *testing.T) {
-	c, err := Lookup("portable")
+	c, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "portable", c.Name)
 	assert.Equal(t, FlavorCommonMark, c.Flavor)
@@ -27,7 +27,7 @@ func TestLookup_Portable(t *testing.T) {
 }
 
 func TestLookup_Github(t *testing.T) {
-	c, err := Lookup("github")
+	c, err := Lookup("github", nil)
 	require.NoError(t, err)
 	assert.Equal(t, FlavorGFM, c.Flavor)
 
@@ -42,7 +42,7 @@ func TestLookup_Github(t *testing.T) {
 }
 
 func TestLookup_Plain(t *testing.T) {
-	c, err := Lookup("plain")
+	c, err := Lookup("plain", nil)
 	require.NoError(t, err)
 	assert.Equal(t, FlavorCommonMark, c.Flavor)
 
@@ -53,7 +53,7 @@ func TestLookup_Plain(t *testing.T) {
 }
 
 func TestLookup_Unknown(t *testing.T) {
-	_, err := Lookup("bogus")
+	_, err := Lookup("bogus", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown convention")
 	assert.Contains(t, err.Error(), "bogus")
@@ -120,7 +120,7 @@ func TestLookup_ReturnsDeepCopy(t *testing.T) {
 	// Mutating the returned Convention must not corrupt the
 	// package-level table. Lookup is exported, so callers could
 	// otherwise rewrite the built-ins by accident.
-	first, err := Lookup("portable")
+	first, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	first.Rules["markdown-flavor"].Settings["flavor"] = "tampered"
 	first.Rules["new-rule"] = RulePreset{Enabled: true}
@@ -129,7 +129,7 @@ func TestLookup_ReturnsDeepCopy(t *testing.T) {
 		allow.Settings["allow"] = []any{"tampered"}
 	}
 
-	second, err := Lookup("portable")
+	second, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "commonmark",
 		second.Rules["markdown-flavor"].Settings["flavor"],
@@ -144,4 +144,76 @@ func TestConventionNamesSorted(t *testing.T) {
 	assert.True(t, sort.StringsAreSorted(names),
 		"ConventionNames should return a sorted slice; got %v", names)
 	assert.ElementsMatch(t, []string{"github", "plain", "portable"}, names)
+}
+
+func TestLookup_UserConvention_Found(t *testing.T) {
+	user := map[string]Convention{
+		"our-team": {
+			Name:   "our-team",
+			Flavor: FlavorGFM,
+			Rules: map[string]RulePreset{
+				"no-inline-html": {Enabled: true},
+			},
+		},
+	}
+	c, err := Lookup("our-team", user)
+	require.NoError(t, err)
+	assert.Equal(t, "our-team", c.Name)
+	assert.Equal(t, FlavorGFM, c.Flavor)
+	_, ok := c.Rules["no-inline-html"]
+	assert.True(t, ok)
+}
+
+func TestLookup_UserConvention_DeepCopy(t *testing.T) {
+	// Mutating the result must not affect the user map.
+	user := map[string]Convention{
+		"my-conv": {
+			Name:   "my-conv",
+			Flavor: FlavorCommonMark,
+			Rules: map[string]RulePreset{
+				"emphasis-style": {
+					Enabled:  true,
+					Settings: map[string]any{"bold": "asterisk"},
+				},
+			},
+		},
+	}
+	got, err := Lookup("my-conv", user)
+	require.NoError(t, err)
+	got.Rules["emphasis-style"].Settings["bold"] = "tampered"
+	got.Rules["new-rule"] = RulePreset{Enabled: true}
+
+	// Original must be unchanged.
+	assert.Equal(t, "asterisk", user["my-conv"].Rules["emphasis-style"].Settings["bold"])
+	_, hasNew := user["my-conv"].Rules["new-rule"]
+	assert.False(t, hasNew)
+}
+
+func TestLookup_UserConventionNilMap_FallsBackToBuiltin(t *testing.T) {
+	c, err := Lookup("portable", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "portable", c.Name)
+}
+
+func TestLookup_UnknownListsBothSets(t *testing.T) {
+	user := map[string]Convention{
+		"team-a": {Name: "team-a", Flavor: FlavorGFM},
+	}
+	_, err := Lookup("bogus", user)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bogus")
+	// Built-in names.
+	assert.Contains(t, err.Error(), "portable")
+	assert.Contains(t, err.Error(), "github")
+	assert.Contains(t, err.Error(), "plain")
+	// User-defined name.
+	assert.Contains(t, err.Error(), "team-a")
+}
+
+// TestLookup_BackwardCompat tests that the old no-user-map call site in
+// existing tests compiles — i.e. nil is a valid user map.
+func TestLookup_PortableViaBuiltin(t *testing.T) {
+	c, err := Lookup("portable", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "portable", c.Name)
 }
