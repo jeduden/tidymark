@@ -38,10 +38,11 @@ Issues = "https://github.com/jeduden/mdsmith/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mdsmith"]
-# scripts/build-wheels.sh stages the prebuilt binary under
-# mdsmith/_bin/ before invoking `python -m build`. include the
-# whole `_bin/` tree (binary + a marker file describing the wheel
-# tag's platform) regardless of what's checked in.
+# scripts/build-wheels.sh stages the prebuilt binary at
+# mdsmith/_bin/mdsmith[.exe] before invoking `python -m build`.
+# Hatchling otherwise drops the staged file because it isn't
+# checked in; force-include adds the whole `_bin/` tree to every
+# wheel.
 artifacts = [
   "mdsmith/_bin/mdsmith",
   "mdsmith/_bin/mdsmith.exe",

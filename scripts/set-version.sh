@@ -55,21 +55,33 @@ case "$ver" in
     ;;
 esac
 
-# MAJOR.MINOR.PATCH plus optional pre-release / build metadata.
-# Both npm and PyPI reject anything weaker, so refuse early.
-if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$ ]]; then
+# MAJOR.MINOR.PATCH plus an optional pre-release identifier (-FOO)
+# and an optional build metadata identifier (+BAR), independently.
+# This matches the semver.org grammar; npm and PyPI both reject
+# anything weaker, so refuse early.
+if ! [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
   echo "version '$ver' is not valid semver" >&2
   exit 2
 fi
 
 export V="$ver"
 
+# A required manifest going missing means the publish would ship
+# stale data, so abort instead of silently skipping.
+require_file() {
+  local file="$1"
+  if [ ! -f "$file" ]; then
+    echo "set-version.sh: required manifest missing: $file" >&2
+    exit 1
+  fi
+}
+
 # Rewrite the first top-level "version": "..." entry in a JSON
 # manifest. Avoids jq so the script stays dependency-free; perl
 # in-place edits are portable across BSD and GNU userlands.
 rewrite_json_version() {
   local file="$1"
-  [ -f "$file" ] || return 0
+  require_file "$file"
   perl -i -pe '
     BEGIN { $done = 0 }
     if (!$done && s/^(\s*"version"\s*:\s*")[^"]+(")/$1.$ENV{V}.$2/e) {
@@ -83,7 +95,7 @@ rewrite_json_version() {
 # equal to the root version, so a single regex covers every line.
 rewrite_json_optional_deps() {
   local file="$1"
-  [ -f "$file" ] || return 0
+  require_file "$file"
   perl -i -pe '
     s/^(\s*"\@mdsmith\/[^"]+"\s*:\s*")[^"]+(")/$1.$ENV{V}.$2/e;
   ' "$file"
@@ -91,7 +103,7 @@ rewrite_json_optional_deps() {
 
 rewrite_pyproject_version() {
   local file="$1"
-  [ -f "$file" ] || return 0
+  require_file "$file"
   perl -i -pe '
     BEGIN { $done = 0 }
     if (!$done && s/^(\s*version\s*=\s*")[^"]+(")/$1.$ENV{V}.$2/e) {

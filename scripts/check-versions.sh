@@ -60,6 +60,25 @@ check_optional_deps() {
     done <<< "$mismatches"
     fail=1
   fi
+
+  # The npm root's optionalDependencies block must list the full set
+  # of platform sub-packages — a missing key would silently disable
+  # one platform. Compare the keys actually present against the
+  # canonical set in lock-step with .github/workflows/release.yml.
+  local missing="" key
+  for key in "@mdsmith/linux-x64" "@mdsmith/linux-arm64" \
+             "@mdsmith/darwin-x64" "@mdsmith/darwin-arm64" \
+             "@mdsmith/win32-x64"; do
+    if ! grep -Eq "\"$(echo "$key" | sed 's,/,\\/,g')\"[[:space:]]*:" "$file"; then
+      missing="$missing $key"
+    fi
+  done
+  if [ -n "$missing" ]; then
+    for k in $missing; do
+      echo "$file: optionalDependencies missing key $k" >&2
+    done
+    fail=1
+  fi
 }
 
 check_pyproject_version() {

@@ -191,7 +191,7 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: ./scripts/set-version.sh "${VERSION#v}"
       - name: Install build tooling
-        run: python -m pip install --upgrade build
+        run: python -m pip install --upgrade build wheel
       - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -236,11 +236,12 @@ jobs:
       matrix:
         include:
           - channel: npm
-            container: node:lts-alpine
+            # node:lts (debian-slim) ships bash, so the install step
+            # runs under the action's default `bash -e` shell. Alpine
+            # would force `shell: sh` everywhere because busybox has
+            # no bash before `apk add` runs.
+            container: node:lts
             install: |
-              # alpine ships busybox sh; the npm shim is plain JS so
-              # no glibc shim is needed for the install.
-              apk add --no-cache bash
               npm install -g --force "mdsmith@${VERSION#v}"
             run: mdsmith version
           - channel: pip

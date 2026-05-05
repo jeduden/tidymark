@@ -47,18 +47,17 @@ build_one() {
   mkdir -p "$stage/mdsmith/_bin"
   install -m 0755 "$asset_path" "$stage/mdsmith/_bin/$exe"
 
-  # `python -m build --wheel` honours pyproject.toml, then we rename
-  # the resulting `*-py3-none-any.whl` to its platform tag. Hatchling
-  # cannot infer a platform tag on its own when the binary is staged
-  # at build time, so a post-rename keeps the lift small without
-  # adopting an extra plugin.
+  # `python -m build --wheel` honours pyproject.toml. Hatchling
+  # cannot infer a platform tag on its own when the binary is
+  # staged at build time, so the wheel comes out as
+  # `*-py3-none-any.whl`. `python -m wheel tags --platform-tag`
+  # rewrites both the filename AND the dist-info/WHEEL metadata
+  # so PyPI and pip see a consistent platform tag.
   (cd "$stage" && python -m build --wheel --outdir "$out_abs/.staging-$plat_tag")
   for whl in "$out_abs/.staging-$plat_tag"/*.whl; do
-    local base name
-    base="$(basename "$whl")"
-    name="${base/-py3-none-any/-py3-none-$plat_tag}"
-    mv "$whl" "$out_abs/$name"
+    python -m wheel tags --remove --platform-tag "$plat_tag" "$whl"
   done
+  mv "$out_abs/.staging-$plat_tag"/*.whl "$out_abs/"
   rmdir "$out_abs/.staging-$plat_tag"
 }
 
