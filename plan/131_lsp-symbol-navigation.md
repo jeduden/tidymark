@@ -1,5 +1,5 @@
 ---
-id: 130
+id: 131
 title: LSP symbol navigation for agents (Claude)
 status: "🔲"
 model: opus
