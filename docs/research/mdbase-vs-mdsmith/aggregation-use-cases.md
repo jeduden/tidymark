@@ -311,6 +311,32 @@ files, link-graph lookup), the saved work is
 construction. Validation is ~120ms. Here the
 cache pays clearly.
 
+**This applies to mdbase too.** A one-shot
+`mdbase query` invocation without watch mode
+running has the same validation cost as a
+hypothetical mdsmith with-cache run. The mdbase
+SQLite cache wins decisively only in two regimes:
+
+- **Long-lived sessions with watch mode.** The
+  watcher (spec §15) keeps the cache live with
+  the filesystem, amortizing validation across
+  many queries. First-query latency stays high,
+  but subsequent queries skip validation.
+- **Repeated queries within one process.** The
+  validation cost is paid once at startup; every
+  query in the same session benefits.
+
+For the `cd repo && mdbase query …` pattern that
+matches a CI job or an agent loop, the SQLite
+cache narrows the gap with stateless re-read
+significantly. The dominant winning case for
+SQLite over stateless is the always-on watch-mode
+deployment, which mdbase explicitly designs for
+(spec §15 mandates watch mode at conformance
+level 6) but which fits a smaller share of
+real-world workflows than the spec-first framing
+implies.
+
 ### OS file cache is the implicit warm cache
 
 Linux's page cache, macOS's UBC, Windows' system
@@ -477,6 +503,187 @@ options fall short for the access pattern, and
 `T_sync` is comfortably below `T_warm`. Until
 then, none of the persistent options earn their
 operational baggage.
+
+## What the mdbase query layer actually is
+
+A few questions about the architecture come up
+when reading the spec. The answers shape both
+the cost picture and the security posture.
+
+### Does mdbase query body content beyond links?
+
+Per spec §10, queries can reach the body via
+`file.body`, which is "the raw markdown text
+including syntax characters". Methods: substring
+match (`.contains`), regex (`.matches`). That is
+the full surface.
+
+What this means in practice:
+
+- **Yes:** "any file containing the word
+  `OIDC`" is a one-line `where` clause.
+- **No:** "any file whose first heading starts
+  with `Migration`" — there's no AST access; the
+  body is treated as a string.
+- **No:** "any file with at least three H2
+  headings" — same reason.
+- **No:** "any file with a fenced code block
+  tagged `cue`" — needs structural parsing.
+- **Partial:** "any file that mentions a project
+  name in its first paragraph" — only via regex
+  on the prefix, no first-paragraph concept.
+
+The body is a blob, not an AST. mdsmith's lint
+engine has full AST access for every file (it
+must, to lint structurally), but this isn't
+exposed to `mdsmith query` today. Surfacing it
+would be a Q-3 follow-on (see
+[learn-from-mdbase.md](learn-from-mdbase.md)),
+not a fundamental capability gap.
+
+For users who want structural body queries
+**today**, neither tool ships them. mdsmith
+could add them more cheaply because the parse
+already happens; mdbase would need to extend its
+expression language and its index schema.
+
+### Is the query language SQL?
+
+No. mdbase's query language is the expression
+DSL defined in spec §11: operators, string and
+list methods, date functions, link traversal,
+designed for compatibility with Obsidian Bases
+syntax. Users do not write SQL.
+
+Implementation-internal, an SQLite-backed impl
+likely compiles the DSL down to SQL for the
+cached path — translating
+
+```text
+status == "open" && priority >= 3
+```
+
+to roughly
+
+```sql
+SELECT path FROM files
+WHERE json_extract(fm,'$.status') = 'open'
+  AND json_extract(fm,'$.priority') >= 3
+```
+
+depending on schema. But the
+compilation is implementation-defined and not
+visible to users.
+
+This means three things:
+
+- The user-facing surface is restricted by
+  design. There is no SQL drop-through, no
+  `JOIN` syntax, no subqueries beyond the spec's
+  `asFile()` traversal (depth-limited at 10).
+- Different impls can use different storage:
+  SQLite, in-memory map, Bolt-style KV, even a
+  hypothetical PostgreSQL-backed impl. The DSL
+  stays the same.
+- Query compatibility across impls is the
+  spec's contract; storage choice is private
+  per impl.
+
+mdsmith's `mdsmith query` uses CUE struct
+literals as its query language, which is also
+not SQL but is a richer constraint language at
+the cost of less ergonomic value-comparison
+syntax. Q-7 in
+[learn-from-mdbase.md](learn-from-mdbase.md)
+explores adding a Bases-compatible front-end.
+
+### What is the security posture of the query layer?
+
+mdbase's spec is largely silent on security;
+each impl picks its own posture. The threat
+surface for an SQLite-backed impl includes:
+
+1. **Injection through the DSL.** If the impl
+   compiles user expressions to SQL by string
+   concatenation rather than parameter binding,
+   crafted expressions could escape the
+   intended query. Best practice is prepared
+   statements with `?` placeholders for
+   user-provided values; a careful impl never
+   builds SQL from raw user input. The spec
+   does not mandate this, so it depends on the
+   impl's hygiene.
+2. **Path traversal in link resolution.** Spec
+   §8 mandates path sandboxing (`..` cannot
+   escape the collection root). The
+   `path_traversal` error code in appendix C
+   confirms impls must reject escape attempts.
+   Mostly a settled question.
+3. **Resource exhaustion via traversal.** The
+   spec sets a default `asFile()` depth limit
+   of 10 and an expression nesting limit of 64
+   levels. These bound deep walks but not
+   wide ones — a query like
+   `where: any(items, x -> any(x.deps, ...))`
+   over a large list field can still be
+   expensive. Impls add their own time/row
+   budgets.
+4. **YAML attacks on the parse step.** Anchor
+   bombs ("billion laughs") and similar attacks
+   are real on YAML-FM-heavy collections. The
+   spec doesn't mandate a guard. mdsmith
+   rejects YAML anchors and aliases by default
+   (`internal/yamlutil`); an mdbase impl would
+   need to do the same for parity.
+5. **Cache file integrity.** The `.mdbase/`
+   folder (typically gitignored) holds the
+   SQLite file. If another process can write
+   to it, false rows can be injected.
+   Mitigation: the spec mandates the cache be
+   rebuildable from files alone, so users can
+   recover with `mdbase cache rebuild`. The
+   attack window is "between rebuilds".
+6. **Untrusted type definitions.** If
+   `_types/*.md` are user-controlled (e.g. a
+   PR adds a type), a hostile type file could
+   declare expensive constraints, large
+   `default_strict` impacts, or filesystem
+   patterns that grow unboundedly. Impls
+   typically treat type files as trusted; CI
+   pipelines should scope where they come from.
+
+mdsmith ran a 10-finding adversarial review
+documented in
+`docs/security/2026-04-05-adversarial-markdown.md`.
+mdbase impls (TS, Rust LSP, CLI) have not
+published equivalent reviews at the time of
+writing. For projects that ingest untrusted
+contributor Markdown, the practical guidance is
+the same as for any tool that parses untrusted
+input: validate inputs, bound resources,
+parameterize queries, sandbox paths. The spec
+helps with paths and depth; the rest is impl
+quality.
+
+### Side-by-side query-layer summary
+
+| Concern                      | mdsmith                   | mdbase                             |
+|------------------------------|---------------------------|------------------------------------|
+| User query language          | CUE struct literal        | Bases-compatible DSL (spec §11)    |
+| Body access in queries       | not yet (planned Q-3)     | yes (`file.body.contains/matches`) |
+| Body structure access        | no (lint AST is internal) | no                                 |
+| SQL surface to user          | none                      | none                               |
+| Storage abstraction          | n/a (no persistent index) | DSL → impl-defined backend         |
+| Path traversal sandbox       | yes (MDS027 + repo root)  | yes (spec §8 mandate)              |
+| YAML anchor/alias guard      | yes (mdsmith hardening)   | impl-defined (spec silent)         |
+| Resource limits in query     | rule timeouts (impl)      | depth ≤ 10, nesting ≤ 64           |
+| Adversarial review published | yes (10 findings)         | not at the time of writing         |
+
+Reading across: mdbase wins on body content
+matching (because they shipped it). mdsmith wins
+on hardened parsing today (because they did the
+review). Both share the path-sandboxing baseline
+the spec mandates.
 
 ## When the index pays
 
