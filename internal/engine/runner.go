@@ -211,8 +211,13 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 	// "file too large" failure mode.
 	if r.MaxInputBytes > 0 && r.MaxInputBytes != math.MaxInt64 &&
 		int64(len(source)) > r.MaxInputBytes {
+		// Match the on-disk error shape — processFile wraps
+		// lint.ReadFileLimited's "file too large" via
+		// `reading %q: %w`, so editor / log output stays
+		// uniform whether the source came from stdin, an LSP
+		// buffer, or a real file on disk.
 		res.Errors = append(res.Errors,
-			fmt.Errorf("%s: file too large (%d bytes, max %d)",
+			fmt.Errorf("reading %q: file too large (%d bytes, max %d)",
 				path, len(source), r.MaxInputBytes))
 		return res
 	}

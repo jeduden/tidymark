@@ -68,15 +68,25 @@ if (watch) {
     // may differ from the script's directory under `bun run`).
     for await (const rel of glob.scan({ cwd: import.meta.dir })) {
       const abs = join(import.meta.dir, rel);
-      const stat = await Bun.file(abs).stat();
+      // glob.scan yielded the path, but a delete/rename can race
+      // between the yield and the stat call. Treat a stat failure
+      // the same as "file vanished": skip this iteration so the
+      // watch process keeps running. The deletion sweep below
+      // (over `seen`) will pick the missing entry up next tick.
+      let mtimeMs: number;
+      try {
+        mtimeMs = (await Bun.file(abs).stat()).mtimeMs;
+      } catch {
+        continue;
+      }
       const prev = seen.get(abs);
       if (prev === undefined) {
         // Newly-appearing file — also a rebuild trigger.
         changed = true;
-      } else if (prev !== stat.mtimeMs) {
+      } else if (prev !== mtimeMs) {
         changed = true;
       }
-      seen.set(abs, stat.mtimeMs);
+      seen.set(abs, mtimeMs);
       present.add(abs);
     }
     // Detect deletions: anything in `seen` that no longer shows

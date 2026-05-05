@@ -68,7 +68,12 @@ func fixSourceImpl(opts SourceOptions, only []string) ([]byte, error) {
 	// in cmd/mdsmith/main.go shows the canonical resolution).
 	if maxBytes > 0 && maxBytes != math.MaxInt64 &&
 		int64(len(opts.Source)) > maxBytes {
-		return nil, fmt.Errorf("%s: file too large (%d bytes, max %d)",
+		// Match the on-disk Fixer's error shape — Fixer.Fix wraps
+		// lint.ReadFileLimited's "file too large" via
+		// `reading %q: %w`, so editor / log output stays uniform
+		// regardless of whether the source came from disk or an
+		// in-memory caller (LSP, stdin, …).
+		return nil, fmt.Errorf("reading %q: file too large (%d bytes, max %d)",
 			opts.Path, len(opts.Source), maxBytes)
 	}
 	cfg := opts.Config
