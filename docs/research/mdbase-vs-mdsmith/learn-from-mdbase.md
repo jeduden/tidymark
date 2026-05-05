@@ -1,5 +1,8 @@
 ---
-summary: Systematic enumeration of mdbase capabilities mdsmith does not yet have, with a per-gap mini-plan covering goal, design sketch, surface, effort, trigger, and open questions.
+summary: >-
+  Systematic enumeration of mdbase capabilities mdsmith does not yet
+  have, with a per-gap mini-plan covering goal, design sketch, surface,
+  effort, trigger, and open questions.
 status: 🔳
 ---
 # What mdsmith can learn from mdbase
@@ -106,14 +109,14 @@ sketch.
 
 ### Cache, watch, migrations, conformance, LSP
 
-| ID  | Gap                                    | Effort | Trigger / status                                                              |
-|-----|----------------------------------------|--------|-------------------------------------------------------------------------------|
-| P-1 | Persistent on-disk index               | L      | profiling on a real >5k-file repo shows the cold-start cost is the bottleneck |
-| P-2 | Watch mode beyond LSP per-session      | M      | a CLI workflow needs cross-process freshness (rare today)                     |
-| V-1 | Migration manifests                    | L      | mdsmith grows write-back to FM (S-5 / C-2) and breaking schema changes hurt   |
-| X-1 | Spec-first / multi-impl model          | XL     | a second implementation appears (fork, or upstream split); revisit then       |
-| H-1 | LSP hover for rules / directives       | —      | in-flight (plan 122)                                                          |
-| H-2 | LSP symbol navigation + call hierarchy | —      | in-flight (plan 131, PR #238)                                                 |
+| ID  | Gap                                    | Effort | Trigger / status                                                                                                       |
+|-----|----------------------------------------|--------|------------------------------------------------------------------------------------------------------------------------|
+| P-1 | Persistent on-disk index               | L      | profiling shows parse cost dominates after netting out OS cache and any in-memory index (see aggregation-use-cases.md) |
+| P-2 | Watch mode beyond LSP per-session      | M      | a CLI workflow needs cross-process freshness (rare today)                                                              |
+| V-1 | Migration manifests                    | L      | mdsmith grows write-back to FM (S-5 / C-2) and breaking schema changes hurt                                            |
+| X-1 | Spec-first / multi-impl model          | XL     | a second implementation appears (fork, or upstream split); revisit then                                                |
+| H-1 | LSP hover for rules / directives       | —      | in-flight (plan 122)                                                                                                   |
+| H-2 | LSP symbol navigation + call hierarchy | —      | in-flight (plan 131, PR #238)                                                                                          |
 
 ## Schema language plans
 
@@ -985,13 +988,21 @@ limit.
 **Goal.** A cache of parsed FM, link edges, and
 computed fields that survives across CLI runs.
 
-**Trigger.** Profiling on a real >5k-file repo
-shows the cold-start parse cost dominates wall
-time, OR an in-flight feature (Q-5 aggregations,
-L-4 backlinks at scale) makes per-run rebuild
-visibly slow. The deeper analysis below
-(*A closer look at P-1*) walks six implementation
-options and what would tip the choice.
+**Trigger.** A persistent cache earns its cost
+only after surviving three filters: OS-cache
+(repeated runs are already RAM-fast through the
+page cache), sync-check (validating the on-disk
+cache against the filesystem isn't free —
+50,000 files takes ~500ms of `stat` alone), and
+in-memory-with-priority (a long-lived process
+gets most of the win without the operational
+baggage). The deeper walk-through is in
+[aggregation-use-cases.md §"What an index
+actually costs"](aggregation-use-cases.md). The
+short version: ship this when the *parsed*
+index is what's expensive, not the raw read,
+and a long-lived process can't already cover
+the access pattern.
 
 **Sketch.** See the next section.
 

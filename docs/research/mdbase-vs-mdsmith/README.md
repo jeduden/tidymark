@@ -1,5 +1,7 @@
 ---
-summary: Deep-dive comparison of mdsmith and mdbase — two file-first, plain-Markdown-on-disk approaches with non-overlapping responsibilities.
+summary: >-
+  Deep-dive comparison of mdsmith and mdbase — two file-first, plain-
+  Markdown-on-disk approaches with non-overlapping responsibilities.
 status: 🔳
 ---
 # mdsmith vs mdbase

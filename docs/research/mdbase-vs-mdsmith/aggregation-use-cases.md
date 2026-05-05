@@ -1,5 +1,9 @@
 ---
-summary: Concrete use cases for query aggregations and the toughest open question for mdsmith — whether the index that makes them fast in mdbase has a stateless equivalent. Walks the workload shapes, the SQLite payoff, and the fzf / ripgrep-style alternative.
+summary: >-
+  Concrete use cases for query aggregations and the toughest open
+  question for mdsmith — whether the index that makes them fast in
+  mdbase has a stateless equivalent. Walks the workload shapes, the
+  SQLite payoff, and the fzf / ripgrep-style alternative.
 status: 🔳
 ---
 # Aggregation use cases and the index question
@@ -254,6 +258,225 @@ shape is option 2 from
 in-memory, process-scoped index in the LSP
 server. No disk cache; the editor session keeps
 state, the CLI does not.
+
+## What an index actually costs
+
+Before deciding whether the index pays, the
+estimate above ("seconds cold without cache,
+sub-millisecond with cache") is too coarse. The
+reality has three confounders that narrow the
+band where a persistent cache wins.
+
+### Sync-check overhead is not free
+
+A persistent index has its own startup cost
+before any query runs. At minimum it must
+verify the cache is current. Two layers of check
+exist (mdbase spec §13):
+
+1. **mtime sweep.** `stat()` every file in the
+   collection, compare against the cached
+   mtime. A `stat()` is a few microseconds when
+   the dirent is in the OS cache, more on a
+   cold filesystem. 5,000 files × ~10μs ≈ 50ms.
+   50,000 files ≈ 500ms.
+2. **Hash on doubt.** When mtime is unreliable
+   (network filesystems, build tools that
+   `touch`, file-system clock skew across
+   machines), the impl falls back to hashing
+   file contents. SHA-256 of a 4KB file is
+   ~30μs of CPU, plus the read. 5,000 files ≈
+   150ms of hashing alone, more if the OS
+   cache is cold.
+
+Combined: a clean cache validation pass on a
+50,000-file corpus is on the order of a second.
+**That is in the same range as a fresh parallel
+parse of the same corpus** (see the sketch
+under "What a real benchmark plan would
+measure" below). The cache wins only when the
+saved work — parse time, link-graph build,
+aggregation — clearly exceeds the validation
+cost.
+
+For a query like A-1 (sprint dashboard, 5,800
+files, simple FM filter), the saved work is ~600ms
+of parsing and a `WHERE` clause. The validation
+cost is ~50ms. The cache wins, but by less than
+the naive analysis suggests.
+
+For a query like A-3 (backlinks panel, 12,000
+files, link-graph lookup), the saved work is
+~2 seconds of full-body parse plus link-edge
+construction. Validation is ~120ms. Here the
+cache pays clearly.
+
+### OS file cache is the implicit warm cache
+
+Linux's page cache, macOS's UBC, Windows' system
+cache — every modern OS keeps recently-read
+files in RAM. The first `mdsmith check` reads
+files from disk; the second reads them from
+memory at memcpy speed.
+
+For a typical project this matters more than
+any application-level cache:
+
+- A 50MB vault fits entirely in OS cache on any
+  development machine. Once read, repeated reads
+  are RAM-speed (≈10GB/s) for as long as the
+  pages stay resident.
+- The pages stay resident until evicted (LRU
+  pressure, typically minutes-to-hours of idle)
+  or the file is modified (the dirty page is
+  flushed and re-read on next access).
+- `stat()` results are cached the same way. A
+  warm `stat()` is ~1μs.
+
+The implication: **mdsmith's "stateless re-read"
+is, in practice, a re-read from RAM**, not from
+disk, for any corpus that fits in available
+memory and any session that runs more than once.
+A persistent application cache duplicates work
+the OS already does for free. Where it wins is
+*parsing* work — the conversion from raw bytes
+to a structured index — which the OS does not
+cache.
+
+So the question shifts: at what corpus size, and
+for what workload, does the parsing cost dominate
+to the point where caching the parse result pays
+for the cache's own validation overhead?
+
+### Background indexing with priority queries
+
+A third option sits between "rebuild on every
+run" and "fully persisted index": **build the
+index in memory at startup, in the background,
+while queries run against the partial state and
+get hoisted in priority.**
+
+The pattern is well-trodden in IDEs.
+IntelliJ and the TypeScript language server
+both work this way: the editor opens
+immediately, indexing starts in the background,
+and any feature that needs not-yet-indexed data
+either jumps the queue (re-prioritizing the
+relevant subdirectory) or falls back to a
+slower path until the index catches up.
+
+For mdsmith the shape would be:
+
+- **Cold start.** Spawn a background indexer
+  goroutine that walks the workspace and parses
+  files in priority order: `kind:` matches first,
+  then files referenced by an open query, then
+  the rest.
+- **Query arrives.** The query thread checks
+  the in-progress index. Files it needs but
+  doesn't find get pushed to the front of the
+  indexer's queue. Once parsed, the result is
+  returned.
+- **Tail.** The indexer keeps building until
+  the workspace is fully indexed or the process
+  exits.
+
+This works **only when the process is
+long-lived** — an LSP session, an
+`mdsmith watch` daemon (P-2), or an interactive
+REPL. For a one-shot CLI command (`mdsmith query
+... && exit`) the process exits before the
+background work finishes, so the value is
+small. The pattern is therefore not a
+replacement for stateless one-shot, but an
+extension of the in-memory in-LSP option from
+the P-1 alternatives table.
+
+What it buys:
+
+- **Apparent cold-start latency drops.** The
+  user sees the first query result fast even on
+  a 50,000-file workspace, because the indexer
+  does not need to be complete to answer
+  point queries.
+- **No persistent state.** The whole index lives
+  in process memory. Restart and rebuild; no
+  staleness, no schema migration, no `.mdbase/`
+  on disk.
+- **Iteratively useful.** A workspace that's
+  10% indexed can already answer 90% of "find
+  this kind" queries when that kind is what was
+  prioritized.
+
+What it costs:
+
+- Indexer state machine and priority queue
+  (modest implementation work, well-understood
+  pattern).
+- Memory bounded by workspace size; mdsmith's
+  existing 512MB GOMEMLIMIT covers most cases.
+- More complex than "rebuild fresh per query",
+  less complex than a persistent on-disk store.
+
+### What this means for the trigger
+
+The trigger for adding a persistent on-disk
+cache (P-1 in
+[learn-from-mdbase.md](learn-from-mdbase.md))
+is therefore narrower than "cold-start cost
+dominates". It needs to survive three filters
+in sequence:
+
+1. **OS-cache filter.** Repeated runs on a
+   stable corpus are already fast through the
+   page cache. A persistent cache helps only
+   when the *parsed* index — not the raw bytes
+   — is what's expensive to rebuild. Confirm by
+   profiling the second invocation, not the
+   first.
+2. **Sync-check filter.** The savings from
+   skipping parse work must clearly exceed the
+   cost of validating the cache against the
+   filesystem. This is the gap between "naive
+   re-parse takes 1s" and "cache validation
+   takes 0.5s".
+3. **In-memory-with-priority filter.** A
+   long-lived process can already get most of
+   the latency benefit with background indexing
+   in RAM, without the operational cost of an
+   on-disk cache. Confirm the workload genuinely
+   needs cross-process freshness or restart-time
+   warmth.
+
+Surviving all three is a higher bar than "cold
+start is slow on a big repo". The wiggle room
+is real and worth using before reaching for
+persistent state.
+
+### What a real benchmark plan would measure
+
+For the choice to be informed rather than
+guessed, the next step is concrete numbers on a
+real corpus. A benchmark plan would compare
+five configurations on synthetic 1k / 10k / 50k
+file workspaces:
+
+| Config                                | Cold start | 2nd run | Notes                             |
+|---------------------------------------|------------|---------|-----------------------------------|
+| stateless re-read, OS cache cold      | T_cold     | —       | upper bound; rare in practice     |
+| stateless re-read, OS cache warm      | T_warm     | T_warm  | the realistic baseline            |
+| in-memory index, lazy build, in-LSP   | T_warm     | <1ms    | for long-lived processes          |
+| in-memory index with priority queries | <T_warm    | <1ms    | ditto, with apparent latency win  |
+| persistent on-disk cache, mtime sync  | T_sync     | <1ms    | T_sync ≈ stat + index lookup      |
+| persistent on-disk cache, hash sync   | T_hash     | <1ms    | T_hash > T_sync, paranoid setting |
+
+The decision lands when `T_warm` for the
+relevant workload exceeds an interactive
+threshold (typically 100ms), the in-memory
+options fall short for the access pattern, and
+`T_sync` is comfortably below `T_warm`. Until
+then, none of the persistent options earn their
+operational baggage.
 
 ## When the index pays
 

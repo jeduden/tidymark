@@ -1,5 +1,9 @@
 ---
-summary: Feature-by-feature comparison of mdsmith and mdbase across distribution, configuration, type system, validation, queries, links, generated content, prose linting, conventions, cache, CLI, LSP, output formats, and security posture.
+summary: >-
+  Feature-by-feature comparison of mdsmith and mdbase across
+  distribution, configuration, type system, validation, queries, links,
+  generated content, prose linting, conventions, cache, CLI, LSP, output
+  formats, and security posture.
 status: 🔳
 ---
 # Feature-by-feature comparison
