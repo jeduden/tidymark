@@ -1,8 +1,8 @@
 ---
 summary: >-
-  Built-in Markdown conventions, the rule presets
-  each one applies, and how user config layers on
-  top via deep-merge.
+  Built-in and user-defined Markdown conventions,
+  the rule presets each one applies, and how user
+  config layers on top via deep-merge.
 ---
 # Markdown conventions
 
@@ -171,6 +171,87 @@ other rules in the preset are untouched.
 This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
+
+## User-defined conventions
+
+When none of the three built-in conventions fits
+your team, you can define your own inline in
+`.mdsmith.yml`. Add a top-level `conventions:` map
+— sibling to `kinds:` and `rules:` — and then
+select it with `convention:` as usual.
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+Each entry is a `{ flavor, rules }` pair with the
+same schema as the built-in table. `flavor` must be
+one of `commonmark`, `gfm`, or `goldmark`. `rules`
+uses the same schema as a top-level `rules:` block.
+
+### Reserved names
+
+The built-in names `portable`, `github`, and
+`plain` are reserved. Defining a convention with
+one of those names in the `conventions:` block is a
+config error. This keeps docs and tutorials
+consistent: `convention: portable` always means
+the built-in bundle.
+
+### Validation
+
+User-defined conventions are validated at config
+load time:
+
+- `flavor` must be a known flavor string.
+- Each key in `rules` must name a registered rule.
+- Each rule's settings must pass the same
+  `ApplySettings` validation path that top-level
+  `rules:` uses. Errors name the convention and
+  the offending rule:
+  `convention "our-team" rule "no-inline-html":
+  unknown setting "allowed"`.
+
+### Resolution order
+
+When `convention:` resolves:
+
+1. User-defined `conventions:` map — checked first.
+2. Built-in table — fallback.
+3. Neither matches — config error. The error lists
+   both built-in names and user-defined names (the
+   latter with a `(user)` suffix).
+
+Name collisions with built-ins are rejected at
+parse time. A user convention can never shadow a
+built-in.
+
+### Interaction with top-level rules
+
+User-defined conventions apply as a base layer
+beneath your top-level `rules:` overrides — the
+same as built-in conventions. Set `convention:
+our-team` and then override any rule in the
+top-level `rules:` block; the override wins via
+deep-merge.
+
+### Provenance
+
+`mdsmith kinds resolve <file>` labels the
+user-convention layer `convention.<name> (user)`.
+This distinguishes it from built-in convention
+layers at a glance.
 
 ## Inspecting an effective convention
 

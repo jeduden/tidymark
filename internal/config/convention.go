@@ -138,6 +138,10 @@ func applyConvention(cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("convention: %w", err)
 	}
+	// Track whether the active convention came from the user's
+	// conventions: block so that provenance can append "(user)".
+	_, isUserDefined := userConvs[cfg.Convention]
+	cfg.ConventionIsUserDefined = isUserDefined
 	if rc, ok := cfg.Rules["markdown-flavor"]; ok {
 		userFlavor, err := stringSetting(
 			rc.Settings, "flavor", "rules.markdown-flavor.flavor",

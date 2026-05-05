@@ -95,6 +95,14 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+
+	// ConventionIsUserDefined is true when the active convention was
+	// declared in the user's `conventions:` block rather than being
+	// one of the built-in conventions ("portable", "github", "plain").
+	// Used by provenance to append a "(user)" suffix to the convention
+	// source label in `mdsmith kinds resolve` output.
+	// Not serialized to YAML.
+	ConventionIsUserDefined bool `yaml:"-"`
 }
 
 // Override applies rule settings to files matching glob patterns.

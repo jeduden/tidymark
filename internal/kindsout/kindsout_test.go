@@ -475,3 +475,23 @@ func TestWriteRuleResolutionText_ShowsConventionLayer(t *testing.T) {
 	assert.Contains(t, out, "winning source: user",
 		"user value wins over convention preset")
 }
+
+func TestWriteRuleResolutionText_UserConventionShowsUserSuffix(t *testing.T) {
+	// When the active convention is user-defined, its source label in
+	// the merge chain must include the "(user)" suffix so operators
+	// can distinguish it from built-in conventions.
+	cfg := &config.Config{
+		Convention:              "our-team",
+		ConventionIsUserDefined: true,
+		ConventionPreset: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 100}},
+		},
+	}
+	res := config.ResolveFile(cfg, "x.md", nil)
+	rr := res.Rules["line-length"]
+	var buf bytes.Buffer
+	require.NoError(t, WriteRuleResolutionText(&buf, "x.md", rr))
+	out := buf.String()
+	assert.Contains(t, out, "convention.our-team (user)",
+		"user convention must appear in chain with (user) suffix")
+}

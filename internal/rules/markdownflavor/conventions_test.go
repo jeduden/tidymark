@@ -9,7 +9,7 @@ import (
 )
 
 func TestLookup_Portable(t *testing.T) {
-	c, err := Lookup("portable")
+	c, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "portable", c.Name)
 	assert.Equal(t, FlavorCommonMark, c.Flavor)
@@ -27,7 +27,7 @@ func TestLookup_Portable(t *testing.T) {
 }
 
 func TestLookup_Github(t *testing.T) {
-	c, err := Lookup("github")
+	c, err := Lookup("github", nil)
 	require.NoError(t, err)
 	assert.Equal(t, FlavorGFM, c.Flavor)
 
@@ -42,7 +42,7 @@ func TestLookup_Github(t *testing.T) {
 }
 
 func TestLookup_Plain(t *testing.T) {
-	c, err := Lookup("plain")
+	c, err := Lookup("plain", nil)
 	require.NoError(t, err)
 	assert.Equal(t, FlavorCommonMark, c.Flavor)
 
@@ -53,7 +53,7 @@ func TestLookup_Plain(t *testing.T) {
 }
 
 func TestLookup_Unknown(t *testing.T) {
-	_, err := Lookup("bogus")
+	_, err := Lookup("bogus", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown convention")
 	assert.Contains(t, err.Error(), "bogus")
@@ -120,7 +120,7 @@ func TestLookup_ReturnsDeepCopy(t *testing.T) {
 	// Mutating the returned Convention must not corrupt the
 	// package-level table. Lookup is exported, so callers could
 	// otherwise rewrite the built-ins by accident.
-	first, err := Lookup("portable")
+	first, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	first.Rules["markdown-flavor"].Settings["flavor"] = "tampered"
 	first.Rules["new-rule"] = RulePreset{Enabled: true}
@@ -129,7 +129,7 @@ func TestLookup_ReturnsDeepCopy(t *testing.T) {
 		allow.Settings["allow"] = []any{"tampered"}
 	}
 
-	second, err := Lookup("portable")
+	second, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "commonmark",
 		second.Rules["markdown-flavor"].Settings["flavor"],
@@ -144,4 +144,87 @@ func TestConventionNamesSorted(t *testing.T) {
 	assert.True(t, sort.StringsAreSorted(names),
 		"ConventionNames should return a sorted slice; got %v", names)
 	assert.ElementsMatch(t, []string{"github", "plain", "portable"}, names)
+}
+
+// --- User-defined conventions via Lookup ---
+
+func TestLookup_UserDefinedConvention(t *testing.T) {
+	userConvs := map[string]Convention{
+		"our-team": {
+			Name:   "our-team",
+			Flavor: FlavorGFM,
+			Rules: map[string]RulePreset{
+				"list-marker-style": {
+					Enabled:  true,
+					Settings: map[string]any{"style": "dash"},
+				},
+			},
+		},
+	}
+	c, err := Lookup("our-team", userConvs)
+	require.NoError(t, err)
+	assert.Equal(t, "our-team", c.Name)
+	assert.Equal(t, FlavorGFM, c.Flavor)
+	lms, ok := c.Rules["list-marker-style"]
+	require.True(t, ok)
+	assert.Equal(t, "dash", lms.Settings["style"])
+}
+
+func TestLookup_UserDefinedConventionReturnsDeepCopy(t *testing.T) {
+	userConvs := map[string]Convention{
+		"our-team": {
+			Name:   "our-team",
+			Flavor: FlavorGFM,
+			Rules: map[string]RulePreset{
+				"list-marker-style": {
+					Enabled:  true,
+					Settings: map[string]any{"style": "dash"},
+				},
+			},
+		},
+	}
+	first, err := Lookup("our-team", userConvs)
+	require.NoError(t, err)
+	first.Rules["list-marker-style"].Settings["style"] = "tampered"
+
+	second, err := Lookup("our-team", userConvs)
+	require.NoError(t, err)
+	assert.Equal(t, "dash", second.Rules["list-marker-style"].Settings["style"],
+		"Lookup must return a deep copy; mutation must not affect map")
+}
+
+func TestLookup_UserDefinedTakesPriorityCheck(t *testing.T) {
+	// User conventions are found by Lookup before built-ins are checked.
+	// Since names collide with built-ins are rejected at validate time,
+	// this tests that a name only in user map is found.
+	userConvs := map[string]Convention{
+		"custom": {Name: "custom", Flavor: FlavorGFM},
+	}
+	c, err := Lookup("custom", userConvs)
+	require.NoError(t, err)
+	assert.Equal(t, "custom", c.Name)
+}
+
+func TestLookup_UnknownWithUserConventionsListsBoth(t *testing.T) {
+	// When a lookup fails, the error must list both built-in names and
+	// user-defined names (with "(user)" suffix) so users see all options.
+	userConvs := map[string]Convention{
+		"our-team": {Name: "our-team", Flavor: FlavorGFM},
+	}
+	_, err := Lookup("bogus", userConvs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bogus")
+	// Built-in names must be listed.
+	assert.Contains(t, err.Error(), "github")
+	assert.Contains(t, err.Error(), "plain")
+	assert.Contains(t, err.Error(), "portable")
+	// User-defined name with "(user)" suffix.
+	assert.Contains(t, err.Error(), "our-team (user)")
+}
+
+func TestLookup_NilUserConventionsLookupBuiltIn(t *testing.T) {
+	// Passing nil for userConventions must work like the old single-arg form.
+	c, err := Lookup("github", nil)
+	require.NoError(t, err)
+	assert.Equal(t, FlavorGFM, c.Flavor)
 }
