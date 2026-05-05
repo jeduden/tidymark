@@ -48,6 +48,7 @@ func Merge(defaults, loaded *Config) *Config {
 		Build:                  copyBuildConfig(loaded.Build),
 		Convention:             loaded.Convention,
 		ConventionPreset:       copyConventionPreset(loaded.ConventionPreset),
+		Conventions:            copyConventionsMap(loaded.Conventions),
 	}
 }
 
@@ -100,6 +101,7 @@ func copyConfig(cfg *Config) *Config {
 		Build:                  copyBuildConfig(cfg.Build),
 		Convention:             cfg.Convention,
 		ConventionPreset:       copyConventionPreset(cfg.ConventionPreset),
+		Conventions:            copyConventionsMap(cfg.Conventions),
 	}
 }
 
@@ -189,6 +191,26 @@ func copyCategories(cats map[string]bool) map[string]bool {
 		result[k] = v
 	}
 	return result
+}
+
+// copyConventionsMap returns a deep copy of a user-defined convention map.
+// Returns nil when the input is nil or empty.
+func copyConventionsMap(m map[string]UserConventionBody) map[string]UserConventionBody {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]UserConventionBody, len(m))
+	for name, body := range m {
+		rules := make(map[string]RuleCfg, len(body.Rules))
+		for k, v := range body.Rules {
+			rules[k] = copyRuleCfg(v)
+		}
+		out[name] = UserConventionBody{
+			Flavor: body.Flavor,
+			Rules:  rules,
+		}
+	}
+	return out
 }
 
 // mergeCategories merges override categories on top of base categories.

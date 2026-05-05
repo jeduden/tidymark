@@ -475,3 +475,52 @@ func TestWriteRuleResolutionText_ShowsConventionLayer(t *testing.T) {
 	assert.Contains(t, out, "winning source: user",
 		"user value wins over convention preset")
 }
+
+func TestWriteRuleResolutionText_UserConventionShowsSuffix(t *testing.T) {
+	// A user-defined convention must appear with a "(user)" suffix in the
+	// merge chain so it is visually distinct from built-in conventions.
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 120}},
+		},
+		ExplicitRules: map[string]bool{"line-length": true},
+		Convention:    "our-team",
+		// Conventions map identifies "our-team" as user-defined.
+		Conventions: map[string]config.UserConventionBody{
+			"our-team": {Flavor: "gfm"},
+		},
+		ConventionPreset: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
+		},
+	}
+	res := config.ResolveFile(cfg, "x.md", nil)
+	rr := res.Rules["line-length"]
+	var buf bytes.Buffer
+	require.NoError(t, WriteRuleResolutionText(&buf, "x.md", rr))
+	out := buf.String()
+	assert.Contains(t, out, "convention.our-team (user)",
+		"user convention source must include (user) suffix")
+}
+
+func TestWriteFileResolutionText_UserConventionShowsSuffix(t *testing.T) {
+	// WriteFileResolutionText must show the (user) suffix for user conventions.
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 120}},
+		},
+		ExplicitRules: map[string]bool{"line-length": true},
+		Convention:    "our-team",
+		Conventions: map[string]config.UserConventionBody{
+			"our-team": {Flavor: "gfm"},
+		},
+		ConventionPreset: map[string]config.RuleCfg{
+			"line-length": {Enabled: true, Settings: map[string]any{"max": 80}},
+		},
+	}
+	res := config.ResolveFile(cfg, "x.md", nil)
+	var buf bytes.Buffer
+	require.NoError(t, WriteFileResolutionText(&buf, res))
+	out := buf.String()
+	assert.Contains(t, out, "settings.max = 120")
+	assert.Contains(t, out, "(from user)")
+}

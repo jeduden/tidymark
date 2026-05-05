@@ -368,3 +368,177 @@ func TestMerge_PreservesConvention(t *testing.T) {
 	merged.ConventionPreset["line-length"].Settings["max"] = 999
 	assert.Equal(t, 80, loaded.ConventionPreset["line-length"].Settings["max"])
 }
+
+// --- User-defined conventions (plan 113) ---
+
+func TestApplyConvention_UserConventionSelected(t *testing.T) {
+	// A valid user convention can be selected and applies its presets.
+	cfg := &Config{
+		Convention: "our-team",
+		Conventions: map[string]UserConventionBody{
+			"our-team": {
+				Flavor: "gfm",
+				Rules: map[string]RuleCfg{
+					"no-inline-html": {
+						Enabled:  true,
+						Settings: map[string]any{"allow": []any{"details", "summary", "kbd"}},
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, applyConvention(cfg))
+	require.NotNil(t, cfg.ConventionPreset)
+
+	preset, ok := cfg.ConventionPreset["no-inline-html"]
+	require.True(t, ok, "preset must contain no-inline-html")
+	assert.True(t, preset.Enabled)
+	assert.Equal(t, []any{"details", "summary", "kbd"}, preset.Settings["allow"])
+}
+
+func TestApplyConvention_ReservedNameRejected(t *testing.T) {
+	// Defining a user convention with a reserved built-in name is an error.
+	for _, reserved := range []string{"portable", "github", "plain"} {
+		t.Run(reserved, func(t *testing.T) {
+			cfg := &Config{
+				Conventions: map[string]UserConventionBody{
+					reserved: {Flavor: "gfm"},
+				},
+			}
+			err := applyConvention(cfg)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), reserved)
+			assert.Contains(t, err.Error(), "reserved")
+		})
+	}
+}
+
+func TestApplyConvention_UnknownRuleNameInUserConvention(t *testing.T) {
+	cfg := &Config{
+		Convention: "our-team",
+		Conventions: map[string]UserConventionBody{
+			"our-team": {
+				Flavor: "gfm",
+				Rules: map[string]RuleCfg{
+					"no-such-rule": {Enabled: true},
+				},
+			},
+		},
+	}
+	err := applyConvention(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "no-such-rule")
+	assert.Contains(t, err.Error(), "unknown rule")
+}
+
+func TestApplyConvention_InvalidRuleSettingInUserConvention(t *testing.T) {
+	// An invalid setting value (wrong type) must produce a config error
+	// naming the convention and rule.
+	cfg := &Config{
+		Convention: "our-team",
+		Conventions: map[string]UserConventionBody{
+			"our-team": {
+				Flavor: "gfm",
+				Rules: map[string]RuleCfg{
+					"no-inline-html": {
+						Enabled:  true,
+						Settings: map[string]any{"allowed": "not-a-valid-setting"},
+					},
+				},
+			},
+		},
+	}
+	err := applyConvention(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "no-inline-html")
+}
+
+func TestApplyConvention_UserConventionWithTopLevelRulesOverride(t *testing.T) {
+	// Top-level rules: overrides win over user convention presets.
+	cfg := &Config{
+		Convention: "our-team",
+		Conventions: map[string]UserConventionBody{
+			"our-team": {
+				Flavor: "gfm",
+				Rules: map[string]RuleCfg{
+					"no-inline-html": {
+						Enabled:  true,
+						Settings: map[string]any{"allow": []any{"details", "summary"}},
+					},
+				},
+			},
+		},
+		Rules: map[string]RuleCfg{
+			"no-inline-html": {
+				Enabled:  true,
+				Settings: map[string]any{"allow": []any{"sub", "sup"}},
+			},
+		},
+		ExplicitRules: map[string]bool{"no-inline-html": true},
+	}
+	require.NoError(t, applyConvention(cfg))
+
+	got := Effective(cfg, "doc.md", nil)
+	rc, ok := got["no-inline-html"]
+	require.True(t, ok)
+	assert.True(t, rc.Enabled)
+	// User list replaces preset list (MergeReplace default for lists).
+	assert.Equal(t, []any{"sub", "sup"}, rc.Settings["allow"],
+		"top-level rules: override wins over user convention preset")
+}
+
+func TestApplyConvention_UnknownConventionListsBothSets(t *testing.T) {
+	// An unknown convention name must list both built-ins and user-defined
+	// names in the error message.
+	cfg := &Config{
+		Convention: "bogus",
+		Conventions: map[string]UserConventionBody{
+			"our-team": {Flavor: "gfm"},
+		},
+	}
+	err := applyConvention(cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bogus")
+	assert.Contains(t, err.Error(), "our-team")
+	assert.Contains(t, err.Error(), "github")
+}
+
+func TestLoad_UserConventionParsedFromYAML(t *testing.T) {
+	// End-to-end: Load reads a conventions: block and applies the selected
+	// user convention's presets.
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+convention: our-team
+`
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, "our-team", cfg.Convention)
+	require.NotNil(t, cfg.ConventionPreset)
+
+	preset, ok := cfg.ConventionPreset["no-inline-html"]
+	require.True(t, ok)
+	assert.True(t, preset.Enabled)
+	assert.Equal(t, []any{"details", "summary", "kbd"}, preset.Settings["allow"])
+}
+
+func TestLoad_ReservedUserConventionNameRejected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mdsmith.yml")
+	yml := "conventions:\n  portable:\n    flavor: gfm\n"
+	require.NoError(t, os.WriteFile(path, []byte(yml), 0o600))
+
+	_, err := Load(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "portable")
+	assert.Contains(t, err.Error(), "reserved")
+}
