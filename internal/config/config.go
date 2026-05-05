@@ -23,6 +23,15 @@ var ValidCategories = []string{
 // discovery when no file arguments are given on the command line.
 var DefaultFiles = []string{"**/*.md", "**/*.markdown"}
 
+// UserConventionBody is the YAML shape for one entry in the
+// `conventions:` block. It mirrors the built-in Convention type
+// from markdownflavor but is defined here so the config package can
+// parse it without creating an import cycle.
+type UserConventionBody struct {
+	Flavor string             `yaml:"flavor"`
+	Rules  map[string]RuleCfg `yaml:"rules"`
+}
+
 // Config is the top-level configuration.
 type Config struct {
 	Rules          map[string]RuleCfg    `yaml:"rules"`
@@ -36,6 +45,12 @@ type Config struct {
 	Kinds          map[string]KindBody   `yaml:"kinds,omitempty"`
 	KindAssignment []KindAssignmentEntry `yaml:"kind-assignment,omitempty"`
 	Build          BuildConfig           `yaml:"build,omitempty"`
+
+	// Conventions holds user-defined convention definitions. The map
+	// key is the convention name; the value is a {flavor, rules} body
+	// matching the built-in convention table shape. Reserved names
+	// ("portable", "github", "plain") may not be overridden.
+	Conventions map[string]UserConventionBody `yaml:"conventions,omitempty"`
 
 	// Convention names a Markdown convention bundle. Built-in
 	// values: "portable", "github", "plain". Empty means no
