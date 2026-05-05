@@ -169,6 +169,67 @@ to CommonMark parsers). Dataview inline fields are not
 front matter and will not be read by mdsmith's
 `require`/`schema` directives.
 
+### [mdbase][]
+
+Specification for treating folders of Markdown files
+as typed, queryable data collections. Split across
+three repos: the [spec][mdbase-spec], a TypeScript
+reference impl ([mdbase][mdbase-ts]), and a Node 22+
+[CLI][mdbase-cli]. MIT, version 0.2.1 (early release
+as of 2026-05). It overlaps with mdsmith's file-kinds
+and front-matter schema work. Both tools target the
+same Obsidian-vault audience.
+
+A collection is a directory with an `mdbase.yaml`
+config plus a `_types/` folder. Type definitions are
+Markdown files: schema in front matter, docs in body.
+The spec defines:
+
+- 12 field types (string, integer, date, enum, link,
+  tags, etc.) with inheritance and computed fields
+- File-to-type assignment via explicit declaration,
+  path globs, or field presence
+- An expression language for filtering, sorting,
+  grouping, and summaries, designed for compatibility
+  with Obsidian [Bases][obsidian-bases] syntax
+- Reference tracking that rewrites wiki and Markdown
+  links when files are renamed
+- SQLite-backed cache and watch mode for incremental
+  re-evaluation
+- 34 error codes spanning 6 validation strictness
+  levels
+- 6 conformance tiers, from Core (CRUD only) through
+  Full (caching, batch operations, watch mode)
+
+mdbase and mdsmith both treat front-matter-tagged
+Markdown as data, but pick different tradeoffs:
+
+| Aspect              | mdbase                                  | mdsmith                                                |
+|---------------------|-----------------------------------------|--------------------------------------------------------|
+| Artifact            | Spec + TS impl + Node CLI               | Single Go binary                                       |
+| Scope               | Data layer (types, queries, refs)       | Linter + fixer + generator                             |
+| Type definitions    | Markdown files under `_types/`          | [File kinds][file-kinds] in `.mdsmith.yml`             |
+| File-to-type match  | Explicit, path globs, or field presence | Path globs in `.mdsmith.yml`                           |
+| Front-matter schema | 12 built-in field types, inheritance    | CUE schema via [MDS020][mds020] (`required-structure`) |
+| Query language      | Obsidian Bases–compatible expressions   | CUE expressions (`mdsmith query`)                      |
+| Rename refactor     | Rewrites incoming links                 | No (integrity check only, [MDS027][mds027])            |
+| Cache               | SQLite, watch mode                      | None (stateless per run)                               |
+| Prose / structure   | Out of scope                            | 30+ rules (line length, headings, readability, …)      |
+| Generated content   | Out of scope                            | catalog, include, toc, build directives                |
+| Editor integration  | LSP server (separate repo)              | `mdsmith lsp` + VS Code extension                      |
+| Status              | Spec v0.2.1, early release              | Stable rules; only [MDS029][mds029] experimental       |
+
+The two are complementary in principle: mdbase manages
+a typed vault while mdsmith lints prose, structure,
+and generated sections on the same files. Both read
+YAML front matter and neither rewrites the other's
+metadata, so they coexist on disk. They do not yet
+share schemas: mdsmith's CUE schemas in
+[MDS020][mds020] cannot consume mdbase `_types/`
+definitions, and mdbase implementations do not read
+mdsmith's `.mdsmith.yml`. Teams adopting both today
+maintain the type definition twice.
+
 Using language models (GPT-4, Claude, etc.) directly to
 check prose quality, conciseness, and style. This is
 emerging through dedicated CLI tools and AI review bots.
@@ -739,6 +800,13 @@ you need a stable rule set while these land.
 [Obsidian]: https://obsidian.md/
 [obsidian-fm]: https://help.obsidian.md/Editing+and+formatting/Obsidian+Flavored+Markdown
 [obsidian-linter]: https://github.com/platers/obsidian-linter
+[obsidian-bases]: https://help.obsidian.md/bases
+<!-- mdbase links -->
+[mdbase]: https://mdbase.dev/
+[mdbase-spec]: https://github.com/callumalpass/mdbase-spec
+[mdbase-ts]: https://github.com/callumalpass/mdbase
+[mdbase-cli]: https://github.com/callumalpass/mdbase-cli
+[file-kinds]: ../guides/file-kinds.md
 <!-- mdsmith plan + security + reference links -->
 [mdsmith-sec]: ../security/2026-04-05-adversarial-markdown.md
 [conventions]: ../reference/conventions.md
