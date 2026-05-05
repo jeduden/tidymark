@@ -59,6 +59,9 @@ if (watch) {
   })()) {
     const glob = new Bun.Glob("src/**/*.ts");
     let changed = false;
+    // Track which paths we observed this tick so we can detect
+    // deletions after the scan finishes.
+    const present = new Set<string>();
     // glob.scan returns paths relative to its cwd; resolve each one
     // against import.meta.dir so the subsequent Bun.file().stat()
     // calls do not depend on the process working directory (which
@@ -67,10 +70,22 @@ if (watch) {
       const abs = join(import.meta.dir, rel);
       const stat = await Bun.file(abs).stat();
       const prev = seen.get(abs);
-      if (prev !== undefined && prev !== stat.mtimeMs) {
+      if (prev === undefined) {
+        // Newly-appearing file — also a rebuild trigger.
+        changed = true;
+      } else if (prev !== stat.mtimeMs) {
         changed = true;
       }
       seen.set(abs, stat.mtimeMs);
+      present.add(abs);
+    }
+    // Detect deletions: anything in `seen` that no longer shows
+    // up in `present` was removed since the last tick.
+    for (const abs of seen.keys()) {
+      if (!present.has(abs)) {
+        seen.delete(abs);
+        changed = true;
+      }
     }
     if (changed) {
       await buildOnce();

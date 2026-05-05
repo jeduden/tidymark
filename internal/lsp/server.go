@@ -1048,6 +1048,14 @@ func (s *Server) fetchClientSettings(ctx context.Context) {
 		return
 	}
 
+	// time.NewTimer + Stop instead of time.After: this function runs
+	// on every workspace/didChangeConfiguration, so a fast-replying
+	// client would otherwise leak one runtime timer per settings
+	// change — not catastrophic, but avoidable. Stop releases the
+	// timer eagerly when the response (or ctx) wins the select.
+	timeout := time.NewTimer(s.fetchTimeout)
+	defer timeout.Stop()
+
 	select {
 	case resp := <-ch:
 		if resp.Error != nil || len(resp.Result) == 0 {
@@ -1082,7 +1090,7 @@ func (s *Server) fetchClientSettings(ctx context.Context) {
 		for _, uri := range s.docs.openURIs() {
 			s.scheduleLint(uri, lintTriggerConfig)
 		}
-	case <-time.After(s.fetchTimeout):
+	case <-timeout.C:
 		// Client never replied; defaults stand.
 	case <-ctx.Done():
 	}
