@@ -46,7 +46,7 @@ mdsmith already understands the edges these methods
 need: headings, anchor and file links, link-ref
 defs, front-matter `kind:`, and directive
 arguments. The
-[MDS027 rule](../internal/rules/MDS027-cross-file-reference-integrity)
+[MDS027 rule](../internal/rules/MDS027-cross-file-reference-integrity/README.md)
 walks every link target. Catalog expands globs.
 
 ## Non-Goals
@@ -103,7 +103,7 @@ The index calls
 [`lint.ParseFile`](../internal/lint/file.go) once
 per file. Existing visitors cover headings and
 link targets. A new visitor captures
-`*ast.LinkReferenceDef` and front-matter keys.
+`*ast.LinkReferenceDefinition` and front-matter keys.
 Memory at 10 000 files is ~300K entries, well
 under plan 121's 512 MB `GOMEMLIMIT`.
 
