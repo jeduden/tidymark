@@ -555,3 +555,51 @@ func TestKinds_PathPreservesAbsoluteSchema(t *testing.T) {
 	require.Equal(t, 0, code)
 	assert.Equal(t, "/etc/passwd", strings.TrimSpace(stdout))
 }
+
+// --- User-defined convention tests ---
+
+// TestKinds_ResolveShowsUserConventionSuffix verifies that `kinds
+// resolve` labels a user-defined convention layer with "(user)" so
+// it can be distinguished from built-in conventions in the output.
+func TestKinds_ResolveShowsUserConventionSuffix(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      list-marker-style:
+        style: dash
+convention: our-team
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.our-team (user)",
+		"user convention must be labeled with (user) suffix in resolve output")
+}
+
+// TestKinds_ReservedConventionNameRejected verifies that using a
+// built-in name in the conventions: block is a config error.
+func TestKinds_ReservedConventionNameRejected(t *testing.T) {
+	cfg := "conventions:\n  portable:\n    flavor: gfm\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "portable")
+}
+
+// TestKinds_UnknownUserConventionListsBothSetsOfNames verifies that
+// selecting an unknown convention name in the error lists both
+// built-in and user-defined options.
+func TestKinds_UnknownUserConventionListsBothSetsOfNames(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+convention: bogus
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "check", "doc.md")
+	assert.NotEqual(t, 0, code)
+	assert.Contains(t, stderr, "bogus")
+	assert.Contains(t, stderr, "our-team")
+	assert.Contains(t, stderr, "portable")
+}

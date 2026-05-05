@@ -6,8 +6,83 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/jeduden/mdsmith/internal/rules/markdownflavor"
 )
+
+// reservedConventionNames is the set of built-in convention names
+// that cannot be used as user-defined convention names.
+var reservedConventionNames = map[string]bool{
+	"portable": true,
+	"github":   true,
+	"plain":    true,
+}
+
+// validateUserConventions validates user-defined convention bodies
+// from cfg.UserConventions. It rejects reserved names, invalid
+// flavors, unknown rule names, and invalid rule settings.
+//
+// On success, it returns a map of markdownflavor.Convention values
+// (already parsed) ready to pass to Lookup.
+func validateUserConventions(cfg *Config) (map[string]markdownflavor.Convention, error) {
+	if len(cfg.UserConventions) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]markdownflavor.Convention, len(cfg.UserConventions))
+	for name, body := range cfg.UserConventions {
+		if reservedConventionNames[name] {
+			return nil, fmt.Errorf(
+				"conventions.%s: %q is a reserved built-in convention name",
+				name, name,
+			)
+		}
+		f, ok := markdownflavor.ParseFlavor(body.Flavor)
+		if !ok {
+			return nil, fmt.Errorf(
+				"convention %q: invalid flavor %q (valid: commonmark, gfm, goldmark)",
+				name, body.Flavor,
+			)
+		}
+		rules := make(map[string]markdownflavor.RulePreset, len(body.Rules))
+		for ruleName, rc := range body.Rules {
+			r := rule.ByName(ruleName)
+			if r == nil {
+				return nil, fmt.Errorf(
+					"convention %q rule %q: unknown rule",
+					name, ruleName,
+				)
+			}
+			if len(rc.Settings) > 0 {
+				if c, ok := r.(rule.Configurable); ok {
+					clone := c.DefaultSettings()
+					if clone == nil {
+						clone = make(map[string]any)
+					}
+					// Apply the user's settings to a fresh instance to
+					// validate them; ApplySettings returns an error for
+					// unknown or invalid settings.
+					if err := c.ApplySettings(rc.Settings); err != nil {
+						return nil, fmt.Errorf(
+							"convention %q rule %q: %w",
+							name, ruleName, err,
+						)
+					}
+					_ = clone
+				}
+			}
+			rules[ruleName] = markdownflavor.RulePreset{
+				Enabled:  rc.Enabled,
+				Settings: cloneSettings(rc.Settings),
+			}
+		}
+		out[name] = markdownflavor.Convention{
+			Name:   name,
+			Flavor: f,
+			Rules:  rules,
+		}
+	}
+	return out, nil
+}
 
 // applyConvention reads the top-level Convention selector from the
 // loaded config (if any) and stores its rule presets on
@@ -27,10 +102,20 @@ import (
 //     rejected at config load so the error surfaces once, not on
 //     every check.
 func applyConvention(cfg *Config) error {
-	if cfg == nil || cfg.Convention == "" {
+	if cfg == nil {
 		return nil
 	}
-	convention, err := markdownflavor.Lookup(cfg.Convention)
+	// Validate user-defined conventions even when no convention is
+	// selected. Reserved-name and syntax errors in the conventions:
+	// block should be caught regardless of whether convention: is set.
+	userMap, err := validateUserConventions(cfg)
+	if err != nil {
+		return err
+	}
+	if cfg.Convention == "" {
+		return nil
+	}
+	convention, err := markdownflavor.Lookup(cfg.Convention, userMap)
 	if err != nil {
 		return fmt.Errorf("convention: %w", err)
 	}

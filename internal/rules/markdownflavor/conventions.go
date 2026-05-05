@@ -163,22 +163,49 @@ var conventions = map[string]Convention{
 	},
 }
 
-// Lookup returns the convention table entry for name. It returns an
-// error naming the field and listing valid names when name is not a
-// known convention, matching the failure-mode contract in plan 112.
+// Lookup returns the convention table entry for name. It consults the
+// user-defined map first, then the built-in table, so user conventions
+// can be selected the same way as built-ins.
 //
-// The returned Convention is a deep copy of the package-level table
-// entry. Callers may mutate the result without corrupting the
-// shared built-in table.
-func Lookup(name string) (Convention, error) {
+// userConventions may be nil or empty; when set it is consulted before
+// the built-in table. User-defined names that shadow built-ins are
+// rejected at config load time, so no shadowing can occur here.
+//
+// The returned Convention is a deep copy. Callers may mutate the
+// result without corrupting the shared built-in table or the caller's
+// user map.
+//
+// When name is not found in either map, the error lists all valid
+// names (user-defined names first, in sorted order, then built-ins).
+func Lookup(name string, userConventions map[string]Convention) (Convention, error) {
+	if c, ok := userConventions[name]; ok {
+		return cloneConvention(c), nil
+	}
 	c, ok := conventions[name]
 	if !ok {
 		return Convention{}, fmt.Errorf(
 			"unknown convention %q (valid: %s)",
-			name, strings.Join(ConventionNames(), ", "),
+			name, strings.Join(allConventionNames(userConventions), ", "),
 		)
 	}
 	return cloneConvention(c), nil
+}
+
+// allConventionNames returns a sorted list of all convention names:
+// user-defined names first (sorted), then built-in names (sorted).
+// This is used to construct error messages in Lookup.
+func allConventionNames(userConventions map[string]Convention) []string {
+	var names []string
+	if len(userConventions) > 0 {
+		userNames := make([]string, 0, len(userConventions))
+		for k := range userConventions {
+			userNames = append(userNames, k)
+		}
+		sort.Strings(userNames)
+		names = append(names, userNames...)
+	}
+	names = append(names, ConventionNames()...)
+	return names
 }
 
 // cloneConvention returns a deep copy of c. Each rule preset's

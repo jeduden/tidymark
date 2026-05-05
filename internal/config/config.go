@@ -38,12 +38,21 @@ type Config struct {
 	Build          BuildConfig           `yaml:"build,omitempty"`
 
 	// Convention names a Markdown convention bundle. Built-in
-	// values: "portable", "github", "plain". Empty means no
+	// values: "portable", "github", "plain". May also be a
+	// user-defined name from the UserConventions map. Empty means no
 	// convention; the user's top-level rules and the built-in
 	// defaults are the only base layers. See
 	// internal/rules/markdownflavor/conventions.go for the table
 	// and docs/reference/conventions.md for end-user docs.
 	Convention string `yaml:"convention,omitempty"`
+
+	// UserConventions holds user-defined convention bodies declared
+	// under the top-level `conventions:` key in .mdsmith.yml. Each
+	// entry mirrors the shape of the built-in convention table: a
+	// flavor and a per-rule preset table. Built-in convention names
+	// (portable, github, plain) are reserved and rejected at config
+	// load time.
+	UserConventions map[string]UserConventionBody `yaml:"conventions,omitempty"`
 
 	// LegacyNoFollowSymlinks captures the removed `no-follow-symlinks`
 	// key. Its presence surfaces a deprecation warning via
@@ -80,6 +89,18 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+}
+
+// UserConventionBody is a user-defined convention declaration, with the
+// same shape as the built-in convention table. It pairs a Markdown
+// flavor with a per-rule preset table.
+type UserConventionBody struct {
+	// Flavor is the Markdown flavor this convention targets.
+	// Must be one of: commonmark, gfm, goldmark.
+	Flavor string `yaml:"flavor"`
+	// Rules is the rule preset table. Each key is a rule name; each
+	// value is a RuleCfg (bool or settings map).
+	Rules map[string]RuleCfg `yaml:"rules,omitempty"`
 }
 
 // Override applies rule settings to files matching glob patterns.

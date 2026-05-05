@@ -1,8 +1,9 @@
 ---
 summary: >-
   Built-in Markdown conventions, the rule presets
-  each one applies, and how user config layers on
-  top via deep-merge.
+  each one applies, how user config layers on top
+  via deep-merge, and how to define project-specific
+  conventions inline in .mdsmith.yml.
 ---
 # Markdown conventions
 
@@ -171,6 +172,69 @@ other rules in the preset are untouched.
 This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
+
+## User-defined conventions
+
+Teams can define a convention inline in
+`.mdsmith.yml` without forking mdsmith. The
+`conventions:` key is a map of convention names to
+`{ flavor, rules }` bodies.
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+Each user-defined convention stands alone — there
+is no inheritance. The `rules:` block uses the same
+schema as the top-level `rules:` block.
+
+**Reserved names.** `portable`, `github`, and
+`plain` are reserved. Defining a
+`conventions.portable` in `.mdsmith.yml` is a
+config error. The built-in names keep meaning what
+they say in docs and tutorials.
+
+**Validation.** Each user-defined convention is
+validated at config load:
+
+- `flavor` must be one of `commonmark`, `gfm`, or
+  `goldmark`.
+- Each key under `rules:` must name a registered
+  rule.
+- Each rule's settings must validate against that
+  rule's existing schema.
+
+Validation errors name the convention and the rule:
+
+```text
+convention "our-team" rule "no-inline-html": …
+```
+
+**Resolution order.** When `convention:` is set,
+mdsmith looks up the name in user-defined
+`conventions:` first, then the built-in table. User
+names cannot shadow built-ins — collisions are
+rejected at parse time. When neither map contains
+the name, the error lists both sets of names.
+
+**Provenance.** `mdsmith kinds resolve` labels
+user-defined convention layers with `(user)` so
+they can be distinguished from built-ins:
+
+```text
+convention.our-team (user)    set    {style: dash}
+```
 
 ## Inspecting an effective convention
 
