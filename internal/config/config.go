@@ -23,6 +23,15 @@ var ValidCategories = []string{
 // discovery when no file arguments are given on the command line.
 var DefaultFiles = []string{"**/*.md", "**/*.markdown"}
 
+// UserConventionBody is the YAML shape of a single user-defined
+// convention entry under the top-level `conventions:` map. It mirrors
+// the shape of the built-in convention table: a flavor string and a
+// rules block that uses the same schema as the top-level `rules:` block.
+type UserConventionBody struct {
+	Flavor string             `yaml:"flavor"`
+	Rules  map[string]RuleCfg `yaml:"rules"`
+}
+
 // Config is the top-level configuration.
 type Config struct {
 	Rules          map[string]RuleCfg    `yaml:"rules"`
@@ -36,6 +45,14 @@ type Config struct {
 	Kinds          map[string]KindBody   `yaml:"kinds,omitempty"`
 	KindAssignment []KindAssignmentEntry `yaml:"kind-assignment,omitempty"`
 	Build          BuildConfig           `yaml:"build,omitempty"`
+
+	// Conventions holds user-defined convention bodies parsed from
+	// the top-level `conventions:` map in .mdsmith.yml. Each entry is
+	// a name → { flavor, rules } pair. Reserved names ("portable",
+	// "github", "plain") are rejected at config load. User-defined
+	// names take precedence over built-ins in Lookup; collisions are
+	// rejected at parse time.
+	Conventions map[string]UserConventionBody `yaml:"conventions,omitempty"`
 
 	// Convention names a Markdown convention bundle. Built-in
 	// values: "portable", "github", "plain". Empty means no
@@ -80,6 +97,14 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+
+	// conventionIsUser tracks whether the selected convention was
+	// defined in cfg.Conventions (true) rather than being a built-in
+	// (false). Used by buildLayers to suffix the layer source label
+	// with " (user)" so `mdsmith kinds resolve` can distinguish user
+	// conventions from built-ins.
+	// Not serialized to YAML.
+	conventionIsUser bool
 }
 
 // Override applies rule settings to files matching glob patterns.
