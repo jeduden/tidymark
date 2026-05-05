@@ -172,9 +172,73 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+When none of the three built-in conventions fits,
+define your own inline in `.mdsmith.yml`:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+The `conventions:` map is a sibling of `kinds:` and
+`rules:`. Each entry is a name → `{ flavor, rules }`
+pair. The `rules` block uses the same schema as the
+top-level `rules:` block. The name is then used in
+the top-level `convention:` selector.
+
+### Constraints
+
+- **Reserved names.** The three built-in names —
+  `portable`, `github`, `plain` — may not be used
+  as user-defined convention names. Defining them
+  produces a config error.
+- **Flavor.** The `flavor:` value must be one of
+  `commonmark`, `gfm`, `goldmark`, `any`,
+  `pandoc`, `phpextra`, `multimarkdown`, or `myst`.
+  An unknown value is a config error.
+- **Rule names.** Each key under `rules:` must name
+  a registered rule. An unknown rule name is a
+  config error.
+- **Rule settings.** Each rule's settings block is
+  validated against that rule's schema (the same
+  `ApplySettings` path used for the top-level
+  `rules:` block). An invalid setting is a config
+  error naming both the convention and the rule.
+
+### Layer behavior
+
+A user-defined convention sits between the
+`default` and `user` layers, just like a built-in.
+The merge order is:
+
+1. `default`
+2. `convention.<name>` (your user convention)
+3. `user` (your top-level `rules:` block)
+4. `kinds.<name>`
+5. `overrides[i]`
+
+Your top-level `rules:` entries override the user
+convention's presets.
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge
 chain for every rule, including the
 `convention.<name>` layer. Use it to confirm which
 value won and where it came from.
+
+User-defined conventions appear as
+`convention.<name> (user)` in the resolve output.
+Built-in conventions omit the `(user)` suffix.
