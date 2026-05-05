@@ -184,6 +184,64 @@ func TestSetVersionRejectsLeadingV(t *testing.T) {
 	}
 }
 
+func TestSetVersionFailsWhenManifestHasNoVersionField(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("set-version.sh requires a POSIX shell")
+	}
+	repo := projectRoot(t)
+	script := filepath.Join(repo, "scripts", "set-version.sh")
+	root := t.TempDir()
+	fixtureManifests(t, root)
+
+	// Simulate a renamed/missing version key. Without the pre-flight
+	// guard, the perl in-place rewrite silently no-ops and a tag
+	// release ships 0.0.0-dev. The guard must catch this.
+	if err := os.WriteFile(filepath.Join(root, "editors/vscode/package.json"), []byte(`{
+  "name": "mdsmith"
+}
+`), 0o644); err != nil {
+		t.Fatalf("rewrite vscode manifest: %v", err)
+	}
+
+	_, stderr, err := runScript(t, script, "1.2.3", "--root", root)
+	if err == nil {
+		t.Fatal("expected failure when the version field is missing")
+	}
+	if !strings.Contains(stderr, "no top-level \"version\" field") {
+		t.Errorf("stderr did not flag the missing version field:\n%s", stderr)
+	}
+}
+
+func TestSetVersionFailsWhenOptionalDepsBlockMissing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("set-version.sh requires a POSIX shell")
+	}
+	repo := projectRoot(t)
+	script := filepath.Join(repo, "scripts", "set-version.sh")
+	root := t.TempDir()
+	fixtureManifests(t, root)
+
+	// The npm root must always advertise its platform sub-packages.
+	// If a refactor accidentally drops the optionalDependencies
+	// block, a silent no-op rewrite would publish a root manifest
+	// with no platform pins.
+	if err := os.WriteFile(filepath.Join(root, "npm/mdsmith/package.json"), []byte(`{
+  "name": "mdsmith",
+  "version": "0.0.0-dev"
+}
+`), 0o644); err != nil {
+		t.Fatalf("rewrite npm root manifest: %v", err)
+	}
+
+	_, stderr, err := runScript(t, script, "1.2.3", "--root", root)
+	if err == nil {
+		t.Fatal("expected failure when @mdsmith/* pins are missing")
+	}
+	if !strings.Contains(stderr, "no @mdsmith/* optionalDependencies pins") {
+		t.Errorf("stderr did not flag the missing optionalDependencies block:\n%s", stderr)
+	}
+}
+
 func TestSetVersionRejectsNonSemver(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("set-version.sh requires a POSIX shell")

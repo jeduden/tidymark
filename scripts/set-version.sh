@@ -78,10 +78,17 @@ require_file() {
 
 # Rewrite the first top-level "version": "..." entry in a JSON
 # manifest. Avoids jq so the script stays dependency-free; perl
-# in-place edits are portable across BSD and GNU userlands.
+# in-place edits are portable across BSD and GNU userlands. A
+# pre-flight grep ensures the regex actually has something to
+# match — otherwise a malformed manifest (renamed key, JSON
+# corruption) would no-op silently and we'd ship 0.0.0-dev.
 rewrite_json_version() {
   local file="$1"
   require_file "$file"
+  if ! grep -Eq '^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$file"; then
+    echo "set-version.sh: $file: no top-level \"version\" field found" >&2
+    exit 1
+  fi
   perl -i -pe '
     BEGIN { $done = 0 }
     if (!$done && s/^(\s*"version"\s*:\s*")[^"]+(")/$1.$ENV{V}.$2/e) {
@@ -93,9 +100,15 @@ rewrite_json_version() {
 # Rewrite every "@mdsmith/<platform>": "..." pin so the npm root
 # advertises matching platform-package versions. The pin is always
 # equal to the root version, so a single regex covers every line.
+# Pre-flight grep ensures the optionalDependencies block exists —
+# a deleted key would otherwise pass through silently.
 rewrite_json_optional_deps() {
   local file="$1"
   require_file "$file"
+  if ! grep -Eq '^[[:space:]]*"@mdsmith/[^"]+"[[:space:]]*:[[:space:]]*"[^"]+"' "$file"; then
+    echo "set-version.sh: $file: no @mdsmith/* optionalDependencies pins found" >&2
+    exit 1
+  fi
   perl -i -pe '
     s/^(\s*"\@mdsmith\/[^"]+"\s*:\s*")[^"]+(")/$1.$ENV{V}.$2/e;
   ' "$file"
@@ -104,6 +117,10 @@ rewrite_json_optional_deps() {
 rewrite_pyproject_version() {
   local file="$1"
   require_file "$file"
+  if ! grep -Eq '^[[:space:]]*version[[:space:]]*=[[:space:]]*"[^"]+"' "$file"; then
+    echo "set-version.sh: $file: no top-level version = \"...\" field found" >&2
+    exit 1
+  fi
   perl -i -pe '
     BEGIN { $done = 0 }
     if (!$done && s/^(\s*version\s*=\s*")[^"]+(")/$1.$ENV{V}.$2/e) {

@@ -245,12 +245,17 @@ jobs:
               # npm registry propagation can lag the publish by ~60s,
               # so retry with backoff until the just-published version
               # is resolvable. Mirrors the pip retry loop below.
+              ok=0
               for attempt in 1 2 3 4 5; do
                 if npm install -g --force "mdsmith@${VERSION#v}"; then
-                  break
+                  ok=1; break
                 fi
                 sleep 15
               done
+              if [ "$ok" -ne 1 ]; then
+                echo "npm install never succeeded after 5 attempts" >&2
+                exit 1
+              fi
             run: mdsmith version
           - channel: pip
             container: python:3.12-slim
@@ -258,12 +263,17 @@ jobs:
               python -m pip install --upgrade pip
               # `--upgrade` forces pip to pick the just-published
               # wheel rather than a cached older one.
+              ok=0
               for attempt in 1 2 3 4 5; do
                 if python -m pip install --upgrade "mdsmith==${VERSION#v}"; then
-                  break
+                  ok=1; break
                 fi
                 sleep 15
               done
+              if [ "$ok" -ne 1 ]; then
+                echo "pip install never succeeded after 5 attempts" >&2
+                exit 1
+              fi
             run: mdsmith version
           - channel: mise
             container: jdxcode/mise:latest
@@ -274,12 +284,17 @@ jobs:
             # lands the smoke-test would fail on every release, so
             # exercise the form that works today.
             install: |
+              ok=0
               for attempt in 1 2 3 4 5; do
                 if mise use -g "ubi:jeduden/mdsmith@${VERSION#v}"; then
-                  break
+                  ok=1; break
                 fi
                 sleep 15
               done
+              if [ "$ok" -ne 1 ]; then
+                echo "mise install never succeeded after 5 attempts" >&2
+                exit 1
+              fi
             run: |
               eval "$(mise activate bash --shims)"
               mdsmith version
