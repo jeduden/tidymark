@@ -111,9 +111,28 @@ and a "Fix all in file" action. On save, the file
 relints. `.mdsmith.yml` changes invalidate the
 session cache automatically.
 
-What is missing: completion (e.g. heading anchors,
-link targets, front-matter field names). The LSP
-implements only diagnostics and code actions.
+What is missing today: completion, hover, and any
+form of navigation (definition, references, outline,
+call hierarchy). The shipped LSP is
+diagnostic-and-fix only.
+
+What is planned: hover for rule and directive docs
+(plan 122) and full symbol navigation (plan 131,
+PR #238). After plan 131 lands, the editor session
+also gets:
+
+- File outline (`documentSymbol`) following the
+  heading tree, with directives and front-matter
+  keys hung off appropriately
+- Go-to-definition from anchor links, file links,
+  and `[text][label]` references
+- "Find all references" on a heading, link-ref
+  label, file, or `kind:` value
+- Workspace symbol search across headings, labels,
+  kinds, and front-matter titles
+- Call hierarchy: "who includes / catalogs / links
+  to this file" (incoming) and "what does this
+  file include / link out to" (outgoing)
 
 ### mdbase via mdbase-lsp (Rust)
 
@@ -133,25 +152,35 @@ errors but expects the user to resolve them.
 Many editors can run multiple LSPs on the same
 buffer. The user gets:
 
-- mdsmith → diagnostics + autofix on prose, structure,
-  catalog, TOC, include
-- mdbase-lsp → diagnostics + completion + navigation
-  on types and links
+- mdsmith → diagnostics + autofix on prose,
+  structure, catalog, TOC, include; outline +
+  navigation + call hierarchy after plan 131
+- mdbase-lsp → diagnostics + completion + hover +
+  go-to-definition on types and links
 
-The two diagnostic streams use distinct rule IDs and
-error codes, so duplicates are rare. Both servers
-respect per-file front matter and read the same
-on-disk content.
+The two diagnostic streams use distinct rule IDs
+and error codes, so duplicates are rare. Both
+servers respect per-file front matter and read the
+same on-disk content. Navigation results are
+complementary: mdsmith plan 131 gives the
+include/catalog graph; mdbase-lsp gives the
+typed-link graph.
 
-| Editor experience        | mdsmith only | mdbase-lsp only | both running |
-|--------------------------|--------------|-----------------|--------------|
-| Inline diagnostics       | yes          | yes             | both streams |
-| Quick fix per diagnostic | yes          | no              | mdsmith only |
-| Fix all in file          | yes          | no              | mdsmith only |
-| Field-name completion    | no           | yes             | mdbase only  |
-| Type-name hover          | no           | yes             | mdbase only  |
-| Go-to type definition    | no           | yes             | mdbase only  |
-| Backlinks panel          | no           | yes (L5)        | mdbase only  |
+| Editor experience        | mdsmith today | mdsmith planned        | mdbase-lsp |
+|--------------------------|---------------|------------------------|------------|
+| Inline diagnostics       | yes           | yes                    | yes        |
+| Quick fix per diagnostic | yes           | yes                    | no         |
+| Fix all in file          | yes           | yes                    | no         |
+| Field-name completion    | no            | no                     | yes        |
+| Type-name hover          | no            | yes (rules/directives) | yes        |
+| Go-to type definition    | no            | partial (`kind:`)      | yes        |
+| Go-to anchor / heading   | no            | yes (plan 131)         | yes        |
+| Workspace symbol search  | no            | yes (plan 131)         | unknown    |
+| File outline             | no            | yes (plan 131)         | partial    |
+| Find references          | no            | yes (plan 131)         | unknown    |
+| Call hierarchy           | no            | yes (plan 131)         | no         |
+| Rename refactor          | no            | no                     | yes (L5)   |
+| Backlinks panel          | no            | yes (plan 131)         | yes (L5)   |
 
 ## 4. Schema evolution
 
@@ -461,22 +490,64 @@ code, JSON output. After an edit, the agent runs
 the relevant tool, parses the JSON, and decides
 what to fix next.
 
-| Agent task            | mdsmith                            | mdbase                       |
-|-----------------------|------------------------------------|------------------------------|
-| Read file             | direct                             | direct                       |
-| Write body            | direct + `mdsmith fix` regenerates | direct                       |
-| Scaffold typed file   | n/a                                | `mdbase create`              |
-| Validate FM shape     | `mdsmith check` (MDS020)           | `mdbase validate`            |
-| Rename + update refs  | manual fix                         | `mdbase rename`              |
-| Query collection      | `mdsmith query` (CUE)              | `mdbase query` (richer)      |
-| Block on broken links | `mdsmith check` (MDS027)           | `mdbase validate` link rules |
-| Format diagnostics    | text or JSON                       | JSON                         |
-| Determinism           | yes                                | yes                          |
+### Agent navigates over LSP
+
+Some agents (Claude Code, for one) have a built-in
+LSP tool that exposes nine standard LSP methods —
+`textDocument/documentSymbol`, `definition`,
+`implementation`, `hover`, `references`,
+`workspace/symbol`, plus `prepareCallHierarchy` and
+the two call-direction methods. Both tools target
+this surface, but differently.
+
+- **mdbase-lsp** today gives the agent the typed
+  view: completion of field names, hover with
+  type definitions, go-to-definition on a link's
+  target. Symbol-level workspace navigation
+  (find-references on a heading, outline,
+  call hierarchy on the include graph) is not
+  advertised in the project README at the time of
+  writing.
+- **mdsmith** today exposes only diagnostics and
+  code actions over LSP. Plan 131 (PR #238) adds
+  `documentSymbol`, `definition`, `implementation`,
+  `references`, `workspace/symbol`, and call
+  hierarchy. The plan explicitly maps the nine
+  Claude-LSP methods onto the existing AST and
+  link graph.
+
+Once plan 131 lands, an agent can ask the mdsmith
+LSP "what files include this runbook?" via
+`incomingCalls`, "what does this overview embed?"
+via `outgoingCalls`, "show me the outline" via
+`documentSymbol`, and "find every link to this
+heading" via `references` — all without leaving
+the LSP protocol.
+
+### Side-by-side agent surface
+
+| Agent task                 | mdsmith today  | mdsmith planned | mdbase-lsp      |
+|----------------------------|----------------|-----------------|-----------------|
+| Read file                  | direct         | direct          | direct          |
+| Write body                 | direct + fix   | direct + fix    | direct          |
+| Scaffold typed file        | n/a            | n/a             | `mdbase create` |
+| Validate FM shape          | `check` MDS020 | `check` MDS020  | `validate`      |
+| Rename + update refs       | manual         | manual          | `mdbase rename` |
+| Query collection           | `query` (CUE)  | `query` (CUE)   | `query` Bases   |
+| Block on broken links      | `check` MDS027 | `check` MDS027  | `validate`      |
+| File outline (LSP)         | no             | yes (plan 131)  | partial         |
+| Go-to-def on anchor link   | no             | yes (plan 131)  | yes             |
+| Find heading references    | no             | yes (plan 131)  | unknown         |
+| Workspace symbol search    | no             | yes (plan 131)  | unknown         |
+| Call hierarchy on includes | no             | yes (plan 131)  | no              |
+| Hover rule docs            | no             | yes (plan 122)  | n/a             |
+| Hover type / field         | no             | no              | yes             |
 
 For agent-driven docs work the two tools are
 complementary. mdsmith excels at "verify and fix
-content"; mdbase excels at "navigate and edit
-typed records."
+content" plus, after plan 131, "navigate the
+document graph"; mdbase excels at "navigate and
+edit typed records."
 
 ## 11. Onboarding a new contributor
 

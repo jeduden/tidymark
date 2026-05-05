@@ -872,10 +872,10 @@ command names.)
 
 ## 17. LSP / editor integration
 
-**mdsmith.** mdsmith side:
-
+**mdsmith today.**
 `mdsmith lsp` runs JSON-RPC 2.0 over stdio. Used by
-the VS Code extension. Implements:
+the VS Code extension and any LSP-aware editor or
+agent. Implements:
 
 - `textDocument/publishDiagnostics` — diagnostic
   push on save / change
@@ -887,13 +887,47 @@ the VS Code extension. Implements:
 - `workspace/didChangeWatchedFiles` — invalidates
   cached config when `.mdsmith.yml` changes
 
-Not implemented: hover, completions, signature help,
-definition, references, rename. The server is
-diagnostic-and-fix only.
+Not implemented today: hover, completions,
+signature help, definition, references, rename. The
+shipped server is diagnostic-and-fix only.
 
 Source: `internal/lsp/server.go`,
 `internal/lsp/diagnostics.go`,
 `internal/lsp/protocol.go`.
+
+**mdsmith planned (plans 122 and 131).**
+Two open plans extend the LSP toward parity with
+typical code-LSPs and toward explicit support for
+agent-driven navigation (Claude Code's LSP tool,
+Neovim, Helix):
+
+- **Plan 122** adds `textDocument/hover` for rule
+  IDs and directive names, surfacing the offline
+  rule docs and directive parameter help inline.
+- **Plan 131** ([PR #238][pr238]) adds symbol
+  navigation: `documentSymbol`, `definition`,
+  `implementation`, `references`,
+  `workspace/symbol`, plus call hierarchy
+  (`prepareCallHierarchy`, `incomingCalls`,
+  `outgoingCalls`). The design models a Markdown
+  file as a "function" and outbound references
+  (links, includes, catalog matches, build
+  targets) as "calls", so an agent can ask
+  "who depends on this runbook?" or "what does
+  this overview embed?" through standard LSP
+  methods.
+
+Plan 131 explicitly maps the nine LSP methods that
+Claude Code's LSP tool exposes (symbol, definition,
+implementation, hover, references, workspace
+symbol, call hierarchy in / out / prepare) onto
+the existing AST and link graph. This is the
+"LSP for agents" arc.
+
+Performance budgets in plan 131: cold index build
+under 1s on 1,000 files, incremental update under
+20ms per `didChange`. Memory cap reuses plan 121's
+512 MB `GOMEMLIMIT`.
 
 **mdbase.**
 A separate `mdbase-lsp` binary (Rust) provides
@@ -907,24 +941,66 @@ Per the project README it covers:
 
 The Rust LSP is independent from the TypeScript
 reference implementation. It reads `mdbase.yaml`
-and the collection directly.
+and the collection directly. Symbol-level
+navigation (documentSymbol, references, workspace
+symbol, call hierarchy) is not advertised in the
+project README at the time of writing.
 
-**Side by side.** In summary:
+**Side by side.** Three columns: mdsmith today,
+mdsmith after plans 122 + 131 land, and
+mdbase-lsp today.
 
-| LSP feature                 | mdsmith              | mdbase-lsp          |
-|-----------------------------|----------------------|---------------------|
-| Diagnostics                 | yes                  | yes                 |
-| Code actions / quick fix    | yes                  | n/a (no autofix)    |
-| Completion (field names)    | no                   | yes                 |
-| Hover (schema info)         | no                   | yes                 |
-| Go-to-definition            | no                   | yes                 |
-| Find references / backlinks | no                   | yes (via L5)        |
-| Rename refactor             | no                   | yes (L5)            |
-| Watched files reload        | yes (`.mdsmith.yml`) | yes (`mdbase.yaml`) |
+| LSP feature              | mdsmith today | mdsmith planned   | mdbase-lsp       |
+|--------------------------|---------------|-------------------|------------------|
+| `publishDiagnostics`     | yes           | yes               | yes              |
+| `codeAction` (quick fix) | yes           | yes               | n/a (no autofix) |
+| `codeAction` (fix all)   | yes           | yes               | n/a              |
+| `hover`                  | no            | yes (plan 122)    | yes              |
+| `completion`             | no            | no (out of scope) | yes              |
+| `documentSymbol`         | no            | yes (plan 131)    | partial          |
+| `definition`             | no            | yes (plan 131)    | yes              |
+| `implementation`         | no            | yes (plan 131)    | unknown          |
+| `references`             | no            | yes (plan 131)    | unknown          |
+| `workspace/symbol`       | no            | yes (plan 131)    | unknown          |
+| `prepareCallHierarchy`   | no            | yes (plan 131)    | no               |
+| `incomingCalls`          | no            | yes (plan 131)    | no               |
+| `outgoingCalls`          | no            | yes (plan 131)    | no               |
+| `rename`                 | no            | no (out of scope) | yes (L5)         |
+| `signatureHelp`          | no            | no                | no               |
+| `semanticTokens`         | no            | no                | no               |
+| `inlayHint`              | no            | no                | no               |
+| `codeLens`               | no            | no                | no               |
+| `didChangeWatchedFiles`  | yes (`.yml`)  | yes (`**/*.md`)   | yes              |
 
-The two LSPs are non-overlapping in practice. A team
-running both gets diagnostics from each, code actions
-from mdsmith, and completion/navigation from mdbase.
+The two LSPs are non-overlapping in practice
+today. A team running both gets diagnostics from
+each, code actions from mdsmith, and completion +
+navigation from mdbase. Once plan 131 lands,
+mdsmith covers the navigation surface as well —
+specifically the call-hierarchy view on the
+include/catalog/build graph that mdbase does not
+model.
+
+**LSP for AI agents.** Both projects are
+explicitly positioned for use by AI agents over
+LSP, but with different framings:
+
+- mdbase-lsp gives an agent the typed-vault view:
+  "what fields does this type allow", "where is
+  this link's target". The schema is the agent's
+  reading frame.
+- mdsmith plan 131 gives an agent the
+  document-graph view: outline, anchors, includes,
+  catalog matches, build targets. The link graph
+  is the agent's reading frame.
+
+For an agent rewriting prose with structural
+awareness, mdsmith's planned outline + call
+hierarchy is the closer fit. For an agent
+reasoning about typed records (queries,
+constraints, generated values), mdbase-lsp wins.
+A team using both serves both reading frames over
+LSP without leaving the editor protocol.
 
 ## 18. Output formats
 
@@ -1106,3 +1182,4 @@ the conformance test cases.
 [mds021]: ../../../internal/rules/MDS021-include/README.md
 [mds038]: ../../../internal/rules/MDS038-toc/README.md
 [mds039]: ../../../internal/rules/MDS039-build/README.md
+[pr238]: https://github.com/jeduden/mdsmith/pull/238
