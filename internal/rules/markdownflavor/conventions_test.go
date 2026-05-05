@@ -9,7 +9,7 @@ import (
 )
 
 func TestLookup_Portable(t *testing.T) {
-	c, err := Lookup("portable")
+	c, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "portable", c.Name)
 	assert.Equal(t, FlavorCommonMark, c.Flavor)
@@ -27,7 +27,7 @@ func TestLookup_Portable(t *testing.T) {
 }
 
 func TestLookup_Github(t *testing.T) {
-	c, err := Lookup("github")
+	c, err := Lookup("github", nil)
 	require.NoError(t, err)
 	assert.Equal(t, FlavorGFM, c.Flavor)
 
@@ -42,7 +42,7 @@ func TestLookup_Github(t *testing.T) {
 }
 
 func TestLookup_Plain(t *testing.T) {
-	c, err := Lookup("plain")
+	c, err := Lookup("plain", nil)
 	require.NoError(t, err)
 	assert.Equal(t, FlavorCommonMark, c.Flavor)
 
@@ -53,13 +53,63 @@ func TestLookup_Plain(t *testing.T) {
 }
 
 func TestLookup_Unknown(t *testing.T) {
-	_, err := Lookup("bogus")
+	_, err := Lookup("bogus", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown convention")
 	assert.Contains(t, err.Error(), "bogus")
 	assert.Contains(t, err.Error(), "github")
 	assert.Contains(t, err.Error(), "plain")
 	assert.Contains(t, err.Error(), "portable")
+}
+
+func TestLookup_UserConventionFound(t *testing.T) {
+	user := map[string]Convention{
+		"my-team": {
+			Name:   "my-team",
+			Flavor: FlavorGFM,
+			Rules: map[string]RulePreset{
+				"no-inline-html": {Enabled: true},
+			},
+		},
+	}
+	c, err := Lookup("my-team", user)
+	require.NoError(t, err)
+	assert.Equal(t, "my-team", c.Name)
+	assert.Equal(t, FlavorGFM, c.Flavor)
+}
+
+func TestLookup_UserConventionListedInError(t *testing.T) {
+	user := map[string]Convention{
+		"my-team": {Name: "my-team", Flavor: FlavorGFM},
+	}
+	_, err := Lookup("bogus", user)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "my-team")
+	assert.Contains(t, err.Error(), "github")
+}
+
+func TestLookup_ReturnsDeepCopyOfUserConvention(t *testing.T) {
+	user := map[string]Convention{
+		"my-team": {
+			Name:   "my-team",
+			Flavor: FlavorGFM,
+			Rules: map[string]RulePreset{
+				"no-inline-html": {
+					Enabled:  true,
+					Settings: map[string]any{"allow": []any{"details"}},
+				},
+			},
+		},
+	}
+	first, err := Lookup("my-team", user)
+	require.NoError(t, err)
+	// Mutate the returned copy.
+	first.Rules["no-inline-html"].Settings["allow"] = []any{"tampered"}
+
+	// Original user map must be unchanged.
+	orig := user["my-team"].Rules["no-inline-html"].Settings["allow"]
+	assert.Equal(t, []any{"details"}, orig,
+		"mutating the returned convention must not affect the user map")
 }
 
 func TestCloneValue_TypedSlices(t *testing.T) {
@@ -120,7 +170,7 @@ func TestLookup_ReturnsDeepCopy(t *testing.T) {
 	// Mutating the returned Convention must not corrupt the
 	// package-level table. Lookup is exported, so callers could
 	// otherwise rewrite the built-ins by accident.
-	first, err := Lookup("portable")
+	first, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	first.Rules["markdown-flavor"].Settings["flavor"] = "tampered"
 	first.Rules["new-rule"] = RulePreset{Enabled: true}
@@ -129,7 +179,7 @@ func TestLookup_ReturnsDeepCopy(t *testing.T) {
 		allow.Settings["allow"] = []any{"tampered"}
 	}
 
-	second, err := Lookup("portable")
+	second, err := Lookup("portable", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "commonmark",
 		second.Rules["markdown-flavor"].Settings["flavor"],

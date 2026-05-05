@@ -1,8 +1,9 @@
 ---
 summary: >-
   Built-in Markdown conventions, the rule presets
-  each one applies, and how user config layers on
-  top via deep-merge.
+  each one applies, how user config layers on top
+  via deep-merge, and how to define custom
+  conventions inline in `.mdsmith.yml`.
 ---
 # Markdown conventions
 
@@ -98,6 +99,67 @@ requires indented code blocks. One inverts
 Markdown links. Those rules don't exist yet. When
 they ship, the `plain` convention gains them and
 diverges from `portable`.
+
+## User-defined conventions
+
+When none of the three built-in conventions fits,
+define one inline in `.mdsmith.yml` using the
+top-level `conventions:` block:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+Each entry in `conventions:` is a `{flavor, rules}`
+pair. `flavor` is one of `commonmark`, `gfm`, or
+`goldmark`. `rules` uses the same YAML schema as the
+top-level `rules:` block — a map of rule name to
+`bool` (enable/disable) or settings map.
+
+### Constraints
+
+- **Reserved names**: `portable`, `github`, and
+  `plain` are reserved for built-in conventions.
+  Defining a user convention with one of those names
+  produces a config error at load time.
+- **Known rules only**: every key under `rules:`
+  must name a registered rule. An unknown rule name
+  is a config error.
+- **Valid settings**: each rule's settings must pass
+  that rule's validation. An invalid setting is a
+  config error naming the convention and the rule.
+- **No inheritance**: each convention is standalone.
+  User conventions do not extend built-ins or each
+  other.
+
+### Resolution order
+
+When the top-level `convention:` selector resolves,
+mdsmith checks user-defined names first, then the
+built-in table. Because reserved names are rejected
+at load time, a user convention can never shadow a
+built-in.
+
+If the name is not found in either table, the error
+lists both built-in and user-defined names.
+
+### Inspecting user conventions
+
+`mdsmith kinds resolve <file>` labels the convention
+layer with a `(user)` suffix for user conventions.
+For example: `convention.our-team (user)`.
+Built-in conventions show no suffix.
 
 ## How presets layer with user config
 

@@ -23,6 +23,15 @@ var ValidCategories = []string{
 // discovery when no file arguments are given on the command line.
 var DefaultFiles = []string{"**/*.md", "**/*.markdown"}
 
+// UserConventionBody is the parsed shape of one entry in the top-level
+// `conventions:` map. It mirrors the built-in convention table shape:
+// a Markdown flavor and a map of rule presets using the same YAML
+// schema as the top-level `rules:` block.
+type UserConventionBody struct {
+	Flavor string             `yaml:"flavor"`
+	Rules  map[string]RuleCfg `yaml:"rules"`
+}
+
 // Config is the top-level configuration.
 type Config struct {
 	Rules          map[string]RuleCfg    `yaml:"rules"`
@@ -36,6 +45,14 @@ type Config struct {
 	Kinds          map[string]KindBody   `yaml:"kinds,omitempty"`
 	KindAssignment []KindAssignmentEntry `yaml:"kind-assignment,omitempty"`
 	Build          BuildConfig           `yaml:"build,omitempty"`
+
+	// Conventions holds user-defined convention bundles. The map key
+	// is the convention name used in the `convention:` selector. Names
+	// must not collide with the built-in names "portable", "github",
+	// and "plain". Each entry has the same shape as a built-in
+	// convention: a Markdown flavor and a table of rule presets.
+	// See docs/reference/conventions.md for end-user docs.
+	Conventions map[string]UserConventionBody `yaml:"conventions,omitempty"`
 
 	// Convention names a Markdown convention bundle. Built-in
 	// values: "portable", "github", "plain". Empty means no
@@ -80,6 +97,14 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+
+	// ConventionIsUser is true when the selected Convention was
+	// defined in the user's `conventions:` block (as opposed to a
+	// built-in). It controls how `mdsmith kinds resolve` labels the
+	// convention layer in its output: user conventions get a "(user)"
+	// suffix.
+	// Not serialized to YAML.
+	ConventionIsUser bool `yaml:"-"`
 }
 
 // Override applies rule settings to files matching glob patterns.
