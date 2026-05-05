@@ -13,17 +13,20 @@ several channels. `mdsmith version` reports the same
 value on every channel because the version is stamped
 into the binary at build time. Pick one path:
 
-| Channel        | Command                                                                                             | Best for                                            |
-|----------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------|
-| Go             | `go install github.com/jeduden/mdsmith/cmd/mdsmith@latest`                                          | Go developers with a working Go toolchain           |
-| npm            | `npm install -g mdsmith`                                                                            | Node / TypeScript repos and npm-friendly CI         |
-| npx            | `npx mdsmith check .`                                                                               | One-off checks without a global install             |
-| PyPI (pip)     | `pip install mdsmith`                                                                               | Python projects and Python-only CI images           |
-| uvx            | `uvx mdsmith check .`                                                                               | Ephemeral runs via uv                               |
-| pipx           | `pipx install mdsmith`                                                                              | Isolated CLI install on Python hosts                |
-| asdf           | `asdf plugin add mdsmith && asdf install mdsmith latest`                                            | Polyglot repos already using asdf for tool versions |
-| mise           | `mise use mdsmith@latest`                                                                           | Repos already using mise to pin tool versions       |
-| GitHub release | Download `mdsmith-<os>-<arch>` from the [release page](https://github.com/jeduden/mdsmith/releases) | Air-gapped hosts and direct binary control          |
+| Channel              | Command                                                                                             | Best for                                                                |
+|----------------------|-----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| Go                   | `go install github.com/jeduden/mdsmith/cmd/mdsmith@latest`                                          | Go developers with a working Go toolchain                               |
+| npm                  | `npm install -g mdsmith`                                                                            | Node / TypeScript repos and npm-friendly CI                             |
+| npx                  | `npx mdsmith check .`                                                                               | One-off checks without a global install                                 |
+| PyPI (pip)           | `pip install mdsmith`                                                                               | Python projects and Python-only CI images                               |
+| uvx                  | `uvx mdsmith check .`                                                                               | Ephemeral runs via uv                                                   |
+| pipx                 | `pipx install mdsmith`                                                                              | Isolated CLI install on Python hosts                                    |
+| mise (`ubi` backend) | `mise use -g ubi:jeduden/mdsmith@latest`                                                            | Repos using mise; works today via GitHub releases without a registry PR |
+| GitHub release       | Download `mdsmith-<os>-<arch>` from the [release page](https://github.com/jeduden/mdsmith/releases) | Air-gapped hosts and direct binary control                              |
+
+asdf and the short `mise use mdsmith@latest` form depend on
+follow-up registry submissions tracked in plan/130; the sections
+below explain how to use each one once those land.
 
 The binary ships for linux x86_64, linux aarch64, macOS
 x86_64, macOS arm64, and Windows amd64. Other targets
@@ -70,6 +73,14 @@ all work.
 
 ## asdf
 
+> **Pending follow-up.** The `jeduden/asdf-mdsmith` plugin repo is
+> a follow-up tracked in
+> [plan/130](../../plan/130_binary-distribution-and-versioning.md).
+> Until that repo exists, the commands below will not resolve.
+> Use one of the channels above in the meantime.
+
+Once the plugin repo is published:
+
 ```bash
 asdf plugin add mdsmith https://github.com/jeduden/asdf-mdsmith.git
 asdf install mdsmith latest
@@ -77,7 +88,7 @@ asdf set mdsmith latest
 mdsmith version
 ```
 
-Once the plugin is listed in
+Once the plugin is also listed in
 [`asdf-vm/asdf-plugins`](https://github.com/asdf-vm/asdf-plugins),
 the explicit URL becomes optional:
 `asdf plugin add mdsmith` resolves on its own.
@@ -85,14 +96,21 @@ the explicit URL becomes optional:
 ## mise
 
 ```bash
-mise use mdsmith@latest
+mise use -g ubi:jeduden/mdsmith@latest
 mdsmith version
 ```
 
-mise reads our GitHub release assets directly through
-its `ubi` backend, so no plugin code ships separately.
-On versions of mise that predate the registry entry,
-`mise use asdf:jeduden/asdf-mdsmith` keeps working.
+mise's `ubi` backend reads our GitHub release assets directly, so
+this command works today without any registry submission. Once
+the registry PR for mdsmith merges into
+[`mise-plugins/registry`](https://github.com/mise-plugins/registry),
+the shorter form
+
+```bash
+mise use mdsmith@latest
+```
+
+resolves on its own.
 
 ## GitHub release (direct download)
 

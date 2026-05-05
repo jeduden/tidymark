@@ -39,26 +39,33 @@ build_one() {
   fi
 
   # Build each wheel from a clean copy of python/ so the staged
-  # binary does not bleed across platform tags.
-  local stage
-  stage="$(mktemp -d)"
-  trap 'rm -rf "$stage"' RETURN
-  cp -R "$src/." "$stage/"
-  mkdir -p "$stage/mdsmith/_bin"
-  install -m 0755 "$asset_path" "$stage/mdsmith/_bin/$exe"
+  # binary does not bleed across platform tags. A subshell with an
+  # EXIT trap guarantees the temp dir is removed even when a
+  # downstream command (python -m build, python -m wheel) exits
+  # non-zero under `set -e`. A plain `trap … RETURN` would only
+  # fire on a normal return and leak the dir on failure.
+  (
+    local stage
+    stage="$(mktemp -d)"
+    trap 'rm -rf "$stage"' EXIT
 
-  # `python -m build --wheel` honours pyproject.toml. Hatchling
-  # cannot infer a platform tag on its own when the binary is
-  # staged at build time, so the wheel comes out as
-  # `*-py3-none-any.whl`. `python -m wheel tags --platform-tag`
-  # rewrites both the filename AND the dist-info/WHEEL metadata
-  # so PyPI and pip see a consistent platform tag.
-  (cd "$stage" && python -m build --wheel --outdir "$out_abs/.staging-$plat_tag")
-  for whl in "$out_abs/.staging-$plat_tag"/*.whl; do
-    python -m wheel tags --remove --platform-tag "$plat_tag" "$whl"
-  done
-  mv "$out_abs/.staging-$plat_tag"/*.whl "$out_abs/"
-  rmdir "$out_abs/.staging-$plat_tag"
+    cp -R "$src/." "$stage/"
+    mkdir -p "$stage/mdsmith/_bin"
+    install -m 0755 "$asset_path" "$stage/mdsmith/_bin/$exe"
+
+    # `python -m build --wheel` honours pyproject.toml. Hatchling
+    # cannot infer a platform tag on its own when the binary is
+    # staged at build time, so the wheel comes out as
+    # `*-py3-none-any.whl`. `python -m wheel tags --platform-tag`
+    # rewrites both the filename AND the dist-info/WHEEL metadata
+    # so PyPI and pip see a consistent platform tag.
+    (cd "$stage" && python -m build --wheel --outdir "$out_abs/.staging-$plat_tag")
+    for whl in "$out_abs/.staging-$plat_tag"/*.whl; do
+      python -m wheel tags --remove --platform-tag "$plat_tag" "$whl"
+    done
+    mv "$out_abs/.staging-$plat_tag"/*.whl "$out_abs/"
+    rmdir "$out_abs/.staging-$plat_tag"
+  )
 }
 
 build_one "mdsmith-linux-amd64"        "manylinux_2_17_x86_64.manylinux2014_x86_64"  "mdsmith"

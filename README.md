@@ -84,13 +84,12 @@ row: "- [{summary}]({filename})"
 go install github.com/jeduden/mdsmith/cmd/mdsmith@latest
 npm install -g mdsmith         # or: npx mdsmith
 pip install mdsmith            # or: uvx mdsmith / pipx install mdsmith
-mise use mdsmith@latest        # asdf plugin add mdsmith
 ```
 
 More options live in
-[docs/guides/install.md](docs/guides/install.md). It covers PyPI, asdf,
-mise, direct downloads, plus the VS Code extension on the
-Marketplace and Open VSX.
+[docs/guides/install.md](docs/guides/install.md). It covers direct
+downloads, the VS Code extension on the Marketplace and Open VSX,
+and asdf and mise once their registry entries land.
 
 ## 🚀 Usage
 
