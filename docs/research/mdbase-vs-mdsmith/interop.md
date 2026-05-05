@@ -284,11 +284,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'   # match mdsmith's go.mod
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: go install github.com/jeduden/mdsmith/cmd/mdsmith@latest
+      # Pin a specific mdsmith release to keep CI reproducible.
+      - run: go install github.com/jeduden/mdsmith/cmd/mdsmith@vX.Y.Z
       - run: npm install -g mdbase-cli
       - run: mdsmith check .
       - run: mdbase validate
@@ -297,6 +298,10 @@ jobs:
 Both run on every PR. They produce independent
 reports; either failing fails the job. Order does
 not matter — the tools do not write during validation.
+The Go version should track mdsmith's `go.mod`
+directive; pinning the install version (rather than
+`@latest`) keeps CI reproducible across mdsmith
+releases.
 
 If you also want fix-mode in CI (as a regression
 guard against drift in generated sections):

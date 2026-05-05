@@ -26,9 +26,20 @@ Markdown stack they own.
   comparison: daily authoring, repo bootstrap, schema
   evolution, file rename, CI, editor session,
   Obsidian-vault use, LLM/agent use
+- [use-cases.md](use-cases.md) — seven concrete
+  worked scenarios (open-source repo, Obsidian
+  vault, RFC tracker, task tracker, agent-
+  maintained runbooks, knowledge graph, mixed
+  wiki+plan tracker) that exercise where each
+  tool fits
 - [interop.md](interop.md) — running both tools on
   the same files: coexistence, the dual-schema
   problem, recommended layouts, future bridge
+- [learn-from-mdbase.md](learn-from-mdbase.md) —
+  systematic gap enumeration: every mdbase
+  capability mdsmith doesn't have, triaged into
+  in-scope / out-of-scope / in-flight, with a
+  per-gap mini-plan for the in-scope ones
 
 ## TL;DR
 
@@ -98,7 +109,7 @@ the SQLite cache live only in mdbase.
 | Distribution     | one Go binary                     | npm package + CLI + LSP                 |
 | Maturity         | stable rules, MDS029 experimental | early release; conformance levels 1–6   |
 | License          | MIT                               | MIT                                     |
-| Language         | Go 1.24+                          | TypeScript / Rust                       |
+| Language         | Go 1.25+ (per `go.mod`)           | TypeScript / Rust                       |
 | Runtime deps     | none                              | Node 22+ (TS impl); Rust LSP standalone |
 | Network          | none                              | none                                    |
 | Persistent state | none                              | optional SQLite cache                   |
@@ -136,12 +147,19 @@ schema. mdsmith reads CUE; mdbase reads its own DSL.
 
 ## Reading order
 
-Start with [features.md](features.md) for the
-mechanical comparison. Then read
-[workflows.md](workflows.md) for what daily work
-looks like under each. Finally,
-[interop.md](interop.md) describes how to run them
-together if you want both layers.
+For a tool comparison, start with
+[features.md](features.md) for the mechanical
+breakdown, then [workflows.md](workflows.md) for
+daily-work feel, then [use-cases.md](use-cases.md)
+for seven concrete scenarios that show where each
+tool fits, and finally [interop.md](interop.md)
+for combining both.
+
+For a design exercise, read
+[learn-from-mdbase.md](learn-from-mdbase.md):
+every gap mdsmith has against mdbase, triaged and
+sketched as a mini-plan. Twelve in-scope items
+plus rationale for the out-of-scope ones.
 
 ## Sources
 
@@ -155,9 +173,12 @@ together if you want both layers.
 - mdbase CLI: <https://github.com/callumalpass/mdbase-cli>
 - mdbase LSP (Rust):
   <https://github.com/callumalpass/mdbase-lsp>
-- mdsmith codebase as of branch
-  `claude/compare-mdsmith-mdbase-nVAqH`
-  (54 rules, Go 1.24+, MIT)
+- mdsmith codebase as of 2026-05 (54 rules,
+  Go 1.25+ per `go.mod`, MIT). The original
+  research pass landed in the PR that introduced
+  this folder; commit history under
+  `docs/research/mdbase-vs-mdsmith/` is the
+  authoritative trail.
 
 [file-kinds]: ../../guides/file-kinds.md
 [mds020]: ../../../internal/rules/MDS020-required-structure/README.md

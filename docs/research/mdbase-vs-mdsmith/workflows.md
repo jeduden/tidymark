@@ -559,7 +559,10 @@ edit typed records."
 The contributor:
 
 1. Clones the repo
-2. Runs `go install github.com/jeduden/mdsmith/cmd/mdsmith`
+2. Builds from the clone with
+   `go install ./cmd/mdsmith`, or pins a release
+   with
+   `go install github.com/jeduden/mdsmith/cmd/mdsmith@vX.Y.Z`
 3. Reads `.mdsmith.yml` (and CLAUDE.md if present)
 4. Runs `mdsmith check .` and fixes any drift
 5. Runs `mdsmith help <rule-id>` to read embedded
