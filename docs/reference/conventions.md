@@ -172,9 +172,75 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+Teams that need a convention not covered by the
+three built-ins can define one inline in
+`.mdsmith.yml`:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+The `conventions:` key is a top-level map,
+sibling to `kinds:` and `rules:`. Each entry is a
+`{ flavor, rules }` pair, mirroring the built-in
+table. The `rules` block uses the same schema as
+the top-level `rules:` block.
+
+### Constraints
+
+- The names `portable`, `github`, and `plain` are
+  reserved. Defining one of those names in
+  `conventions:` is a config error.
+- `flavor:` must be one of `commonmark`, `gfm`,
+  `goldmark`, `any`, `pandoc`, `phpextra`,
+  `multimarkdown`, or `myst`.
+- Each key under `rules:` must name a registered
+  rule. An unknown rule name is a config error.
+- Each rule's settings must be valid per that
+  rule's schema (the same path that validates
+  the top-level `rules:` block). Invalid settings
+  are a config error that names the convention
+  and the rule: `convention "our-team" rule
+  "no-inline-html": unknown setting "allowed"`.
+
+### Interaction with top-level rules
+
+User-defined conventions apply as a base layer
+beneath any top-level `rules:` overrides, exactly
+like built-in conventions. A team can set
+`convention: our-team` and then override one rule
+in the top-level `rules:` block. The override wins.
+
+### Resolution order
+
+When `convention:` is set, mdsmith looks in the
+user-defined `conventions:` map first, then the
+built-in table. Collisions are rejected at parse
+time, so the lookup order is just documentation.
+An unknown name lists both user-defined and
+built-in names in the error message.
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge
 chain for every rule, including the
 `convention.<name>` layer. Use it to confirm which
 value won and where it came from.
+
+User-defined conventions appear with a `(user)`
+suffix in the source label:
+`convention.our-team (user)`. Built-in conventions
+use no suffix: `convention.portable`.

@@ -23,6 +23,21 @@ var ValidCategories = []string{
 // discovery when no file arguments are given on the command line.
 var DefaultFiles = []string{"**/*.md", "**/*.markdown"}
 
+// ConventionBody is a user-defined convention as it appears in YAML.
+// It mirrors the shape of the built-in convention table: a Markdown
+// flavor name and a per-rule preset table. See
+// docs/reference/conventions.md for the full YAML schema and
+// docs/background/concepts/flavor-rule-convention-kind.md for concepts.
+type ConventionBody struct {
+	// Flavor is the Markdown flavor this convention targets. Must be
+	// one of: commonmark, gfm, goldmark, any, pandoc, phpextra,
+	// multimarkdown, myst.
+	Flavor string `yaml:"flavor,omitempty"`
+	// Rules maps rule names to their preset settings. The schema is
+	// identical to the top-level rules: block.
+	Rules map[string]RuleCfg `yaml:"rules,omitempty"`
+}
+
 // Config is the top-level configuration.
 type Config struct {
 	Rules          map[string]RuleCfg    `yaml:"rules"`
@@ -37,8 +52,16 @@ type Config struct {
 	KindAssignment []KindAssignmentEntry `yaml:"kind-assignment,omitempty"`
 	Build          BuildConfig           `yaml:"build,omitempty"`
 
+	// Conventions holds user-defined convention bundles. Each entry pairs a
+	// Markdown flavor with per-rule presets, mirroring the built-in
+	// convention table in internal/rules/markdownflavor/conventions.go.
+	// Reserved names "portable", "github", and "plain" are rejected at
+	// config load. See docs/reference/conventions.md for the full schema.
+	Conventions map[string]ConventionBody `yaml:"conventions,omitempty"`
+
 	// Convention names a Markdown convention bundle. Built-in
-	// values: "portable", "github", "plain". Empty means no
+	// values: "portable", "github", "plain". User-defined names may
+	// also be used when declared in the Conventions map. Empty means no
 	// convention; the user's top-level rules and the built-in
 	// defaults are the only base layers. See
 	// internal/rules/markdownflavor/conventions.go for the table
@@ -80,6 +103,13 @@ type Config struct {
 	// Empty when no convention is selected.
 	// Not serialized to YAML.
 	ConventionPreset map[string]RuleCfg `yaml:"-"`
+
+	// ConventionIsUser is true when the active convention is
+	// user-defined (declared in the Conventions map) rather than a
+	// built-in. Used by `mdsmith kinds resolve` to display a `(user)`
+	// suffix on the convention source label.
+	// Not serialized to YAML.
+	ConventionIsUser bool `yaml:"-"`
 }
 
 // Override applies rule settings to files matching glob patterns.
