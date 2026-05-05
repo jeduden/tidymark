@@ -2,6 +2,19 @@ package config
 
 import "fmt"
 
+// validateUserConventions validates the user-defined conventions: block.
+// It delegates to buildUserConventionMap, which enforces reserved-name
+// checks, flavor restrictions, and rule-name and settings validation.
+// This is called at Load time even when no convention: selector is set,
+// so that a malformed conventions: block surfaces immediately.
+func validateUserConventions(cfg *Config) error {
+	if len(cfg.Conventions) == 0 {
+		return nil
+	}
+	_, err := buildUserConventionMap(cfg)
+	return err
+}
+
 // ValidateKinds returns an error if any kind named in a kind-assignment
 // entry is not declared in cfg.Kinds. Front-matter kinds are validated
 // at lint time via ValidateFrontMatterKinds (see engine).

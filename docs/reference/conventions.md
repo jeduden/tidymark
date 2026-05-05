@@ -172,6 +172,75 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+Teams can define a convention inline in
+`.mdsmith.yml`. Add a top-level `conventions:` block
+— a sibling to `convention:`, `rules:`, and `kinds:`:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+Each entry under `conventions:` is a `{ flavor,
+rules }` pair with the same shape as the built-in
+convention table. `flavor` must be one of
+`commonmark`, `gfm`, or `goldmark`. The `rules` map
+uses the same schema as the top-level `rules` block.
+
+### Reserved names
+
+The built-in names `portable`, `github`, and `plain`
+are reserved. Defining a `conventions.portable`
+entry in `.mdsmith.yml` is a config error.
+
+### Resolution order
+
+`convention: <name>` checks user-defined names first,
+then falls back to the built-in table. Collisions
+with built-in names are rejected at parse time, so
+the lookup order is never ambiguous.
+
+When the name is not found in either table, the error
+message lists both user-defined and built-in options.
+
+### Validation
+
+Validation runs at config load. Invalid rule names
+or settings produce an error naming the convention
+and the rule:
+
+```text
+conventions.our-team rule "no-inline-html": unknown setting "allowed"
+```
+
+### Top-level rules overrides
+
+User-defined conventions apply as a base layer,
+exactly like built-in conventions. Top-level `rules:`
+entries override them via deep-merge.
+
+### Inspecting a user convention
+
+`mdsmith kinds resolve <file>` labels user convention
+layers with a `(user)` suffix to distinguish them
+from built-ins:
+
+```text
+  convention.our-team (user)    set   ...
+```
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge

@@ -167,15 +167,35 @@ var conventions = map[string]Convention{
 // error naming the field and listing valid names when name is not a
 // known convention, matching the failure-mode contract in plan 112.
 //
-// The returned Convention is a deep copy of the package-level table
-// entry. Callers may mutate the result without corrupting the
-// shared built-in table.
-func Lookup(name string) (Convention, error) {
+// userConventions, when non-nil, is consulted first; if name is found
+// there, the result is returned with IsUser=true. If name is not in
+// userConventions, the built-in table is consulted. Collisions between
+// user and built-in names cannot occur: the config loader rejects them
+// at parse time. The returned Convention is a deep copy of the table
+// entry.
+func Lookup(name string, userConventions map[string]Convention) (Convention, error) {
+	// User-defined conventions take priority (collisions already rejected).
+	if userConventions != nil {
+		if c, ok := userConventions[name]; ok {
+			return cloneConvention(c), nil
+		}
+	}
 	c, ok := conventions[name]
 	if !ok {
+		// Build the combined valid-names list for the error.
+		valid := ConventionNames()
+		if len(userConventions) > 0 {
+			user := make([]string, 0, len(userConventions))
+			for k := range userConventions {
+				user = append(user, k)
+			}
+			sort.Strings(user)
+			valid = append(valid, user...)
+			sort.Strings(valid)
+		}
 		return Convention{}, fmt.Errorf(
 			"unknown convention %q (valid: %s)",
-			name, strings.Join(ConventionNames(), ", "),
+			name, strings.Join(valid, ", "),
 		)
 	}
 	return cloneConvention(c), nil
@@ -253,4 +273,14 @@ func ConventionNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// ReservedNames returns a set (map[string]bool) of the built-in
+// convention names that user-defined conventions must not use.
+func ReservedNames() map[string]bool {
+	result := make(map[string]bool, len(conventions))
+	for k := range conventions {
+		result[k] = true
+	}
+	return result
 }
