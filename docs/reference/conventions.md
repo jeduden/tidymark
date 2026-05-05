@@ -172,6 +172,83 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+Teams can define their own convention inline in
+`.mdsmith.yml` under a top-level `conventions:` key:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+Each entry is a `{ flavor, rules }` pair with the
+same schema as the built-in convention table.
+
+### Name constraints
+
+The three built-in names (`portable`, `github`,
+`plain`) are reserved. Defining
+`conventions.portable` in `.mdsmith.yml` is a
+config error.
+
+### Validation
+
+Each user-defined convention is validated at config
+load time:
+
+- `flavor` must be `commonmark`, `gfm`, or
+  `goldmark`.
+- Each key under `rules:` must name a registered
+  rule.
+- Each rule's settings must pass that rule's
+  existing `ApplySettings` check.
+
+Validation errors name both the convention and the
+rule: `convention "our-team" rule "no-inline-html":
+unknown setting "allowed"`.
+
+### Resolution order
+
+When the top-level `convention:` selector resolves:
+
+1. User-defined conventions are checked first.
+2. Built-in conventions are the fallback.
+3. If neither matches, the error message lists both
+   built-in and user-defined names.
+
+User conventions cannot shadow built-ins. Name
+collisions with the three reserved names are
+rejected at parse time.
+
+### Interaction with top-level rules
+
+User-defined convention presets behave identically
+to built-in presets. They sit between defaults and
+your explicit `rules:` block, so a top-level
+`rules:` entry always wins. The same deep-merge
+semantics apply.
+
+### Inspecting provenance
+
+`mdsmith kinds resolve <file>` labels user
+convention layers with a `(user)` suffix so you can
+distinguish them from built-ins:
+
+```text
+convention.our-team (user)   set    ...
+```
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge
