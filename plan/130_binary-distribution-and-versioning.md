@@ -28,12 +28,12 @@ regardless of the channel.
 
 ## Background
 
-[release.yml](../.github/workflows/release.yml) already
-builds `mdsmith-<goos>-<goarch>[.exe]` for the cross
-product of linux, darwin, and windows with amd64 and
-arm64. It also packages the VS Code extension as a
-`.vsix` and uploads everything plus a `checksums.txt` to
-a GitHub release. The Go binary embeds the tag via
+[release.yml](../.github/workflows/release.yml)
+already builds `mdsmith-<goos>-<goarch>[.exe]` for
+linux and darwin on amd64 and arm64, plus windows on
+amd64. It also packages the VS Code extension as a
+`.vsix` and uploads everything plus a `checksums.txt`
+to a GitHub release. The Go binary embeds the tag via
 `-ldflags="-X main.version=${VERSION}"` (see
 [main.go](../cmd/mdsmith/main.go)).
 
@@ -41,16 +41,14 @@ Three gaps remain. First,
 [editors/vscode/package.json](../editors/vscode/package.json)
 ships a hard-coded `"version": "0.1.2"`; the
 `vsce package --out` flag only controls the filename.
-
 Second, there is no npm, PyPI, asdf, or mise channel.
 
 Third, the `.vsix` is only attached to the GitHub
 release. It is not on the Visual Studio Marketplace,
 so VS Code's "Install" button cannot find it. It is
 not on Open VSX either, so VSCodium, Cursor, Theia,
-and Gitpod users have no source.
-
-This plan closes all three gaps in one pass.
+and Gitpod users have no source. This plan closes
+all three gaps in one pass.
 
 ## Distribution strategy per manager
 
@@ -80,9 +78,17 @@ install time, so mdsmith stays installable in offline
 or air-gapped CI and clear of supply-chain policies
 that ban network calls during install.
 
-Sources live under `npm/mdsmith/` (the root) and
-`npm/platforms/<goos>-<goarch>/` (one each, generated
-at release time from a template).
+The root lives at `npm/mdsmith/`. Each subpackage
+lives at `npm/platforms/<node-platform>-<node-arch>/`.
+The release script renames Go assets to match:
+
+| Release asset               | npm package             |
+|-----------------------------|-------------------------|
+| `mdsmith-linux-amd64`       | `@mdsmith/linux-x64`    |
+| `mdsmith-linux-arm64`       | `@mdsmith/linux-arm64`  |
+| `mdsmith-darwin-amd64`      | `@mdsmith/darwin-x64`   |
+| `mdsmith-darwin-arm64`      | `@mdsmith/darwin-arm64` |
+| `mdsmith-windows-amd64.exe` | `@mdsmith/win32-x64`    |
 
 ### PyPI
 
@@ -118,36 +124,30 @@ resolves without an explicit URL.
 
 ### mise
 
-The preferred path is to add an entry to the mise
-registry that points at the existing GitHub releases
-through the `ubi` backend. mise's `ubi` backend reads
-GitHub release assets directly given the asset naming
-we already use, so `mise use mdsmith@latest` works
-without us shipping any plugin code. File a PR to
-`mise-plugins/registry`. The fallback path is the asdf
-plugin above: mise consumes asdf plugins natively, so
-`mise use asdf:jeduden/asdf-mdsmith` keeps working
-even before the registry PR lands. The new
-`docs/guides/install.md` (added by task 9) documents
-the registry path as primary and the asdf path as the
-fallback.
+Preferred path: add an entry to `mise-plugins/registry`
+using the `ubi` backend. mise's `ubi` reads GitHub
+release assets directly given our naming, so
+`mise use mdsmith@latest` works without us shipping
+plugin code. Fallback: mise consumes asdf plugins
+natively, so `mise use asdf:jeduden/asdf-mdsmith`
+keeps working even before the registry PR lands.
+Document the registry path as primary in
+`docs/guides/install.md` (task 9).
 
 ### VS Code Marketplace and Open VSX
 
-Publish the same `.vsix` to two registries. The Visual
-Studio Marketplace (`marketplace.visualstudio.com`) is
-what stock VS Code queries. Open VSX (`open-vsx.org`)
-is what VSCodium, Cursor, Theia, and Gitpod query.
-Most extensions publish to both. The `.vsix` is
-identical; only the upload step differs.
-
-Both uploads run from the existing `vscode` job in
+Publish the same `.vsix` to two registries. Stock VS
+Code queries the Visual Studio Marketplace
+(`marketplace.visualstudio.com`); VSCodium, Cursor,
+Theia, and Gitpod query Open VSX (`open-vsx.org`).
+The `.vsix` is identical, only the upload tool
+differs. Both uploads run from the existing `vscode`
+job in
 [release.yml](../.github/workflows/release.yml) after
 `vsce package`. Use `@vscode/vsce` for Marketplace
-and `ovsx` for Open VSX, both invoked with
-`--packagePath` so they upload the exact `.vsix` that
-was packaged and that is also attached to the GitHub
-release. That keeps all three artifacts
+and `ovsx` for Open VSX, both with `--packagePath`
+pointing at the exact `.vsix` the GitHub release
+also attaches, so all three artifacts stay
 byte-identical.
 
 Auth uses two GitHub Actions secrets:
