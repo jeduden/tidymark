@@ -409,10 +409,10 @@ the rollout schedule.
   acceptance reference a real doc?"
 
 **mdsmith approach.** Covers all the docs concerns
-plus plan-front-matter validation via a `plan` kind
-
-+ proto.md schema. MDS019 generates the index.
-MDS027 validates cross-file links. No backlinks.
+plus plan-front-matter validation via a `plan`
+kind plus a `proto.md` schema. MDS019 generates
+the index. MDS027 validates cross-file links. No
+backlinks.
 
 **mdbase approach.** Plan tracker is a perfect fit
 for typed schemas; docs are out of scope. `_types/plan.md`

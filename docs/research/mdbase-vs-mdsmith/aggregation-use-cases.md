@@ -710,6 +710,64 @@ A few questions about the architecture come up
 when reading the spec. The answers shape both
 the cost picture and the security posture.
 
+### Does the cache store the full body?
+
+Spec §13 lists what the cache should track: file
+metadata, parsed front matter, type assignments,
+field values, **link graphs**, and **full-text
+indexes**. It does not mandate "store the entire
+body verbatim in a SQL row" — only that an FTS
+index exists and that the cache is rebuildable
+from files alone.
+
+An SQLite-backed impl has two reasonable shapes,
+both spec-conformant:
+
+- **Content-in-FTS.** The full body lives inside
+  an FTS5 virtual table. Cache size ≈ corpus
+  size plus index. All body queries answered
+  locally in SQLite.
+- **External-content FTS.** FTS5 maintains the
+  inverted index only; bodies stay on disk.
+  Cache is much smaller. `file.body.contains`
+  hits the index first; if the impl needs a
+  context snippet, it re-reads the file.
+
+Neither is mandated. The TS reference impl's
+choice is an implementation detail not pinned
+by the spec.
+
+What this means for the workloads in this doc:
+
+- **A-3 backlinks.** The link graph is a
+  derived structure — `(source, target, anchor,
+  kind)` rows — not body content. An impl can
+  cache the link graph without storing body
+  bytes at all. Storage mode is irrelevant.
+- **A-6 editor decoration.** Needs the target's
+  `title` (front matter), not body. FM cache
+  alone is enough.
+- **Q-3 body full-text search.** This is where
+  body storage matters. FTS-only keeps the
+  cache small; inline-content trades disk for
+  fewer subsequent reads.
+
+Building the cache reads every body once
+regardless of mode (you cannot index without
+reading the bytes). The first cold build cost
+is identical between the two shapes; steady-
+state size and re-read patterns differ.
+
+For mdsmith's choice if it ever lands a cache
+(P-1 in
+[learn-from-mdbase.md](learn-from-mdbase.md)),
+the same trade-off applies. Body-only workloads
+that look like A-3 or A-6 don't need bodies in
+the cache at all — caching the link graph and
+FM is enough. Q-3-like workloads do need an FTS
+index; whether bodies inline or external is a
+size-vs-IO call.
+
 ### Does mdbase query body content beyond links?
 
 Per spec §10, queries can reach the body via

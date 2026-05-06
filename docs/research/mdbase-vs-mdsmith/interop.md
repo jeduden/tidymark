@@ -102,25 +102,39 @@ project wants mdsmith to keep enforcing the
 heading template while letting mdbase own FM
 typing, use A.2 instead.
 
-**A.2: Keep MDS020 with a permissive FM schema.**
-Define an mdsmith schema (`proto.md`) whose front
-matter accepts anything (`[string]: _`) but whose
-body still carries the heading template. mdsmith
-validates structure, mdbase validates FM, neither
-overlaps:
+**A.2: Keep mdsmith's heading-template
+enforcement (caveat).** The intent is "mdsmith
+validates body structure, mdbase validates FM,
+neither overlaps". mdsmith does not currently
+ship a clean way to express this: MDS020's
+schema is one document with FM constraints AND
+a body template, and the rule applies both.
+Three partial routes are available, each with
+trade-offs:
 
-```markdown
-<!-- common/permissive-fm.md -->
----
-[string]: _    # accept any FM; mdbase will validate
----
-# {title}
+- **Schema with empty front-matter block.**
+  Author a `proto.md` whose YAML front matter is
+  empty (still has the `---` fences but no
+  keys), so the CUE schema is empty and matches
+  any FM. The body template still validates
+  headings. Verify on your repo: behavior on
+  unknown FM keys depends on the rule's
+  `default_strict` and any per-kind override.
+- **Schema that mirrors mdbase's types.** Write
+  the same FM constraints in mdsmith CUE that
+  mdbase has in DSL. Both tools then validate FM
+  redundantly. Tedious to keep in sync; bundles
+  the dual-schema problem this whole strategy
+  was trying to avoid.
+- **Disable required-structure entirely (back
+  to A.1).** Simplest. Accepts the loss of
+  body-structure enforcement.
 
-## ?
-```
-
-Then reference it from the kind that owns body
-structure but lets mdbase own FM.
+A future mdsmith config option that toggles
+"validate body structure only, skip FM" within
+MDS020 would close the gap cleanly. Today
+A.1 is the practical pick unless body
+heading-template enforcement is critical.
 
 Pros:
 
@@ -132,10 +146,11 @@ Pros:
 Cons:
 
 - mdsmith cannot block PRs on FM-shape errors
-  (rely on `mdbase validate` in CI)
+  under A.1 (rely on `mdbase validate` in CI)
 - The CUE constraint surface (cross-field, regex,
-  bounds) is not available unless A.2 is used and
-  even then only at body-structure granularity
+  bounds) is not available under A.1
+- A.2's three routes each carry the caveats
+  above; none is fully clean today
 
 This is the recommended pattern when you want the
 mdbase typed-vault experience plus mdsmith's
