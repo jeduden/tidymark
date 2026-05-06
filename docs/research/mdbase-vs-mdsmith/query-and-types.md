@@ -261,7 +261,7 @@ constraint in the query must be satisfiable
 against the file's FM.
 
 ```bash
-mdsmith query 'status: "open" & priority: int & >=3' tasks/
+mdsmith query 'status: "open", priority: int & >=3' tasks/
 ```
 
 - **Lexically a CUE expression.** Comments,
@@ -349,7 +349,7 @@ limit: 20
 Take **"open tasks at priority 3 or above"**.
 
 ```bash
-mdsmith query 'status: "open" & priority: int & >=3'
+mdsmith query 'status: "open", priority: int & >=3'
 ```
 
 The mdsmith form says: the file's FM must
