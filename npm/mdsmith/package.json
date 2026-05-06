@@ -1,5 +1,5 @@
 {
-  "name": "mdsmith",
+  "name": "@mdsmith/cli",
   "version": "0.0.0-dev",
   "description": "Fast, auto-fixing Markdown linter and formatter for docs, READMEs, and AI-generated content.",
   "license": "MIT",

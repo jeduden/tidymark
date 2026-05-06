@@ -16,8 +16,8 @@ into the binary at build time. Pick one path:
 | Channel              | Command                                                                                             | Best for                                                                |
 |----------------------|-----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | Go                   | `go install github.com/jeduden/mdsmith/cmd/mdsmith@latest`                                          | Go developers with a working Go toolchain                               |
-| npm                  | `npm install -g mdsmith`                                                                            | Node / TypeScript repos and npm-friendly CI                             |
-| npx                  | `npx mdsmith check .`                                                                               | One-off checks without a global install                                 |
+| npm                  | `npm install -g @mdsmith/cli`                                                                       | Node / TypeScript repos and npm-friendly CI                             |
+| npx                  | `npx @mdsmith/cli check .`                                                                          | One-off checks without a global install                                 |
 | PyPI (pip)           | `pip install mdsmith`                                                                               | Python projects and Python-only CI images                               |
 | uvx                  | `uvx mdsmith check .`                                                                               | Ephemeral runs via uv                                                   |
 | pipx                 | `pipx install mdsmith`                                                                              | Isolated CLI install on Python hosts                                    |
@@ -35,23 +35,29 @@ require a Go toolchain.
 ## npm
 
 ```bash
-npm install -g mdsmith
+npm install -g @mdsmith/cli
 mdsmith version
 ```
 
-The root `mdsmith` package is a small Node.js shim. It
-declares `optionalDependencies` for one platform
-sub-package per supported host
+The npm root is published as `@mdsmith/cli` (the
+unscoped `mdsmith` name on npm is owned by another
+project; we use the `@mdsmith` scope we own
+instead). The installed binary is still called
+`mdsmith` because the package's `bin` field maps
+the command to a small Node.js shim.
+
+The shim declares `optionalDependencies` for one
+platform sub-package per supported host
 (`@mdsmith/linux-x64`, `@mdsmith/linux-arm64`,
 `@mdsmith/darwin-x64`, `@mdsmith/darwin-arm64`,
-`@mdsmith/win32-x64`); npm installs only the one that
-matches `process.platform` and `process.arch`. There
-is no `postinstall` hook, so `npm install` works in
-offline / air-gapped CI and on hosts that ban network
-calls during install.
+`@mdsmith/win32-x64`); npm installs only the one
+that matches `process.platform` and `process.arch`.
+There is no `postinstall` hook, so `npm install`
+works in offline / air-gapped CI and on hosts that
+ban network calls during install.
 
-`npx mdsmith` and `pnpm dlx mdsmith` work the same way
-without a permanent install.
+`npx @mdsmith/cli` and `pnpm dlx @mdsmith/cli` work
+the same way without a permanent install.
 
 ## PyPI (pip / uvx / pipx)
 

@@ -82,7 +82,7 @@ row: "- [{summary}]({filename})"
 
 ```bash
 go install github.com/jeduden/mdsmith/cmd/mdsmith@latest
-npm install -g mdsmith         # or: npx mdsmith
+npm install -g @mdsmith/cli    # or: npx @mdsmith/cli
 pip install mdsmith            # or: uvx mdsmith / pipx install mdsmith
 ```
 

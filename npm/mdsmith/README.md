@@ -1,16 +1,20 @@
-# mdsmith
+# @mdsmith/cli
 
 Fast, auto-fixing Markdown linter and formatter for docs, READMEs,
 and AI-generated content. This is the npm distribution of the Go
 binary published at
 <https://github.com/jeduden/mdsmith>.
 
+The npm root is `@mdsmith/cli` because the unscoped `mdsmith`
+name on npm is owned by another project. The installed binary
+is still called `mdsmith` (via the package's `bin` field).
+
 ## Install
 
 ```bash
-npm install -g mdsmith
+npm install -g @mdsmith/cli
 # or, without a global install:
-npx mdsmith --help
+npx @mdsmith/cli --help
 ```
 
 The package ships a small Node.js shim (`bin/mdsmith.js`) that locates

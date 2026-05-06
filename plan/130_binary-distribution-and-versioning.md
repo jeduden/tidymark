@@ -56,9 +56,9 @@ all three gaps in one pass.
 Use the `optionalDependencies` per-platform pattern
 (esbuild, biome, swc, and turbo all ship this way).
 
-The user installs one root package, `mdsmith`. It
-lists `optionalDependencies` for one subpackage per
-platform:
+The user installs one root package, `@mdsmith/cli`
+(unscoped `mdsmith` is taken). It lists
+`optionalDependencies` per platform:
 
 - `@mdsmith/linux-x64`
 - `@mdsmith/linux-arm64`
@@ -263,7 +263,7 @@ the tag on every channel.
   `ubi` backend pointing at `jeduden/mdsmith`
   releases.
 - [x] Add `docs/guides/install.md` covering
-  `npm i -g mdsmith`, `npx mdsmith`,
+  `npm i -g @mdsmith/cli`, `npx @mdsmith/cli`,
   `pip install mdsmith`, `uvx mdsmith`,
   `mise use mdsmith@latest`, `asdf install mdsmith`,
   the Marketplace and Open VSX install paths for
@@ -276,15 +276,16 @@ the tag on every channel.
 
 ## Acceptance Criteria
 
-- [ ] Pushing a `vX.Y.Z` tag publishes `mdsmith@X.Y.Z`
-      and the five platform subpackages on npm.
+- [ ] Pushing a `vX.Y.Z` tag publishes
+      `@mdsmith/cli@X.Y.Z` and the five
+      `@mdsmith/<platform>` subpackages on npm.
 - [ ] The same tag publishes `mdsmith==X.Y.Z` wheels
       for the five supported platform tags on PyPI.
 - [ ] The same tag still produces the existing GitHub
       release assets and `.vsix`.
-- [ ] `npm i -g mdsmith && mdsmith version` prints
-      `mdsmith vX.Y.Z` on linux-x64, linux-arm64,
-      darwin-x64, darwin-arm64, and win32-x64.
+- [ ] `npm i -g @mdsmith/cli && mdsmith version`
+      prints `mdsmith vX.Y.Z` on all five supported
+      platforms.
 - [ ] `pip install mdsmith==X.Y.Z && mdsmith version`
       and `uvx mdsmith@X.Y.Z version` print
       `mdsmith vX.Y.Z` on the same five platforms.

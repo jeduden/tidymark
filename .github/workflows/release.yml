@@ -247,7 +247,7 @@ jobs:
               # is resolvable. Mirrors the pip retry loop below.
               ok=0
               for attempt in 1 2 3 4 5; do
-                if npm install -g --force "mdsmith@${VERSION#v}"; then
+                if npm install -g --force "@mdsmith/cli@${VERSION#v}"; then
                   ok=1; break
                 fi
                 sleep 15
