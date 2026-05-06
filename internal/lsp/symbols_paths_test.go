@@ -117,6 +117,42 @@ func TestIndexReloadFromDiskRejectsNonMarkdown(t *testing.T) {
 	}
 }
 
+func TestOutgoingCallsCoalescedItemHasNoAnchor(t *testing.T) {
+	t.Parallel()
+	// Two outgoing edges from a.md target the same b.md but at
+	// different anchors. The coalesced item must have empty
+	// Data.Anchor — otherwise a follow-up incomingCalls on the
+	// returned item would be filtered to whichever anchor
+	// happened to land in the bucket first, hiding the other.
+	srcA := "# A\n\n[one](./b.md#sec-1)\n[two](./b.md#sec-2)\n"
+	srcB := "# B\n\n## Sec 1\n\n## Sec 2\n"
+	h, _, rootURI := rootedHarness(t, map[string]string{"a.md": srcA, "b.md": srcB})
+	uri := rootURI + "/a.md"
+	h.srv.settingsMu.Lock()
+	h.srv.settings.Run = runOff
+	h.srv.settingsMu.Unlock()
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: srcA},
+	})
+	raw, errResp := h.request("textDocument/prepareCallHierarchy", textDocumentPositionParams{
+		TextDocument: textDocumentIdentifier{URI: uri},
+		Position:     Position{Line: 0, Character: 0},
+	})
+	require.Nil(t, errResp)
+	var items []callHierarchyItem
+	require.NoError(t, json.Unmarshal(raw, &items))
+	require.Len(t, items, 1)
+	raw, errResp = h.request("callHierarchy/outgoingCalls", callHierarchyOutgoingCallsParams{Item: items[0]})
+	require.Nil(t, errResp)
+	var calls []callHierarchyOutgoingCall
+	require.NoError(t, json.Unmarshal(raw, &calls))
+	require.Len(t, calls, 1)
+	require.NotNil(t, calls[0].To.Data)
+	assert.Empty(t, calls[0].To.Data.Anchor,
+		"coalesced item must have empty Anchor; otherwise follow-up calls filter to one heading")
+	assert.Len(t, calls[0].FromRanges, 2)
+}
+
 func TestEffectiveKindsForNoCfgWithScalarKind(t *testing.T) {
 	t.Parallel()
 	// No config → no kind-assignment globs, but the file's own

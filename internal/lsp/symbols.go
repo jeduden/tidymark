@@ -59,33 +59,22 @@ func (s *Server) ensureIndex() *index.Index {
 
 // buildIndexFromDisk walks the discovered files and feeds each into
 // the index using the resolved effective-kinds list (front matter ∪
-// config kind-assignment).
+// config kind-assignment). Each file is parsed exactly once: we
+// UpdateWithKinds directly off the on-disk read instead of calling
+// idx.Build (which would re-parse each file when we then layer in
+// the config-resolved kinds).
+//
+// discovery.Discover returns workspace-relative paths, so we join
+// root before reading from disk. The relative form is also what
+// the index keys on, so we pass it straight to UpdateWithKinds.
 func (s *Server) buildIndexFromDisk(idx *index.Index, cfg *config.Config, root string, files []string) {
-	rels := make([]string, 0, len(files))
-	for _, abs := range files {
-		rels = append(rels, workspaceRelative(root, abs))
-	}
-	type loaded struct {
-		path string
-		data []byte
-	}
-	cache := make(map[string]loaded, len(rels))
-	idx.Build(rels, func(rel string) ([]byte, error) {
+	for _, rel := range files {
 		abs := filepath.Join(root, filepath.FromSlash(rel))
 		data, err := os.ReadFile(abs) //nolint:gosec // workspace-rooted, glob-validated
-		if err == nil {
-			cache[rel] = loaded{path: rel, data: data}
-		}
-		return data, err
-	})
-	// Re-emit each file with config-resolved kinds so front-matter-only
-	// kinds: lists are augmented by kind-assignment globs.
-	for _, rel := range rels {
-		l, ok := cache[rel]
-		if !ok {
+		if err != nil {
 			continue
 		}
-		idx.UpdateWithKinds(rel, l.data, effectiveKindsFor(cfg, rel, l.data))
+		idx.UpdateWithKinds(rel, data, effectiveKindsFor(cfg, rel, data))
 	}
 }
 
@@ -1310,6 +1299,15 @@ func (s *Server) handleOutgoingCalls(msg *requestMessage) {
 			g.ranges = append(g.ranges, r)
 			continue
 		}
+		// Coalesce by target file. The bucket represents the
+		// callee file as a whole, so Data.Anchor must stay empty
+		// — different edges from the source can target different
+		// headings inside the same file, and a follow-up
+		// incomingCalls on this item would otherwise be filtered
+		// to whichever anchor happened to land in the bucket
+		// first. To navigate to a specific heading, the user can
+		// open the callee and re-issue prepareCallHierarchy
+		// there.
 		groups[toFile] = &bucket{
 			item: callHierarchyItem{
 				Name:           toFile,
@@ -1317,7 +1315,7 @@ func (s *Server) handleOutgoingCalls(msg *requestMessage) {
 				URI:            s.workspaceURI(toFile),
 				Range:          Range{Start: Position{Line: 0, Character: 0}, End: Position{Line: 0, Character: 0}},
 				SelectionRange: Range{Start: Position{Line: 0, Character: 0}, End: Position{Line: 0, Character: 0}},
-				Data:           &callHierarchyData{File: toFile, Anchor: e.TargetAnchor},
+				Data:           &callHierarchyData{File: toFile},
 			},
 			ranges: []Range{r},
 		}
