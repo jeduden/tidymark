@@ -48,6 +48,10 @@ footer: |
 | 134 | 🔲     | sonnet | [Named field-type shortcuts for inline schemas](plan/134_named-field-type-shortcuts.md)                                               |
 | 135 | 🔲     | sonnet | [Schema inheritance via `extends`](plan/135_schema-extends.md)                                                                        |
 | 136 | 🔲     | sonnet | [Field deprecation flag in schemas](plan/136_field-deprecation-flag.md)                                                               |
+| 137 | 🔲     | sonnet | [`mdsmith fix --dry-run`](plan/137_fix-dry-run.md)                                                                                    |
+| 138 | 🔲     | sonnet | [`mdsmith backlinks` subcommand](plan/138_backlinks-subcommand.md)                                                                    |
+| 139 | 🔲     | sonnet | [Field-presence kind assignment](plan/139_field-presence-kind-assignment.md)                                                          |
+| 140 | 🔲     | sonnet | [Per-kind `path-pattern` for filename validation](plan/140_kind-path-pattern.md)                                                      |
 | 52  | ✅     |        | [Archetype / Template Library for Agentic Patterns](plan/52_archetype-template-library.md)                                            |
 | 61  | ✅     |        | [Required Structure Rule Hardening](plan/61_required-structure-hardening.md)                                                          |
 | 65  | ✅     |        | [Spike WASM-Embedded Weasel Inference](plan/65_spike-wasm-embedded-inference.md)                                                      |
