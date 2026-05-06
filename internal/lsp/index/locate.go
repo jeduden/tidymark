@@ -3,8 +3,6 @@ package index
 import (
 	"bytes"
 	"net/url"
-	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -130,7 +128,7 @@ func (l Locator) Locate(source []byte, line, col int) LocateResult {
 	lines := bytes.Split(body, []byte("\n"))
 
 	// Walk each AST node looking for one whose range covers the cursor.
-	if res, ok := locateInAST(root, body, lines, bodyLine, col); ok {
+	if res, ok := locateInAST(l.Path, root, body, lines, bodyLine, col); ok {
 		return res
 	}
 
@@ -230,8 +228,10 @@ func itoa(n int) string {
 }
 
 // locateInAST walks AST nodes whose source range covers the cursor.
-// Returns a LocateResult and true on first match.
-func locateInAST(root ast.Node, source []byte, lines [][]byte, line, col int) (LocateResult, bool) {
+// Returns a LocateResult and true on first match. srcPath is the
+// workspace-relative path of the document being inspected; it's
+// used to resolve relative file links into workspace-relative form.
+func locateInAST(srcPath string, root ast.Node, source []byte, lines [][]byte, line, col int) (LocateResult, bool) {
 	cursorOff := offsetAt(lines, line, col)
 	var found *ast.Link
 	var foundPI *lint.ProcessingInstruction
@@ -255,7 +255,7 @@ func locateInAST(root ast.Node, source []byte, lines [][]byte, line, col int) (L
 		return ast.WalkContinue, nil
 	})
 	if found != nil {
-		return linkToLocate(found, source), true
+		return linkToLocate(srcPath, found, source), true
 	}
 	if foundPI != nil {
 		return piToLocate(foundPI, source, lines, line, col), true
@@ -321,7 +321,14 @@ func piContainsLine(source []byte, pi *lint.ProcessingInstruction, line int) boo
 	return line >= startLine && line <= endLine
 }
 
-func linkToLocate(l *ast.Link, source []byte) LocateResult {
+// linkToLocate produces a LocateResult for a link node. srcPath is
+// the workspace-relative path of the document — relative file links
+// are resolved against srcPath's directory so the returned
+// TargetFile is itself workspace-relative. Without that resolution,
+// `[x](./b.md)` from `docs/a.md` would surface as `b.md` at the
+// workspace root and definition would jump to the wrong file (or
+// nowhere); paths that escape the workspace via `..` resolve to "".
+func linkToLocate(srcPath string, l *ast.Link, source []byte) LocateResult {
 	if l.Reference != nil {
 		return LocateResult{
 			Tag:   TokenRefUse,
@@ -341,7 +348,7 @@ func linkToLocate(l *ast.Link, source []byte) LocateResult {
 	}
 	return LocateResult{
 		Tag:          TokenFileLink,
-		TargetFile:   filepath.ToSlash(path.Clean(t.Path)),
+		TargetFile:   resolveRelTarget(srcPath, t.Path),
 		TargetAnchor: mdtext.Slugify(decodeAnchor(t.Anchor)),
 	}
 }

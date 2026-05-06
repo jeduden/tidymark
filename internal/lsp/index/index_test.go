@@ -280,6 +280,107 @@ func TestUpdateWithKindsNilFallsBackToFrontMatter(t *testing.T) {
 	assert.Equal(t, []string{"guide"}, fe.Kinds)
 }
 
+func TestRootAndFiles(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	assert.Equal(t, "/root", idx.Root())
+	assert.Empty(t, idx.Files())
+	idx.Update("a.md", []byte("# A\n"))
+	idx.Update("b.md", []byte("# B\n"))
+	assert.ElementsMatch(t, []string{"a.md", "b.md"}, idx.Files())
+}
+
+func TestRootAndFilesOnNilIndex(t *testing.T) {
+	t.Parallel()
+	var idx *Index
+	assert.Empty(t, idx.Root())
+	assert.Nil(t, idx.Files())
+	_, ok := idx.File("x")
+	assert.False(t, ok)
+	idx.Update("x", []byte("y"))
+	idx.UpdateWithKinds("x", []byte("y"), nil)
+	idx.Remove("x")
+	idx.Build(nil, nil)
+	assert.Nil(t, idx.IncomingEdges("x", ""))
+	assert.Nil(t, idx.OutgoingEdges("x"))
+	assert.Nil(t, idx.FilesByKind("x"))
+	assert.Nil(t, idx.SearchSymbols("x", 0))
+}
+
+func TestOutgoingEdgesReturnsCopy(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	idx.Update("a.md", []byte("# A\n\n[x](#a)\n[y](./b.md)\n"))
+	got := idx.OutgoingEdges("a.md")
+	require.Len(t, got, 2)
+	// Mutating the returned slice doesn't change the index.
+	got[0].SourceLine = 999
+	again := idx.OutgoingEdges("a.md")
+	assert.NotEqual(t, 999, again[0].SourceLine)
+}
+
+func TestOutgoingEdgesUnknownFile(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	idx.Update("a.md", []byte("# A\n"))
+	assert.Nil(t, idx.OutgoingEdges("nope.md"))
+}
+
+func TestAbsPathToWorkspace(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	assert.Equal(t, "a/b.md", idx.AbsPathToWorkspace("/root/a/b.md"))
+	assert.Equal(t, "rel.md", idx.AbsPathToWorkspace("rel.md"))
+	// Outside the root → returns the original abs path normalized.
+	got := idx.AbsPathToWorkspace("/elsewhere/x.md")
+	assert.Equal(t, "/elsewhere/x.md", got)
+}
+
+func TestUpdateWithKindsRemovesOnEmpty(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	idx.Update("a.md", []byte("# A\n"))
+	idx.UpdateWithKinds("a.md", nil, []string{"foo"})
+	_, ok := idx.File("a.md")
+	assert.False(t, ok)
+}
+
+func TestUpdateWithKindsEmptyPathIsNoop(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	idx.UpdateWithKinds("", []byte("# A\n"), nil)
+	idx.Update("", []byte("# A\n"))
+	assert.Empty(t, idx.Files())
+}
+
+func TestSearchSymbolsEmptyQueryListsAll(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	idx.Update("a.md", []byte("# A\n"))
+	hits := idx.SearchSymbols("", 0)
+	assert.NotEmpty(t, hits)
+}
+
+func TestIncomingEdgesUnknownFile(t *testing.T) {
+	t.Parallel()
+	var idx *Index
+	assert.Nil(t, idx.IncomingEdges("x", ""))
+	idx2 := New("/r")
+	assert.Nil(t, idx2.IncomingEdges("nope.md", ""))
+}
+
+func TestRemoveOnNonexistentFileNoOp(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	idx.Remove("does-not-exist.md")
+	idx.Remove("")
+}
+
+func TestNormalizePathBackslashes(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "x/y/z.md", NormalizePath(`x\y\z.md`))
+}
+
 func TestFrontMatterAliasRejected(t *testing.T) {
 	t.Parallel()
 	// YAML alias bomb — UnmarshalSafe should reject it without

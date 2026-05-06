@@ -111,6 +111,83 @@ func TestLocateFrontMatterKindsListItem(t *testing.T) {
 	assert.Equal(t, "guide", res.FrontMatterValue)
 }
 
+func TestLocateOutOfRangeSafe(t *testing.T) {
+	t.Parallel()
+	src := "# Top\n"
+	res := Locator{Path: "a.md"}.Locate([]byte(src), -1, -1)
+	// negative coords clamp to (1, 1) which is FileTop on body line 1.
+	assert.Equal(t, TokenFileTop, res.Tag)
+	res = Locator{Path: "a.md"}.Locate([]byte(src), 99, 99)
+	assert.Equal(t, TokenNone, res.Tag)
+}
+
+func TestLocateFrontMatterEmptyKey(t *testing.T) {
+	t.Parallel()
+	src := "---\nfoo bar baz\n---\n# Body\n"
+	res := Locator{Path: "a.md"}.Locate([]byte(src), 2, 2)
+	assert.Equal(t, TokenNone, res.Tag)
+}
+
+func TestLocateRefDefOnNonRefLine(t *testing.T) {
+	t.Parallel()
+	src := "# T\n\nplain text\n"
+	res := Locator{Path: "a.md"}.Locate([]byte(src), 3, 5)
+	assert.Equal(t, TokenNone, res.Tag)
+}
+
+func TestLocateBuildDirectiveSourceArg(t *testing.T) {
+	t.Parallel()
+	src := "# Top\n\n<?build\nsource: \"x.md\"\n?>\n<?/build?>\n"
+	res := Locator{Path: "a.md"}.Locate([]byte(src), 4, 8)
+	assert.Equal(t, TokenDirectiveArg, res.Tag)
+	assert.Equal(t, "build", res.DirectiveName)
+	assert.Equal(t, "source", res.DirectiveArg)
+	assert.Equal(t, "x.md", res.DirectiveTargetFile)
+}
+
+func TestLocateFileLinkResolvesAgainstSourceDir(t *testing.T) {
+	t.Parallel()
+	// Source file lives in `docs/`; the relative link `./b.md`
+	// resolves to `docs/b.md`, not bare `b.md`.
+	src := "# Top\n\n[next](./b.md)\n"
+	res := Locator{Path: "docs/a.md"}.Locate([]byte(src), 3, 4)
+	assert.Equal(t, TokenFileLink, res.Tag)
+	assert.Equal(t, "docs/b.md", res.TargetFile)
+}
+
+func TestLocateFileLinkEscapingRoot(t *testing.T) {
+	t.Parallel()
+	src := "# Top\n\n[bad](../up.md)\n"
+	res := Locator{Path: "docs/a.md"}.Locate([]byte(src), 3, 4)
+	assert.Equal(t, TokenFileLink, res.Tag)
+	// `../up.md` from `docs/a.md` resolves to bare `up.md`.
+	assert.Equal(t, "up.md", res.TargetFile)
+}
+
+func TestLocateHeadingWithDuplicateAnchorDisambiguates(t *testing.T) {
+	t.Parallel()
+	src := "# Same\n\n# Same\n\n# Same\n"
+	// Cursor on the second `# Same` line (line 3) — slug is
+	// disambiguated to "same-1".
+	res := Locator{Path: "a.md"}.Locate([]byte(src), 3, 3)
+	assert.Equal(t, TokenHeading, res.Tag)
+	assert.Equal(t, "same-1", res.Anchor)
+}
+
+func TestLocateRefDefOnLineWithoutLabel(t *testing.T) {
+	t.Parallel()
+	src := "# T\n\n# Other heading\n"
+	res := Locator{Path: "a.md"}.Locate([]byte(src), 3, 3)
+	// Heading on this line, not a ref def.
+	assert.Equal(t, TokenHeading, res.Tag)
+}
+
+func TestSafeURLPathEscape(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "abc", SafeURLPathEscape("abc"))
+	assert.Contains(t, SafeURLPathEscape("a b"), "%20")
+}
+
 func TestLocateFrontMatterKindsListItemWithDifferentValues(t *testing.T) {
 	t.Parallel()
 	src := "---\nkinds:\n  - guide\n  - reference\n---\n# Body\n"

@@ -3,7 +3,6 @@ package lsp
 import (
 	"context"
 	"encoding/json"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,8 +43,10 @@ func pathToFileURI(t *testing.T, p string) string {
 	t.Helper()
 	abs, err := filepath.Abs(p)
 	require.NoError(t, err)
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}
-	return u.String()
+	// Use the production helper so the test URIs match what the
+	// server emits — both follow RFC 8089 (drive-letter prefixed by
+	// a `/`, UNC-as-host) and round-trip through uriToPathOnOS.
+	return pathToURI(abs)
 }
 
 func TestInitializeAdvertisesNavigationCapabilities(t *testing.T) {
@@ -293,11 +294,18 @@ func TestOutgoingCallsForIncludeChain(t *testing.T) {
 	h, _, rootURI := rootedHarness(t, map[string]string{
 		"a.md": srcA, "b.md": srcB, "c.md": srcC,
 	})
+	// The include rule keeps per-run state on the registered
+	// singleton; concurrent lint passes from t.Parallel() siblings
+	// race that state. Disable lint for the duration of this test
+	// since we only exercise the symbol-navigation surface.
+	h.srv.settingsMu.Lock()
+	h.srv.settings.Run = runOff
+	h.srv.settingsMu.Unlock()
+
 	uriA := rootURI + "/a.md"
 	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
 		TextDocument: textDocumentItem{URI: uriA, LanguageID: "markdown", Version: 1, Text: srcA},
 	})
-	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
 
 	raw, errResp := h.request("textDocument/prepareCallHierarchy", textDocumentPositionParams{
 		TextDocument: textDocumentIdentifier{URI: uriA},

@@ -171,10 +171,46 @@ func indexPatterns() []string {
 	return []string{"**/*.md", "**/*.markdown"}
 }
 
-// pathToURI returns a `file://` URI for an absolute path.
+// pathToURI returns a `file://` URI for an absolute path. The
+// emitted form is RFC 8089-compliant on every platform:
+//
+//   - POSIX absolute path `/x/y` → `file:///x/y`.
+//   - Windows drive-letter path `C:\x\y` → `file:///C:/x/y` (note
+//     the three-slash form: empty host + leading slash before the
+//     drive letter, which is what `uriToPathOnOS` expects to
+//     round-trip).
+//   - Windows UNC path `\\server\share\x` → `file://server/share/x`.
+//
+// Without the explicit drive-letter `/` prefix `url.URL` would emit
+// `file://C:/x/y`, which clients parse as host=`C:` and break
+// initialize / Location round-tripping.
 func pathToURI(p string) string {
 	if p == "" {
 		return ""
+	}
+	// Drive-letter and UNC checks run before filepath.IsAbs so the
+	// helper produces correct output regardless of the host OS:
+	// filepath.IsAbs(`C:\x`) returns false on Linux, which would
+	// otherwise reject Windows paths under cross-platform tests
+	// and from RPC payloads sent by Windows clients.
+	// filepath.ToSlash is OS-specific and a no-op on Linux when the
+	// input contains `\`, so Windows-style separators have to be
+	// translated explicitly here. forwardSlash gives us a portable
+	// version regardless of host OS.
+	forwardSlash := strings.ReplaceAll(p, `\`, `/`)
+	if isWindowsDrivePath(p) {
+		// `C:\x\y` → `/C:/x/y` so url.URL's empty Host stays empty
+		// and the drive letter lands in the path component.
+		u := url.URL{Scheme: "file", Path: "/" + forwardSlash}
+		return u.String()
+	}
+	if strings.HasPrefix(p, `\\`) {
+		// UNC path `\\server\share\x`. The first slash-separated
+		// component is the host; the rest is the path.
+		rest := strings.TrimPrefix(forwardSlash, "//")
+		host, tail, _ := strings.Cut(rest, "/")
+		u := url.URL{Scheme: "file", Host: host, Path: "/" + tail}
+		return u.String()
 	}
 	if !filepath.IsAbs(p) {
 		// Relative path — caller probably wanted a workspace-
@@ -184,6 +220,16 @@ func pathToURI(p string) string {
 	}
 	u := url.URL{Scheme: "file", Path: filepath.ToSlash(p)}
 	return u.String()
+}
+
+// isWindowsDrivePath reports whether p starts with `X:` where X is
+// an ASCII letter — the canonical Windows drive-letter path prefix.
+func isWindowsDrivePath(p string) bool {
+	if len(p) < 2 || p[1] != ':' {
+		return false
+	}
+	c := p[0]
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }
 
 // workspaceURI returns a file:// URI for a workspace-relative path.
@@ -199,11 +245,15 @@ func (s *Server) workspaceURI(rel string) string {
 
 // docTextOrFile returns the live buffer for uri when the document is
 // open; otherwise it reads the on-disk file. Returns the bytes plus
-// the workspace-relative path for the document.
+// the workspace-relative path for the document. The returned rel
+// is normalized to forward slashes, since `path.Dir` / `path.Join`
+// callers in the navigation surface expect forward-slash semantics
+// regardless of host OS — `workspaceRelative` returns OS-specific
+// separators on Windows, which would mis-resolve directive targets.
 func (s *Server) docTextOrFile(uri string) ([]byte, string, bool) {
 	if doc, ok := s.docs.get(uri); ok {
 		_, _, root := s.snapshotConfig()
-		rel := workspaceRelative(root, doc.path)
+		rel := index.NormalizePath(workspaceRelative(root, doc.path))
 		return doc.text, rel, true
 	}
 	p := uriToPath(uri)
@@ -211,7 +261,7 @@ func (s *Server) docTextOrFile(uri string) ([]byte, string, bool) {
 		return nil, "", false
 	}
 	_, _, root := s.snapshotConfig()
-	rel := workspaceRelative(root, p)
+	rel := index.NormalizePath(workspaceRelative(root, p))
 	data, err := os.ReadFile(p) //nolint:gosec // path comes from a client URI; host code paths only ever read .md files
 	if err != nil {
 		return nil, rel, false

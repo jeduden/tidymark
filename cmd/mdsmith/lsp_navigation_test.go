@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -161,12 +162,36 @@ func (p *lspPipe) requestPickResult(t *testing.T, method string, id int, params 
 	return nil
 }
 
+// pathToFileURIE2E mirrors the production server's pathToURI: it
+// emits RFC 8089-compliant file URIs so the helper produces the
+// same shape on every host OS (including Windows drive letters and
+// UNC paths). Without that the E2E test would send a non-standard
+// `file://C:/...` rootUri on Windows that the server's URI parser
+// would treat as a UNC host.
 func pathToFileURIE2E(t *testing.T, p string) string {
 	t.Helper()
 	abs, err := filepath.Abs(p)
 	require.NoError(t, err)
+	if isWindowsDrivePathE2E(abs) {
+		u := url.URL{Scheme: "file", Path: "/" + filepath.ToSlash(abs)}
+		return u.String()
+	}
+	if strings.HasPrefix(abs, `\\`) {
+		rest := strings.TrimPrefix(filepath.ToSlash(abs), "//")
+		host, tail, _ := strings.Cut(rest, "/")
+		u := url.URL{Scheme: "file", Host: host, Path: "/" + tail}
+		return u.String()
+	}
 	u := url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}
 	return u.String()
+}
+
+func isWindowsDrivePathE2E(p string) bool {
+	if len(p) < 2 || p[1] != ':' {
+		return false
+	}
+	c := p[0]
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }
 
 // silence unused import in some build paths
