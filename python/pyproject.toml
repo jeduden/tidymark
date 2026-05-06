@@ -8,9 +8,6 @@ version = "0.0.0-dev"
 description = "Fast, auto-fixing Markdown linter and formatter for docs, READMEs, and AI-generated content."
 readme = "README.md"
 license = "MIT"
-authors = [
-  { name = "Jens-Christian Eduden", email = "jens-christian@eduden.de" },
-]
 requires-python = ">=3.9"
 keywords = ["markdown", "linter", "formatter", "mdsmith", "docs"]
 classifiers = [

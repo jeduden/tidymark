@@ -97,6 +97,96 @@ func TestSubcommandRejectsUnknownFlag(t *testing.T) {
 	}
 }
 
+// TestRunCheckOnDevSentinel exercises runCheck's success branch
+// (the println "all manifests pinned at ..." line) which the
+// stamp-then-check test above does not reach because check
+// always fails after a successful stamp.
+func TestRunCheckOnDevSentinel(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root)
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	assert.Equal(t, 0, run([]string{"check"}))
+}
+
+// TestRunBuildNpmEndToEnd dispatches through `run build-npm` so
+// the subcommand wiring (FlagSet parse, NArg() validation,
+// reportError translation) gets exercised end-to-end with
+// realistic positional args, not just the bad-arity branches.
+func TestRunBuildNpmEndToEnd(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root)
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	// Stamp first so npm/mdsmith/package.json carries the version
+	// build-npm will read. Use any valid SemVer.
+	require.Equal(t, 0, run([]string{"stamp", "1.2.3"}))
+
+	// Stage fake artifacts (the same set internal/release tests
+	// use). build-npm only cares that the asset filenames exist.
+	artifacts := filepath.Join(root, "artifacts")
+	require.NoError(t, os.MkdirAll(artifacts, 0o755))
+	for _, asset := range []string{
+		"mdsmith-linux-amd64",
+		"mdsmith-linux-arm64",
+		"mdsmith-darwin-amd64",
+		"mdsmith-darwin-arm64",
+		"mdsmith-windows-amd64.exe",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(artifacts, asset),
+			[]byte("#!/bin/sh\necho fake\n"), 0o755))
+	}
+	out := filepath.Join(root, "dist")
+
+	assert.Equal(t, 0, run([]string{"build-npm", "artifacts", "dist"}))
+	for _, plat := range []string{"linux-x64", "darwin-arm64", "win32-x64"} {
+		_, err := os.Stat(filepath.Join(out, plat, "package.json"))
+		assert.NoError(t, err, "%s package.json", plat)
+	}
+}
+
+// TestRunBuildNpmReportsError dispatches through run build-npm
+// with a missing artifacts dir so reportError's non-nil branch
+// fires for build-npm.
+func TestRunBuildNpmReportsError(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root)
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	require.Equal(t, 0, run([]string{"stamp", "1.2.3"}))
+	assert.Equal(t, 1, run([]string{"build-npm", "missing-artifacts", "dist"}))
+}
+
+// TestRunBuildWheelsReportsError dispatches through run
+// build-wheels for the fast-fail "python source missing" path so
+// runBuildWheels gets full coverage without needing python.
+func TestRunBuildWheelsReportsError(t *testing.T) {
+	root := t.TempDir()
+	writeFixture(t, root)
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	// writeFixture creates python/pyproject.toml so the
+	// python-source check passes; missing artifacts trips the
+	// per-build stat check instead.
+	assert.Equal(t, 1, run([]string{"build-wheels", "missing-artifacts", "wheels"}))
+}
+
 // writeFixture mirrors internal/release/version_test.go's
 // fixtureManifests but without taking a dependency back on the
 // internal package's test helpers.
