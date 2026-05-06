@@ -83,10 +83,30 @@ jobs:
           ver="${VERSION#v}"
           bunx --bun @vscode/vsce package --no-dependencies \
             --out "mdsmith-${ver}.vsix"
+      # Verify the publisher tokens are set BEFORE the publish steps
+      # run. The publishes themselves use `continue-on-error: true`
+      # so a transient registry outage does not block the GitHub
+      # release. That same flag would also hide an unset/empty
+      # secret, so guard misconfiguration here (no continue-on-error)
+      # while still letting outages slide on the actual publish.
+      - name: Verify Marketplace and Open VSX tokens are set
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          missing=""
+          [ -n "${VSCE_PAT:-}" ] || missing="$missing VSCE_PAT"
+          [ -n "${OVSX_PAT:-}" ] || missing="$missing OVSX_PAT"
+          if [ -n "$missing" ]; then
+            echo "missing required repo secret(s):$missing" >&2
+            exit 1
+          fi
       - name: Publish to Visual Studio Marketplace
         # The GitHub release .vsix is the documented fallback, so a
         # transient Marketplace outage should not block the release
-        # job downstream of this one.
+        # job downstream of this one. Misconfiguration is caught by
+        # the preceding verify step, so this only swallows runtime
+        # registry errors.
         continue-on-error: true
         env:
           VERSION: ${{ github.ref_name }}
