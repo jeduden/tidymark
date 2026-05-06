@@ -26,74 +26,201 @@ Three questions guide the structure:
 3. Where do the two diverge in expressiveness,
    and where does each break down?
 
-## What gets typed
+## What gets typed (full enforcement surface)
 
-The short version: **mdbase types the front
-matter and the filename pattern; mdsmith schemas
-type the front matter and the body heading
-structure. Neither types the body content as a
-structured value.** Both treat `file.body` as a
-string for query purposes but neither has a
-"this paragraph must have these properties"
-type system.
+The honest answer requires looking at **all** the
+mechanisms each tool ships, not just the ones
+labelled "type system". mdbase has a single
+mechanism (the type system in `_types/`).
+mdsmith has two: MDS020 schemas (the closest
+direct analogue to mdbase types) **and** a
+broader rule set of 54 lint rules, many of which
+encode structural constraints on the document.
+Treating the rules as out-of-scope would
+underrate mdsmith's actual coverage.
 
-Concretely:
+So the framing here is: **what does each tool
+collectively enforce about a document?** The
+mechanism (typed schema vs lint rule) matters
+less than the shape of the enforcement.
 
-| Aspect typed                                    | mdbase                                          | mdsmith schemas (MDS020)             |
-|-------------------------------------------------|-------------------------------------------------|--------------------------------------|
-| Front matter field types                        | yes — 12 named field types (spec §7)            | yes — CUE expressions in schema FM   |
-| Field-level constraints (min, max, regex)       | yes (per-type knobs)                            | yes (full CUE)                       |
-| Required vs optional fields                     | yes (`required: true`)                          | yes (CUE `?` suffix or non-`?`)      |
-| Filename pattern                                | yes (`path_pattern: "tasks/{date}-{title}.md"`) | yes (`<?require?>` with `filename`)  |
-| Computed FM fields                              | yes (`computed:` block, expression-based)       | no (CUE is structural, not computed) |
-| Cross-field constraints                         | limited (per-type knobs)                        | yes (full CUE: `if a then b >= 0`)   |
-| Type assignment via FM presence                 | yes (`fields_present`, `where`)                 | no (kinds via explicit tag or glob)  |
-| Body heading structure                          | no — body is a `file.body` string               | yes — schema body carries template   |
-| Body content patterns (paragraphs, code blocks) | no                                              | no                                   |
-| Body cross-references                           | no (link graph is separate)                     | no (cross-file links are MDS027)     |
-| Sentence-level prose properties                 | no                                              | no (handled by separate rules)       |
-| Cross-file value coherence                      | yes (`unique_values` in Rust impl)              | no                                   |
+### Full enforcement matrix
 
-So the answer to "is mdbase's type system limited
-to front matter?" is **almost — but with two
-extensions worth naming**:
+Three columns per group: what mdbase types via
+its schema; what mdsmith's MDS020 schema types;
+what mdsmith's broader rule set enforces. Cells
+are evaluated as "the user can declare this
+constraint and have it enforced". Tables are
+split by category for readability.
+
+#### Front matter and type assignment
+
+| Aspect                         | mdbase types             | mdsmith MDS020 schema       | mdsmith broader rule set |
+|--------------------------------|--------------------------|-----------------------------|--------------------------|
+| FM field types                 | yes (12 named types, §7) | yes (CUE in schema FM)      | n/a                      |
+| FM field constraints           | per-type knobs           | full CUE                    | n/a                      |
+| FM required / optional         | `required: true`         | CUE `?` suffix              | n/a                      |
+| FM cross-field constraints     | limited                  | full CUE (`if/then`)        | n/a                      |
+| Computed FM fields             | yes (`computed:` block)  | no (CUE is structural)      | n/a                      |
+| Generated FM values            | yes (ULID, timestamps)   | n/a (mdsmith doesn't write) | n/a                      |
+| Type assignment by FM presence | yes (`fields_present`)   | no                          | no (kinds: globs / tags) |
+| Type assignment by FM where    | yes (`where:`)           | no                          | no                       |
+
+#### Filename, directory, headings
+
+| Aspect                    | mdbase types   | mdsmith MDS020 schema       | mdsmith broader rule set                  |
+|---------------------------|----------------|-----------------------------|-------------------------------------------|
+| Filename pattern          | `path_pattern` | `<?require?>` filename glob | MDS033 directory-structure                |
+| First-heading rule        | no             | template's first H1         | MDS004 first-line-heading                 |
+| Heading level increments  | no             | template implies it         | MDS003 heading-increment                  |
+| Heading uniqueness        | no             | no                          | MDS005 no-duplicate-headings              |
+| Single H1 per file        | no             | template's H1               | MDS051 single-h1                          |
+| Heading punctuation       | no             | no                          | MDS017 no-trailing-punctuation-in-heading |
+| Emphasis used as heading  | no             | no                          | MDS018 no-emphasis-as-heading             |
+| Required heading sequence | no             | yes (template body)         | n/a (this *is* MDS020)                    |
+
+#### Section and file caps; prose
+
+| Aspect                         | mdbase types | mdsmith MDS020 schema | mdsmith broader rule set                  |
+|--------------------------------|--------------|-----------------------|-------------------------------------------|
+| Section emptiness              | no           | no                    | MDS030 empty-section-body                 |
+| Section length cap             | no           | no                    | MDS036 max-section-length                 |
+| File length cap                | no           | no                    | MDS022 max-file-length                    |
+| Token budget (LLM context)     | no           | no                    | MDS028 token-budget                       |
+| Paragraph readability (ARI)    | no           | no                    | MDS023 paragraph-readability              |
+| Paragraph structure            | no           | no                    | MDS024 paragraph-structure                |
+| Conciseness                    | no           | no                    | MDS029 conciseness-scoring (experimental) |
+| Cross-file content duplication | no           | no                    | MDS037 duplicated-content                 |
+
+#### Tables, code, lists
+
+| Aspect                         | mdbase types | mdsmith MDS020 schema | mdsmith broader rule set             |
+|--------------------------------|--------------|-----------------------|--------------------------------------|
+| Table format                   | no           | no                    | MDS025 table-format                  |
+| Table readability              | no           | no                    | MDS026 table-readability             |
+| Fenced code style              | no           | no                    | MDS010 fenced-code-style             |
+| Fenced code language tag       | no           | no                    | MDS011 fenced-code-language          |
+| Blank lines around fenced code | no           | no                    | MDS015 blank-line-around-fenced-code |
+| Unclosed code block            | no           | no                    | MDS031 unclosed-code-block           |
+| Spaces in code spans           | no           | no                    | MDS052 no-space-in-code-spans        |
+| List marker style              | no           | no                    | MDS045 list-marker-style             |
+| Ordered list numbering         | no           | no                    | MDS046 ordered-list-numbering        |
+| List indent                    | no           | no                    | MDS016 list-indent                   |
+
+#### Links, references, cross-file
+
+| Aspect                      | mdbase types                       | mdsmith MDS020 schema | mdsmith broader rule set              |
+|-----------------------------|------------------------------------|-----------------------|---------------------------------------|
+| Bare URLs                   | no                                 | no                    | MDS012 no-bare-urls                   |
+| Cross-file link integrity   | yes (L4 + `validate_exists`)       | no                    | MDS027 cross-file-reference-integrity |
+| Cross-file rename safety    | yes (L5 rewrites refs)             | no                    | no (MDS027 detects, doesn't fix)      |
+| Wikilink resolution         | yes (L4 — `[[Page]]`)              | no                    | no (L-1 candidate)                    |
+| ID-based link resolution    | yes (`id_field` per spec)          | no                    | no (L-2 candidate)                    |
+| Cross-file value uniqueness | yes (`unique` per type, Rust impl) | no                    | no                                    |
+| Reference-style link policy | no                                 | no                    | MDS043 no-reference-style             |
+| Unused link reference defs  | no                                 | no                    | MDS053 no-unused-link-definitions     |
+| Undefined reference labels  | no                                 | no                    | MDS054 no-undefined-reference-labels  |
+| Spaces in link text         | no                                 | no                    | MDS049 no-space-in-link-text          |
+
+#### Style, formatting, generated content
+
+| Aspect                           | mdbase types | mdsmith MDS020 schema | mdsmith broader rule set      |
+|----------------------------------|--------------|-----------------------|-------------------------------|
+| Image alt text                   | no           | no                    | MDS032 no-empty-alt-text      |
+| Inline HTML policy               | no           | no                    | MDS041 no-inline-html         |
+| Emphasis style                   | no           | no                    | MDS042 emphasis-style         |
+| Horizontal rule style            | no           | no                    | MDS044 horizontal-rule-style  |
+| Ambiguous emphasis               | no           | no                    | MDS047 ambiguous-emphasis     |
+| Proper-name capitalization       | no           | no                    | MDS050 proper-names           |
+| Markdown flavor (CommonMark/GFM) | no           | no                    | MDS034 markdown-flavor        |
+| Trailing whitespace / tabs       | no           | no                    | MDS006–009 whitespace rules   |
+| Line length                      | no           | no                    | MDS001 line-length            |
+| Blank lines around blocks        | no           | no                    | MDS013–015                    |
+| Generated section drift          | no           | no                    | MDS019/021/038/039 directives |
+| Build recipe safety              | no           | no                    | MDS040 recipe-safety          |
+
+The table is one-sided in row count — that's
+the point. mdsmith's enforcement surface is
+**broad and shallow** (54 rules covering many
+document properties). mdbase's is **narrow and
+deep** (one type system, but it goes deep on
+field-level constraints, generated values,
+cross-file uniqueness, and link integrity).
+
+### So is mdbase's type system limited to FM?
+
+Yes, with two named extensions:
 
 1. **Filename `path_pattern`.** A type can
-   declare a path template like
-   `tasks/{date}-{title}.md`. Files claiming
-   that type are validated against it. The
-   pattern uses FM field values, so it ties FM
-   to filesystem layout. Not strictly "in" the
-   FM, but derived from it.
+   declare `path_pattern: "tasks/{date}-{title}.md"`,
+   tying FM field values to filesystem layout.
 2. **Cross-file `unique_values`.** The Rust
-   reference impl maintains a `unique_values`
-   table for ID uniqueness across the
-   collection. A type can declare `id` is
-   unique; the validator checks no two files
-   share the same ID. The constraint is
-   per-field, but it spans files.
+   reference impl maintains a per-collection
+   uniqueness table; types can declare `unique`
+   on an `id` field.
 
-Beyond those two, every typed assertion in
-mdbase reduces to a property of one file's front
-matter (or a derivation of it). The body is
-unstructured from the type system's perspective.
+Beyond those, every typed assertion in mdbase
+reduces to a property of one file's FM (or a
+derivation of it via computed fields, or a
+property of the link graph the FM declares).
+The body content is unstructured from the type
+system's perspective. `file.body` is queryable
+as a string but not typed.
 
-mdsmith goes one layer further: a schema's body
-*is* a heading template, and MDS020 enforces
-that the document's headings match. So mdsmith
-types both **the file-as-record** (FM, like
-mdbase) and **the file-as-document** (heading
-skeleton, unlike mdbase). This is a real
-distinction in what the schema authors are
-allowed to assert.
+### So what about mdsmith's "type system"?
 
-Neither tool types body content beyond
-structure. Whether a paragraph is well-formed
-prose, whether a code block has the right
-language tag, whether a list contains a TODO —
-these live in mdsmith's *separate rule set* (not
-its schemas), and in mdbase they live nowhere
-(out of scope for the data layer).
+mdsmith does not have one type system; it has
+**MDS020 schemas plus a 54-rule constraint
+library**. Two distinct surfaces:
+
+1. **MDS020 schema** (`proto.md` per kind):
+   types FM via CUE expressions; types body
+   heading structure via the template; types
+   filename via `<?require?>`.
+2. **The broader rule set**: imposes structural
+   constraints on headings (level increments,
+   uniqueness, single-H1), paragraphs
+   (readability, structure, conciseness), code
+   blocks, tables, links, lists, file length,
+   token budget, directory layout, prose
+   style, and more — all without a per-file
+   schema declaration. Rules apply by default
+   or per-kind override.
+
+The two surfaces compose. A schema can declare
+"this file's FM has fields X and Y, and its body
+has these headings"; the surrounding rule set
+adds "and the prose is readable, the tables fit,
+the headings increment, no link is broken".
+
+This is a real architectural difference: mdbase
+puts everything in the type, mdsmith splits
+between per-kind schemas and per-rule
+enforcement. Either approach can express most
+constraints; the language for declaring them
+differs. mdbase's vocabulary is "type fields";
+mdsmith's is "rules with settings".
+
+### Where each is genuinely silent
+
+Both tools share a few gaps:
+
+- **Body content patterns beyond headings.** Whether
+  paragraph N is a definition, whether a list
+  contains a TODO, whether a code block is
+  Python — neither tool ships a way to declare
+  this.
+- **Schema-aware query validation.** A typo in
+  a field name returns no results rather than
+  "no such field in type X" at parse time.
+- **Cross-tool schema portability.** mdsmith
+  CUE and mdbase DSL describe overlapping
+  shapes; nothing translates between them.
+
+mdsmith's experimental MDS029
+(conciseness-scoring) is a step toward
+content-quality typing but is opt-in and
+classifier-based rather than declarative.
 
 ## How the type definitions look
 
@@ -198,7 +325,7 @@ directly.
 | Computed at read time             | `computed: { expr: ... }`                 | not directly (CUE is structural)                |
 | Filename template                 | `path_pattern: "tasks/{date}-{title}.md"` | `<?require?>` with regex / glob                 |
 | Body heading template             | not in scope                              | schema body                                     |
-| Schema composition                | `extends: base`                           | CUE imports + `<?include?>` in schema body      |
+| Schema composition                | `extends: base`                           | `<?include?>` in schema body (no CUE imports)   |
 | Inheritance overrides             | child fields fully replace parent's       | CUE unification (intersection)                  |
 
 CUE wins on cross-field constraints, structural
@@ -278,10 +405,13 @@ mdsmith query 'status: "open", priority: int & >=3' tasks/
   field that is supposed to be an int is
   matched against an int constraint and fails
   cleanly if the FM has the wrong type.
-- **Composable via CUE imports.** A query can
-  import a definition from a `.cue` file and
-  reference it (`import "x.com/types"`,
-  `task.#OpenHigh`). Rarely used today.
+- **Not composable across files today.** The
+  CLI argument is wrapped in `{...}` and
+  compiled as an expression body
+  (`internal/query/query.go`), so CUE
+  `import "..."` and `package` declarations are
+  not accepted at this surface. Reuse happens at
+  the shell level — variables, scripts.
 - **Limited to filtering.** No sort, limit,
   body access, traversal, or aggregation. The
   command emits matching paths to stdout.
@@ -328,21 +458,21 @@ limit: 20
 
 ### Side by side as languages
 
-| Concern                   | mdsmith CUE                        | mdbase Bases DSL                       |
-|---------------------------|------------------------------------|----------------------------------------|
-| Surface form              | one expression (struct literal)    | YAML doc + expression strings          |
-| Filtering                 | unification (constraint match)     | boolean expression eval                |
-| Sort                      | no                                 | `order_by` clause                      |
-| Pagination                | no                                 | `limit` / `offset`                     |
-| Body access               | no (FM only)                       | `file.body.contains/.matches`          |
-| Cross-file traversal      | no                                 | `link.asFile().property` (depth ≤ 10)  |
-| Aggregation               | no                                 | `group_by` + `aggregate` + `formulas`  |
-| Date arithmetic           | bounds via CUE `>=`/`<=` on string | duration strings (`+ "7d"`)            |
-| Type checking of query    | structural unification             | runtime evaluation; type_error per row |
-| Composition / imports     | CUE imports                        | none beyond YAML structure             |
-| Reusable named queries    | yes (CUE definitions)              | not in the spec                        |
-| Error on bad query syntax | parse error before execution       | parse error before execution           |
-| Error on type mismatch    | unification failure                | per-row null + type_error diagnostic   |
+| Concern                   | mdsmith CUE                                   | mdbase Bases DSL                       |
+|---------------------------|-----------------------------------------------|----------------------------------------|
+| Surface form              | one expression (struct literal)               | YAML doc + expression strings          |
+| Filtering                 | unification (constraint match)                | boolean expression eval                |
+| Sort                      | no                                            | `order_by` clause                      |
+| Pagination                | no                                            | `limit` / `offset`                     |
+| Body access               | no (FM only)                                  | `file.body.contains/.matches`          |
+| Cross-file traversal      | no                                            | `link.asFile().property` (depth ≤ 10)  |
+| Aggregation               | no                                            | `group_by` + `aggregate` + `formulas`  |
+| Date arithmetic           | bounds via CUE `>=`/`<=` on string            | duration strings (`+ "7d"`)            |
+| Type checking of query    | structural unification                        | runtime evaluation; type_error per row |
+| Composition / imports     | none at the CLI surface (no `import` allowed) | none beyond YAML structure             |
+| Reusable named queries    | shell-level only (variables, scripts)         | not in the spec                        |
+| Error on bad query syntax | parse error before execution                  | parse error before execution           |
+| Error on type mismatch    | unification failure                           | per-row null + type_error diagnostic   |
 
 ### Two ways to read the same query
 
@@ -445,43 +575,56 @@ fields:
 ---
 ```
 
-**mdsmith: CUE imports + schema include.** A
-schema can `<?include?>` another schema's body
-fragments to share heading templates. The CUE
-in the schema's FM can import shared
-definitions:
+**mdsmith: schema body include + per-field CUE.**
+mdsmith schemas don't compose via CUE imports.
+The schema's FM is parsed as YAML and converted
+into a closed CUE struct (`deriveFrontMatterCUE`
+in the MDS020 implementation), so each field's
+constraint is the YAML value (a CUE expression
+encoded as a string). There's no `import "..."`
+in the schema's FM.
 
-```cue
-// internal/concepts/base.cue
-package concepts
+What does compose:
 
-#Base: {
-    id: =~"^[A-Z]+-[0-9]+$"
-    created: =~"^\\d{4}-\\d{2}-\\d{2}"
-}
+- **Body templates via `<?include?>`.** A
+  schema's body can splice in fragments from
+  other schema bodies, sharing heading
+  templates across kinds.
+- **Field-level CUE expressions.** Each field's
+  constraint is a CUE string; constraints can
+  reference CUE built-ins (`strings.MinRunes`,
+  regex `=~`, disjunctions `|`, etc.) inline.
+  Reuse across schemas means copy-pasting the
+  expression string today.
+
+```markdown
+<!-- common/base-template.md (a schema-body fragment) -->
+# {title}
+
+## Description
+
+## Status notes
 ```
 
 ```markdown
 <!-- tasks/proto.md -->
 ---
-import "github.com/jeduden/mdsmith/concepts"
-concepts.#Base
+id: '=~"^[A-Z]+-[0-9]+$"'
+created: '=~"^\\d{4}-\\d{2}-\\d{2}"'
 status: '"open" | "done"'
 ---
 <?include
 file: ../common/base-template.md
 ?>
-
-# {title}
-
-## Status notes
 ```
 
-CUE's unification means the imported
-constraints intersect with the child's
-constraints — closer to mdbase's "extends"
-semantics, but more powerful (the child can
-strengthen, not just override).
+The `<?include?>` is structural composition;
+the FM constraints are independent per-field
+CUE strings. A future plan could add CUE
+imports to schemas (S-3 in
+[learn-from-mdbase.md](learn-from-mdbase.md)
+sketches the inheritance angle), but it is
+not in mdsmith today.
 
 ### Query composition
 

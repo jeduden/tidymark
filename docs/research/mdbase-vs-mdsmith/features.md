@@ -646,11 +646,12 @@ Closing this gap is Q-4 in
 [learn-from-mdbase.md](learn-from-mdbase.md).
 
 **Q-D: list contains — "tasks tagged urgent".**
-Tasks whose `tags` list includes `urgent`.
+Tasks whose `tags` list includes `urgent` at any
+position.
 
 ```bash
-# mdsmith — list membership via CUE list literal
-mdsmith query 'tags: ["urgent", ...]' tasks/
+# mdsmith — "contains" via CUE list pattern with leading + trailing ellipsis
+mdsmith query 'tags: [..., "urgent", ...]' tasks/
 ```
 
 ```yaml
@@ -659,11 +660,13 @@ types: [task]
 where: tags.contains("urgent")
 ```
 
-Both work; the CUE form requires the list to
-match exactly the literal; the variant
-`'tags: [..., "urgent", ...]'` is needed for
-"contains" rather than "starts with". mdbase's
-method form is more readable.
+Both work. The CUE form needs the leading
+`...` to allow elements before `"urgent"`;
+without it (`'tags: ["urgent", ...]'`) the
+match is "starts with `urgent`", not
+"contains". mdbase's method form
+(`tags.contains(...)`) is more readable for
+membership.
 
 **Q-E: cross-file traversal — "RFCs whose owner
 is a senior engineer".** Filter on a field of
