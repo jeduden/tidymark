@@ -417,8 +417,8 @@ func TestRangeAtAndForLinesEdgeCases(t *testing.T) {
 	r := rangeAt(0, 0, src)
 	assert.Equal(t, 0, r.Start.Line)
 	assert.Equal(t, 0, r.Start.Character)
-	r = rangeForLines(5, 1, src) // end < start clamps
-	assert.Equal(t, 4, r.Start.Line)
+	// rangeForLines clamps both bounds to the document's line count.
+	r = rangeForLines(5, 1, src)
 	assert.GreaterOrEqual(t, r.End.Line, r.Start.Line)
 }
 

@@ -84,6 +84,15 @@ func TestFrontMatterScalarFormats(t *testing.T) {
 	// Invalid YAML.
 	_, ok = frontMatterScalar([]byte("---\n!!invalid\n---\n"), "x")
 	assert.False(t, ok)
+	// Front matter without trailing newline — stripDelimiters
+	// hits the second TrimSuffix branch.
+	v, ok = frontMatterScalar([]byte("---\nx: hi\n---"), "x")
+	assert.True(t, ok)
+	assert.Equal(t, "hi", v)
+	// Bool value uses the default fmt.Sprintf branch.
+	v, ok = frontMatterScalar([]byte("---\nflag: true\n---\n"), "flag")
+	assert.True(t, ok)
+	assert.Equal(t, "true", v)
 }
 
 func TestFrontMatterStringListBranches(t *testing.T) {

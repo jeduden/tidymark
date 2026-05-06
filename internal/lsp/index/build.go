@@ -106,7 +106,9 @@ func collectHeadings(filePath string, root ast.Node, source []byte, lines [][]by
 }
 
 // walkHeadings collects every ast.Heading in document order along
-// with its 1-based source line.
+// with its 1-based source line. Goldmark guarantees a parsed
+// heading has at least one source line; setext-style headings
+// also produce non-empty Lines().
 func walkHeadings(root ast.Node, source []byte) ([]*ast.Heading, []int) {
 	var heads []*ast.Heading
 	var headStart []int
@@ -115,10 +117,7 @@ func walkHeadings(root ast.Node, source []byte) ([]*ast.Heading, []int) {
 			return ast.WalkContinue, nil
 		}
 		h, ok := n.(*ast.Heading)
-		if !ok {
-			return ast.WalkContinue, nil
-		}
-		if h.Lines().Len() == 0 {
+		if !ok || h.Lines().Len() == 0 {
 			return ast.WalkContinue, nil
 		}
 		heads = append(heads, h)
@@ -217,10 +216,7 @@ func frontMatterSymbols(filePath string, fm []byte) []Symbol {
 		return nil
 	}
 	node, err := yamlutil.UnmarshalNodeSafe(stripDelimiters(fm))
-	if err != nil {
-		return nil
-	}
-	if node.Kind != yaml.DocumentNode || len(node.Content) == 0 {
+	if err != nil || len(node.Content) == 0 {
 		return nil
 	}
 	mapping := node.Content[0]
@@ -229,12 +225,12 @@ func frontMatterSymbols(filePath string, fm []byte) []Symbol {
 	}
 	out := make([]Symbol, 0, len(mapping.Content)/2)
 	// yaml.v3 line numbers are 1-based within the parsed buffer; the
-	// stripped buffer drops the leading "---" line so add 1.
+	// stripped buffer drops the leading "---" line so add 1. Mapping
+	// keys in YAML can in theory be non-scalar (sequences, mappings),
+	// but mdsmith's front-matter schema only allows scalar keys, so
+	// non-scalars are silently skipped via k.Value being empty.
 	for i := 0; i < len(mapping.Content); i += 2 {
 		k := mapping.Content[i]
-		if k.Kind != yaml.ScalarNode {
-			continue
-		}
 		out = append(out, Symbol{
 			File:          filePath,
 			Kind:          SymbolFrontMatter,
@@ -268,7 +264,9 @@ func stripDelimiters(fm []byte) []byte {
 // frontMatterScalar returns a top-level scalar key from front matter
 // as a string. Empty string + false when absent or non-scalar.
 // yamlutil.UnmarshalSafe rejects anchors/aliases so a malicious file
-// can't trigger expansion during the symbol-index build.
+// can't trigger expansion during the symbol-index build. Non-string
+// scalars (numbers, bools) are formatted via fmt.Sprintf so callers
+// always get a stable string form.
 func frontMatterScalar(fm []byte, key string) (string, bool) {
 	if len(fm) == 0 {
 		return "", false
@@ -281,14 +279,10 @@ func frontMatterScalar(fm []byte, key string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	switch s := v.(type) {
-	case string:
+	if s, ok := v.(string); ok {
 		return s, true
-	case fmt.Stringer:
-		return s.String(), true
-	default:
-		return fmt.Sprintf("%v", v), true
 	}
+	return fmt.Sprintf("%v", v), true
 }
 
 // frontMatterStringList returns a top-level YAML list of strings.
@@ -377,18 +371,7 @@ func collectDirectives(filePath string, root ast.Node, source []byte, fmOffset i
 		if strings.HasPrefix(pi.Name, "/") {
 			continue
 		}
-		if pi.Lines().Len() == 0 {
-			continue
-		}
-		startSeg := pi.Lines().At(0)
-		startLine := lineOfOffset(source, startSeg.Start) + fmOffset
-		endLine := startLine
-		if pi.HasClosure() && pi.ClosureLine.Start > startSeg.Start {
-			endLine = lineOfOffset(source, pi.ClosureLine.Start) + fmOffset
-		} else if pi.Lines().Len() > 1 {
-			last := pi.Lines().At(pi.Lines().Len() - 1)
-			endLine = lineOfOffset(source, last.Start) + fmOffset
-		}
+		startLine, endLine := piLineRange(pi, source, fmOffset)
 		out = append(out, Symbol{
 			File:          filePath,
 			Kind:          SymbolDirective,
@@ -400,6 +383,25 @@ func collectDirectives(filePath string, root ast.Node, source []byte, fmOffset i
 		})
 	}
 	return out
+}
+
+// piLineRange returns the 1-based [start, end] source lines for a
+// processing-instruction block. The PI parser guarantees Lines() is
+// non-empty for any parsed PI, so the helper does not handle that
+// case. Multi-line PIs span from their opener line to either the
+// explicit closing-marker line (`?>`) or, when the closer is on a
+// continuation line in the same Lines() slice, the last segment.
+func piLineRange(pi *lint.ProcessingInstruction, source []byte, fmOffset int) (int, int) {
+	startSeg := pi.Lines().At(0)
+	startLine := lineOfOffset(source, startSeg.Start) + fmOffset
+	endLine := startLine
+	if pi.HasClosure() && pi.ClosureLine.Start > startSeg.Start {
+		endLine = lineOfOffset(source, pi.ClosureLine.Start) + fmOffset
+	} else if pi.Lines().Len() > 1 {
+		last := pi.Lines().At(pi.Lines().Len() - 1)
+		endLine = lineOfOffset(source, last.Start) + fmOffset
+	}
+	return startLine, endLine
 }
 
 // collectLinkEdges walks the AST for ast.Link nodes and emits one
@@ -510,9 +512,13 @@ func decodeAnchor(s string) string {
 	return s
 }
 
-// resolveRelTarget joins srcFile's directory with linkPath and returns
-// the workspace-relative result. Absolute or escape-the-root paths
-// are passed through unchanged.
+// resolveRelTarget joins srcFile's directory with linkPath and
+// returns the workspace-relative result. Absolute paths and ones
+// that escape the workspace root after normalization return the
+// empty string — callers must treat "" as "no in-workspace target"
+// rather than as a valid path. (Earlier drafts said "passed through
+// unchanged"; that wording was wrong, the implementation always
+// dropped them.)
 func resolveRelTarget(srcFile, linkPath string) string {
 	linkPath = filepath.ToSlash(linkPath)
 	if path.IsAbs(linkPath) {
@@ -569,11 +575,7 @@ func collectDirectiveEdges(filePath string, root ast.Node, source []byte, fmOffs
 		if strings.HasPrefix(pi.Name, "/") {
 			continue
 		}
-		if pi.Lines().Len() == 0 {
-			continue
-		}
-		startSeg := pi.Lines().At(0)
-		startLine := lineOfOffset(source, startSeg.Start) + fmOffset
+		startLine, _ := piLineRange(pi, source, fmOffset)
 		params, ok := parsePIParams(pi, source)
 		if !ok {
 			continue

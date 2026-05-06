@@ -250,6 +250,14 @@ func (s *Server) workspaceURI(rel string) string {
 // callers in the navigation surface expect forward-slash semantics
 // regardless of host OS — `workspaceRelative` returns OS-specific
 // separators on Windows, which would mis-resolve directive targets.
+//
+// When the URI is not already an open buffer, the on-disk read is
+// guarded against three concerns: the path must resolve inside the
+// configured workspace root, it must have a Markdown extension, and
+// the read goes through os.ReadFile only after both checks. Without
+// those gates, a client could request `documentSymbol` /
+// `definition` for arbitrary local files and exfiltrate their
+// outlines through the response.
 func (s *Server) docTextOrFile(uri string) ([]byte, string, bool) {
 	if doc, ok := s.docs.get(uri); ok {
 		_, _, root := s.snapshotConfig()
@@ -262,11 +270,46 @@ func (s *Server) docTextOrFile(uri string) ([]byte, string, bool) {
 	}
 	_, _, root := s.snapshotConfig()
 	rel := index.NormalizePath(workspaceRelative(root, p))
-	data, err := os.ReadFile(p) //nolint:gosec // path comes from a client URI; host code paths only ever read .md files
+	if !insideWorkspace(root, p) {
+		return nil, rel, false
+	}
+	if !isMarkdownExt(p) {
+		return nil, rel, false
+	}
+	data, err := os.ReadFile(p) //nolint:gosec // workspace-root guarded; .md/.markdown only
 	if err != nil {
 		return nil, rel, false
 	}
 	return data, rel, true
+}
+
+// insideWorkspace reports whether p resolves inside root after
+// path normalization. Empty root opts out of the check (no
+// workspace configured); a relative path always passes through
+// because the caller couldn't have escaped a non-existent root.
+func insideWorkspace(root, p string) bool {
+	if root == "" {
+		return true
+	}
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(root, abs)
+	if err != nil {
+		return false
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	return true
+}
+
+// isMarkdownExt reports whether p has a .md or .markdown extension.
+// Case-insensitive.
+func isMarkdownExt(p string) bool {
+	ext := strings.ToLower(filepath.Ext(p))
+	return ext == ".md" || ext == ".markdown"
 }
 
 // handleDocumentSymbol returns a hierarchical outline of the buffer.
@@ -455,22 +498,35 @@ func leafDetail(sym index.Symbol) string {
 }
 
 // rangeForLines returns an LSP Range covering 1-based start..end
-// lines inclusive. Columns are 0..end-of-line.
+// lines inclusive. Columns are 0..end-of-line. Both bounds are
+// clamped to the document's line count so the emitted Range stays
+// inside the document — LSP requires positions to be within
+// bounds, and an out-of-range End.Line causes some clients to
+// reject or silently ignore the result.
 func rangeForLines(start, end int, source []byte) Range {
+	lines := splitLines(source)
+	maxLine := len(lines)
+	if maxLine < 1 {
+		maxLine = 1
+	}
 	if start < 1 {
 		start = 1
+	}
+	if start > maxLine {
+		start = maxLine
 	}
 	if end < start {
 		end = start
 	}
-	lines := splitLines(source)
-	startCh := 0
+	if end > maxLine {
+		end = maxLine
+	}
 	endCh := 0
 	if end-1 < len(lines) {
 		endCh = utf16Length(lines[end-1])
 	}
 	return Range{
-		Start: Position{Line: start - 1, Character: startCh},
+		Start: Position{Line: start - 1, Character: 0},
 		End:   Position{Line: end - 1, Character: endCh},
 	}
 }

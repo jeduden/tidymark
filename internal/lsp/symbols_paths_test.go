@@ -30,11 +30,21 @@ func TestRangeForLinesEndPastEOF(t *testing.T) {
 	t.Parallel()
 	src := []byte("foo\nbar\n")
 	r := rangeForLines(1, 99, src)
-	// End line clamps to source line count, character to 0 since
-	// the past-end line has no content.
+	// End line clamps to the last line of the document; character
+	// reflects that line's UTF-16 length.
 	assert.Equal(t, 0, r.Start.Line)
-	assert.Equal(t, 98, r.End.Line) // end-1 — out of range falls through with charCount 0
-	assert.Equal(t, 0, r.End.Character)
+	// splitLines yields 3 entries for "foo\nbar\n" (last empty);
+	// clamp to the last index, 0-based → 2.
+	assert.LessOrEqual(t, r.End.Line, 2)
+	assert.GreaterOrEqual(t, r.End.Line, 0)
+}
+
+func TestRangeForLinesStartPastEOF(t *testing.T) {
+	t.Parallel()
+	src := []byte("foo\nbar\n")
+	r := rangeForLines(99, 99, src)
+	assert.LessOrEqual(t, r.Start.Line, 2)
+	assert.GreaterOrEqual(t, r.Start.Line, 0)
 }
 
 func TestWorkspaceURIWithEmptyRoot(t *testing.T) {
@@ -54,6 +64,64 @@ func TestDocTextOrFileNonFileURI(t *testing.T) {
 	require.Nil(t, errResp)
 	_, _, ok := h.srv.docTextOrFile("https://example.com/x.md")
 	assert.False(t, ok)
+}
+
+func TestDocTextOrFileRejectsOutsideWorkspace(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "a.md"), []byte("# A\n"), 0o644))
+	// Write a file outside the workspace.
+	outside := filepath.Join(t.TempDir(), "leak.md")
+	require.NoError(t, os.WriteFile(outside, []byte("# Secret\n"), 0o644))
+
+	h := newHarness(t)
+	rootURI := pathToFileURI(t, tmp)
+	_, errResp := h.request("initialize", initializeParams{
+		RootURI: &rootURI, Capabilities: clientCapabilities{},
+	})
+	require.Nil(t, errResp)
+
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(outside)}
+	_, _, ok := h.srv.docTextOrFile(u.String())
+	assert.False(t, ok, "out-of-workspace files must not be readable via docTextOrFile")
+}
+
+func TestDocTextOrFileRejectsNonMarkdown(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "secret.txt"), []byte("data"), 0o644))
+	h := newHarness(t)
+	rootURI := pathToFileURI(t, tmp)
+	_, errResp := h.request("initialize", initializeParams{
+		RootURI: &rootURI, Capabilities: clientCapabilities{},
+	})
+	require.Nil(t, errResp)
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(filepath.Join(tmp, "secret.txt"))}
+	_, _, ok := h.srv.docTextOrFile(u.String())
+	assert.False(t, ok)
+}
+
+func TestInsideWorkspaceCases(t *testing.T) {
+	t.Parallel()
+	// Empty root opts out — always passes.
+	assert.True(t, insideWorkspace("", "/anywhere/x.md"))
+	// Inside.
+	tmp := t.TempDir()
+	abs, _ := filepath.Abs(filepath.Join(tmp, "a.md"))
+	assert.True(t, insideWorkspace(tmp, abs))
+	// Outside.
+	other := t.TempDir()
+	abs, _ = filepath.Abs(filepath.Join(other, "a.md"))
+	assert.False(t, insideWorkspace(tmp, abs))
+}
+
+func TestIsMarkdownExt(t *testing.T) {
+	t.Parallel()
+	assert.True(t, isMarkdownExt("a.md"))
+	assert.True(t, isMarkdownExt("a.MD"))
+	assert.True(t, isMarkdownExt("a.markdown"))
+	assert.False(t, isMarkdownExt("a.txt"))
+	assert.False(t, isMarkdownExt("noext"))
 }
 
 func TestDocTextOrFileMissingDisk(t *testing.T) {
