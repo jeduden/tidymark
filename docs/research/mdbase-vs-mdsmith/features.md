@@ -580,6 +580,188 @@ For ad-hoc CI filters ("which files have
 running a vault as a database (showing all
 overdue tasks grouped by assignee), mdbase wins.
 
+### Concrete query examples
+
+Eight worked queries against the same task corpus,
+showing the syntactic and capability differences.
+The corpus has FM like
+`{ id, title, status, priority, due, assignee,
+related_tasks }` per file.
+
+**Q-A: simple equality filter.** List files where `status == "open"`.
+
+```bash
+# mdsmith
+mdsmith query 'status: "open"' tasks/
+```
+
+```yaml
+# mdbase
+types: [task]
+where: status == "open"
+```
+
+Both work today. The mdsmith form is a CUE
+struct literal; mdbase uses an expression
+string.
+
+**Q-B: compound boolean.** Open tasks with priority at least 3.
+
+```bash
+# mdsmith — compound conditions in CUE need
+# inequality bounds and conjunction inside one struct
+mdsmith query 'status: "open", priority: int & >=3' tasks/
+```
+
+```yaml
+# mdbase
+types: [task]
+where: status == "open" && priority >= 3
+```
+
+The mdbase syntax is more familiar; the CUE
+form is exact and composes with existing
+struct schemas.
+
+**Q-C: date range — "due in the next 7 days".** Open tasks due in the next week.
+
+```bash
+# mdsmith — CUE has no first-class duration arithmetic
+# in the query surface; users either compute the bound
+# externally and substitute, or post-filter:
+DUE_LIMIT="$(date -u -d '+7 days' +%Y-%m-%d)"
+mdsmith query "status: \"open\", due: <= \"${DUE_LIMIT}\"" tasks/
+```
+
+```yaml
+# mdbase
+types: [task]
+where: status == "open" && due <= today() + "7d"
+```
+
+mdbase wins on ergonomics here. The shell
+substitution works for mdsmith but is awkward
+in CI (every job recomputes the bound).
+Closing this gap is Q-4 in
+[learn-from-mdbase.md](learn-from-mdbase.md).
+
+**Q-D: list contains — "tasks tagged urgent".**
+Tasks whose `tags` list includes `urgent`.
+
+```bash
+# mdsmith — list membership via CUE list literal
+mdsmith query 'tags: ["urgent", ...]' tasks/
+```
+
+```yaml
+# mdbase
+types: [task]
+where: tags.contains("urgent")
+```
+
+Both work; the CUE form requires the list to
+match exactly the literal; the variant
+`'tags: [..., "urgent", ...]'` is needed for
+"contains" rather than "starts with". mdbase's
+method form is more readable.
+
+**Q-E: cross-file traversal — "RFCs whose owner
+is a senior engineer".** Filter on a field of
+the linked person record.
+
+```yaml
+# mdbase: assumes person files have a level field
+types: [rfc]
+where: owner.asFile().level == "senior"
+```
+
+```text
+# mdsmith: not expressible in `query` today.
+# Workaround:
+#   1. mdsmith query 'level: "senior"' people/
+#   2. capture the file basenames as a set
+#   3. mdsmith query "owner: <name>" rfcs/ for each
+# This is L-5 / Q-6 in learn-from-mdbase.md.
+```
+
+**Q-F: body content — "tasks mentioning OIDC".**
+Filter by a substring in the body.
+
+```yaml
+# mdbase
+types: [task]
+where: file.body.contains("OIDC")
+```
+
+```bash
+# mdsmith: combine `query` with ripgrep
+mdsmith query 'kind: "task"' tasks/ | xargs rg -l 'OIDC'
+```
+
+mdsmith works via shell composition; mdbase
+keeps it inside the query DSL. Q-3 in
+[learn-from-mdbase.md](learn-from-mdbase.md)
+sketches a native `--body-contains` flag.
+
+**Q-G: sort and limit — "top 5 oldest open tasks".** The five oldest open tasks.
+
+```yaml
+# mdbase
+types: [task]
+where: status == "open"
+order_by:
+  - field: created
+    direction: asc
+limit: 5
+```
+
+```bash
+# mdsmith: filter, then pipe
+mdsmith query 'status: "open"' tasks/ \
+  | xargs grep -l "^created:" \
+  | sort -t: -k2 \
+  | head -5
+```
+
+The shell pipeline gets verbose. Q-1 / Q-2 in
+[learn-from-mdbase.md](learn-from-mdbase.md)
+add `--order-by` and `--limit` flags.
+
+**Q-H: aggregation — "count open tasks per
+assignee".** Group by assignee, count.
+
+```yaml
+# mdbase
+types: [task]
+where: status == "open"
+group_by: assignee
+aggregate:
+  - count
+order_by: count desc
+```
+
+```bash
+# mdsmith: filter + jq, or filter + awk
+mdsmith query 'status: "open"' --format json tasks/ \
+  | jq -r '.[].frontmatter.assignee' \
+  | sort | uniq -c | sort -rn
+```
+
+Aggregation is mdbase-only territory today.
+Q-5 in [learn-from-mdbase.md](learn-from-mdbase.md)
+sketches what native support would look like.
+
+**Reading across.** mdsmith's query covers the
+common filter case ergonomically and composes
+with shell tools for everything else. mdbase
+covers more inside the DSL — date arithmetic,
+cross-file traversal, body search, aggregation
+— at the cost of a richer language to learn.
+For ad-hoc CI use, mdsmith plus pipes works.
+For interactive vault navigation where the user
+is composing many queries quickly, mdbase pays
+for its language complexity.
+
 ## 9. Link handling
 
 **mdsmith.**
