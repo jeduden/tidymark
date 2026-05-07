@@ -3,6 +3,7 @@ id: 136
 title: Field deprecation flag in schemas
 status: "🔲"
 model: sonnet
+depends-on: [132, 133]
 summary: >-
   Let a schema mark a front-matter field
   deprecated. MDS020 emits a warning (not an

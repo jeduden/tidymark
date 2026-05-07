@@ -4,6 +4,7 @@ title: 'string & != ""'
 status: '"🔲" | "🔳" | "✅" | "⛔"'
 summary: 'string | *""'
 model: '"haiku" | "sonnet" | "opus" | *""'
+depends-on: '[...int] | *[]'
 ---
 <?require
 filename: "[0-9]*_*.md"

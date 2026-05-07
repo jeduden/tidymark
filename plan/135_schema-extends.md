@@ -3,6 +3,7 @@ id: 135
 title: Schema inheritance via `extends`
 status: "🔲"
 model: sonnet
+depends-on: [132, 133]
 summary: >-
   Let one kind's schema extend another so common
   front-matter fields and structure templates live

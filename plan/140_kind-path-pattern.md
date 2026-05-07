@@ -3,6 +3,7 @@ id: 140
 title: "Per-kind `path-pattern` for filename validation"
 status: "🔲"
 model: sonnet
+depends-on: [133]
 summary: >-
   Let a kind declare a `path-pattern:` glob that the
   file's path must match. Replaces hand-rolled CI

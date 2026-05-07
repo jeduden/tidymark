@@ -3,6 +3,7 @@ id: 134
 title: Named field-type shortcuts for inline schemas
 status: "🔲"
 model: sonnet
+depends-on: [132]
 summary: >-
   Ship a small CUE library of common field
   patterns (`date`, `datetime`, `email`, `url`,

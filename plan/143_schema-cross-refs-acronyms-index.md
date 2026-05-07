@@ -3,6 +3,7 @@ id: 143
 title: Schema cross-references, acronyms, and index
 status: "🔲"
 model: sonnet
+depends-on: [132]
 summary: >-
   Add three top-level schema blocks on top of the
   engine from plan 132: `cross-references:` for

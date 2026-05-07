@@ -3,6 +3,7 @@ id: 142
 title: Content rules for prose constraints
 status: "🔲"
 model: sonnet
+depends-on: [132]
 summary: >-
   Ship four new content rules
   (`forbidden-paragraph-starts`, `forbidden-text`,
