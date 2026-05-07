@@ -64,7 +64,7 @@ kind-assignment:
     kinds: [plan]
 ```
 
-Each entry is the existing `KindAssignment`
+Each entry is the existing `KindAssignmentEntry`
 struct with one new optional field. Within an
 entry, `glob:` and `fields-present:` combine
 with **AND**: both must match. Across entries,
@@ -115,7 +115,7 @@ does.
 
 ## Tasks
 
-1. Extend the `KindAssignment` struct in
+1. Extend the `KindAssignmentEntry` struct in
    `internal/config/` with
    `FieldsPresent []string`.
 2. Update the kind matcher to AND `glob:` and

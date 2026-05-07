@@ -60,7 +60,7 @@ constraint visible in `mdsmith kinds`.
 ```yaml
 kinds:
   plan:
-    path-pattern: "plan/[0-9]*_*.md"
+    path-pattern: "plan/[0-9][0-9]*_*.md"
     schema:
       frontmatter:
         id: "int & >=1"
@@ -86,7 +86,7 @@ actionable shape:
 
 ```text
 filename: got "plan/early-draft.md", expected
-  glob plan/[0-9]*_*.md
+  glob plan/[0-9][0-9]*_*.md
 schema: kinds[plan] / path-pattern
 ```
 
@@ -117,7 +117,7 @@ when set:
 ```text
 plan:
   schema: file:plan/proto.md
-  path-pattern: plan/[0-9]*_*.md
+  path-pattern: plan/[0-9][0-9]*_*.md
 ```
 
 A reader can audit constraints from one

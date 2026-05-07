@@ -76,9 +76,16 @@ kinds:
 
 Two layers of effect:
 
-- The schema engine **unifies** `rfc-ratified`'s
-  schema with `rfc-base`'s. Shared keys: child
-  wins.
+- The schema engine **refines** the parent under
+  CUE unification: the child's expression for a
+  shared key is unified with the parent's, and
+  the child must therefore satisfy the parent's
+  constraint. A child that cannot unify with
+  the parent (parent says `int`, child says
+  `string`) is a conflict; a child that
+  narrows the parent (parent says
+  `"open" | "closed"`, child says `"open"`) is
+  a valid refinement.
 - The kind's rule overrides also inherit (the
   same deep-merge plan 97 applies). `extends:`
   here is the schema-side surface; the rule-side
@@ -103,22 +110,27 @@ and reported with the cycle path.
 
 ### Conflict semantics
 
-When a child's `frontmatter:` defines a key that
-the parent also defines, the child's expression
-replaces the parent's:
+`frontmatter:` keys unify under CUE's standard
+rules. The effective expression is the unified
+form; the child must satisfy the parent.
 
 ```yaml
 # parent: status: '"open" | "closed"'
+# child:  status: '"open"'
+# effective: status: '"open"'   (refinement; OK)
+
+# parent: status: '"open" | "closed"'
 # child:  status: '"ratified"'
-# effective: status: '"ratified"'
+# effective: conflict (no value satisfies both)
 ```
 
-When `structure:` conflicts, the child's
-template **replaces** the parent's wholesale —
-heading templates do not unify cleanly. To
-extend a parent's template, copy the parent's
-lines and add to them (a future plan can revisit
-if real cases need finer-grained merge).
+`structure:` does **not** unify — heading
+templates compose by sequence, not by
+constraint, so the child's template **replaces**
+the parent's wholesale. To extend a parent's
+template, copy the parent's lines and add to
+them. A future plan can revisit if real cases
+need finer-grained merge.
 
 ### Surfacing the chain
 
