@@ -515,6 +515,55 @@ func TestRetagWheelsPropagatesFailure(t *testing.T) {
 	assert.ErrorIs(t, err, errInjected)
 }
 
+// TestBuildOneWheelPropagatesStageFailure covers buildOneWheel's
+// "if err != nil { return err }" arm right after stagePythonTree.
+// Failing MkdirTemp inside stagePythonTree is the cleanest path
+// since the asset Stat call has already succeeded.
+func TestBuildOneWheelPropagatesStageFailure(t *testing.T) {
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "pyproject.toml"),
+		[]byte("[project]\nname=\"x\"\n"), 0o644))
+	asset := filepath.Join(t.TempDir(), "asset")
+	require.NoError(t, os.WriteFile(asset, []byte("bin"), 0o755))
+	ff := newFakeFS()
+	ff.failOnMkdirTempCall = 1
+
+	wb := wheelBuilds[0]
+	err := NewWithFS(ff).buildOneWheel(src, filepath.Dir(asset), t.TempDir(), wheelBuild{
+		Asset: filepath.Base(asset), PlatTag: wb.PlatTag, Exe: wb.Exe,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+}
+
+// errInfoEntry is a DirEntry whose Info() returns errInjected.
+// Used to cover copyDir's `info, err := e.Info(); if err != nil`
+// branch — a race-condition error that real filesystems do not
+// reliably expose (the entry would have to vanish between
+// ReadDir and Info).
+type errInfoEntry struct{ name string }
+
+func (e errInfoEntry) Name() string               { return e.name }
+func (e errInfoEntry) IsDir() bool                { return false }
+func (e errInfoEntry) Type() fs.FileMode          { return 0 }
+func (e errInfoEntry) Info() (fs.FileInfo, error) { return nil, errInjected }
+
+// entryInfoErrFS overrides only ReadDir to return a single
+// errInfoEntry; every other operation delegates to the embedded
+// FS so the rest of copyDir can run normally up to e.Info().
+type entryInfoErrFS struct{ FS }
+
+func (entryInfoErrFS) ReadDir(_ string) ([]os.DirEntry, error) {
+	return []os.DirEntry{errInfoEntry{name: "ghost.txt"}}, nil
+}
+
+func TestCopyDirFailsOnEntryInfoError(t *testing.T) {
+	err := NewWithFS(entryInfoErrFS{osFS{}}).
+		copyDir(t.TempDir(), filepath.Join(t.TempDir(), "dst"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+}
+
 func TestBuildOneWheelPropagatesPythonFailure(t *testing.T) {
 	// Stage a real source tree so stagePythonTree succeeds, then
 	// fail on the first runner call (python -m build).

@@ -2,9 +2,23 @@ package release
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+// pythonExecutable picks `python` if it's on PATH, otherwise
+// falls back to `python3`. Some distros only ship `python3`
+// (Debian since 2020+), so hard-coding `python` would break on
+// otherwise-correct hosts. The release workflow's PyPI job
+// installs a `python3` symlink, but the Go test environment
+// (developer machines, the test job) may only have python3.
+func pythonExecutable() string {
+	if _, err := exec.LookPath("python"); err == nil {
+		return "python"
+	}
+	return "python3"
+}
 
 // wheelBuild pins one entry of the PyPI distribution matrix.
 // Stays in lock-step with the build matrix in
@@ -38,7 +52,7 @@ func (t *Toolkit) BuildWheels(rootDir, artifactsDir, outDir string) error {
 	if err := t.fs.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
-	src := filepath.Join(rootDir, "python")
+	src := filepath.Join(rootDir, pythonExecutable())
 	if _, err := t.fs.Stat(src); err != nil {
 		return fmt.Errorf("python source missing: %w", err)
 	}
@@ -112,7 +126,7 @@ func (t *Toolkit) stagePythonTree(src, asset, exe string) (string, error) {
 // the Runner abstraction lets tests cover the failure branch
 // without putting python on PATH.
 func (t *Toolkit) runPythonBuild(stage, outDir, platTag string) error {
-	if err := t.runner.RunCommand(stage, "python", "-m", "build", "--wheel", "--outdir", outDir); err != nil {
+	if err := t.runner.RunCommand(stage, pythonExecutable(), "-m", "build", "--wheel", "--outdir", outDir); err != nil {
 		return fmt.Errorf("python -m build (%s): %w", platTag, err)
 	}
 	return nil
@@ -124,7 +138,7 @@ func (t *Toolkit) retagWheels(staging, platTag string) error {
 		return err
 	}
 	for _, whl := range wheels {
-		if err := t.runner.RunCommand("", "python", "-m", "wheel", "tags",
+		if err := t.runner.RunCommand("", pythonExecutable(), "-m", "wheel", "tags",
 			"--remove", "--platform-tag", platTag, whl); err != nil {
 			return fmt.Errorf("python -m wheel tags (%s): %w", platTag, err)
 		}

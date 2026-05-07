@@ -56,9 +56,14 @@ type Manifest struct {
 }
 
 // TrackedManifests returns the set of manifests Stamp rewrites
-// and Check verifies via the Toolkit's FS. Platform sub-package
-// manifests under npm/platforms/ only exist after
-// BuildNpmPlatforms runs; they are stamped if present.
+// and Check verifies via the Toolkit's FS. The npm/platforms/
+// directory is not in source control — BuildNpmPlatforms emits
+// the platform sub-packages under its own outDir argument
+// (npm/dist in the release workflow). Anything that has
+// already materialised npm/platforms/<plat>/package.json (a
+// previous local Stamp+BuildNpmPlatforms invocation, a custom
+// staging step) is stamped here too; if the directory is
+// absent the helper just returns the four checked-in manifests.
 func (t *Toolkit) TrackedManifests(root string) []Manifest {
 	out := []Manifest{
 		{filepath.Join(root, "editors", "vscode", "package.json"), ManifestJSON, false},

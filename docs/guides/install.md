@@ -129,8 +129,9 @@ attaches one binary per platform and a
 move the binary onto `$PATH`:
 
 ```bash
-curl -L -o mdsmith \
-  https://github.com/jeduden/mdsmith/releases/latest/download/mdsmith-linux-amd64
+base="https://github.com/jeduden/mdsmith/releases/latest/download"
+curl -L -o mdsmith       "$base/mdsmith-linux-amd64"
+curl -L -o checksums.txt "$base/checksums.txt"
 sha256sum -c <(grep mdsmith-linux-amd64 checksums.txt)
 install -m 0755 mdsmith /usr/local/bin/mdsmith
 ```

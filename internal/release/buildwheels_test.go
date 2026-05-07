@@ -20,21 +20,11 @@ func haveCmd(name string) bool {
 
 func haveModule(t *testing.T, mod string) bool {
 	t.Helper()
-	py := pythonExe()
-	if py == "" {
+	py := pythonExecutable()
+	if !haveCmd(py) {
 		return false
 	}
 	return exec.Command(py, "-c", "import "+mod).Run() == nil
-}
-
-func pythonExe() string {
-	if haveCmd("python") {
-		return "python"
-	}
-	if haveCmd("python3") {
-		return "python3"
-	}
-	return ""
 }
 
 func readZipMember(t *testing.T, whlPath, member string) string {
@@ -123,7 +113,8 @@ func assertWheel(t *testing.T, out string, entries []os.DirEntry, c wheelCase) {
 		for _, e := range entries {
 			names = append(names, e.Name())
 		}
-		assert.Failf(t, "no wheel matched filename containing %q", "got %v", c.uniqueFilenameSubstr, names)
+		assert.Failf(t, "no wheel matched filename",
+			"want substring %q, got entries %v", c.uniqueFilenameSubstr, names)
 		return
 	}
 	whl := filepath.Join(out, match)
@@ -235,7 +226,7 @@ func TestCopyDirCopiesNestedTree(t *testing.T) {
 // the py3-none-any default, and (c) the bundled binary lives at
 // mdsmith/_bin/.
 func TestBuildWheelsLayout(t *testing.T) {
-	if pythonExe() == "" {
+	if !haveCmd(pythonExecutable()) {
 		t.Skip("python is required to exercise BuildWheels")
 	}
 	if !haveModule(t, "build") || !haveModule(t, "wheel") || !haveModule(t, "hatchling") {
