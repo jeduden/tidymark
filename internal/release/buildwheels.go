@@ -52,7 +52,7 @@ func (t *Toolkit) BuildWheels(rootDir, artifactsDir, outDir string) error {
 	if err := t.fs.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
-	src := filepath.Join(rootDir, pythonExecutable())
+	src := filepath.Join(rootDir, "python")
 	if _, err := t.fs.Stat(src); err != nil {
 		return fmt.Errorf("python source missing: %w", err)
 	}

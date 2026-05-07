@@ -193,7 +193,8 @@ the tag on every channel.
   [editors/vscode/package.json](../editors/vscode/package.json)
   `version` to `0.0.0-dev`. In the `vscode` job of
   [release.yml](../.github/workflows/release.yml),
-  run `set-version.sh` before `vsce package`, then
+  run `mdsmith-release stamp` before `vsce package`,
+  then
   add two publish steps that reuse the exact `.vsix`
   the job produced: `bunx --bun @vscode/vsce publish
   --packagePath <vsix> --pat $VSCE_PAT` (Marketplace)

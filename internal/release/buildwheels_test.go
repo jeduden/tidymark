@@ -128,6 +128,12 @@ func assertWheel(t *testing.T, out string, entries []os.DirEntry, c wheelCase) {
 // TestBuildWheelsFailsWhenPythonSourceMissing exercises the
 // fast-fail path that runs before any python invocation, so the
 // test does not need python on PATH.
+//
+// Also serves as a regression for the source-tree path: even on
+// hosts where the runner picks `python3` (because `python` is
+// missing) the validated path must still be <root>/python. An
+// earlier replace-all of "python" → pythonExecutable() in this
+// file made BuildWheels look for <root>/python3 instead.
 func TestBuildWheelsFailsWhenPythonSourceMissing(t *testing.T) {
 	root := t.TempDir()
 	artifacts := filepath.Join(root, "artifacts")
@@ -136,6 +142,8 @@ func TestBuildWheelsFailsWhenPythonSourceMissing(t *testing.T) {
 	err := BuildWheels(root, artifacts, filepath.Join(root, "wheels"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "python source missing")
+	assert.Contains(t, err.Error(), filepath.Join(root, "python")+":",
+		"BuildWheels must look for <root>/python, not <root>/<interpreter>")
 }
 
 // TestBuildWheelsFailsWhenArtifactMissing covers the buildOneWheel
