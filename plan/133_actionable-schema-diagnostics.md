@@ -86,13 +86,13 @@ shows one squiggle per problem.
 
 A schema diagnostic carries five fields:
 
-| Field        | Source                                                                  | Example                                                            |
-|--------------|-------------------------------------------------------------------------|--------------------------------------------------------------------|
-| `field`      | CUE error path; structure section name; `filename` for require failures | `status`                                                           |
-| `actual`     | Value as the user wrote it (`%q` for strings, raw for other JSON types) | `"draft"`                                                          |
-| `expected`   | Extracted from the schema expression (see below)                        | `one of: "open", "in-progress", "done"`                            |
-| `hint`       | Optional; nearest match for short enums or regexes                      | `did you mean "open"?`                                             |
-| `schema_ref` | File:line of the constraint                                             | `[plan/proto.md:4](../plan/proto.md#L4)` or `kind task / schema:7` |
+| Field        | Source                                                                  | Example                                     |
+|--------------|-------------------------------------------------------------------------|---------------------------------------------|
+| `field`      | CUE error path; structure section name; `filename` for require failures | `status`                                    |
+| `actual`     | Value as the user wrote it (`%q` for strings, raw for other JSON types) | `"draft"`                                   |
+| `expected`   | Extracted from the schema expression (see below)                        | `one of: "open", "in-progress", "done"`     |
+| `hint`       | Optional; nearest match for short enums or regexes                      | `did you mean "open"?`                      |
+| `schema_ref` | File:line of the constraint                                             | `plan/proto.md:4` or `kind task / schema:7` |
 
 The diagnostic message format:
 
