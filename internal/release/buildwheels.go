@@ -2,8 +2,6 @@ package release
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -78,7 +76,7 @@ func (t *Toolkit) buildOneWheel(src, artifactsDir, outDir string, wb wheelBuild)
 	}
 	defer func() { _ = t.fs.RemoveAll(staging) }()
 
-	if err := runPythonBuild(stage, staging, wb.PlatTag); err != nil {
+	if err := t.runPythonBuild(stage, staging, wb.PlatTag); err != nil {
 		return err
 	}
 	if err := t.retagWheels(staging, wb.PlatTag); err != nil {
@@ -108,18 +106,13 @@ func (t *Toolkit) stagePythonTree(src, asset, exe string) (string, error) {
 	return stage, nil
 }
 
-// runPythonBuild and retagWheels shell out to python; their FS
-// touchpoints (write the wheel file, read it back) happen inside
-// the python interpreter so they don't go through Toolkit.fs.
-// Coverage of the python failure path is exercised by the
-// build-wheels integration test which only runs when python is
-// available.
-func runPythonBuild(stage, outDir, platTag string) error {
-	cmd := exec.Command("python", "-m", "build", "--wheel", "--outdir", outDir)
-	cmd.Dir = stage
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+// runPythonBuild shells out to `python -m build`. The FS-side
+// effects (writing the wheel file inside outDir) happen inside
+// the python interpreter and are not measured through Toolkit.fs;
+// the Runner abstraction lets tests cover the failure branch
+// without putting python on PATH.
+func (t *Toolkit) runPythonBuild(stage, outDir, platTag string) error {
+	if err := t.runner.RunCommand(stage, "python", "-m", "build", "--wheel", "--outdir", outDir); err != nil {
 		return fmt.Errorf("python -m build (%s): %w", platTag, err)
 	}
 	return nil
@@ -131,11 +124,8 @@ func (t *Toolkit) retagWheels(staging, platTag string) error {
 		return err
 	}
 	for _, whl := range wheels {
-		retag := exec.Command("python", "-m", "wheel", "tags",
-			"--remove", "--platform-tag", platTag, whl)
-		retag.Stdout = os.Stdout
-		retag.Stderr = os.Stderr
-		if err := retag.Run(); err != nil {
+		if err := t.runner.RunCommand("", "python", "-m", "wheel", "tags",
+			"--remove", "--platform-tag", platTag, whl); err != nil {
 			return fmt.Errorf("python -m wheel tags (%s): %w", platTag, err)
 		}
 	}

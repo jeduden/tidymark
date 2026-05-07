@@ -3,6 +3,7 @@ package release
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 )
 
 // FS is the small filesystem surface the release toolkit uses.
@@ -59,18 +60,51 @@ func (osFS) MkdirTemp(dir, pattern string) (string, error) {
 func (osFS) Rename(oldpath, newpath string) error { return os.Rename(oldpath, newpath) }
 func (osFS) RemoveAll(path string) error          { return os.RemoveAll(path) }
 
-// Toolkit owns a configured FS and exposes the release helpers
-// (Stamp, Check, BuildNpmPlatforms, BuildWheels) as methods.
-// `New()` returns a Toolkit backed by the OS; tests can use
-// `NewWithFS(fakeFS)` to drive error paths that the OS does not
-// expose.
-type Toolkit struct {
-	fs FS
+// Runner runs an external command. The release toolkit shells
+// out to `python -m build` and `python -m wheel tags` for the
+// PyPI publish path; tests inject a fake Runner to cover those
+// branches without putting python on PATH.
+type Runner interface {
+	// RunCommand executes name+args in dir, with stdout/stderr
+	// inherited from the calling process. Mirrors exec.Cmd.Run
+	// semantics: a non-zero exit returns *exec.ExitError; other
+	// failures (binary not found, IO) return their underlying
+	// error.
+	RunCommand(dir, name string, args ...string) error
 }
 
-// New returns a Toolkit backed by the real OS filesystem.
-func New() *Toolkit { return &Toolkit{fs: osFS{}} }
+// osRunner is the production Runner. It builds an exec.Cmd,
+// pipes stdout/stderr to the calling process, and delegates Run.
+type osRunner struct{}
 
-// NewWithFS returns a Toolkit backed by the supplied FS. Used
-// by tests that need to inject IO failures.
-func NewWithFS(fsys FS) *Toolkit { return &Toolkit{fs: fsys} }
+func (osRunner) RunCommand(dir, name string, args ...string) error {
+	cmd := exec.Command(name, args...) //nolint:gosec // CI-only invocation, args are constants
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// Toolkit owns a configured FS and Runner and exposes the release
+// helpers (Stamp, Check, BuildNpmPlatforms, BuildWheels) as
+// methods. `New()` returns a Toolkit backed by the real OS for
+// both; tests can use `NewWithFS(fakeFS)` or `NewWithDeps` to
+// drive error paths that the OS does not expose.
+type Toolkit struct {
+	fs     FS
+	runner Runner
+}
+
+// New returns a Toolkit backed by the real OS filesystem and
+// command runner.
+func New() *Toolkit { return &Toolkit{fs: osFS{}, runner: osRunner{}} }
+
+// NewWithFS returns a Toolkit with a custom FS and the OS-backed
+// Runner. Convenience helper for tests that only need IO faults.
+func NewWithFS(fsys FS) *Toolkit { return &Toolkit{fs: fsys, runner: osRunner{}} }
+
+// NewWithDeps returns a Toolkit with custom FS and Runner. Used
+// by tests that exercise both IO and command-execution faults.
+func NewWithDeps(fsys FS, runner Runner) *Toolkit {
+	return &Toolkit{fs: fsys, runner: runner}
+}

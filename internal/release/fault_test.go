@@ -405,3 +405,55 @@ func TestCopyFileSourceMissing(t *testing.T) {
 		filepath.Join(t.TempDir(), "dst"), 0o644)
 	require.Error(t, err)
 }
+
+// fakeRunner is a Runner that returns errInjected on the Nth
+// call (1-indexed). Lets tests cover runPythonBuild and
+// retagWheels failure branches without requiring python on PATH.
+type fakeRunner struct {
+	failOnCall int
+	calls      int
+}
+
+func (r *fakeRunner) RunCommand(_, _ string, _ ...string) error {
+	r.calls++
+	if r.failOnCall != 0 && r.calls == r.failOnCall {
+		return errInjected
+	}
+	return nil
+}
+
+func TestRunPythonBuildPropagatesFailure(t *testing.T) {
+	tk := NewWithDeps(osFS{}, &fakeRunner{failOnCall: 1})
+	err := tk.runPythonBuild(t.TempDir(), t.TempDir(), "win_amd64")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "python -m build")
+	assert.ErrorIs(t, err, errInjected)
+}
+
+func TestRetagWheelsPropagatesFailure(t *testing.T) {
+	staging := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(staging, "a.whl"), []byte("x"), 0o644))
+	tk := NewWithDeps(osFS{}, &fakeRunner{failOnCall: 1})
+	err := tk.retagWheels(staging, "win_amd64")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "python -m wheel tags")
+	assert.ErrorIs(t, err, errInjected)
+}
+
+func TestBuildOneWheelPropagatesPythonFailure(t *testing.T) {
+	// Stage a real source tree so stagePythonTree succeeds, then
+	// fail on the first runner call (python -m build).
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "pyproject.toml"),
+		[]byte("[project]\nname=\"x\"\n"), 0o644))
+	asset := filepath.Join(t.TempDir(), "asset")
+	require.NoError(t, os.WriteFile(asset, []byte("bin"), 0o755))
+	out := t.TempDir()
+	wb := wheelBuilds[0]
+	tk := NewWithDeps(osFS{}, &fakeRunner{failOnCall: 1})
+	err := tk.buildOneWheel(src, filepath.Dir(asset), out, wheelBuild{
+		Asset: filepath.Base(asset), PlatTag: wb.PlatTag, Exe: wb.Exe,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+}
