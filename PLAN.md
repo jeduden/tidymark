@@ -52,7 +52,7 @@ footer: |
 | 138 | 🔲     | sonnet | [`mdsmith backlinks` subcommand](plan/138_backlinks-subcommand.md)                                                                    |
 | 139 | 🔲     | sonnet | [Field-presence kind assignment](plan/139_field-presence-kind-assignment.md)                                                          |
 | 140 | 🔲     | sonnet | [Per-kind `path-pattern` for filename validation](plan/140_kind-path-pattern.md)                                                      |
-| 142 | 🔲     | sonnet | [Schema content constraints](plan/142_schema-content-constraints.md)                                                                  |
+| 142 | 🔲     | sonnet | [Content rules for prose constraints](plan/142_schema-content-constraints.md)                                                         |
 | 143 | 🔲     | sonnet | [Schema cross-references, acronyms, and index](plan/143_schema-cross-refs-acronyms-index.md)                                          |
 | 52  | ✅     |        | [Archetype / Template Library for Agentic Patterns](plan/52_archetype-template-library.md)                                            |
 | 61  | ✅     |        | [Required Structure Rule Hardening](plan/61_required-structure-hardening.md)                                                          |

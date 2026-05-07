@@ -1,177 +1,205 @@
 ---
 id: 142
-title: Schema content constraints
+title: Content rules for prose constraints
 status: "🔲"
 model: sonnet
 summary: >-
-  Add per-section content constraints to the
-  schema engine: word and paragraph counts,
-  forbidden starts and contents, required
-  patterns and mentions. Each maps to one AST
-  traversal of the section's subtree. Builds on
-  plan 132's scope tree and emits through plan
-  133's diagnostic shape.
+  Ship four new content rules
+  (`forbidden-paragraph-starts`, `forbidden-text`,
+  `required-text-patterns`, `required-mentions`)
+  and extend MDS036 with word and paragraph
+  caps. All default-disabled, configurable
+  document-wide today and per-section once plan
+  132's per-scope override lands. No new schema
+  language — the schema just reuses the standard
+  `rules:` block.
 ---
-# Schema content constraints
+# Content rules for prose constraints
 
 ## Goal
 
-Let a schema constrain what goes inside a
-section beyond heading shape. A runbook section
-with a 50-word cap, a Pass-criteria entry that
-must not start with "We" or contain "should",
-or a Diagnosis step that must mention a
-forward reference — all expressible in the
-schema, all enforced at lint time.
-
-This is the **S-7** content-rule slice from the
-[mdbase research](../docs/research/mdbase-vs-mdsmith/learn-from-mdbase.md).
+Cover the per-section prose constraints in
+S-7's runbook sketch (max words, forbidden
+starts, forbidden contains, required patterns,
+required mentions) as ordinary mdsmith rules.
+Each rule is configurable like every other
+rule. The schema language gets no new shape;
+it just reuses plan 132's per-scope `rules:`
+block.
 
 ## Background
 
-Plan 132 ships the schema engine: scope tree,
-sections, per-scope rule overrides. The
-existing rule set covers heading-level
-concerns. What it does not cover is per-section
-content rules — "this section must mention X",
-"paragraphs in this section may not begin with
-'We'", "this section is at most 50 words".
+Earlier drafts of this plan defined `max-words:`,
+`forbidden-starts:`, etc. as a second
+configuration surface inside the schema. That
+turns out to duplicate the rule pipeline — a
+new diagnostic ID format, a new place for LSP
+hover text, a new path for `mdsmith help` to
+discover. The cleaner answer is normal rules:
+they register in the rule set, they expose
+settings via `Configurable`, they appear in
+`mdsmith kinds resolve`, and they apply
+per-scope as soon as plan 132 ships its
+override mechanism.
 
-A few teams write these as custom CI scripts
-today. The schema is the right home: it
-already knows the section.
+The
+[mdbase research](../docs/research/mdbase-vs-mdsmith/learn-from-mdbase.md)
+describes these constraints as part of S-7;
+this plan ships the rule-set half, leaving the
+schema-side wiring to plan 132.
 
 ## Non-Goals
 
-- Auto-fix for content violations. Detecting
-  "first paragraph too long" is fine;
+- Auto-fix for any of the new rules. Detecting
+  "first paragraph starts with 'We'" is fine;
   rewriting it is the user's job.
-- Cross-reference resolution. Plan 143.
-- Acronym tracking. Plan 143.
+- A schema-side `max-words:` / `forbidden-starts:`
+  shape. The schema is purely a scope tree
+  (plan 132); rule config goes through the
+  standard `rules:` surface.
 
 ## Design
 
-Each constraint attaches to a section scope as
-a key on the scope entry:
+### Five additions
+
+Four new rules plus settings on MDS036:
+
+| Rule                                  | Setting                                        | Effect                                                            |
+|---------------------------------------|------------------------------------------------|-------------------------------------------------------------------|
+| **MDS036** max-section-length         | `max-words:`, `min-words:`, `max-paragraphs:`  | Word and paragraph caps in addition to today's line cap.          |
+| **MDS055** forbidden-paragraph-starts | `starts: [str, ...]`                           | Flag paragraphs that begin with any listed string.                |
+| **MDS056** forbidden-text             | `contains: [str, ...]`                         | Flag the scope when its text contains any listed string.          |
+| **MDS057** required-text-patterns     | `patterns: [{pattern, message, skip-indices}]` | Flag the scope when its text does not match the regex.            |
+| **MDS058** required-mentions          | `mentions: [str, ...]`                         | Flag the scope when its text does not mention each listed string. |
+
+All four new rules are default-disabled. A
+project that wants document-wide enforcement
+sets the rule globally in `.mdsmith.yml`; a
+project that wants section-scoped enforcement
+relies on plan 132's per-scope override. Both
+surfaces feed the same rule code.
+
+### Document-wide and per-section
+
+Document-wide:
+
+```yaml
+rules:
+  required-mentions:
+    mentions: ["scope: production"]
+  forbidden-text:
+    contains: ["should", "may", "might"]
+```
+
+Per-section (via plan 132):
 
 ```yaml
 schema:
   sections:
-    - heading: "## Pass criteria"
-      required: true
-      fields:
-        - heading: "#### Indicator"
-          required: true
-          max-words: 30
-          forbidden-starts: ["We ", "The system "]
-          forbidden-contains: ["should", "may", "might"]
-
     - heading: "## Diagnosis"
-      required: true
-      children:
-        pattern: "### Step {n}"
-        sequential: true
-        fields:
-          - heading: "#### Check"
-            max-words: 50
-          - heading: "#### If different"
-            required: false
-            required-patterns:
-              - pattern: "see Step \\d+"
-                message: "missing forward reference"
-                skip-indices: [-1]
+      rules:
+        forbidden-text:
+          contains: ["should", "may"]
+        required-mentions:
+          mentions: ["forward reference"]
 ```
 
-### Constraint keys
-
-- `max-words:` and `min-words:` — section body
-  word count cap and floor.
-- `max-paragraphs:` — cap on paragraph count.
-- `forbidden-starts:` — strings; a paragraph
-  starting with any of them is flagged.
-- `forbidden-contains:` — strings; section
-  text containing any is flagged.
-- `required-patterns:` — list of
-  `{pattern, message, skip-indices}`. A section
-  whose body does not match the regex is
-  flagged with the configured message.
-  `skip-indices:` exempts specific child
-  indices ("the last step is exempt"; negative
-  indices count from the end).
-- `required-mentions:` — strings the section
-  must mention at least once.
-
-Each maps to one walk over the section's text
-nodes. Word counting reuses the same tokenizer
-the existing `paragraph-readability` rule
-uses.
+Same rule, two scopes. The merge rules from
+plan 97 already cover this composition — list
+settings replace by default, with `append`
+opt-in per setting.
 
 ### Diagnostics
 
-Every constraint emits through plan 133's
-`SchemaDiagnostic` shape. `field` is the
-section heading. `actual` is the offending
-value: the count, the forbidden string, the
-unmatched pattern. `expected` is the
-constraint. `schema_ref` points at the schema
-location.
+Each rule emits through the existing
+`lint.Diagnostic` shape. The diagnostic message
+names the offending value (the start string,
+the unmatched pattern, the missing mention)
+and points at the source line. Rules that
+operate on a scope (MDS057, MDS058) anchor at
+the scope's heading line.
 
-### Composition
+`skip-indices:` on MDS057 patterns exempts
+specific child indices ("the last step is
+exempt"; negative indices count from the end).
+This setting is meaningful only when the rule
+runs from a scope override on a section with
+`children:` (plan 132); document-wide use
+ignores it.
 
-Constraints stack on the section. A section
-with both `max-words: 50` and
-`forbidden-contains: ["should"]` runs both
-checks; each fires independently.
+### Tokenization
 
-The constraints run alongside any per-scope
-rule overrides from plan 132. A section can
-combine `max-words: 50` with a stricter
-`paragraph-readability` config; both fire.
+All four new rules reuse the tokenizer from
+[`internal/lint`](../internal/lint) for word
+counts and paragraph segmentation. MDS036's
+new word and paragraph counters share the same
+helper. No new tokenization code.
 
 ## Tasks
 
-1. Extend `internal/schema/Scope` with the
-   six constraint keys.
-2. Implement the per-section text walk with
-   each constraint check. Reuse the
-   tokenizer from
-   [`internal/lint`](../internal/lint).
-3. Compile each `required-patterns:` regex
-   at schema-load time; fail with a clear
-   error if a pattern is malformed.
-4. Diagnostics use plan 133's
-   `SchemaDiagnostic` shape with `field` =
-   section heading, `actual` = the offending
-   value, `expected` = the constraint
-   description.
-5. Document each constraint in the
-   [MDS020 README](../internal/rules/MDS020-required-structure/README.md)
-   and in `docs/guides/schemas.md`.
-6. Add fixtures: a runbook exercising every
-   constraint; a `bad/` counterpart that
-   trips each.
+1. Extend MDS036 max-section-length
+   ([README](../internal/rules/MDS036-max-section-length/README.md))
+   with `max-words:`, `min-words:`, and
+   `max-paragraphs:` settings. The existing
+   `max:` (lines) keeps its current
+   behavior.
+2. Add `MDS055 forbidden-paragraph-starts`.
+   One paragraph walk per scope. Default
+   disabled.
+3. Add `MDS056 forbidden-text`. One text walk
+   per scope. Default disabled.
+4. Add `MDS057 required-text-patterns`.
+   Compile regexes at config-load time. Apply
+   `skip-indices:` only when the rule runs
+   from a scope override.
+5. Add `MDS058 required-mentions`. Substring
+   match on the scope's text.
+6. Verify each new rule composes with plan
+   132's per-scope override mechanism. Add a
+   fixture that runs the rule globally on
+   one document and per-section on another.
+7. Document the rule pack in the new
+   `docs/guides/schemas.md` (introduced by
+   plan 132) under "Content constraints".
+   Each rule also gets its standard
+   `internal/rules/<id>-<name>/README.md`.
+8. Add good and bad fixtures per rule under
+   `internal/rules/MDS055-…/`,
+   `internal/rules/MDS056-…/`,
+   `internal/rules/MDS057-…/`,
+   `internal/rules/MDS058-…/`.
 
 ## Acceptance Criteria
 
-- [ ] `max-words:` and `min-words:` flag
-      sections outside the bounds and pass
-      sections inside.
-- [ ] `forbidden-starts:` flags a paragraph
-      starting with the configured string and
-      passes other paragraphs.
-- [ ] `forbidden-contains:` flags a section
-      whose body contains the string.
-- [ ] `required-patterns:` flags a section
-      whose body does not match the pattern;
-      `skip-indices:` exempts the named child
-      indices.
-- [ ] `required-mentions:` flags a section
-      that does not mention the configured
-      string.
-- [ ] Two constraints on the same section
-      both fire when violated.
-- [ ] Diagnostics use plan 133's shape with
-      the section heading as `field`.
+- [ ] MDS036 with `max-words: 50` flags a
+      section above 50 words and passes one
+      below.
+- [ ] MDS036 with `min-words: 10` flags a
+      section below 10 words.
+- [ ] MDS036 with `max-paragraphs: 3` flags
+      a section with four paragraphs.
+- [ ] MDS055 flags a paragraph starting with
+      a configured string and passes other
+      paragraphs.
+- [ ] MDS056 flags a scope whose body
+      contains a configured string.
+- [ ] MDS057 flags a scope whose body does
+      not match the configured regex;
+      `skip-indices:` exempts named child
+      indices when the rule runs from a
+      scope override.
+- [ ] MDS058 flags a scope that does not
+      mention every configured string.
+- [ ] Each new rule applies document-wide
+      when configured under top-level
+      `rules:`.
+- [ ] Each new rule applies per-section when
+      configured under a schema scope's
+      `rules:` block (plan 132).
+- [ ] All new rules are default-disabled.
+- [ ] Each new rule has a README under
+      `internal/rules/<id>-<name>/` and a
+      good/bad fixture set.
 - [ ] All tests pass: `go test ./...`
 - [ ] `go tool golangci-lint run` reports no
       issues.
