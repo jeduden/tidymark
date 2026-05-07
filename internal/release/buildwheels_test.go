@@ -162,10 +162,12 @@ func TestBuildWheelsFailsWhenArtifactMissing(t *testing.T) {
 }
 
 // Helper-level tests so the staging/listing/moving primitives
-// have direct coverage instead of only the happy-path big test.
+// have direct coverage. Use New() to drive the OS-backed Toolkit;
+// fault-injection coverage of error returns lives in
+// fault_test.go behind a fake FS.
 
 func TestListWheelsEmpty(t *testing.T) {
-	wheels, err := listWheels(t.TempDir())
+	wheels, err := New().listWheels(t.TempDir())
 	require.NoError(t, err)
 	assert.Empty(t, wheels)
 }
@@ -175,21 +177,16 @@ func TestListWheelsFiltersNonWheels(t *testing.T) {
 	for _, name := range []string{"foo.whl", "bar.tar.gz", "baz.txt"} {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644))
 	}
-	wheels, err := listWheels(dir)
+	wheels, err := New().listWheels(dir)
 	require.NoError(t, err)
 	require.Len(t, wheels, 1)
 	assert.Equal(t, "foo.whl", filepath.Base(wheels[0]))
 }
 
-func TestListWheelsErrorOnMissingDir(t *testing.T) {
-	_, err := listWheels(filepath.Join(t.TempDir(), "missing"))
-	require.Error(t, err)
-}
-
 func TestMoveWheelsEmpty(t *testing.T) {
 	// moveWheels iterates listWheels output; an empty staging dir
 	// must be a no-op, not an error.
-	assert.NoError(t, moveWheels(t.TempDir(), t.TempDir()))
+	assert.NoError(t, New().moveWheels(t.TempDir(), t.TempDir()))
 }
 
 func TestMoveWheelsRelocates(t *testing.T) {
@@ -198,7 +195,7 @@ func TestMoveWheelsRelocates(t *testing.T) {
 	for _, name := range []string{"a.whl", "b.whl"} {
 		require.NoError(t, os.WriteFile(filepath.Join(staging, name), []byte(name), 0o644))
 	}
-	require.NoError(t, moveWheels(staging, out))
+	require.NoError(t, New().moveWheels(staging, out))
 	for _, name := range []string{"a.whl", "b.whl"} {
 		_, err := os.Stat(filepath.Join(out, name))
 		assert.NoError(t, err, "%s missing in out", name)
@@ -219,74 +216,12 @@ func TestCopyDirCopiesNestedTree(t *testing.T) {
 	for rel, body := range files {
 		require.NoError(t, os.WriteFile(filepath.Join(src, rel), []byte(body), 0o644))
 	}
-	require.NoError(t, copyDir(src, dst))
+	require.NoError(t, New().copyDir(src, dst))
 	for rel, want := range files {
 		got, err := os.ReadFile(filepath.Join(dst, rel))
 		require.NoError(t, err, "%s", rel)
 		assert.Equal(t, want, string(got), "%s content", rel)
 	}
-}
-
-func TestStagePythonTreeFailsWhenAssetMissing(t *testing.T) {
-	src := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(src, "pyproject.toml"),
-		[]byte("[project]\nname=\"x\"\n"), 0o644))
-	stage, err := stagePythonTree(src, filepath.Join(t.TempDir(), "missing-asset"), "mdsmith")
-	if err == nil {
-		_ = os.RemoveAll(stage)
-	}
-	require.Error(t, err)
-}
-
-func TestStagePythonTreeFailsWhenSourceMissing(t *testing.T) {
-	// copyDir bubbles a WalkDir error when src does not exist; the
-	// stagePythonTree wrapper must propagate it instead of leaving
-	// the caller staring at a half-written stage dir.
-	stage, err := stagePythonTree(filepath.Join(t.TempDir(), "missing-src"),
-		filepath.Join(t.TempDir(), "missing-asset"), "mdsmith")
-	if err == nil {
-		_ = os.RemoveAll(stage)
-	}
-	require.Error(t, err)
-}
-
-func TestCopyFileSourceMissing(t *testing.T) {
-	err := copyFile(filepath.Join(t.TempDir(), "missing-src"),
-		filepath.Join(t.TempDir(), "dst"), 0o644)
-	require.Error(t, err)
-}
-
-func TestCopyFileDestUnwritable(t *testing.T) {
-	src := filepath.Join(t.TempDir(), "src")
-	require.NoError(t, os.WriteFile(src, []byte("hello"), 0o644))
-	err := copyFile(src, filepath.Join(t.TempDir(), "missing-parent", "dst"), 0o644)
-	require.Error(t, err)
-}
-
-func TestCopyDirSourceMissing(t *testing.T) {
-	err := copyDir(filepath.Join(t.TempDir(), "missing-src"), t.TempDir())
-	require.Error(t, err)
-}
-
-func TestMoveWheelsFailsWhenRenameFails(t *testing.T) {
-	staging := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(staging, "a.whl"), []byte("x"), 0o644))
-	// "outDir" is actually a regular file: os.Rename refuses to
-	// move a file under a non-directory path.
-	outFile := filepath.Join(t.TempDir(), "out-as-file")
-	require.NoError(t, os.WriteFile(outFile, []byte("x"), 0o644))
-
-	err := moveWheels(staging, outFile)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "move ")
-}
-
-func TestRetagWheelsErrorOnMissingDir(t *testing.T) {
-	// retagWheels delegates to listWheels first, so a missing
-	// staging dir surfaces as a listWheels error, not as a python
-	// invocation. No python required.
-	err := retagWheels(filepath.Join(t.TempDir(), "missing"), "win_amd64")
-	require.Error(t, err)
 }
 
 // TestBuildWheelsLayout calls BuildWheels directly and asserts

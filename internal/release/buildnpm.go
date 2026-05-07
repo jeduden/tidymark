@@ -2,8 +2,7 @@ package release
 
 import (
 	"fmt"
-	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 )
 
@@ -32,34 +31,39 @@ var npmPlatformBuilds = []platformBuild{
 // matching release artifact from artifactsDir. Stamp must run
 // first because the version is taken from
 // rootDir/npm/mdsmith/package.json.
-func BuildNpmPlatforms(rootDir, artifactsDir, outDir string) error {
-	version, err := readJSONVersion(filepath.Join(rootDir, "npm", "mdsmith", "package.json"))
+func (t *Toolkit) BuildNpmPlatforms(rootDir, artifactsDir, outDir string) error {
+	version, err := t.readJSONVersion(filepath.Join(rootDir, "npm", "mdsmith", "package.json"))
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	if err := t.fs.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
 	for _, pb := range npmPlatformBuilds {
-		if err := buildOneNpmPlatform(rootDir, artifactsDir, outDir, version, pb); err != nil {
+		if err := t.buildOneNpmPlatform(rootDir, artifactsDir, outDir, version, pb); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func buildOneNpmPlatform(rootDir, artifactsDir, outDir, version string, pb platformBuild) error {
+// BuildNpmPlatforms delegates to a default-OS Toolkit (see Stamp).
+func BuildNpmPlatforms(rootDir, artifactsDir, outDir string) error {
+	return New().BuildNpmPlatforms(rootDir, artifactsDir, outDir)
+}
+
+func (t *Toolkit) buildOneNpmPlatform(rootDir, artifactsDir, outDir, version string, pb platformBuild) error {
 	src := filepath.Join(artifactsDir, pb.Asset)
-	if _, err := os.Stat(src); err != nil {
+	if _, err := t.fs.Stat(src); err != nil {
 		return fmt.Errorf("missing release asset: %s", src)
 	}
 
 	pkgDir := filepath.Join(outDir, pb.NodeTarget)
 	binDir := filepath.Join(pkgDir, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
+	if err := t.fs.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
-	if err := copyFile(src, filepath.Join(binDir, pb.Exe), 0o755); err != nil {
+	if err := t.copyFile(src, filepath.Join(binDir, pb.Exe), 0o755); err != nil {
 		return err
 	}
 
@@ -79,40 +83,35 @@ func buildOneNpmPlatform(rootDir, artifactsDir, outDir, version string, pb platf
 }
 `, pb.NodeTarget, version, pb.NodeOS, pb.NodeArch, pb.NodeOS, pb.NodeArch)
 
-	if err := os.WriteFile(filepath.Join(pkgDir, "package.json"), []byte(manifest), 0o644); err != nil {
+	if err := t.fs.WriteFile(filepath.Join(pkgDir, "package.json"), []byte(manifest), 0o644); err != nil {
 		return err
 	}
 
 	// LICENSE is optional; we copy it next to each platform manifest
 	// when the repo root has one so the published tarball mirrors the
 	// repo. A missing LICENSE just skips the copy.
-	if license, err := os.ReadFile(filepath.Join(rootDir, "LICENSE")); err == nil {
-		if err := os.WriteFile(filepath.Join(pkgDir, "LICENSE"), license, 0o644); err != nil {
+	if license, err := t.fs.ReadFile(filepath.Join(rootDir, "LICENSE")); err == nil {
+		if err := t.fs.WriteFile(filepath.Join(pkgDir, "LICENSE"), license, 0o644); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func copyFile(src, dst string, mode os.FileMode) error {
-	in, err := os.Open(src)
+// copyFile reads src in full and writes it at dst with the given
+// mode. Reading the binary into memory is acceptable here — the
+// release binaries are a few MB at most and the FS interface
+// keeps the test surface minimal (no streaming Open/Create).
+func (t *Toolkit) copyFile(src, dst string, mode fs.FileMode) error {
+	data, err := t.fs.ReadFile(src)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = in.Close() }()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		_ = out.Close()
-		return err
-	}
-	return out.Close()
+	return t.fs.WriteFile(dst, data, mode)
 }
 
-func readJSONVersion(path string) (string, error) {
-	body, err := os.ReadFile(path)
+func (t *Toolkit) readJSONVersion(path string) (string, error) {
+	body, err := t.fs.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", path, err)
 	}

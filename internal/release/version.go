@@ -4,13 +4,16 @@
 // perl regex and indirect testing through `bash <script>` made
 // them brittle. The Go port runs under one toolchain, has direct
 // tests, and reports actionable errors without shelling out.
+//
+// Production code constructs a Toolkit via New(); tests can
+// substitute a fake FS via NewWithFS to exercise IO error
+// branches the real OS cannot reliably trigger.
 package release
 
 import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -53,19 +56,19 @@ type Manifest struct {
 }
 
 // TrackedManifests returns the set of manifests Stamp rewrites
-// and Check verifies. Platform sub-package manifests under
-// npm/platforms/ only exist after BuildNpmPlatforms runs; they
-// are stamped if present.
-func TrackedManifests(root string) []Manifest {
+// and Check verifies via the Toolkit's FS. Platform sub-package
+// manifests under npm/platforms/ only exist after
+// BuildNpmPlatforms runs; they are stamped if present.
+func (t *Toolkit) TrackedManifests(root string) []Manifest {
 	out := []Manifest{
 		{filepath.Join(root, "editors", "vscode", "package.json"), ManifestJSON, false},
 		{filepath.Join(root, "npm", "mdsmith", "package.json"), ManifestJSON, true},
 	}
 	platformsDir := filepath.Join(root, "npm", "platforms")
-	if entries, err := os.ReadDir(platformsDir); err == nil {
+	if entries, err := t.fs.ReadDir(platformsDir); err == nil {
 		for _, e := range entries {
 			p := filepath.Join(platformsDir, e.Name(), "package.json")
-			if _, err := os.Stat(p); err == nil {
+			if _, err := t.fs.Stat(p); err == nil {
 				out = append(out, Manifest{p, ManifestJSON, false})
 			}
 		}
@@ -73,6 +76,11 @@ func TrackedManifests(root string) []Manifest {
 	out = append(out, Manifest{filepath.Join(root, "python", "pyproject.toml"), ManifestTOML, false})
 	return out
 }
+
+// TrackedManifests is a thin wrapper over the default Toolkit so
+// callers without an explicit Toolkit can still introspect the
+// tracked set.
+func TrackedManifests(root string) []Manifest { return New().TrackedManifests(root) }
 
 // semverRE matches the full semver.org grammar:
 //   - MAJOR/MINOR/PATCH each "0" or [1-9][0-9]*
@@ -113,20 +121,26 @@ func ValidateSemver(v string) error {
 // twice produces no further change. A required manifest that's
 // missing a version field — or, for the npm root, missing the
 // @mdsmith/* optionalDependencies block — is a hard error.
-func Stamp(root, version string) error {
+func (t *Toolkit) Stamp(root, version string) error {
 	if err := ValidateSemver(version); err != nil {
 		return err
 	}
-	for _, m := range TrackedManifests(root) {
-		if err := stampManifest(m, version); err != nil {
+	for _, m := range t.TrackedManifests(root) {
+		if err := t.stampManifest(m, version); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func stampManifest(m Manifest, version string) error {
-	body, err := os.ReadFile(m.Path)
+// Stamp delegates to a default-OS Toolkit so callers without an
+// explicit Toolkit (for example, the cmd binary) can stay
+// terse. Tests that need fault injection construct a Toolkit
+// via NewWithFS instead.
+func Stamp(root, version string) error { return New().Stamp(root, version) }
+
+func (t *Toolkit) stampManifest(m Manifest, version string) error {
+	body, err := t.fs.ReadFile(m.Path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("required manifest missing: %s", m.Path)
@@ -146,7 +160,7 @@ func stampManifest(m Manifest, version string) error {
 			return concat(match[:sub[4]], []byte(version), match[sub[5]:])
 		})
 	}
-	return os.WriteFile(m.Path, out, 0o644)
+	return t.fs.WriteFile(m.Path, out, 0o644)
 }
 
 func rewriteVersion(body []byte, kind ManifestKind, version string) ([]byte, error) {
@@ -171,11 +185,11 @@ func versionRegexp(k ManifestKind) *regexp.Regexp {
 // drifted @mdsmith/* pin) into one multi-line error. The
 // version-guard CI job uses Check; reporting all problems at once
 // is more useful than failing on the first.
-func Check(root string) error {
+func (t *Toolkit) Check(root string) error {
 	var problems []string
 	note := func(msg string) { problems = append(problems, msg) }
-	for _, m := range TrackedManifests(root) {
-		checkManifest(m, note)
+	for _, m := range t.TrackedManifests(root) {
+		t.checkManifest(m, note)
 	}
 	if len(problems) > 0 {
 		return errors.New(strings.Join(problems, "\n"))
@@ -183,8 +197,11 @@ func Check(root string) error {
 	return nil
 }
 
-func checkManifest(m Manifest, note func(string)) {
-	body, err := os.ReadFile(m.Path)
+// Check delegates to a default-OS Toolkit (see Stamp).
+func Check(root string) error { return New().Check(root) }
+
+func (t *Toolkit) checkManifest(m Manifest, note func(string)) {
+	body, err := t.fs.ReadFile(m.Path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			note(fmt.Sprintf("%s: required manifest missing", m.Path))
