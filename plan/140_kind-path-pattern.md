@@ -140,8 +140,8 @@ command.
 4. When both `path-pattern:` and a schema
    `<?require filename:?>` are present, run
    both and emit one diagnostic per failure.
-5. Extend `mdsmith kinds <name>` output to
-   include `path-pattern:` when set.
+5. Extend `mdsmith kinds show <name>` output
+   to include `path-pattern:` when set.
 6. Update
    [`docs/guides/file-kinds.md`](../docs/guides/file-kinds.md)
    with a worked example.
@@ -171,7 +171,7 @@ command.
       one diagnostic per failing constraint.
 - [ ] Kinds without `path-pattern:` retain
       current behavior (regression test).
-- [ ] `mdsmith kinds <name>` shows
+- [ ] `mdsmith kinds show <name>` shows
       `path-pattern:` when set.
 - [ ] [`docs/guides/file-kinds.md`](../docs/guides/file-kinds.md)
       documents the new field with one worked

@@ -122,18 +122,18 @@ if real cases need finer-grained merge).
 
 ### Surfacing the chain
 
-`mdsmith kinds <name>` (plan 95) prints:
+`mdsmith kinds show <name>` prints:
 
 ```text
-kind: rfc-ratified
-schema: inline
-extends: rfc-base
-effective frontmatter:
-  id: =~"^RFC-[0-9]{4}$"      (from rfc-base)
-  authors: ...                 (from rfc-base)
-  created: =~"^\\d{4}-..."     (from rfc-base via #date)
-  ratified-on: =~"^\\d{4}-..." (from rfc-ratified)
-  status: "ratified"           (from rfc-ratified)
+rfc-ratified:
+  extends: rfc-base
+  schema: inline
+  effective-frontmatter:
+    id: =~"^RFC-[0-9]{4}$"      # from rfc-base
+    authors: '[...string]'       # from rfc-base
+    created: types.#date         # from rfc-base
+    ratified-on: types.#date     # from rfc-ratified
+    status: '"ratified"'         # from rfc-ratified
 ```
 
 The provenance column lets a reader see which
@@ -180,9 +180,9 @@ both layer names without grepping.
    wholesale for `structure:`. Reject conflicts
    with the diagnostic shape above (depends on
    plan 133).
-6. Extend `mdsmith kinds <name>` to print the
-   inheritance chain and per-field provenance
-   for `frontmatter:`.
+6. Extend `mdsmith kinds show <name>` to print
+   the inheritance chain and per-field
+   provenance for `frontmatter:`.
 7. Document inheritance in the
    [file-kinds guide](../docs/guides/file-kinds.md)
    with a worked RFC example.
@@ -215,7 +215,7 @@ both layer names without grepping.
 - [ ] A child whose CUE expression cannot unify
       with its parent's produces a diagnostic
       naming both layers (depends on plan 133).
-- [ ] `mdsmith kinds <name>` prints the
+- [ ] `mdsmith kinds show <name>` prints the
       inheritance chain and per-field
       provenance.
 - [ ] All tests pass: `go test ./...`

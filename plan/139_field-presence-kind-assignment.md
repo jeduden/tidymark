@@ -84,16 +84,18 @@ fill it.
 
 ### Surfacing the match
 
-`mdsmith kinds <file>` (plan 95) names the
+`mdsmith kinds resolve <file>` names the
 matching rule:
 
 ```text
-docs/api.md → doc
-  matched: kind-assignment[0] (glob: docs/**)
+file: docs/api.md
+effective kinds:
+  doc  (from kind-assignment[0]: glob docs/**)
 
-plan/132_inline.md → plan
-  matched: kind-assignment[2]
-    (glob: plan/*.md AND fields-present: id)
+file: plan/132_inline.md
+effective kinds:
+  plan  (from kind-assignment[2]:
+        glob plan/*.md AND fields-present id)
 ```
 
 A user can see at a glance why a file got the
@@ -121,8 +123,8 @@ front-matter parse, which mdsmith already does.
    [`internal/config/provenance.go`](../internal/config/provenance.go).
 3. Define presence semantics: a non-null value
    in FM. Document and test the null case.
-4. Extend `mdsmith kinds <file>` output to
-   show the matching entry index and the
+4. Extend `mdsmith kinds resolve <file>` output
+   to show the matching entry index and the
    selector that matched.
 5. Update
    [`docs/guides/file-kinds.md`](../docs/guides/file-kinds.md)
@@ -153,8 +155,8 @@ front-matter parse, which mdsmith already does.
       behavior (regression test).
 - [ ] A field present but null does not count
       as present (regression test).
-- [ ] `mdsmith kinds <file>` output names the
-      matching entry and selector.
+- [ ] `mdsmith kinds resolve <file>` output
+      names the matching entry and selector.
 - [ ] [`docs/guides/file-kinds.md`](../docs/guides/file-kinds.md)
       describes the new selector with one
       worked example.
