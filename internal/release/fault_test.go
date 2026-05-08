@@ -277,6 +277,26 @@ func TestBuildWheelsFailsOnStagingMkdir(t *testing.T) {
 	err := NewWithFS(ff).BuildWheels(root, artifacts, filepath.Join(root, "wheels"))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errInjected)
+	assert.Contains(t, err.Error(), "mkdir staging")
+}
+
+func TestBuildWheelsFailsOnStagingWipe(t *testing.T) {
+	// RemoveAll call order in BuildWheels (one buildOneWheel
+	// iteration):
+	//   1. buildOneWheel's wipe of outDir/.staging-<plat>
+	// (subsequent RemoveAll calls only fire on defer at function
+	// end; the first iteration's wipe is call #1.)
+	root := t.TempDir()
+	fixtureManifests(t, root)
+	artifacts := filepath.Join(root, "artifacts")
+	fakeArtifacts(t, artifacts)
+	ff := newFakeFS()
+	ff.failOnRemoveAllCall = 1
+
+	err := NewWithFS(ff).BuildWheels(root, artifacts, filepath.Join(root, "wheels"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+	assert.Contains(t, err.Error(), "wipe staging")
 }
 
 func TestStagePythonTreeFailsOnMkdirTemp(t *testing.T) {
