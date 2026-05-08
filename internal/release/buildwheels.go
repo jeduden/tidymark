@@ -105,10 +105,10 @@ func (t *Toolkit) buildOneWheel(src, artifactsDir, outDir string, wb wheelBuild)
 	// from a killed previous run cannot fool the post-build
 	// empty-wheel guard. RemoveAll on a missing path is a no-op.
 	if err := t.fs.RemoveAll(staging); err != nil {
-		return err
+		return fmt.Errorf("wipe staging %s: %w", staging, err)
 	}
 	if err := t.fs.MkdirAll(staging, 0o755); err != nil {
-		return err
+		return fmt.Errorf("mkdir staging %s: %w", staging, err)
 	}
 	defer func() { _ = t.fs.RemoveAll(staging) }()
 
