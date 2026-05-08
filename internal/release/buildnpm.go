@@ -75,7 +75,7 @@ func (t *Toolkit) buildOneNpmPlatform(rootDir, artifactsDir, outDir, version str
   "homepage": "https://github.com/jeduden/mdsmith",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jeduden/mdsmith"
+    "url": "git+https://github.com/jeduden/mdsmith.git"
   },
   "os": ["%s"],
   "cpu": ["%s"],

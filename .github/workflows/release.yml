@@ -240,7 +240,7 @@ jobs:
       - name: Build platform wheels
         run: go run ./cmd/mdsmith-release build-wheels artifacts python/dist
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@6733eb7d741f0b11ec6a39b58540dab7590f9b7d # v1.14.0
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: python/dist
 

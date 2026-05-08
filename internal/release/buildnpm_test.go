@@ -38,17 +38,29 @@ func assertPlatformPackage(t *testing.T, out, dir, bin, expectedOS, expectedCPU,
 	require.NoError(t, err, "read %s", manifest)
 
 	var pkg struct {
-		Name    string   `json:"name"`
-		Version string   `json:"version"`
-		OS      []string `json:"os"`
-		CPU     []string `json:"cpu"`
-		Files   []string `json:"files"`
+		Name       string   `json:"name"`
+		Version    string   `json:"version"`
+		OS         []string `json:"os"`
+		CPU        []string `json:"cpu"`
+		Files      []string `json:"files"`
+		Repository struct {
+			Type string `json:"type"`
+			URL  string `json:"url"`
+		} `json:"repository"`
 	}
 	require.NoError(t, json.Unmarshal(body, &pkg), "decode %s", manifest)
 	assert.Equal(t, "@mdsmith/"+dir, pkg.Name, "%s name", manifest)
 	assert.Equal(t, expectedVer, pkg.Version, "%s version", manifest)
 	assert.Equal(t, []string{expectedOS}, pkg.OS, "%s os", manifest)
 	assert.Equal(t, []string{expectedCPU}, pkg.CPU, "%s cpu", manifest)
+	// repository.url uses the `git+https://…/repo.git` shape so
+	// `npm publish` doesn't normalise it (and warn) at upload
+	// time. A bare `https://github.com/...` URL trips the
+	// "auto-corrected" warning and a future npm version may
+	// outright reject it.
+	assert.Equal(t, "git", pkg.Repository.Type, "%s repository.type", manifest)
+	assert.Equal(t, "git+https://github.com/jeduden/mdsmith.git", pkg.Repository.URL,
+		"%s repository.url", manifest)
 }
 
 func TestBuildNpmPlatformsLayout(t *testing.T) {
