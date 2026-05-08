@@ -20,6 +20,14 @@ func pythonExecutable() string {
 	return "python3"
 }
 
+// absPath is a package-level indirection over filepath.Abs so
+// tests can drive its error branch — filepath.Abs only fails
+// when os.Getwd does, which is essentially unreachable from a
+// running test process. BuildWheels wraps absPath errors with
+// path context, and codecov flags those wraps as uncovered
+// without this seam.
+var absPath = filepath.Abs
+
 // wheelBuild pins one entry of the PyPI distribution matrix.
 // Stays in lock-step with the build matrix in
 // .github/workflows/release.yml.
@@ -57,11 +65,11 @@ func (t *Toolkit) BuildWheels(rootDir, artifactsDir, outDir string) error {
 	// listWheels would return an empty slice, and (without the
 	// post-build guard) the workflow would silently move on
 	// with an empty python/dist before failing at publish time.
-	absOut, err := filepath.Abs(outDir)
+	absOut, err := absPath(outDir)
 	if err != nil {
 		return fmt.Errorf("resolve outDir %q: %w", outDir, err)
 	}
-	absArtifacts, err := filepath.Abs(artifactsDir)
+	absArtifacts, err := absPath(artifactsDir)
 	if err != nil {
 		return fmt.Errorf("resolve artifactsDir %q: %w", artifactsDir, err)
 	}

@@ -809,3 +809,59 @@ func TestBuildOneWheelPropagatesMoveFailure(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errInjected)
 }
+
+// TestBuildOneWheelPropagatesListWheelsFailure covers the
+// listWheels error branch that sits between runPythonBuild and
+// the empty-wheel guard. A ReadDir flake on the staging dir
+// must surface as an error, not be misread as "no wheels
+// produced".
+func TestBuildOneWheelPropagatesListWheelsFailure(t *testing.T) {
+	src, artifacts, out, wb := stageBuildOneWheelInputs(t)
+	ff := newFakeFS()
+	// ReadDir #1: stagePythonTree's copyDir(src) (src holds
+	// only pyproject.toml so copyDir doesn't recurse).
+	// ReadDir #2: listWheels(staging) after runPythonBuild —
+	// the branch under test.
+	ff.failOnReadDirCall = 2
+	tk := NewWithDeps(ff, &fakeRunner{})
+	err := tk.buildOneWheel(src, artifacts, out, wb)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+}
+
+// TestBuildWheelsFailsOnOutDirAbs covers the absPath(outDir)
+// error branch in BuildWheels. filepath.Abs only fails when
+// os.Getwd does, which is unreachable from a test process —
+// the package-level absPath seam lets us drive the branch
+// without depending on a deleted-cwd hack.
+func TestBuildWheelsFailsOnOutDirAbs(t *testing.T) {
+	orig := absPath
+	t.Cleanup(func() { absPath = orig })
+	absPath = func(string) (string, error) { return "", errInjected }
+
+	err := New().BuildWheels(t.TempDir(), t.TempDir(), "dist")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+	assert.Contains(t, err.Error(), "resolve outDir")
+}
+
+// TestBuildWheelsFailsOnArtifactsDirAbs covers the
+// absPath(artifactsDir) error branch. We let the first
+// absPath call (outDir) succeed and fail only the second.
+func TestBuildWheelsFailsOnArtifactsDirAbs(t *testing.T) {
+	orig := absPath
+	t.Cleanup(func() { absPath = orig })
+	calls := 0
+	absPath = func(p string) (string, error) {
+		calls++
+		if calls == 2 {
+			return "", errInjected
+		}
+		return orig(p)
+	}
+
+	err := New().BuildWheels(t.TempDir(), t.TempDir(), t.TempDir())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+	assert.Contains(t, err.Error(), "resolve artifactsDir")
+}
