@@ -93,6 +93,20 @@ func (t *Toolkit) buildOneWheel(src, artifactsDir, outDir string, wb wheelBuild)
 	if err := t.runPythonBuild(stage, staging, wb.PlatTag); err != nil {
 		return err
 	}
+	// `python -m build --wheel` exits 0 even when, for whatever
+	// reason, no wheel actually lands in the staging directory.
+	// We can't catch that via Run() alone, and the empty-loop
+	// silence in retagWheels / moveWheels would let the workflow
+	// continue with an empty outDir and only fail later at
+	// publish-time. Verify here instead.
+	staged, err := t.listWheels(staging)
+	if err != nil {
+		return err
+	}
+	if len(staged) == 0 {
+		return fmt.Errorf("python -m build (%s) produced no wheel in %s",
+			wb.PlatTag, staging)
+	}
 	if err := t.retagWheels(staging, wb.PlatTag); err != nil {
 		return err
 	}

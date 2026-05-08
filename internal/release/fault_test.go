@@ -564,6 +564,32 @@ func TestCopyDirFailsOnEntryInfoError(t *testing.T) {
 	assert.ErrorIs(t, err, errInjected)
 }
 
+// TestBuildOneWheelFailsWhenPythonProducesNoWheel pins the
+// post-runPythonBuild guard: a Runner that exits 0 without
+// writing any .whl into staging must still fail buildOneWheel,
+// not silently move on. Earlier behaviour let an empty staging
+// dir flow all the way to PyPI publish-time, where the
+// pypi-publish action fails with "no distribution packages".
+func TestBuildOneWheelFailsWhenPythonProducesNoWheel(t *testing.T) {
+	src := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(src, "pyproject.toml"),
+		[]byte("[project]\nname=\"x\"\n"), 0o644))
+	asset := filepath.Join(t.TempDir(), "asset")
+	require.NoError(t, os.WriteFile(asset, []byte("bin"), 0o755))
+	out := t.TempDir()
+	wb := wheelBuilds[0]
+
+	// Default fakeRunner exits 0 on every call without writing
+	// anything; perfect for the "build appeared to succeed but
+	// produced nothing" scenario.
+	tk := NewWithDeps(osFS{}, &fakeRunner{})
+	err := tk.buildOneWheel(src, filepath.Dir(asset), out, wheelBuild{
+		Asset: filepath.Base(asset), PlatTag: wb.PlatTag, Exe: wb.Exe,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "produced no wheel")
+}
+
 func TestBuildOneWheelPropagatesPythonFailure(t *testing.T) {
 	// Stage a real source tree so stagePythonTree succeeds, then
 	// fail on the first runner call (python -m build).

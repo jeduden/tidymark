@@ -175,6 +175,15 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+      - name: Upgrade npm
+        # Node 20 LTS ships npm 10.x. npm Trusted Publishing
+        # requires npm >= 11.5 — without it the CLI silently
+        # falls back to token auth and the registry returns 404
+        # (npm uses 404 instead of 401 for publishing-without-
+        # auth so package existence isn't leaked).
+        run: |
+          npm install -g npm@latest
+          npm --version
       - name: Stamp tracked manifests with the tag
         env:
           VERSION: ${{ github.ref_name }}
