@@ -49,7 +49,23 @@ var wheelBuilds = []wheelBuild{
 // hatchling build backend on PATH. Stamp must run first so
 // pyproject.toml carries the published version.
 func (t *Toolkit) BuildWheels(rootDir, artifactsDir, outDir string) error {
-	if err := t.fs.MkdirAll(outDir, 0o755); err != nil {
+	// Resolve outDir and artifactsDir to absolute paths up
+	// front. buildOneWheel runs `python -m build --outdir <…>`
+	// with cmd.Dir set to a staged temp tree, so a relative
+	// outDir would be interpreted by python relative to that
+	// temp dir — the wheel would land somewhere we never look,
+	// listWheels would return an empty slice, and (without the
+	// post-build guard) the workflow would silently move on
+	// with an empty python/dist before failing at publish time.
+	absOut, err := filepath.Abs(outDir)
+	if err != nil {
+		return fmt.Errorf("resolve outDir %q: %w", outDir, err)
+	}
+	absArtifacts, err := filepath.Abs(artifactsDir)
+	if err != nil {
+		return fmt.Errorf("resolve artifactsDir %q: %w", artifactsDir, err)
+	}
+	if err := t.fs.MkdirAll(absOut, 0o755); err != nil {
 		return err
 	}
 	src := filepath.Join(rootDir, "python")
@@ -57,7 +73,7 @@ func (t *Toolkit) BuildWheels(rootDir, artifactsDir, outDir string) error {
 		return fmt.Errorf("python source missing: %w", err)
 	}
 	for _, wb := range wheelBuilds {
-		if err := t.buildOneWheel(src, artifactsDir, outDir, wb); err != nil {
+		if err := t.buildOneWheel(src, absArtifacts, absOut, wb); err != nil {
 			return err
 		}
 	}
@@ -85,6 +101,12 @@ func (t *Toolkit) buildOneWheel(src, artifactsDir, outDir string, wb wheelBuild)
 	defer func() { _ = t.fs.RemoveAll(stage) }()
 
 	staging := filepath.Join(outDir, ".staging-"+wb.PlatTag)
+	// Wipe before mkdir so a stale `.staging-<plat>/` left over
+	// from a killed previous run cannot fool the post-build
+	// empty-wheel guard. RemoveAll on a missing path is a no-op.
+	if err := t.fs.RemoveAll(staging); err != nil {
+		return err
+	}
 	if err := t.fs.MkdirAll(staging, 0o755); err != nil {
 		return err
 	}
