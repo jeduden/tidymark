@@ -190,15 +190,22 @@ jobs:
         # Platform packages publish first so the root never advertises
         # an optionalDependency npm cannot find. The root package
         # publishes last, after every platform exists.
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        #
+        # Auth uses npm Trusted Publishing (OIDC): the workflow's
+        # `id-token: write` permission mints an OIDC token that npm
+        # exchanges for a short-lived publish credential. No
+        # NODE_AUTH_TOKEN required. Each of the six packages
+        # (@mdsmith/cli + 5 platform subpackages) needs a Trusted
+        # Publisher configured at
+        # https://www.npmjs.com/package/<name>/access (or, for
+        # packages that don't exist yet, as a "pending publisher"
+        # at https://www.npmjs.com/settings/<user>/trusted-publishers)
+        # pointing at jeduden/mdsmith and release.yml.
         run: |
           for pkg in npm/dist/*; do
             (cd "$pkg" && npm publish --access public --provenance)
           done
       - name: Publish root package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         working-directory: npm/mdsmith
         run: npm publish --access public --provenance
 
