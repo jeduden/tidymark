@@ -20,7 +20,15 @@ import { join } from "node:path";
 //
 // The extensionPath should be the vscode.ExtensionContext.extensionPath
 // (the directory containing package.json and node_modules/).
-export function resolveBinary(configuredPath: string, extensionPath: string): string {
+//
+// The optional platform and fileExists parameters are for testing; in
+// production they default to process.platform and fs.existsSync.
+export function resolveBinary(
+  configuredPath: string,
+  extensionPath: string,
+  platform: string = process.platform,
+  fileExists: (path: string) => boolean = existsSync
+): string {
   // If the user specified a custom path (not the bare "mdsmith"),
   // honor it exactly — they know what they want.
   if (configuredPath !== "mdsmith") {
@@ -30,22 +38,23 @@ export function resolveBinary(configuredPath: string, extensionPath: string): st
   // The user left the default "mdsmith". Check for the bundled binary
   // from @mdsmith/cli. The npm package ships with platform-specific
   // binaries (linux-x64, darwin-arm64, win32-x64, etc.) as optional
-  // dependencies; npm installs the correct one for the current platform
-  // during extension install. The bin wrapper lives at
-  // node_modules/.bin/mdsmith (Unix) or node_modules/.bin/mdsmith.cmd
-  // (Windows). This works across all platforms with a single .vsix.
+  // dependencies; npm installs ALL of them during packaging (regardless
+  // of build platform), so a single .vsix works on Linux, macOS, and
+  // Windows. The bin wrapper (mdsmith.js) selects the correct binary
+  // at runtime. The wrapper lives at node_modules/.bin/mdsmith (Unix)
+  // or node_modules/.bin/mdsmith.cmd (Windows).
   const binDir = join(extensionPath, "node_modules", ".bin");
   const unixBin = join(binDir, "mdsmith");
   const winBin = join(binDir, "mdsmith.cmd");
 
   // Prefer the platform-appropriate wrapper if it exists.
-  const candidate = process.platform === "win32" ? winBin : unixBin;
-  if (existsSync(candidate)) {
+  const candidate = platform === "win32" ? winBin : unixBin;
+  if (fileExists(candidate)) {
     return candidate;
   }
 
   // The bundled binary does not exist (optional dependency install
-  // failed, or this is a dev build without `bun install`). Fall back
+  // failed, or this is a dev build without npm install). Fall back
   // to the bare "mdsmith" string so the LanguageClient resolves it
   // against the shell PATH (same as before bundling).
   return configuredPath;
