@@ -51,16 +51,13 @@ separate plugins.
 
 ## Non-Goals
 
-- An MCP server. mdsmith has no API surface that
-  benefits from MCP; the LSP server already
-  exposes everything an editor or agent needs.
-- Bundling binaries inside the plugin. Plan 130
-  covers binary distribution.
-- Output styles. No clear use case yet.
-- Themes. No clear use case.
-- A combined single plugin. Skills/agents/hooks
-  ship as a separate plugin so users can install
-  the LSP without pulling in the heavier set.
+- An MCP server. The LSP already exposes
+  everything an editor or agent needs.
+- Bundling binaries. Plan 130 covers that.
+- Output styles or themes. No clear use case.
+- A combined single plugin. Splitting LSP from
+  the rest lets users install only what they
+  want.
 
 ## Design
 
@@ -171,12 +168,16 @@ single file that was just edited.
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "mdsmith fix \"$CLAUDE_FILE_PATH\""
+        "command": "mdsmith fix -- \"$CLAUDE_FILE_PATH\""
       }
     ]
   }
 }
 ```
+
+The `--` terminator stops `$CLAUDE_FILE_PATH` from
+being parsed as a flag if a filename starts with
+`-`.
 
 The hook is opt-in via the plugin's enable/disable
 toggle. Users who prefer to run `fix` manually
@@ -240,17 +241,16 @@ but it does not auto-install.
    should be required — confirm during smoke
    test.
 8. Extend [.mdsmith.yml](../.mdsmith.yml)'s
-   `kind-assignment` and the matching override
-   block to cover
+   `kind-assignment` block (and the matching
+   `overrides:` entries that disable
+   `first-line-heading` and `heading-increment`
+   for SKILL.md files) to cover
    `editors/claude-code-tools/skills/*/SKILL.md`.
    The existing `skill` kind currently targets
-   only `.claude/skills/*/SKILL.md` (lines 93
-   and 99 of `.mdsmith.yml`); without the
-   extension the new SKILL.md files would fail
-   `first-line-heading` and other rules the
-   `skill` override disables. Surface the diff
-   per [CLAUDE.md](../CLAUDE.md) before
-   applying.
+   only `.claude/skills/*/SKILL.md`; without
+   the extension, the new SKILL.md files would
+   fail those rules. Surface the diff per
+   [CLAUDE.md](../CLAUDE.md) before applying.
 9. Add a `README.md` covering install, the three
    skills, the agent, the hook, and the binary
    prerequisite.
