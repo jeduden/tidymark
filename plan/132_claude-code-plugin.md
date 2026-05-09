@@ -16,8 +16,11 @@ summary: >-
 
 ## Goal
 
-Let a Claude Code user install mdsmith with one
-command: `/plugin install mdsmith-lsp@mdsmith`.
+Let a Claude Code user install mdsmith from this
+repository with two standard `/plugin` commands.
+First, register the catalog one-time with `/plugin
+marketplace add jeduden/mdsmith`. Then install the
+plugin with `/plugin install mdsmith-lsp@mdsmith`.
 After install, the agent sees Markdown diagnostics
 inline after every edit. The agent can also use
 go-to-definition, find references, symbol search,

@@ -64,7 +64,7 @@ Advertise:
 
 ```jsonc
 "completionProvider": {
-  "triggerCharacters": ["#", "[", ":", "/"],
+  "triggerCharacters": ["#", "[", "/", "\""],
   "resolveProvider": false
 }
 ```
@@ -80,15 +80,15 @@ A new helper in
 returns a completion-context tag and the prefix
 under the cursor. One handler per tag:
 
-| Cursor on…                  | Items returned                  | `kind`       |
-|-----------------------------|---------------------------------|--------------|
-| `[text](#…` (no path)       | Headings in current file        | `Reference`  |
-| `[text](./other.md#…`       | Headings in `other.md`          | `Reference`  |
-| `[text][…`                  | Link-ref labels in current file | `Reference`  |
-| Front-matter `kind: …`      | Kind names from `.mdsmith.yml`  | `EnumMember` |
-| `<?include file: "…"?>` arg | Workspace `.md` paths           | `File`       |
-| `<?build source: "…"?>` arg | Workspace `.md` paths           | `File`       |
-| `<?catalog glob:…` entry    | Workspace `.md` paths           | `File`       |
+| Cursor on…                      | Items returned                  | `kind`       |
+|---------------------------------|---------------------------------|--------------|
+| `[text](#…` (no path)           | Headings in current file        | `Reference`  |
+| `[text](./other.md#…`           | Headings in `other.md`          | `Reference`  |
+| `[text][…`                      | Link-ref labels in current file | `Reference`  |
+| Front-matter `kinds:` list item | Kind names from `.mdsmith.yml`  | `EnumMember` |
+| `<?include file: "…"?>` arg     | Workspace `.md` paths           | `File`       |
+| `<?build source: "…"?>` arg     | Workspace `.md` paths           | `File`       |
+| `<?catalog glob:…` entry        | Workspace `.md` paths           | `File`       |
 
 `detail` carries the source location (file path
 for headings, `.mdsmith.yml` for kinds). `sortText`
@@ -117,10 +117,17 @@ in CommonMark).
 
 ### Kind completion
 
-For front-matter `kind: …` the handler returns the
-kind names declared in [.mdsmith.yml](../.mdsmith.yml).
-The config is already loaded by the server (plan
-121) and re-read on `.mdsmith.yml` change.
+The canonical front-matter key for kind assignment
+is `kinds:` (a YAML list), parsed by
+[`lint.ParseFrontMatterKinds`](../internal/lint/frontmatter.go).
+When the cursor sits inside a `kinds:` list value
+(typically after `- ` on a new list line), the
+handler returns the kind names declared in
+[.mdsmith.yml](../.mdsmith.yml). The scalar form
+`kind:` is not supported by the parser and is not
+offered for completion. The config is already
+loaded by the server (plan 121) and re-read on
+`.mdsmith.yml` change.
 
 ### Directive-arg completion
 
@@ -173,11 +180,14 @@ server.
 4. Implement ref-label completion using the
    current file's link-ref defs. Test that
    definitions from other files are excluded.
-5. Implement kind completion against the loaded
-   config. Test that `.mdsmith.yml` changes flush
-   the cache (config-watcher in plan 121 already
-   triggers a re-read; verify completion picks up
-   the new kinds).
+5. Implement kind completion for `kinds:` list
+   items against the loaded config. Skip the
+   scalar `kind:` form (not parsed by
+   `lint.ParseFrontMatterKinds`). Test that
+   `.mdsmith.yml` changes flush the cache
+   (config-watcher in plan 121 already triggers a
+   re-read; verify completion picks up the new
+   kinds).
 6. Implement directive-arg completion across
    `<?include?>`, `<?build?>`, and `<?catalog?>`.
    Return paths relative to the open buffer.
@@ -195,7 +205,7 @@ server.
 
 - [ ] `completionProvider` appears in the
       `initialize` capabilities response with
-      `triggerCharacters: ["#", "[", ":", "/"]`.
+      `triggerCharacters: ["#", "[", "/", "\""]`.
 - [ ] Completion triggered after `[x](#` returns
       every heading in the current file by anchor
       slug.
@@ -205,9 +215,10 @@ server.
       every link-reference label defined in the
       current file and excludes labels from other
       files.
-- [ ] Completion triggered after `kind:` (front
-      matter only) returns every kind name in
-      `.mdsmith.yml`.
+- [ ] Completion inside a `kinds:` list item in
+      front matter returns every kind name in
+      `.mdsmith.yml`. The scalar `kind:` form is
+      not offered.
 - [ ] Completion triggered inside an
       `<?include file: "…"?>` arg returns
       workspace `.md` paths whose prefix matches.
