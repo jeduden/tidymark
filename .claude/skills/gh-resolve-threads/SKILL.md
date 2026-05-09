@@ -78,8 +78,19 @@ from the same checksums file before downloading.
 tar xz -C /tmp -f /tmp/gh.tar.gz
 ```
 
+Copy the binary into a directory on `$PATH`. Use
+`/usr/local/bin/gh` for a system-wide install (needs
+root):
+
 ```bash
 cp /tmp/gh_2.92.0_linux_amd64/bin/gh /usr/local/bin/gh
+```
+
+Or use `$HOME/.local/bin/gh` for a user-local install
+(no root needed; ensure that directory is on `$PATH`):
+
+```bash
+cp /tmp/gh_2.92.0_linux_amd64/bin/gh "$HOME/.local/bin/gh"
 ```
 
 ```bash
@@ -118,13 +129,15 @@ Print the architecture in its own block:
 dpkg --print-architecture
 ```
 
-Note the value (e.g. `amd64`) as `$ARCH`. Then write
-the sources list. The heredoc references `$ARCH` from
-your shell — no command substitution runs inside:
+Substitute the printed value (e.g. `amd64`) for
+`ARCH_PLACEHOLDER` in the heredoc below before
+running. The `<<'EOF'` quoting prevents any shell
+expansion inside the body — the literal text after
+substitution is what gets written:
 
 ```bash
-tee /etc/apt/sources.list.d/github-cli.list > /dev/null <<EOF
-deb [arch=$ARCH signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
+tee /etc/apt/sources.list.d/github-cli.list > /dev/null <<'EOF'
+deb [arch=ARCH_PLACEHOLDER signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main
 EOF
 ```
 
@@ -167,12 +180,16 @@ Note the repo (e.g. `owner/name`) as `$REPO`.
 
 ## Step 3 — Fetch review threads
 
+The query accepts an optional `$cursor` variable so
+the same snippet works for both the first page and
+subsequent pages:
+
 ```bash
 gh api graphql -f query='
-query($owner: String!, $repo: String!, $pr: Int!) {
+query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $pr) {
-      reviewThreads(first: 100) {
+      reviewThreads(first: 100, after: $cursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
           id
@@ -193,10 +210,39 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 ```
 
 Returns the first 100 threads (10 comments each). If
-`pageInfo.hasNextPage` is `true`, paginate by passing
-the returned `endCursor` as an `after:` argument until
-it is `false` — otherwise unresolved threads beyond the
-first 100 will be silently omitted.
+`pageInfo.hasNextPage` is `true`, rerun the same call
+with `-f cursor="<endCursor>"` appended (using the
+`endCursor` returned in the previous response). Repeat
+until `hasNextPage` is `false`:
+
+```bash
+gh api graphql -f query='
+query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      reviewThreads(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          isResolved
+          comments(first: 10) {
+            nodes {
+              body
+              author { login }
+              path
+              line
+            }
+          }
+        }
+      }
+    }
+  }
+}' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" \
+   -F pr="$PR" -f cursor="<endCursor>"
+```
+
+Otherwise unresolved threads beyond the first 100 are
+silently omitted.
 
 For each unresolved thread, note its `id` and read the
 comment at `comments.nodes[0]` to understand what to
