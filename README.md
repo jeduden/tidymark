@@ -22,9 +22,10 @@ sibling for CI.
 
 **✏️ See lint errors live in your editor.**
 The [VS Code extension][vsc-mp] runs `mdsmith lsp` and
-shows inline squiggles, per-rule quick fixes, and a
-`source.fixAll.mdsmith` action that hooks into save. Also
-on [Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, and
+shows inline squiggles, per-rule quick fixes, and an
+opt-in `source.fixAll.mdsmith` action for fix-on-save
+(set `mdsmith.fixOnSave: true` to enable). Also on
+[Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, and
 Gitpod. Any LSP-aware editor — Neovim, Helix, JetBrains —
 works the same way by pointing at `mdsmith lsp`.
 

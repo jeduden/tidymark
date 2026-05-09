@@ -37,15 +37,24 @@ gets the same behavior by pointing at `mdsmith lsp`.
 
 ## Install
 
-The extension is shipped as a `.vsix` artifact next
-to the Go binaries on each release. Install it with:
+Each release publishes the extension to the Visual
+Studio Marketplace, to Open VSX, and as a `.vsix`
+attached to the GitHub release. Pick one:
 
 ```bash
+# stock VS Code, GitHub Codespaces, GitHub.dev (Marketplace)
+code --install-extension jeduden.mdsmith
+# Cursor, VSCodium, Theia, Gitpod (Open VSX)
+codium --install-extension jeduden.mdsmith
+# Air-gapped or version-pinned: download from the release page
 code --install-extension mdsmith-<version>.vsix
 ```
 
-Marketplace publication is gated on release planning;
-until then the `.vsix` is the supported install path.
+The Marketplace, Open VSX, and GitHub-release `.vsix`
+have identical SHA-256 sums; the same artifact is
+uploaded to all three. See
+[Installation: VS Code extension](../install.md#vs-code-extension)
+for the channel-by-channel breakdown.
 
 ## Settings
 
