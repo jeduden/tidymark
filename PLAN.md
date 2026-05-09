@@ -34,7 +34,7 @@ footer: |
 | 120 | ✅     | sonnet | [Unify glob matcher and field naming across mdsmith](plan/120_glob-unification.md)                                                    |
 | 121 | ✅     | opus   | [Expose mdsmith to VS Code via Language Server Protocol](plan/121_vscode-integration.md)                                              |
 | 121 | ✅     | sonnet | [Review and centralize YAML handling](plan/121_yaml-handling-review.md)                                                               |
-| 122 | 🔲     | sonnet | [VS Code hover help and palette commands](plan/122_vscode-hover-and-palette.md)                                                       |
+| 122 | 🔲     | sonnet | [VS Code palette commands](plan/122_vscode-hover-and-palette.md)                                                                      |
 | 124 | ✅     | sonnet | [No space inside code spans rule](plan/124_no-space-in-code-spans.md)                                                                 |
 | 125 | ✅     | sonnet | [No space inside link text rule](plan/125_no-space-in-link-text.md)                                                                   |
 | 126 | ✅     | sonnet | [Proper-name capitalization rule](plan/126_proper-names.md)                                                                           |
@@ -43,6 +43,9 @@ footer: |
 | 129 | ✅     | sonnet | [Flag unused or duplicate link reference definitions](plan/129_no-unused-link-definitions.md)                                         |
 | 130 | 🔳     | opus   | [Distribute mdsmith binaries via npm, PyPI, asdf, mise, and the VS Code marketplaces](plan/130_binary-distribution-and-versioning.md) |
 | 131 | ✅     | opus   | [LSP symbol navigation for agents (Claude)](plan/131_lsp-symbol-navigation.md)                                                        |
+| 132 | 🔲     | sonnet | [Package mdsmith LSP as a Claude Code plugin](plan/132_claude-code-plugin.md)                                                         |
+| 133 | 🔲     | sonnet | [LSP hover for rule and directive docs](plan/133_lsp-hover.md)                                                                        |
+| 134 | 🔲     | sonnet | [LSP completion for anchors, refs, kinds, and directive args](plan/134_lsp-completion.md)                                             |
 | 145 | 🔲     | opus   | [Publish mdsmith via asdf and mise registry submissions](plan/145_asdf-mise-registry-submissions.md)                                  |
 | 52  | ✅     |        | [Archetype / Template Library for Agentic Patterns](plan/52_archetype-template-library.md)                                            |
 | 61  | ✅     |        | [Required Structure Rule Hardening](plan/61_required-structure-hardening.md)                                                          |

@@ -1,28 +1,24 @@
 ---
 id: 122
-title: VS Code hover help and palette commands
+title: VS Code palette commands
 status: "🔲"
 model: sonnet
 summary: >-
-  Add `textDocument/hover` to the LSP server so rule
-  help text shows on hover over a diagnostic, plus a
-  small set of VS Code command-palette entries —
+  A small set of VS Code command-palette entries —
   `init`, `merge-driver install`, `fix workspace`,
   `kinds why`, `kinds resolve` — that cover the
-  remaining subcommands without adding chrome to the
-  editor.
+  remaining mdsmith subcommands without adding chrome
+  to the editor. Hover help is split into plan 133.
 ---
-# VS Code hover help and palette commands
+# VS Code palette commands
 
 ## Goal
 
-After plan 121 ships diagnostics and code actions,
-two questions stay unanswered from the editor:
-"what does this rule mean?" and "how do I run a
+After plan 121 ships diagnostics and code actions
+and plan 133 adds hover for rule docs, one question
+stays unanswered from the editor: "how do I run a
 mdsmith subcommand without leaving VS Code?". This
-plan answers both with hover (for the first
-question) and a short palette menu (for the
-second).
+plan answers it with a short palette menu.
 
 The plan deliberately ships no permanent UI chrome.
 No CodeLens, no status-bar item, no activity-bar
@@ -33,12 +29,12 @@ first feature they would disable.
 ## Background
 
 Plan 121 covers diagnostics and per-file fixes.
-Eight subcommands stay outside the editor:
-`help`, `kinds`, `archetypes`, `metrics`,
-`query`, `init`, `merge-driver`, `version`. A
-reviewer audit grouped them:
+Plan 133 covers hover for rule and directive docs.
+Seven subcommands stay outside the editor:
+`kinds`, `archetypes`, `metrics`, `query`, `init`,
+`merge-driver`, `version`. A reviewer audit
+grouped them:
 
-- **Hover**: `help` (what does this rule mean?).
 - **Palette**: `init`, `merge-driver install`,
   fix-everything, `kinds why`, `kinds resolve`.
 - **CLI only**: `archetypes`, `metrics`, `query`,
@@ -46,33 +42,6 @@ reviewer audit grouped them:
   view or status-bar pill surfacing these.
 
 ## Design
-
-### Hover
-
-Capability: `hoverProvider = true`.
-
-A `textDocument/hover` request arrives with a
-position. When the position falls inside a
-diagnostic range, the server returns Markdown:
-
-- The diagnostic message (one line).
-- The rule's docs, loaded the same way
-  `mdsmith help rule <id|name>` loads them via
-  [`internal/rules.LookupRule`](../internal/rules/ruledocs.go).
-
-When no diagnostic covers the position, the server
-checks for a `<?directive?>` block. If one is
-under the cursor, the hover returns that
-directive's docs, sourced from the existing files
-under [docs/guides/directives/](../docs/guides/directives/).
-This plan does not add a new `mdsmith help
-directives` CLI topic; the directive content is
-loaded directly by the LSP server.
-
-Hover does not link to `kinds why`. Reviewers
-flagged that link as part of the over-surfaced
-kinds chrome; the palette command below is the
-single entry point.
 
 ### Palette commands
 
@@ -133,7 +102,7 @@ in `editors/vscode/package.json`:
 "capabilities": {
   "untrustedWorkspaces": {
     "supported": "limited",
-    "description": "Diagnostics and hover work in restricted mode. Commands that modify files outside the editor are disabled until the workspace is trusted.",
+    "description": "Diagnostics work in restricted mode. Commands that modify files outside the editor are disabled until the workspace is trusted.",
     "restrictedConfigurations": [
       "mdsmith.path",
       "mdsmith.config"
@@ -142,9 +111,8 @@ in `editors/vscode/package.json`:
 }
 ```
 
-- `"limited"` lets the language client and hover
-  load in an untrusted workspace; neither writes
-  files.
+- `"limited"` lets the language client load in an
+  untrusted workspace; it never writes files.
 - The two destructive palette commands hide
   behind `when: isWorkspaceTrusted` on their
   menu entries. Handlers re-check
@@ -156,44 +124,6 @@ in `editors/vscode/package.json`:
 - The extension subscribes to
   `onDidGrantWorkspaceTrust`; gated commands
   appear without a reload after trust is granted.
-
-### Rule docs render in VS Code's Markdown engine
-
-VS Code's hover renderer is Markdown-only and
-strips inline HTML. The plan does not sanitize at
-runtime. It enforces "no inline HTML" at lint
-time on the rule README files. The vehicle is the
-existing `rule-readme` kind in `.mdsmith.yml`.
-That kind already targets
-`internal/rules/MDS*/README.md`.
-
-Today the kind only pins
-`required-structure.schema`. The plan adds
-MDS041 (`no-inline-html`). The rule is opt-in
-by default. A settings mapping turns it on. There
-is no `enabled` key — see
-[`RuleCfg.UnmarshalYAML`](../internal/config/config.go):
-
-```yaml
-kinds:
-  rule-readme:
-    rules:
-      required-structure:
-        schema: internal/rules/proto.md
-      no-inline-html:
-        allow: [kbd]
-```
-
-A spot audit of
-[`internal/rules/MDS*/README.md`](../internal/rules)
-found no raw HTML outside code blocks. The
-change is purely preventive. It stops a future
-contributor from adding HTML the hover would
-silently drop.
-
-Editing `.mdsmith.yml` requires user consent per
-[`CLAUDE.md`](../CLAUDE.md). The task surfaces
-the diff first.
 
 ### What this plan removes
 
@@ -211,46 +141,31 @@ feedback.
 
 ## Tasks
 
-1. Wire hover's rule lookup through the existing
-   [`internal/rules`](../internal/rules) APIs
-   (`LookupRule(query) (string, error)` and
-   `ListRules()`) so the hover body matches what
-   `mdsmith help rule <id|name>` prints. Cover
-   known rules, unknown rules, and rules whose
-   docs have no rule-specific body.
-2. Add `textDocument/hover` to the LSP server.
-   Match the position against active diagnostic
-   ranges. Fall through to the directive index
-   when no diagnostic covers the cursor. Add an
-   integration test in
-   [`cmd/mdsmith`](../cmd/mdsmith) that drives the
-   hover request and asserts the response.
-3. Register the five palette commands in
+1. Register the five palette commands in
    `editors/vscode/package.json`. Add one handler
    per command in `editors/vscode/src/commands/`.
    Each spawns the binary, surfaces stderr, and
    shows a notification on non-zero exit.
-4. Implement `mdsmith.fixWorkspace`. Run
+2. Implement `mdsmith.fixWorkspace`. Run
    `mdsmith fix .` from the workspace root. Parse
    the `stats:` line from stderr (see
    `printRunStats`). Show a notification with the
    fixed-of-total count. Cover with a VS Code
    extension test that mocks the child process.
-5. Implement `mdsmith.kinds.why` and
+3. Implement `mdsmith.kinds.why` and
    `mdsmith.kinds.resolve` against the
    `mdsmith-kinds:` virtual document scheme.
    Register a `TextDocumentContentProvider` that
    returns the JSON output rendered as Markdown.
-6. Update the VS Code guide
+4. Update the VS Code guide
    `docs/guides/editors/vscode.md` (created in
-   plan 121) with one section per surface: hover
-   and each palette command.
-7. Add a CLI-subcommand table to
+   plan 121) with one section per palette command.
+5. Add a CLI-subcommand table to
    `docs/guides/editors/vscode.md` listing every
    subcommand and its editor entry point. Mark
    `archetypes`, `metrics`, `query`, and `version`
    as "CLI only".
-8. Wire workspace trust per the design above. Add
+6. Wire workspace trust per the design above. Add
    the `capabilities.untrustedWorkspaces` block to
    `editors/vscode/package.json`. Gate the
    `fixWorkspace` and `mergeDriver.install` menu
@@ -259,22 +174,9 @@ feedback.
    handler. Subscribe to
    `onDidGrantWorkspaceTrust` to refresh the
    command surface without a reload.
-9. Propose enabling `no-inline-html` on the
-   `rule-readme` kind in `.mdsmith.yml`. Surface
-   the diff before applying. CLAUDE.md treats
-   linter configuration as user-consent
-   territory; this task lands the change only
-   after authorisation. Add a regression test:
-   a fixture rule README with a raw `<span>`
-   outside a code block fails `mdsmith check`.
 
 ## Acceptance Criteria
 
-- [ ] Hovering over a `MDS001` squiggle in VS Code
-      shows the line-length help body inline.
-- [ ] Hovering inside a `<?catalog?>` directive
-      shows the catalog directive docs even when no
-      diagnostic is present.
 - [ ] The command palette lists the five
       `mdsmith.*` commands in a workspace with a
       Markdown file open.
@@ -304,10 +206,6 @@ feedback.
 - [ ] An untrusted workspace cannot redirect
       `mdsmith.path` or `mdsmith.config`; the
       extension uses the user-level value.
-- [ ] After the `rule-readme` kind change lands,
-      a fixture rule README containing a raw
-      `<span>` outside a code block fails
-      `mdsmith check` with `MDS041`.
 
 ## ...
 
