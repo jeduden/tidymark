@@ -20,6 +20,14 @@ in place. Multi-pass fixing resolves cascading changes so
 you don't run it twice. `mdsmith check` is the read-only
 sibling for CI.
 
+**✏️ See lint errors live in your editor.**
+The [VS Code extension][vsc-mp] runs `mdsmith lsp` and
+shows inline squiggles, per-rule quick fixes, and a
+`source.fixAll.mdsmith` action that hooks into save. Also
+on [Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, and
+Gitpod. Any LSP-aware editor — Neovim, Helix, JetBrains —
+works the same way by pointing at `mdsmith lsp`.
+
 **🔗 Catch broken links before they merge.**
 Refactors silently break Markdown links and anchors.
 [`cross-file-reference-integrity`](internal/rules/MDS027-cross-file-reference-integrity/README.md)
@@ -90,6 +98,30 @@ More options live in
 [docs/guides/install.md](docs/guides/install.md). It covers direct
 downloads, the VS Code extension on the Marketplace and Open VSX,
 and asdf and mise once their registry entries land.
+
+## ✏️ Editor integration
+
+The mdsmith VS Code extension renders diagnostics inline.
+Each fixable rule contributes a quick fix. A
+`source.fixAll.mdsmith` action runs `mdsmith fix` on the
+buffer.
+
+```bash
+# stock VS Code, GitHub Codespaces, GitHub.dev (Marketplace)
+code --install-extension jeduden.mdsmith
+# Cursor, VSCodium, Theia, Gitpod (Open VSX)
+codium --install-extension jeduden.mdsmith
+```
+
+The extension is a thin LSP client. The lint pipeline runs
+in the Go binary, so any LSP-aware editor (Neovim, Helix,
+JetBrains via the LSP plugin) gets the same diagnostics by
+pointing at `mdsmith lsp`.
+
+See [VS Code Integration](docs/guides/editors/vscode.md)
+for settings (`mdsmith.path`, `mdsmith.run`,
+`mdsmith.fixOnSave`, `mdsmith.trace.server`), code actions,
+and troubleshooting.
 
 ## 🚀 Usage
 
@@ -190,3 +222,5 @@ mdsmith upgrades become an explicit, reviewable change. Run
 [grc-link]: https://goreportcard.com/report/github.com/jeduden/mdsmith
 [cov-badge]: https://codecov.io/gh/jeduden/mdsmith/branch/main/graph/badge.svg
 [cov-link]: https://codecov.io/gh/jeduden/mdsmith/branch/main
+[vsc-mp]: https://marketplace.visualstudio.com/items?itemName=jeduden.mdsmith
+[vsc-ovsx]: https://open-vsx.org/extension/jeduden/mdsmith
