@@ -172,6 +172,61 @@ This split keeps MDS034 focused on "what does this
 renderer interpret as a feature." Conventions
 orchestrate style separately.
 
+## User-defined conventions
+
+When the three built-in conventions do not match
+your team's style, define your own inline in
+`.mdsmith.yml`:
+
+```yaml
+conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      no-inline-html:
+        allow: [details, summary, kbd]
+      list-marker-style:
+        style: dash
+      no-reference-style:
+        allow-footnotes: true
+
+convention: our-team
+```
+
+Each entry in `conventions:` is a `{ flavor,
+rules }` pair. The `rules` block uses the same
+schema as the top-level `rules` block.
+
+### Constraints
+
+- The names `portable`, `github`, and `plain` are
+  reserved. Defining a `conventions.portable`
+  produces a config error naming the reserved name.
+- `flavor` must be one of `commonmark`, `gfm`, or
+  `goldmark`.
+- Unknown rule names and invalid rule settings
+  produce a config error naming the convention and
+  the rule:
+  `convention "our-team" rule "no-inline-html": unknown setting "allowed"`.
+
+### Provenance
+
+`mdsmith kinds resolve <file>` labels user
+convention layers with a `(user)` suffix so you
+can distinguish them from built-ins:
+
+```text
+convention.our-team (user)   set    {...}
+```
+
+### Lookup order
+
+When `convention:` resolves, mdsmith looks up the
+name in user-defined `conventions:` first, then
+in the built-in table. Because reserved names are
+rejected at parse time, user conventions can never
+shadow built-ins.
+
 ## Inspecting an effective convention
 
 `mdsmith kinds resolve <file>` shows the merge

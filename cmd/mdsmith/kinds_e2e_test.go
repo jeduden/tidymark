@@ -555,3 +555,79 @@ func TestKinds_PathPreservesAbsoluteSchema(t *testing.T) {
 	require.Equal(t, 0, code)
 	assert.Equal(t, "/etc/passwd", strings.TrimSpace(stdout))
 }
+
+// --- Plan 113: user-defined conventions ---
+
+func TestKinds_ResolveUserConventionShowsUserSuffix(t *testing.T) {
+	// `mdsmith kinds resolve` must show the "(user)" suffix for user
+	// convention layers so users can distinguish them from built-ins.
+	cfg := `conventions:
+  our-team:
+    flavor: commonmark
+    rules:
+      line-length:
+        max: 100
+convention: our-team
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.our-team (user)",
+		"user convention source must carry (user) suffix")
+}
+
+func TestKinds_ResolveBuiltinConventionHasNoUserSuffix(t *testing.T) {
+	cfg := "convention: portable\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	require.Equal(t, 0, code)
+	assert.NotContains(t, stdout, "(user)",
+		"built-in convention must not have (user) suffix")
+}
+
+func TestLoad_UserConventionE2E(t *testing.T) {
+	// Full end-to-end: user convention is selected, its preset is
+	// applied as a base layer, and the top-level rules: block wins.
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+    rules:
+      line-length:
+        max: 80
+convention: our-team
+rules:
+  line-length:
+    max: 120
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	// kinds why shows the merge chain including the convention layer.
+	stdout, _, code := runBinaryInDir(t, dir, "", "kinds", "why", "doc.md", "line-length")
+	require.Equal(t, 0, code)
+	assert.Contains(t, stdout, "convention.our-team (user)")
+	// The user's max=120 wins over the convention's max=80.
+	assert.Contains(t, stdout, "winning source: user")
+}
+
+func TestLoad_ReservedConventionNameRejectedE2E(t *testing.T) {
+	cfg := `conventions:
+  portable:
+    flavor: commonmark
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "portable")
+	assert.Contains(t, stderr, "reserved")
+}
+
+func TestLoad_UnknownConventionListsUserNamesE2E(t *testing.T) {
+	cfg := `conventions:
+  our-team:
+    flavor: gfm
+convention: bogus
+`
+	dir := kindsTestDir(t, cfg, map[string]string{"doc.md": "# T\n"})
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "doc.md")
+	assert.Equal(t, 2, code)
+	assert.Contains(t, stderr, "our-team")
+}

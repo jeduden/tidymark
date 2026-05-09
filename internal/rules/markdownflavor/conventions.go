@@ -163,22 +163,43 @@ var conventions = map[string]Convention{
 	},
 }
 
-// Lookup returns the convention table entry for name. It returns an
-// error naming the field and listing valid names when name is not a
-// known convention, matching the failure-mode contract in plan 112.
+// Lookup returns the convention table entry for name. It consults the
+// userConventions map first, then the built-in table. userConventions
+// may be nil when no user-defined conventions are configured.
 //
-// The returned Convention is a deep copy of the package-level table
-// entry. Callers may mutate the result without corrupting the
-// shared built-in table.
-func Lookup(name string) (Convention, error) {
-	c, ok := conventions[name]
-	if !ok {
-		return Convention{}, fmt.Errorf(
-			"unknown convention %q (valid: %s)",
-			name, strings.Join(ConventionNames(), ", "),
-		)
+// It returns an error naming the field and listing all valid names
+// (both built-in and user-defined) when name is not found in either
+// map.
+//
+// The returned Convention is a deep copy. Callers may mutate the
+// result without corrupting the source map or the built-in table.
+func Lookup(name string, userConventions map[string]Convention) (Convention, error) {
+	if c, ok := userConventions[name]; ok {
+		return cloneConvention(c), nil
 	}
-	return cloneConvention(c), nil
+	if c, ok := conventions[name]; ok {
+		return cloneConvention(c), nil
+	}
+	return Convention{}, fmt.Errorf(
+		"unknown convention %q (valid: %s)",
+		name, strings.Join(allConventionNames(userConventions), ", "),
+	)
+}
+
+// allConventionNames returns a sorted list of all convention names,
+// combining built-in names with the user-defined map.
+func allConventionNames(userConventions map[string]Convention) []string {
+	names := make([]string, 0, len(conventions)+len(userConventions))
+	for k := range conventions {
+		names = append(names, k)
+	}
+	for k := range userConventions {
+		if _, builtin := conventions[k]; !builtin {
+			names = append(names, k)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // cloneConvention returns a deep copy of c. Each rule preset's
