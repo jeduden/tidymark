@@ -16,6 +16,11 @@ concurrency:
   group: merge-queue
   cancel-in-progress: false
 
+# The queue job authenticates via MERGE_QUEUE_TOKEN; the default
+# GITHUB_TOKEN only needs contents: read for the initial checkout.
+permissions:
+  contents: read
+
 jobs:
   queue:
     runs-on: ubuntu-latest
@@ -24,6 +29,11 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.MERGE_QUEUE_TOKEN }}
+          # Don't write the token to .git/config — merge-queue-action
+          # consumes it via its own `token` input below, so persisting
+          # is unnecessary and would leak credentials into any later
+          # step that runs git.
+          persist-credentials: false
 
       - name: Install mdsmith merge driver and pre-merge-commit hook
         env:
