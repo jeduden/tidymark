@@ -64,7 +64,7 @@ Advertise:
 
 ```jsonc
 "completionProvider": {
-  "triggerCharacters": ["#", "[", "/", "\""],
+  "triggerCharacters": ["#", "[", ":", "/", "\""],
   "resolveProvider": false
 }
 ```
@@ -85,6 +85,7 @@ under the cursor. One handler per tag:
 | `[text](#…` (no path)           | Headings in current file        | `Reference`  |
 | `[text](./other.md#…`           | Headings in `other.md`          | `Reference`  |
 | `[text][…`                      | Link-ref labels in current file | `Reference`  |
+| Front-matter `kind:` value      | Kind names from `.mdsmith.yml`  | `EnumMember` |
 | Front-matter `kinds:` list item | Kind names from `.mdsmith.yml`  | `EnumMember` |
 | `<?include file: "…"?>` arg     | Workspace `.md` paths           | `File`       |
 | `<?build source: "…"?>` arg     | Workspace `.md` paths           | `File`       |
@@ -117,16 +118,26 @@ in CommonMark).
 
 ### Kind completion
 
-The canonical front-matter key for kind assignment
-is `kinds:` (a YAML list), parsed by
-[`lint.ParseFrontMatterKinds`](../internal/lint/frontmatter.go).
-When the cursor sits inside a `kinds:` list value
-(typically after `- ` on a new list line), the
+The LSP server's existing `effectiveKindsFor` helper
+in [`internal/lsp/symbols.go`](../internal/lsp/symbols.go)
+already accepts both front-matter forms: the scalar
+`kind: <name>` and the list `kinds: [a, b]`. The
+scalar form is treated as a single-element kinds
+list. The list form is parsed by
+[`lint.ParseFrontMatterKinds`](../internal/lint/frontmatter.go);
+the scalar form is parsed by `frontMatterScalarKind`
+in the same `symbols.go` file.
+
+Completion mirrors that. When the cursor sits in a
+scalar `kind:` value, or inside a `kinds:` list
+item (typically after `- ` on a new list line), the
 handler returns the kind names declared in
-[.mdsmith.yml](../.mdsmith.yml). The scalar form
-`kind:` is not supported by the parser and is not
-offered for completion. The config is already
-loaded by the server (plan 121) and re-read on
+[.mdsmith.yml](../.mdsmith.yml). Supporting both
+keeps completion consistent with the existing
+`definition`, `references`, and `implementation`
+handlers, which already resolve via
+`effectiveKindsFor`. The config is already loaded
+by the server (plan 121) and re-read on
 `.mdsmith.yml` change.
 
 ### Directive-arg completion
@@ -180,14 +191,16 @@ server.
 4. Implement ref-label completion using the
    current file's link-ref defs. Test that
    definitions from other files are excluded.
-5. Implement kind completion for `kinds:` list
-   items against the loaded config. Skip the
-   scalar `kind:` form (not parsed by
-   `lint.ParseFrontMatterKinds`). Test that
-   `.mdsmith.yml` changes flush the cache
-   (config-watcher in plan 121 already triggers a
-   re-read; verify completion picks up the new
-   kinds).
+5. Implement kind completion against the loaded
+   config for both front-matter forms: scalar
+   `kind:` and `kinds:` list items. Mirror the
+   existing parsing in `effectiveKindsFor`
+   (`internal/lsp/symbols.go`) so completion
+   stays consistent with `definition` /
+   `implementation`. Test that `.mdsmith.yml`
+   changes flush the cache (config-watcher in
+   plan 121 already triggers a re-read; verify
+   completion picks up the new kinds).
 6. Implement directive-arg completion across
    `<?include?>`, `<?build?>`, and `<?catalog?>`.
    Return paths relative to the open buffer.
@@ -205,7 +218,7 @@ server.
 
 - [ ] `completionProvider` appears in the
       `initialize` capabilities response with
-      `triggerCharacters: ["#", "[", "/", "\""]`.
+      `triggerCharacters: ["#", "[", ":", "/", "\""]`.
 - [ ] Completion triggered after `[x](#` returns
       every heading in the current file by anchor
       slug.
@@ -217,8 +230,11 @@ server.
       files.
 - [ ] Completion inside a `kinds:` list item in
       front matter returns every kind name in
-      `.mdsmith.yml`. The scalar `kind:` form is
-      not offered.
+      `.mdsmith.yml`.
+- [ ] Completion after scalar `kind:` in front
+      matter returns every kind name in
+      `.mdsmith.yml`, matching the
+      `effectiveKindsFor` server behavior.
 - [ ] Completion triggered inside an
       `<?include file: "…"?>` arg returns
       workspace `.md` paths whose prefix matches.
@@ -250,9 +266,11 @@ server.
   position is inside a code span or fenced block;
   reuse the same AST walk diagnostics use.
 - **Completion in front matter values that are not
-  `kind:`.** The handler should only fire on
-  `kind:` to avoid noise. Match by the YAML key
-  preceding the cursor.
+  `kind:` or `kinds:`.** The handler should only
+  fire on those two keys to avoid noise. Match by
+  the YAML key preceding the cursor; treat scalar
+  `kind:` and list `kinds:` as the two valid
+  contexts and skip everything else.
 
 ## ...
 
