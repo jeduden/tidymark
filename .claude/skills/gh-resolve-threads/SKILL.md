@@ -16,10 +16,6 @@ user-invocable: true
 allowed-tools: >-
   Bash(gh pr:*), Bash(gh api:*), Bash(gh auth:*),
   Bash(gh --version:*),
-  Bash(curl:*), Bash(sha256sum:*), Bash(tar:*),
-  Bash(cp:*),
-  Bash(apt-get:*), Bash(wget:*), Bash(tee:*),
-  Bash(mkdir:*), Bash(dpkg:*), Bash(type:*),
   Bash(git push:*), Bash(git add:*),
   Bash(git commit:*), Bash(git branch:*)
 ---
@@ -162,30 +158,49 @@ If both fail, the user needs to allow
 `release-assets.githubusercontent.com` or
 `cli.github.com` in their network config.
 
-Authenticate if needed:
+Authenticate if needed. First check status:
 
 ```bash
 gh auth status
 ```
 
+If unauthenticated, log in. With a token in the
+environment:
+
 ```bash
 gh auth login --with-token <<< "${GITHUB_TOKEN}"
 ```
 
-## Step 2 — Identify PR and repo
+If `GITHUB_TOKEN` is not set, run the interactive
+flow instead and follow the prompts:
+
+```bash
+gh auth login
+```
+
+## Step 2 — Identify PR, owner, and repo
 
 ```bash
 gh pr view --json number -q '.number'
 ```
 
-Note the number as `$PR`. Then:
+Note the number as `$PR`. Then fetch the head repo
+owner and name as separate values (matching
+`/merge-queue`):
+
+```bash
+gh pr view --json headRepositoryOwner \
+  -q '.headRepositoryOwner.login'
+```
+
+Note the result as `$OWNER`. Then:
 
 ```bash
 gh pr view --json headRepository \
-  -q '.headRepository.owner.login + "/" + .headRepository.name'
+  -q '.headRepository.name'
 ```
 
-Note the repo (e.g. `owner/name`) as `$REPO`.
+Note the result as `$REPO`.
 
 ## Step 3 — Fetch review threads
 
@@ -215,7 +230,7 @@ query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
       }
     }
   }
-}' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" -F pr="$PR"
+}' -f owner="$OWNER" -f repo="$REPO" -F pr="$PR"
 ```
 
 Returns the first 100 threads (10 comments each). If
@@ -246,7 +261,7 @@ query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
       }
     }
   }
-}' -f owner="${REPO%%/*}" -f repo="${REPO##*/}" \
+}' -f owner="$OWNER" -f repo="$REPO" \
    -F pr="$PR" -f cursor="<endCursor>"
 ```
 
@@ -285,7 +300,7 @@ bot looks at the latest commit:
 
 ```bash
 gh api --method POST \
-  "repos/$REPO/pulls/$PR/requested_reviewers" \
+  "repos/$OWNER/$REPO/pulls/$PR/requested_reviewers" \
   -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
 ```
 
