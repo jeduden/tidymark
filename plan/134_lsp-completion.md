@@ -158,13 +158,14 @@ at completion time.
 Completion shares the symbol index plan 131 builds
 (`internal/lsp/index`). Cold completion is bounded
 by index lookup time; the bench in
-[`internal/lsp/index/bench_test.go`](../internal/lsp/bench_test.go)
-already establishes a per-`didChange` budget under
-20 ms on 10 000 files. Completion adds a substring
-match over the index slice, which is O(N) in the
-file's heading count and O(M) in the workspace
-file count for cross-file paths. A 1 000-file
-workspace returns under 50 ms.
+[`internal/lsp/index/bench_test.go`](../internal/lsp/index/bench_test.go)
+already establishes a cold-build budget of 1 s and
+a per-`didChange` update budget under 20 ms on a
+1 000-file synthetic corpus. Completion adds a
+substring match over the index slice, which is
+O(N) in the file's heading count and O(M) in the
+workspace file count for cross-file paths. A
+1 000-file workspace returns under 50 ms.
 
 ### Backwards compatibility
 
