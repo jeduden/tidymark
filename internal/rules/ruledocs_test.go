@@ -221,3 +221,12 @@ func TestStripFrontMatter_NoClosingDelimiter(t *testing.T) {
 	result := stripFrontMatter(content)
 	assert.Equal(t, content, result)
 }
+
+// TestStripFrontMatterExported verifies that the exported StripFrontMatter
+// delegates to the unexported implementation correctly.
+func TestStripFrontMatterExported(t *testing.T) {
+	content := "---\nid: MDS001\nname: line-length\n---\n# Body\n"
+	result := StripFrontMatter(content)
+	assert.NotContains(t, result, "id: MDS001")
+	assert.Contains(t, result, "# Body")
+}

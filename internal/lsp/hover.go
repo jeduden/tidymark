@@ -121,10 +121,7 @@ func ruleHoverContent(d Diagnostic) string {
 // block in source. Returns a *hoverResult when a documented directive is
 // found at the cursor, nil otherwise.
 func directiveHoverAt(source []byte, pos Position) *hoverResult {
-	f, err := lint.NewFile("hover", source)
-	if err != nil {
-		return nil
-	}
+	f, _ := lint.NewFile("hover", source)
 	lines := splitLines(source)
 	var result *hoverResult
 	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -133,9 +130,6 @@ func directiveHoverAt(source []byte, pos Position) *hoverResult {
 		}
 		pi, ok := n.(*lint.ProcessingInstruction)
 		if !ok {
-			return ast.WalkContinue, nil
-		}
-		if pi.Lines().Len() == 0 {
 			return ast.WalkContinue, nil
 		}
 

@@ -2641,10 +2641,11 @@ func TestHoverDirectiveFallback(t *testing.T) {
 	// Wait for lint pass to complete so the hover handler finds a live doc.
 	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
 
-	// Hover on the <?catalog line (line 2, 0-based) — no diagnostic there.
+	// Hover on the glob line (line 3, 0-based) — inside the directive but below
+	// any MDS019 diagnostic range which spans only the opening tag line.
 	resultRaw, hoverErr := h.request("textDocument/hover", hoverParams{
 		TextDocument: textDocumentIdentifier{URI: uri},
-		Position:     Position{Line: 2, Character: 3},
+		Position:     Position{Line: 3, Character: 0},
 	})
 	require.Nil(t, hoverErr)
 	require.NotEqual(t, "null", string(resultRaw), "hover inside catalog directive must return content")
@@ -2714,4 +2715,67 @@ func TestPosInRange(t *testing.T) {
 	// Empty range (Start == End): nothing is inside.
 	empty := Range{Start: Position{Line: 1, Character: 3}, End: Position{Line: 1, Character: 3}}
 	assert.False(t, posInRange(Position{1, 3}, empty), "position at empty range is outside")
+}
+
+// TestDirectiveDocFor exercises the directiveDocFor function directly,
+// including the sync.Once initialisation path and the unknown-name branch.
+func TestDirectiveDocFor(t *testing.T) {
+	t.Parallel()
+
+	content, ok := directiveDocFor("catalog")
+	assert.True(t, ok, "catalog should have docs")
+	assert.NotEmpty(t, content, "catalog docs must be non-empty")
+
+	_, ok = directiveDocFor("unknown-directive-xyz")
+	assert.False(t, ok, "unknown directive must return false")
+
+	for _, name := range []string{"include", "toc", "build", "allow-empty-section", "require", "ignore"} {
+		c, found := directiveDocFor(name)
+		assert.True(t, found, "%s should have docs", name)
+		assert.NotEmpty(t, c, "%s docs must be non-empty", name)
+	}
+}
+
+// TestRuleHoverContentFallback covers the error branch of ruleHoverContent
+// where the rule code is not registered.
+func TestRuleHoverContentFallback(t *testing.T) {
+	t.Parallel()
+	d := Diagnostic{Code: "MDSZZZ", Message: "unknown rule test message"}
+	content := ruleHoverContent(d)
+	assert.Contains(t, content, "MDSZZZ")
+	assert.Contains(t, content, "mdsmith help rule MDSZZZ")
+}
+
+// TestDirectiveHoverAtInRange covers the path where the cursor falls inside a
+// directive block that has registered documentation.
+func TestDirectiveHoverAtInRange(t *testing.T) {
+	t.Parallel()
+	src := []byte("# Title\n\n<?catalog\nglob: \"*.md\"\n?>\n")
+
+	result := directiveHoverAt(src, Position{Line: 3, Character: 0})
+	require.NotNil(t, result, "cursor inside documented directive must return a hover result")
+	assert.Equal(t, "markdown", result.Contents.Kind)
+	assert.NotEmpty(t, result.Contents.Value)
+	assert.NotNil(t, result.Range)
+	assert.Equal(t, 2, result.Range.Start.Line, "range must start at the opening tag line")
+}
+
+// TestDirectiveHoverAtOutOfRange covers the path where the cursor is above
+// any directive block (the posInRange guard returns false for all PIs).
+func TestDirectiveHoverAtOutOfRange(t *testing.T) {
+	t.Parallel()
+	src := []byte("# Title\n\n<?catalog\nglob: \"*.md\"\n?>\n")
+
+	result := directiveHoverAt(src, Position{Line: 0, Character: 0})
+	assert.Nil(t, result, "cursor above directive must return nil")
+}
+
+// TestDirectiveHoverAtUnknownDirective covers the WalkStop branch inside
+// directiveHoverAt when the cursor is within a directive that has no docs.
+func TestDirectiveHoverAtUnknownDirective(t *testing.T) {
+	t.Parallel()
+	src := []byte("# Title\n\n<?unknown-xyz\narg: val\n?>\n")
+
+	result := directiveHoverAt(src, Position{Line: 2, Character: 3})
+	assert.Nil(t, result, "cursor inside undocumented directive must return nil")
 }
