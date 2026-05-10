@@ -153,6 +153,14 @@ describe("fetchKindsContent", () => {
     expect(content).toContain("malformed");
   });
 
+  test("returns error block when spawn rejects (e.g. binary not found)", async () => {
+    const spawn = async () => { throw new Error("ENOENT: mdsmith"); };
+    const uri = buildResolveUri("/repo/foo.md");
+    const content = await fetchKindsContent(uri, "mdsmith", undefined, spawn);
+    expect(content).toContain("could not start");
+    expect(content).toContain("ENOENT");
+  });
+
   test("passes correct args for resolve subcommand", async () => {
     let capturedArgs: string[] = [];
     const spawn = async (_bin: string, args: string[]) => {
