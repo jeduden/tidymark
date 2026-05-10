@@ -240,6 +240,38 @@ func TestRenameLinkRefLabelCollision(t *testing.T) {
 	assert.Equal(t, codeInvalidParams, errResp.Code)
 }
 
+// TestRenameLinkRefRefreshesCasing verifies that a rename whose
+// normalized label is unchanged but whose visible spelling differs
+// (`docs api` → `Docs API`) still produces edits across the def
+// and every use. Treating the normalized-equal case as a no-op
+// would silently block users from updating just casing or
+// whitespace of a label.
+func TestRenameLinkRefRefreshesCasing(t *testing.T) {
+	t.Parallel()
+	src := "# T\n\nSee [t][docs api] and [docs api] again.\n\n[docs api]: https://x\n"
+	h, _, rootURI := rootedHarness(t, map[string]string{"a.md": src})
+	uri := rootURI + "/a.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: src},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+
+	raw, errResp := h.request("textDocument/rename", renameParams{
+		TextDocument: textDocumentIdentifier{URI: uri},
+		// Cursor on `[docs api]: …` (line 5, 1-based) → LSP line 4.
+		Position: Position{Line: 4, Character: 2},
+		NewName:  "Docs API",
+	})
+	require.Nil(t, errResp)
+	var edit workspaceEdit
+	require.NoError(t, json.Unmarshal(raw, &edit))
+	require.Contains(t, edit.Changes, uri)
+	require.Len(t, edit.Changes[uri], 3)
+	for _, e := range edit.Changes[uri] {
+		assert.Equal(t, "Docs API", e.NewText)
+	}
+}
+
 // TestRenameLinkRefDetectsDuplicateDefCollision verifies that the
 // collision check inspects the source directly, not the deduped
 // symbol index. The index only stores the first def per normalized

@@ -822,11 +822,14 @@ func (s *Server) renameLinkRef(
 		_ = s.t.writeError(msg.ID, codeInvalidParams, "label cannot be empty")
 		return
 	}
+	// Don't early-return when the normalized label is unchanged.
+	// A rename from `docs api` to `Docs API` keeps the same
+	// normalized form but changes the visible spelling; users can
+	// legitimately ask for that to refresh casing or whitespace
+	// across the def and every use. labelConflict still uses the
+	// normalized form for collision matching so a same-normal-form
+	// rename can never trip the collision check against itself.
 	newLabel := normalizedLabel([]byte(newName))
-	if newLabel == oldLabel {
-		_ = s.t.writeResponse(msg.ID, &workspaceEdit{Changes: map[string][]textEdit{}})
-		return
-	}
 	if conflict := labelConflict(source, oldLabel, newLabel); conflict != "" {
 		_ = s.t.writeErrorWithData(msg.ID, codeInvalidParams,
 			"rename would collide with link reference ["+conflict+"]",
