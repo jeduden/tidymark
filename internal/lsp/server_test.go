@@ -2718,8 +2718,8 @@ func TestPosInRange(t *testing.T) {
 	assert.False(t, posInRange(Position{1, 3}, empty), "position at empty range is outside")
 }
 
-// TestDirectiveDocFor exercises the directiveDocFor function directly,
-// including the sync.Once initialisation path and the unknown-name branch.
+// TestDirectiveDocFor exercises the return-value contract of directiveDocFor:
+// known directives return non-empty content, unknown names return false.
 func TestDirectiveDocFor(t *testing.T) {
 	t.Parallel()
 
