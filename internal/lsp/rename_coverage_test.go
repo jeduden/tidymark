@@ -550,6 +550,44 @@ func TestRenameLinkRefAfterDidChangeRewritesLiveBuffer(t *testing.T) {
 	assert.NotEmpty(t, edit.Changes[uri])
 }
 
+// TestRenameHeadingSelfLinkSharesURI verifies that a self-anchor
+// edit (a `[t](#slug)` link in the same file as the renamed
+// heading) lands under the same WorkspaceEdit key as the heading-
+// line edit. resolveURIAndSource preferring the open buffer's URI
+// keeps the two edits from splitting across canonical and
+// client-provided URI strings.
+func TestRenameHeadingSelfLinkSharesURI(t *testing.T) {
+	t.Parallel()
+	src := "# Top\n\n## Setup\n\nSee [self](#setup) for details.\n"
+	h, _, rootURI := rootedHarness(t, map[string]string{"a.md": src})
+	uri := rootURI + "/a.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: src},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	raw, errResp := h.request("textDocument/rename", renameParams{
+		TextDocument: textDocumentIdentifier{URI: uri},
+		Position:     Position{Line: 2, Character: 4},
+		NewName:      "Configuration",
+	})
+	require.Nil(t, errResp)
+	var edit workspaceEdit
+	require.NoError(t, json.Unmarshal(raw, &edit))
+	// Both the heading text and the self-anchor link must land
+	// under the same URI key.
+	require.Len(t, edit.Changes, 1, "expected one URI key, got %v", keys(edit.Changes))
+	require.Contains(t, edit.Changes, uri)
+	require.Len(t, edit.Changes[uri], 2)
+}
+
+func keys(m map[string][]textEdit) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
 // TestTrimmedRangeStripsLeadingAndTrailing exercises the
 // trimmedRange helper directly. The setext heading rename path
 // only invokes it on text without leading whitespace, so the

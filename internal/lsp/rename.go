@@ -655,6 +655,43 @@ func (s *Server) appendAnchorEditsForHeading(
 	}
 }
 
+// resolveURIAndSource returns the URI string and source bytes for
+// a workspace-relative path. It scans open documents first and
+// returns the client-provided URI verbatim when the file is held
+// as a buffer; only when no open buffer matches does it fall back
+// to the canonical workspaceURI + on-disk read.
+//
+// Without this, a rename's WorkspaceEdit could split same-file
+// edits across two URI strings (e.g. the client's exact URI and
+// the server's canonicalized form) — clients keying open buffers
+// on the original URI would then apply only one side of the split
+// and leave the buffer in a torn state.
+func (s *Server) resolveURIAndSource(rel string) (string, []byte, bool) {
+	rel = index.NormalizePath(rel)
+	if rel == "" {
+		return "", nil, false
+	}
+	_, _, root := s.snapshotConfig()
+	for _, openURI := range s.docs.openURIs() {
+		doc, found := s.docs.get(openURI)
+		if !found {
+			continue
+		}
+		if index.NormalizePath(workspaceRelative(root, doc.path)) == rel {
+			return openURI, doc.text, true
+		}
+	}
+	uri := s.workspaceURI(rel)
+	if uri == "" {
+		return "", nil, false
+	}
+	source, _, ok := s.docTextOrFile(uri)
+	if !ok {
+		return "", nil, false
+	}
+	return uri, source, true
+}
+
 // anchorEditForEdge converts one incoming-edge record into a
 // concrete TextEdit on the source file. Returns false when the
 // source file isn't readable (out of workspace, deleted) or when
@@ -663,8 +700,7 @@ func (s *Server) appendAnchorEditsForHeading(
 // the alternative would block a user from renaming a heading because
 // of an unrelated stale edge.
 func (s *Server) anchorEditForEdge(e index.Edge, oldSlug, newSlug string) (string, textEdit, bool) {
-	uri := s.workspaceURI(e.SourceFile)
-	source, _, ok := s.docTextOrFile(uri)
+	uri, source, ok := s.resolveURIAndSource(e.SourceFile)
 	if !ok {
 		// Edge points at a file the LSP can no longer read (closed
 		// buffer + on-disk delete, or workspace boundary moved).
