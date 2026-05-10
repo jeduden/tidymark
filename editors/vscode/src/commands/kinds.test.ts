@@ -111,7 +111,7 @@ describe("parseKindsUri", () => {
 
 describe("fetchKindsContent", () => {
   test("returns fenced JSON for a successful resolve", async () => {
-    const spawn = async (_bin: string, args: string[]) => ({
+    const spawn = async (_bin: string, _args: string[]) => ({
       stdout: '{"kinds":["plan"]}',
       stderr: "",
       exitCode: 0,
@@ -124,7 +124,7 @@ describe("fetchKindsContent", () => {
   });
 
   test("returns fenced JSON for a successful why", async () => {
-    const spawn = async (_bin: string, args: string[]) => ({
+    const spawn = async (_bin: string, _args: string[]) => ({
       stdout: '{"rule":"MDS001","layers":[]}',
       stderr: "",
       exitCode: 0,

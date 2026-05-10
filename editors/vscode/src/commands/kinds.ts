@@ -78,7 +78,7 @@ export function makeKindsContentProvider(
 ): KindsContentProvider {
   return {
     async provideTextDocumentContent(uri: string): Promise<string> {
-      const { fetchKindsContent } = await import("./virtual-doc");
+      const { fetchKindsContent } = await import("./virtual-doc.js");
       return fetchKindsContent(uri, binary, workspaceRoot, spawn);
     },
   };

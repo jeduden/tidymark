@@ -297,8 +297,9 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         binary: getBinary(),
         workspaceRoot: getWorkspaceRoot(),
         showInfo: (msg, ...buttons) =>
-          vscode.window.showInformationMessage(msg, ...buttons),
-        showError: (msg) => vscode.window.showErrorMessage(msg).then(() => {}),
+          Promise.resolve(vscode.window.showInformationMessage(msg, ...buttons)),
+        showError: (msg) =>
+          Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
         ...od,
       });
     }),
@@ -311,8 +312,9 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         isTrusted,
         confirm: confirmDestructive("mdsmith merge-driver install"),
         showInfo: (msg, ...buttons) =>
-          vscode.window.showInformationMessage(msg, ...buttons),
-        showError: (msg) => vscode.window.showErrorMessage(msg).then(() => {}),
+          Promise.resolve(vscode.window.showInformationMessage(msg, ...buttons)),
+        showError: (msg) =>
+          Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
         ...od,
       });
     }),
@@ -325,8 +327,9 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         isTrusted,
         confirm: confirmDestructive("mdsmith fix ."),
         showInfo: (msg, ...buttons) =>
-          vscode.window.showInformationMessage(msg, ...buttons),
-        showError: (msg) => vscode.window.showErrorMessage(msg).then(() => {}),
+          Promise.resolve(vscode.window.showInformationMessage(msg, ...buttons)),
+        showError: (msg) =>
+          Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
         ...od,
       });
     }),
@@ -352,7 +355,8 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
             viewColumn: vscode.ViewColumn.Beside,
           });
         },
-        showError: (msg) => vscode.window.showErrorMessage(msg).then(() => {}),
+        showError: (msg) =>
+          Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
       });
     }),
 
@@ -387,7 +391,8 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
             viewColumn: vscode.ViewColumn.Beside,
           });
         },
-        showError: (msg) => vscode.window.showErrorMessage(msg).then(() => {}),
+        showError: (msg) =>
+          Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
       });
     }),
 
