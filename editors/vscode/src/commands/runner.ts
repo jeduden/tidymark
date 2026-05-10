@@ -20,7 +20,10 @@ export type SpawnFn = (
 // the process cannot be started (e.g. ENOENT).
 export const defaultSpawn: SpawnFn = (binary, args, cwd) =>
   new Promise((resolve, reject) => {
-    const proc = nodeSpawn(binary, args, cwd ? { cwd } : {});
+    const proc = nodeSpawn(binary, args, {
+      ...(cwd ? { cwd } : {}),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let stdout = "";
     let stderr = "";
     proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
