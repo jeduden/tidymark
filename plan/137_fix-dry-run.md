@@ -149,8 +149,12 @@ unchanged. The new line in the summary
       the run).
 - [ ] The per-file output names each rule that
       would fire and how many times.
-- [ ] The summary line includes `would-fix=N`
-      and omits `fixed=N`.
+- [ ] The summary line includes
+      `would-fix=N`. The existing
+      `checked=` / `fixed=` / `failures=` /
+      `unfixed=` fields are present on the
+      same line; `fixed=` reads `0` since
+      nothing was written.
 - [ ] `--format json` exposes `would_fix` and
       `rules` per file.
 - [ ] Exit code matches the real-run exit code

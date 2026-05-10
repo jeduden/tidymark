@@ -464,7 +464,7 @@ reports failure on.
 
 Every diagnostic from this DSL — declarative
 shape *or* CUE escape — flows through plan
-133's
+147's
 `SchemaDiagnostic{Field, Actual, Expected, Hint, SchemaRef}`
 and emits as a `lint.Diagnostic` with
 `RuleID: "MDS020"`. The user sees one shape;

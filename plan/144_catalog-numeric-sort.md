@@ -5,7 +5,7 @@ status: "🔲"
 model: sonnet
 depends-on: []
 summary: >-
-  Add a `numeric-id` sort mode to the catalog
+  Add a `numeric:` sort prefix to the catalog
   directive so PLAN.md and similar catalogs
   ordered by an integer field render in numeric
   order. Today `sort: id` is lexicographic; mixed
