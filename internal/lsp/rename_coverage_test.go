@@ -337,7 +337,7 @@ func TestBodyLineIndexEdgeCases(t *testing.T) {
 func TestComputeSlugRemapTargetNotFound(t *testing.T) {
 	t.Parallel()
 	source := []byte("# Top\n\nparagraph\n")
-	old, new, conflict := computeSlugRemap(source, 99, "Top", "Other")
+	old, new, conflict := computeSlugRemap(source, 99, "Other")
 	assert.Nil(t, old)
 	assert.Nil(t, new)
 	assert.Empty(t, conflict)
@@ -548,6 +548,61 @@ func TestRenameLinkRefAfterDidChangeRewritesLiveBuffer(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &edit))
 	require.Contains(t, edit.Changes, uri)
 	assert.NotEmpty(t, edit.Changes[uri])
+}
+
+// TestTrimmedRangeStripsLeadingAndTrailing exercises the
+// trimmedRange helper directly. The setext heading rename path
+// only invokes it on text without leading whitespace, so the
+// trim loops need direct coverage to participate.
+func TestTrimmedRangeStripsLeadingAndTrailing(t *testing.T) {
+	t.Parallel()
+	start, end := trimmedRange([]byte("  text\t"))
+	assert.Equal(t, 2, start)
+	assert.Equal(t, 6, end)
+	// All-whitespace input collapses to start==end.
+	start, end = trimmedRange([]byte("   "))
+	assert.Equal(t, start, end)
+}
+
+// TestMatchLeadingPairAdjacentNoLabelMatch covers the return-false
+// path where the cursor sits in a leading bracket pair, the next
+// pair is flush, but neither pair's content matches the label.
+func TestMatchLeadingPairAdjacentNoLabelMatch(t *testing.T) {
+	t.Parallel()
+	row := []byte(`[a][b]`)
+	pairs := bracketPairs(row)
+	require.Len(t, pairs, 2)
+	_, _, ok := matchLeadingPair(row, pairs, 0, "missing")
+	assert.False(t, ok)
+}
+
+// TestMatchTrailingPairAdjacentNoLabelMatch covers the symmetric
+// trailing-pair return-false branch.
+func TestMatchTrailingPairAdjacentNoLabelMatch(t *testing.T) {
+	t.Parallel()
+	row := []byte(`[a][b]`)
+	pairs := bracketPairs(row)
+	require.Len(t, pairs, 2)
+	_, _, ok := matchTrailingPair(row, pairs, 1, "missing")
+	assert.False(t, ok)
+}
+
+// TestRefUseLabelBytesReturnsFalseWhenCursorOutside ensures the
+// outer-loop fallthrough returns false when the cursor lands on
+// no bracket pair.
+func TestRefUseLabelBytesReturnsFalseWhenCursorOutside(t *testing.T) {
+	t.Parallel()
+	row := []byte(`[a][b]`)
+	_, _, ok := refUseLabelBytes(row, 99, "a")
+	assert.False(t, ok)
+}
+
+// TestDestBoundsUnclosedReturnsFalse covers the depth>0
+// fallthrough branch when the destination has an unclosed `(`.
+func TestDestBoundsUnclosedReturnsFalse(t *testing.T) {
+	t.Parallel()
+	_, _, ok := destBounds([]byte(`[t](inner(unclosed`), 0)
+	assert.False(t, ok)
 }
 
 // TestRefDefEditsInBodyOutOfRangeFileLine covers the defensive

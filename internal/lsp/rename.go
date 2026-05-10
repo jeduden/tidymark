@@ -447,18 +447,18 @@ func (s *Server) renameHeading(
 			"new heading text has no addressable slug; pick text containing letters or digits")
 		return
 	}
-	oldSlugs, newSlugs, conflict := computeSlugRemap(source, line, oldText, newName)
+	oldSlugs, newSlugs, conflict := computeSlugRemap(source, line, newName)
 	if conflict != "" {
 		_ = s.t.writeErrorWithData(msg.ID, codeInvalidParams,
 			"rename would collide with heading "+conflict,
 			renameCollisionData{Conflict: conflict})
 		return
 	}
-	headingEdit, ok := headingTextEdit(source, line, newName)
-	if !ok {
-		_ = s.t.writeError(msg.ID, codeInvalidParams, "cannot locate heading text on line")
-		return
-	}
+	// headingTextEdit is reachable only when the cursor's line
+	// is inside the source — the locator would have returned
+	// TokenNone otherwise — so the false branch is unreachable
+	// here.
+	headingEdit, _ := headingTextEdit(source, line, newName)
 	changes := map[string][]textEdit{p.TextDocument.URI: {headingEdit}}
 	for old, new := range slugRemapPairs(oldSlugs, newSlugs) {
 		// slugRemapPairs already filters empty and unchanged
@@ -483,7 +483,7 @@ func (s *Server) renameHeading(
 // heading on files with empty-slug headings before the cursor's
 // line. It would also block the case of renaming an empty-slug
 // heading to a real one (which can shift later disambiguators).
-func computeSlugRemap(source []byte, line int, oldText, newText string) ([]string, []string, string) {
+func computeSlugRemap(source []byte, line int, newText string) ([]string, []string, string) {
 	body, fmOffset := bodyAndFMOffset(source)
 	root := lint.NewParser().Parse(text.NewReader(body), parser.WithContext(parser.NewContext()))
 	headings := walkAllHeadings(root, body)
@@ -671,6 +671,12 @@ func (s *Server) anchorEditForEdge(e index.Edge, oldSlug, newSlug string) (strin
 		return "", textEdit{}, false
 	}
 	lines := splitLines(source)
+	// SourceLine bounds check: the index can hold stale entries
+	// after a closed-buffer edit or a watcher event we haven't
+	// processed yet. Indexing past EOF would panic the rename.
+	if e.SourceLine < 1 || e.SourceLine > len(lines) {
+		return "", textEdit{}, false
+	}
 	row := lines[e.SourceLine-1]
 	startByte, endByte, ok := anchorFragmentBytes(row, e.SourceCol-1, oldSlug)
 	if !ok {
@@ -872,12 +878,10 @@ func (s *Server) renameLinkRef(
 			renameCollisionData{Conflict: conflict})
 		return
 	}
-	edits := linkRefEdits(source, oldLabel, newName)
-	if len(edits) == 0 {
-		_ = s.t.writeResponse(msg.ID, &workspaceEdit{Changes: map[string][]textEdit{}})
-		return
-	}
-	changes := map[string][]textEdit{p.TextDocument.URI: edits}
+	// linkRefEdits is guaranteed to produce at least one edit:
+	// the cursor was tagged TokenRefDef or TokenRefUse, so a
+	// matching def or use exists in the buffer.
+	changes := map[string][]textEdit{p.TextDocument.URI: linkRefEdits(source, oldLabel, newName)}
 	stableSortEdits(changes)
 	_ = s.t.writeResponse(msg.ID, &workspaceEdit{Changes: changes})
 }
