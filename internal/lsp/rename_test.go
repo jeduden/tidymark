@@ -515,6 +515,39 @@ func TestAnchorFragmentBytesURLDecodesPercentEscape(t *testing.T) {
 	assert.Equal(t, "Docs%20API", string(row[start:end]))
 }
 
+// TestAnchorFragmentBytesAngleBracketDestination verifies that
+// a destination of the form `<#sec>` returns a fragment range
+// that excludes the closing `>`. Without that boundary the
+// rename would overwrite the `>` and corrupt the link.
+func TestAnchorFragmentBytesAngleBracketDestination(t *testing.T) {
+	t.Parallel()
+	row := []byte(`see [t](<#sec>) end`)
+	start, end, ok := anchorFragmentBytes(row, 4, "sec")
+	require.True(t, ok)
+	assert.Equal(t, "sec", string(row[start:end]))
+	// Confirm the `>` lives outside the returned range.
+	assert.Equal(t, byte('>'), row[end])
+}
+
+// TestBodyLineIndexLookups exercises the precomputed line-offset
+// table. The fast path replaced an O(n) scan that ran per
+// reference-use edit; correctness is the bar this test enforces,
+// not throughput.
+func TestBodyLineIndexLookups(t *testing.T) {
+	t.Parallel()
+	body := []byte("alpha\nbeta\ngamma\n")
+	idx := newBodyLineIndex(body)
+	assert.Equal(t, 0, idx.LineStart(1))
+	assert.Equal(t, 6, idx.LineStart(2))
+	assert.Equal(t, 11, idx.LineStart(3))
+	assert.Equal(t, -1, idx.LineStart(99))
+	// Offset 0 → line 1; offset 6 (start of "beta") → line 2;
+	// offset 12 (mid-"gamma") → line 3.
+	assert.Equal(t, 1, idx.LineOfOffset(0))
+	assert.Equal(t, 2, idx.LineOfOffset(6))
+	assert.Equal(t, 3, idx.LineOfOffset(12))
+}
+
 // TestRefUseLabelBytesCollapsedTrailingEmptyBrackets verifies
 // that the cursor on the trailing `[]` of a collapsed reference
 // resolves to the leading bracket pair, not nil. The Locator

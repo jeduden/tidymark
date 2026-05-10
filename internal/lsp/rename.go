@@ -766,10 +766,13 @@ func indexOfHash(row []byte, open, close int) int {
 // row[start:close]. CommonMark inline-link destinations don't carry
 // query strings (the `(url "title")` title form is parsed by
 // goldmark separately), so the fragment runs from `start` to the
-// first whitespace or to `close`.
+// first whitespace, the first `>` (CommonMark's angle-bracketed
+// destination form `<url>`), or to `close`. Without the `>` guard,
+// `[t](<#sec>)` would slugify `sec>` as `sec` and the rename would
+// then overwrite the closing bracket.
 func fragmentEnd(row []byte, start, close int) int {
 	for i := start; i < close; i++ {
-		if row[i] == ' ' || row[i] == '\t' {
+		if row[i] == ' ' || row[i] == '\t' || row[i] == '>' {
 			return i
 		}
 	}
@@ -786,31 +789,6 @@ func fragmentMatchesSlug(rawFrag []byte, oldSlug string) bool {
 		decoded = string(rawFrag)
 	}
 	return mdtext.Slugify(decoded) == oldSlug
-}
-
-// indexOfBytes is bytes.Index but defined locally to keep this file
-// self-contained against a single import block.
-func indexOfBytes(haystack, needle []byte) int {
-	if len(needle) == 0 || len(needle) > len(haystack) {
-		if len(needle) == 0 {
-			return 0
-		}
-		return -1
-	}
-	last := len(haystack) - len(needle)
-	for i := 0; i <= last; i++ {
-		match := true
-		for j := 0; j < len(needle); j++ {
-			if haystack[i+j] != needle[j] {
-				match = false
-				break
-			}
-		}
-		if match {
-			return i
-		}
-	}
-	return -1
 }
 
 // stableSortEdits sorts each file's TextEdit slice by start
@@ -982,6 +960,10 @@ func refUseEditsInBody(
 	root ast.Node, body []byte, lines [][]byte, fmOffset int,
 	oldLabel, newName string,
 ) []textEdit {
+	// Build the line-offset table once. Without this, refUseEdit's
+	// per-link line lookups would be O(n) each; on a file with N
+	// reference uses the cost grew to O(N·n).
+	idx := newBodyLineIndex(body)
 	var out []textEdit
 	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -994,7 +976,7 @@ func refUseEditsInBody(
 		if normalizedLabel(l.Reference.Value) != oldLabel {
 			return ast.WalkContinue, nil
 		}
-		edit, ok := refUseEdit(l, body, lines, fmOffset, newName)
+		edit, ok := refUseEdit(l, body, lines, fmOffset, newName, idx)
 		if ok {
 			out = append(out, edit)
 		}
@@ -1009,18 +991,19 @@ func refUseEditsInBody(
 // emit a corrupt edit.
 func refUseEdit(
 	l *ast.Link, body []byte, lines [][]byte, fmOffset int, newName string,
+	bodyIdx bodyLineIndex,
 ) (textEdit, bool) {
 	textStart, textEnd := linkTextBounds(l, body)
 	if textStart < 0 {
 		return textEdit{}, false
 	}
-	bodyLine := lineOfBodyOffset(body, textStart)
+	bodyLine := bodyIdx.LineOfOffset(textStart)
 	fileLine := bodyLine + fmOffset
 	if fileLine-1 >= len(lines) {
 		return textEdit{}, false
 	}
 	row := lines[fileLine-1]
-	lineStart := bodyLineStartOffset(body, bodyLine)
+	lineStart := bodyIdx.LineStart(bodyLine)
 	if lineStart < 0 {
 		return textEdit{}, false
 	}
@@ -1134,26 +1117,11 @@ func matchingPair(pairs []bracketPair, textOpenCol, textCloseCol int) (bracketPa
 	return first, second
 }
 
-// bodyLineStartOffset returns the byte offset of the start of
-// 1-based bodyLine inside body. Returns -1 when the line is out
-// of range.
-func bodyLineStartOffset(body []byte, bodyLine int) int {
-	if bodyLine < 1 {
-		return -1
-	}
-	off := 0
-	for n := 1; n < bodyLine; n++ {
-		nl := indexOfBytes(body[off:], []byte{'\n'})
-		if nl < 0 {
-			return -1
-		}
-		off += nl + 1
-	}
-	return off
-}
-
 // lineOfBodyOffset returns the 1-based line of byte offset off
-// within body.
+// within body. The two callers (computeSlugRemap and
+// refDefEditsInBody) each invoke it once per heading or def, so
+// the linear scan is bounded; tight per-edit loops use
+// bodyLineIndex instead to avoid quadratic behavior.
 func lineOfBodyOffset(body []byte, off int) int {
 	if off < 0 {
 		return 1
@@ -1168,6 +1136,67 @@ func lineOfBodyOffset(body []byte, off int) int {
 		}
 	}
 	return line
+}
+
+// bodyLineIndex precomputes the byte offset of every line start in
+// a body so lookups for line→offset and offset→line run in O(log n)
+// instead of O(n) per call. Use it when a single rename emits many
+// per-link edits; without it, refUseEdit's per-edit scans were
+// quadratic in the number of reference uses.
+type bodyLineIndex struct {
+	starts []int
+}
+
+// newBodyLineIndex builds a line-start table for body. The first
+// entry is always 0 (start of line 1); each `\n` advances to the
+// next line's start.
+func newBodyLineIndex(body []byte) bodyLineIndex {
+	starts := make([]int, 1, 1+bodyNewlineCount(body))
+	for i, b := range body {
+		if b == '\n' {
+			starts = append(starts, i+1)
+		}
+	}
+	return bodyLineIndex{starts: starts}
+}
+
+// bodyNewlineCount returns the count of `\n` bytes in body. Used to
+// presize the line-start slice without an extra alloc cycle.
+func bodyNewlineCount(body []byte) int {
+	n := 0
+	for _, b := range body {
+		if b == '\n' {
+			n++
+		}
+	}
+	return n
+}
+
+// LineOfOffset returns the 1-based line number containing byte off.
+// Out-of-range offsets clamp to the boundary line.
+func (b bodyLineIndex) LineOfOffset(off int) int {
+	if off < 0 {
+		return 1
+	}
+	lo, hi := 0, len(b.starts)-1
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+		if b.starts[mid] <= off {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+	return lo + 1
+}
+
+// LineStart returns the byte offset of the start of 1-based line n,
+// or -1 when n falls outside the table.
+func (b bodyLineIndex) LineStart(n int) int {
+	if n < 1 || n > len(b.starts) {
+		return -1
+	}
+	return b.starts[n-1]
 }
 
 // bodyAndFMOffset splits source into body and the line offset the
