@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "mdsmith-tools",
+  "description": "Markdown skills, reviewer agent, and post-edit lint hook",
+  "homepage": "https://github.com/jeduden/mdsmith",
+  "repository": "https://github.com/jeduden/mdsmith",
+  "license": "MIT",
+  "keywords": ["markdown", "review", "lint"],
+  "skills": "./skills/",
+  "agents": ["./agents/markdown-reviewer.md"],
+  "hooks": "./hooks/hooks.json"
+}

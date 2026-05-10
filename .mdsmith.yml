@@ -217,7 +217,9 @@ overrides:
         tokens-per-word: 1.33
         tokenizer: builtin
         encoding: cl100k_base
-  - glob: ["editors/claude-code/**/*.md"]
+  - glob: ["editors/claude-code/**/*.md",
+            "editors/claude-code-tools/**/*.md",
+            "!editors/claude-code-tools/skills/*/SKILL.md"]
     rules:
       line-length:
         max: 72

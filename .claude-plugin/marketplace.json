@@ -11,6 +11,11 @@
       "name": "mdsmith-lsp",
       "source": "./editors/claude-code",
       "description": "Inline mdsmith diagnostics and Markdown navigation"
+    },
+    {
+      "name": "mdsmith-tools",
+      "source": "./editors/claude-code-tools",
+      "description": "Markdown skills, reviewer agent, and post-edit lint hook"
     }
   ]
 }
