@@ -429,10 +429,15 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         provideTextDocumentContent: (uri: vscode.Uri) => {
           const uriStr = uri.toString();
           const parsed = parseKindsUri(uriStr);
-          const workspaceRoot = parsed
-            ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(parsed.file))?.uri.fsPath
+          // Derive the workspace folder from the file encoded in the URI so
+          // binary/config lookups use the correct per-folder settings even
+          // when the active editor is the virtual doc itself.
+          const fileFolder = parsed
+            ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(parsed.file))
             : undefined;
-          const provider = makeKindsContentProvider(getBinary(), workspaceRoot);
+          const binaryScope = fileFolder?.uri ?? getActiveFileUri();
+          const binary = resolveActiveBinary(context.extensionPath, binaryScope);
+          const provider = makeKindsContentProvider(binary, fileFolder?.uri.fsPath);
           return provider.provideTextDocumentContent(uriStr);
         },
       }
