@@ -508,8 +508,17 @@ func (s *Server) handleDidClose(raw json.RawMessage) {
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return
 	}
-	doc, _ := s.docs.get(p.TextDocument.URI)
-	s.docs.delete(p.TextDocument.URI)
+	uri := p.TextDocument.URI
+	doc, _ := s.docs.get(uri)
+	s.docs.delete(uri)
+	// Cancel any armed debounce timer so a pending runLint cannot fire
+	// and re-publish diagnostics after we clear them below.
+	s.pendingMu.Lock()
+	if timer, ok := s.pending[uri]; ok {
+		timer.Stop()
+		delete(s.pending, uri)
+	}
+	s.pendingMu.Unlock()
 	// Refresh the index from on-disk content so the closed buffer's
 	// last-saved state replaces the editor-only edits we accumulated.
 	// When the file no longer exists on disk we silently skip — the
@@ -519,10 +528,10 @@ func (s *Server) handleDidClose(raw json.RawMessage) {
 	}
 	// Clear cached diagnostics and squiggles on close.
 	s.diagsMu.Lock()
-	delete(s.diags, p.TextDocument.URI)
+	delete(s.diags, uri)
 	s.diagsMu.Unlock()
 	_ = s.t.writeNotification("textDocument/publishDiagnostics",
-		publishDiagnosticsParams{URI: p.TextDocument.URI, Diagnostics: []Diagnostic{}})
+		publishDiagnosticsParams{URI: uri, Diagnostics: []Diagnostic{}})
 }
 
 func (s *Server) handleDidChangeWatchedFiles(ctx context.Context, raw json.RawMessage) {
@@ -752,6 +761,11 @@ func (s *Server) runLint(uri string) {
 	// handler and by Run's deferred cleanup, so checking it covers
 	// every termination cause.
 	if s.shutdown.Load() {
+		return
+	}
+	// If the document was closed while we were linting, discard results
+	// to avoid re-publishing stale diagnostics over didClose's empty notification.
+	if _, ok := s.docs.get(uri); !ok {
 		return
 	}
 	// Mirror `mdsmith check`: surface lint pipeline errors (parse

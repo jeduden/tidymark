@@ -169,8 +169,9 @@ func directiveHoverAt(source []byte, pos Position) *hoverResult {
 		}
 		// For single-line PIs the cursor must also fall within the directive
 		// span itself, not on trailing prose after ?>.
+		closeIdx := -1
 		if startLine == endLine {
-			closeIdx := bytes.Index(openContent, []byte("?>"))
+			closeIdx = bytes.Index(openContent, []byte("?>"))
 			if closeIdx >= 0 && pos.Character >= utf16Length(openContent[:closeIdx+2]) {
 				return ast.WalkContinue, nil
 			}
@@ -183,9 +184,13 @@ func directiveHoverAt(source []byte, pos Position) *hoverResult {
 			return ast.WalkStop, nil
 		}
 
+		endChar := utf16Length(currentLineBytes(lines, endLine+1))
+		if startLine == endLine && closeIdx >= 0 {
+			endChar = utf16Length(openContent[:closeIdx+2])
+		}
 		hoverRange := Range{
 			Start: Position{Line: startLine, Character: startChar},
-			End:   Position{Line: endLine, Character: utf16Length(currentLineBytes(lines, endLine+1))},
+			End:   Position{Line: endLine, Character: endChar},
 		}
 		result = &hoverResult{
 			Contents: markupContent{Kind: "markdown", Value: docContent},

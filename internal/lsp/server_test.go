@@ -2832,15 +2832,21 @@ func TestDirectiveHoverAtBeforeIndent(t *testing.T) {
 
 // TestDirectiveHoverAtSingleLinePI covers the single-line PI span check:
 // hovering inside the directive returns docs; hovering after ?> returns nil.
+// The returned range End.Character must end at the ?> position, not end-of-line.
 func TestDirectiveHoverAtSingleLinePI(t *testing.T) {
 	t.Parallel()
 	// Single-line catalog directive followed by trailing prose on the same line.
 	// (toc and ignore have no guide page and are not in directiveToDocFile.)
+	// <?catalog glob:"*"?> is 20 UTF-16 code units (all ASCII).
 	src := []byte("# Title\n\n<?catalog glob:\"*\"?> trailing text\n")
 
 	// Cursor inside the PI span (character 3, within <?catalog glob:"*"?>).
 	result := directiveHoverAt(src, Position{Line: 2, Character: 3})
 	require.NotNil(t, result, "cursor inside single-line PI must return hover result")
+	require.NotNil(t, result.Range, "hover result must include a range")
+	assert.Equal(t, Position{Line: 2, Character: 0}, result.Range.Start)
+	// End must be the ?> close (character 20), not end-of-line.
+	assert.Equal(t, Position{Line: 2, Character: 20}, result.Range.End)
 
 	// Cursor after ?> (character 22, in trailing prose).
 	result = directiveHoverAt(src, Position{Line: 2, Character: 22})
@@ -2908,4 +2914,45 @@ func TestHoverSkipsEmptyCodeDiagnostic(t *testing.T) {
 	})
 	require.Nil(t, hoverErr)
 	assert.Equal(t, "null", string(resultRaw), "empty-code diagnostic must not produce hover content")
+}
+
+// TestHandleDidClose_CancelsPendingLint verifies that handleDidClose cancels
+// any armed debounce timer so a pending runLint cannot fire and re-publish
+// diagnostics after the document has been removed and cleared.
+func TestHandleDidClose_CancelsPendingLint(t *testing.T) {
+	t.Parallel()
+	// Use a long debounce so the didChange timer does not fire during the test.
+	h := newDebouncedHarness(t, 10*time.Second)
+	_, errResp := h.request("initialize", initializeParams{})
+	require.Nil(t, errResp)
+
+	uri := "file:///close-race.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: "# Hello\n"},
+	})
+	// Drain the immediate open-triggered lint notification.
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+
+	// Send a change — this arms a 10-second debounce timer.
+	h.notify("textDocument/didChange", didChangeTextDocumentParams{
+		TextDocument:   versionedTextDocumentIdentifier{URI: uri, Version: 2},
+		ContentChanges: []textDocumentContentChangeEvent{{Text: "# Changed\n"}},
+	})
+
+	// Close the document — must cancel the pending timer.
+	h.notify("textDocument/didClose", didCloseTextDocumentParams{
+		TextDocument: textDocumentIdentifier{URI: uri},
+	})
+
+	// Drain the empty-diagnostics notification published by didClose.
+	raw := h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	var closed publishDiagnosticsParams
+	require.NoError(t, json.Unmarshal(raw, &closed))
+	assert.Empty(t, closed.Diagnostics, "didClose must publish empty diagnostics")
+
+	// The pending timer must have been cancelled by handleDidClose.
+	h.srv.pendingMu.Lock()
+	_, hasPending := h.srv.pending[uri]
+	h.srv.pendingMu.Unlock()
+	assert.False(t, hasPending, "pending lint timer must be cleared after didClose")
 }
