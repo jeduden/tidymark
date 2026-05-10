@@ -91,12 +91,14 @@ overrides:
           - urls
       blank-line-around-lists: false
   - glob: [".claude/skills/*/SKILL.md",
+            "editors/claude-code-tools/skills/*/SKILL.md",
             ".github/copilot-pr-fixup.md",
             ".github/AGENTS-PR-FIXUP.md"]
     rules:
       max-file-length:
         max: 600
-  - glob: [".claude/skills/*/SKILL.md"]
+  - glob: [".claude/skills/*/SKILL.md",
+            "editors/claude-code-tools/skills/*/SKILL.md"]
     rules:
       # required-structure.schema for SKILL.md files comes
       # from the `skill` kind; this override only carries
@@ -320,7 +322,9 @@ kind-assignment:
     kinds: [plan]
   - glob: ["internal/rules/proto.md", "internal/rules/MDS*/README.md"]
     kinds: [rule-readme]
-  - glob: [".claude/skills/proto.md", ".claude/skills/*/SKILL.md"]
+  - glob: [".claude/skills/proto.md",
+            ".claude/skills/*/SKILL.md",
+            "editors/claude-code-tools/skills/*/SKILL.md"]
     kinds: [skill]
   - glob: ["docs/security/*.md"]
     kinds: [security-note]
