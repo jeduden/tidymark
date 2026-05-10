@@ -6,7 +6,7 @@
 //   mdsmith-kinds://resolve?file=<encoded-path>
 //   mdsmith-kinds://why?file=<encoded-path>&rule=<rule-id>
 
-import { dirname } from "node:path";
+import { dirname, isAbsolute } from "node:path";
 import { SpawnFn, defaultSpawn } from "./runner";
 
 export const KINDS_SCHEME = "mdsmith-kinds";
@@ -63,11 +63,14 @@ export async function fetchKindsContent(
   if (!parsed) {
     return `<!-- mdsmith: malformed kinds URI: ${uri} -->`;
   }
+  if (!isAbsolute(parsed.file)) {
+    return `<!-- mdsmith: kinds URI file path must be absolute: ${parsed.file} -->`;
+  }
 
   const args =
     parsed.command === "resolve"
-      ? ["kinds", "resolve", parsed.file, "--json"]
-      : ["kinds", "why", parsed.file, parsed.rule!, "--json"];
+      ? ["kinds", "resolve", "--json", "--", parsed.file]
+      : ["kinds", "why", "--json", "--", parsed.file, parsed.rule!];
 
   let result: Awaited<ReturnType<typeof spawn>>;
   try {

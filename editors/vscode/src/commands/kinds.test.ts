@@ -169,7 +169,7 @@ describe("fetchKindsContent", () => {
       return { stdout: "{}", stderr: "", exitCode: 0 };
     };
     await fetchKindsContent(buildResolveUri("/repo/a.md"), "mdsmith", undefined, spawn);
-    expect(capturedArgs).toEqual(["kinds", "resolve", "/repo/a.md", "--json"]);
+    expect(capturedArgs).toEqual(["kinds", "resolve", "--json", "--", "/repo/a.md"]);
   });
 
   test("passes correct args for why subcommand", async () => {
@@ -179,7 +179,7 @@ describe("fetchKindsContent", () => {
       return { stdout: "{}", stderr: "", exitCode: 0 };
     };
     await fetchKindsContent(buildWhyUri("/repo/a.md", "MDS005"), "mdsmith", undefined, spawn);
-    expect(capturedArgs).toEqual(["kinds", "why", "/repo/a.md", "MDS005", "--json"]);
+    expect(capturedArgs).toEqual(["kinds", "why", "--json", "--", "/repo/a.md", "MDS005"]);
   });
 });
 

@@ -420,7 +420,8 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
           const uriStr = uri.toString();
           const parsed = parseKindsUri(uriStr);
           const workspaceRoot = parsed
-            ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(parsed.file))?.uri.fsPath
+            ? (vscode.workspace.getWorkspaceFolder(vscode.Uri.file(parsed.file))?.uri.fsPath
+               ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
             : undefined;
           const provider = makeKindsContentProvider(getBinary(), workspaceRoot);
           return provider.provideTextDocumentContent(uriStr);

@@ -35,7 +35,7 @@ export function parseRunStats(output: string): FixStats | null {
 // after a successful fix run. Exposed for testing.
 export function buildFixNotificationMessage(stats: FixStats): string {
   if (stats.failures > 0) {
-    return `Fixed ${stats.fixed} of ${stats.checked} files (${stats.failures} error${stats.failures !== 1 ? "s" : ""})`;
+    return `Fixed ${stats.fixed} of ${stats.checked} files (${stats.failures} issue${stats.failures !== 1 ? "s" : ""})`;
   }
   return `Fixed ${stats.fixed} of ${stats.checked} files`;
 }

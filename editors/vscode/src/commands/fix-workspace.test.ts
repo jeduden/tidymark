@@ -44,14 +44,14 @@ describe("buildFixNotificationMessage", () => {
     expect(buildFixNotificationMessage(stats)).toBe("Fixed 12 of 200 files");
   });
 
-  test("appends error count when failures > 0", () => {
+  test("appends issue count when failures > 0", () => {
     const stats: FixStats = { checked: 10, fixed: 3, failures: 2, unfixed: 5 };
-    expect(buildFixNotificationMessage(stats)).toBe("Fixed 3 of 10 files (2 errors)");
+    expect(buildFixNotificationMessage(stats)).toBe("Fixed 3 of 10 files (2 issues)");
   });
 
-  test("uses singular 'error' for exactly one failure", () => {
+  test("uses singular 'issue' for exactly one failure", () => {
     const stats: FixStats = { checked: 5, fixed: 1, failures: 1, unfixed: 3 };
-    expect(buildFixNotificationMessage(stats)).toBe("Fixed 1 of 5 files (1 error)");
+    expect(buildFixNotificationMessage(stats)).toBe("Fixed 1 of 5 files (1 issue)");
   });
 });
 
