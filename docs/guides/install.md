@@ -207,12 +207,12 @@ configuration surface (`mdsmith.path`, `mdsmith.run`,
 
 ## Claude Code plugin
 
-The Claude Code plugin spawns `mdsmith lsp`. The
-agent receives Markdown diagnostics inline after
-every edit. It also gains definition, references,
+The Claude Code plugin runs
+`npx -y -p @mdsmith/cli mdsmith lsp`. The agent
+receives Markdown diagnostics inline after every
+edit. It also gains definition, references,
 symbol search, and call-hierarchy queries across
-the docs. Install the binary by one of the channels
-above. Then register the marketplace and install
+the docs. Register the marketplace and install
 the plugin:
 
 ```text
@@ -221,10 +221,17 @@ the plugin:
 /reload-plugins
 ```
 
-The plugin resolves `mdsmith` from `$PATH`. If the
-`/plugin` Errors tab shows `Executable not found in
-$PATH`, install the binary via one of the channels
-above and run `/reload-plugins`.
+`npx` ships with Node.js, which Claude Code already
+requires. First launch downloads `@mdsmith/cli` and
+the platform binary subpackage from npm; later
+launches reuse the npm cache. No global `mdsmith`
+install is needed. To pin a specific build, install
+the binary via any of the channels above.
+
+If the `/plugin` Errors tab shows `Executable not
+found in $PATH`, Node.js is missing from the shell
+`$PATH` Claude Code sees. Install Node 20 LTS or
+later, then run `/reload-plugins`.
 
 See the
 [Claude Code editor README](../../editors/claude-code/README.md)

@@ -49,12 +49,12 @@ hand-edit settings to spawn the binary.
 
 ## Non-Goals
 
-- Bundling the `mdsmith` binary inside the plugin.
-  The binary ships through the channels in plan 130
-  (npm, PyPI, asdf, mise, GitHub release, VS Code
-  marketplace). The plugin documents the binary
-  prerequisite the same way `gopls-lsp` documents
-  `gopls`.
+- Committing per-platform `mdsmith` binaries inside
+  the plugin repo. The plugin instead spawns
+  `npx -y -p @mdsmith/cli mdsmith lsp`, leaning on
+  the npm package shipped by plan 130 — first
+  launch fetches the platform binary subpackage
+  from npm and caches it locally.
 - Authoring tools (slash commands, agents, hooks).
   Scope is the LSP wiring only.
 - Submitting to the official Anthropic marketplace.
@@ -122,8 +122,8 @@ maps both common Markdown extensions to the
   "keywords": ["markdown", "linter", "lsp"],
   "lspServers": {
     "mdsmith": {
-      "command": "mdsmith",
-      "args": ["lsp"],
+      "command": "npx",
+      "args": ["-y", "-p", "@mdsmith/cli", "mdsmith", "lsp"],
       "extensionToLanguage": {
         ".md": "markdown",
         ".markdown": "markdown"
@@ -133,13 +133,16 @@ maps both common Markdown extensions to the
 }
 ```
 
-The `command` resolves against `$PATH`. Users who
-installed `mdsmith` via npm, PyPI, asdf, or mise
-(plan 130) get the binary on `$PATH` automatically.
-Users with a custom path can override
-`mdsmithLspPath` (no per-plugin config exists yet,
-so the documented fallback is to put the binary on
-`$PATH`).
+`npx` ships with Node.js, which Claude Code already
+requires. First launch downloads `@mdsmith/cli`
+plus the platform binary subpackage (e.g.
+`@mdsmith/linux-x64`) from npm and caches them; the
+explicit `-p @mdsmith/cli mdsmith` form makes the
+bin selection unambiguous. Users who installed
+`mdsmith` globally via any plan-130 channel can
+shadow the npx-fetched copy by ensuring the binary
+appears earlier on `$PATH`, but no manual install
+is required for the plugin to work.
 
 ### Discovery and install
 
@@ -238,11 +241,12 @@ documented stdio invocation.
       `directory-structure.allowed` (the rule only
       fires on Markdown files, and the new tree
       contains JSON only).
-- [ ] When the `mdsmith` binary is absent from
-      `$PATH`, the `/plugin` Errors tab shows
-      `Executable not found in $PATH` (no silent
-      hang, no generic crash). *(Pending end-to-end
-      smoke test.)*
+- [ ] When Node.js is absent from `$PATH`, the
+      `/plugin` Errors tab shows `Executable not
+      found in $PATH` (no silent hang, no generic
+      crash). *(Pending end-to-end smoke test;
+      `mdsmith` itself is fetched via npx so its
+      absence is no longer a failure mode.)*
 - [x] [`docs/guides/install.md`](../docs/guides/install.md)
       documents the Claude Code install path and
       the binary prerequisite.

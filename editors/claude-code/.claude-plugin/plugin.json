@@ -8,8 +8,8 @@
   "keywords": ["markdown", "linter", "lsp"],
   "lspServers": {
     "mdsmith": {
-      "command": "mdsmith",
-      "args": ["lsp"],
+      "command": "npx",
+      "args": ["-y", "-p", "@mdsmith/cli", "mdsmith", "lsp"],
       "extensionToLanguage": {
         ".md": "markdown",
         ".markdown": "markdown"

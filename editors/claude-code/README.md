@@ -20,14 +20,20 @@ for Claude Code, wired through `mdsmith lsp`.
 
 ## Prerequisite
 
-The plugin spawns the `mdsmith` binary from `$PATH`.
-Install it first via any channel in the
-[install guide](../../docs/guides/install.md) — npm,
-PyPI, mise, or a GitHub release download.
+The plugin spawns `npx -y -p @mdsmith/cli mdsmith
+lsp`. `npx` ships with Node.js, which Claude Code
+already requires. First launch downloads
+`@mdsmith/cli` and the platform binary subpackage
+from npm; later launches reuse the npm cache.
+
+To pin a specific build, install `mdsmith` via any
+channel in the
+[install guide](../../docs/guides/install.md). A
+binary earlier on `$PATH` shadows the npx copy.
 
 ## Troubleshooting
 
 If the `/plugin` Errors tab shows `Executable not
-found in $PATH`, the binary is missing from the
-shell `$PATH` Claude Code sees. Reinstall via the
-guide above, then run `/reload-plugins`.
+found in $PATH`, Node.js is missing from the shell
+`$PATH` Claude Code sees. Install Node 20 LTS or
+later, then run `/reload-plugins`.
