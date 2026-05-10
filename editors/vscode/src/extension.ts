@@ -259,8 +259,8 @@ function getOutputChannel(): vscode.OutputChannel {
 
 // resolveActiveBinary reads `mdsmith.path` at call time so the palette
 // commands pick up config edits without a window reload.
-function resolveActiveBinary(extensionPath: string): string {
-  const cfg = vscode.workspace.getConfiguration("mdsmith");
+function resolveActiveBinary(extensionPath: string, scope?: vscode.Uri): string {
+  const cfg = vscode.workspace.getConfiguration("mdsmith", scope);
   return resolveBinary(cfg.get<string>("path", "mdsmith"), extensionPath);
 }
 
@@ -270,7 +270,11 @@ function resolveActiveBinary(extensionPath: string): string {
 // when condition, which VS Code re-evaluates automatically when trust
 // is granted — no onDidGrantWorkspaceTrust subscription is required.
 function registerPaletteCommands(context: vscode.ExtensionContext): void {
-  const getBinary = () => resolveActiveBinary(context.extensionPath);
+  const getActiveFileUri = (): vscode.Uri | undefined => {
+    const uri = vscode.window.activeTextEditor?.document.uri;
+    return uri?.scheme === "file" ? uri : undefined;
+  };
+  const getBinary = () => resolveActiveBinary(context.extensionPath, getActiveFileUri());
   // In multi-root workspaces, prefer the folder containing the active
   // editor so file-modifying commands operate in the folder the user is
   // working in. Falls back to the first folder when there is no active
@@ -288,7 +292,7 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
     return folders[0].uri.fsPath;
   };
   const getConfigPath = (): string | undefined => {
-    const v = vscode.workspace.getConfiguration("mdsmith").get<string>("config", "");
+    const v = vscode.workspace.getConfiguration("mdsmith", getActiveFileUri()).get<string>("config", "");
     return v || undefined;
   };
   const isTrusted = () => vscode.workspace.isTrusted;
@@ -358,8 +362,7 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("mdsmith.kinds.resolve", async () => {
       await runKindsResolve({
-        getActiveFilePath: () =>
-          vscode.window.activeTextEditor?.document.uri.fsPath,
+        getActiveFilePath: () => getActiveFileUri()?.fsPath,
         getDiagnostics: (filePath) =>
           vscode.languages.getDiagnostics(vscode.Uri.file(filePath)),
         openVirtualDoc: async (uri) => {
@@ -379,8 +382,7 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand("mdsmith.kinds.why", async () => {
       await runKindsWhy({
-        getActiveFilePath: () =>
-          vscode.window.activeTextEditor?.document.uri.fsPath,
+        getActiveFilePath: () => getActiveFileUri()?.fsPath,
         getDiagnostics: (filePath) =>
           vscode.languages.getDiagnostics(vscode.Uri.file(filePath)),
         pickRule: async (rules) => {
