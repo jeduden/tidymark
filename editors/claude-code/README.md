@@ -3,7 +3,7 @@ title: mdsmith for Claude Code
 summary: >-
   Install the mdsmith Claude Code plugin so the agent
   receives Markdown diagnostics and navigation through
-  the bundled LSP server.
+  the mdsmith LSP server.
 ---
 # mdsmith for Claude Code
 
@@ -20,8 +20,13 @@ for Claude Code, wired through `mdsmith lsp`.
 
 ## Prerequisite
 
-The plugin spawns `npx -y -p @mdsmith/cli mdsmith
-lsp`. `npx` ships with Node.js, which Claude Code
+The plugin spawns this command:
+
+```bash
+npx -y -p @mdsmith/cli mdsmith lsp
+```
+
+`npx` ships with Node.js, which Claude Code
 already requires. First launch downloads
 `@mdsmith/cli` and the platform binary subpackage
 from npm; later launches reuse the npm cache.
@@ -34,5 +39,5 @@ manifest's `args` to read
 
 If the `/plugin` Errors tab shows `Executable not
 found in $PATH`, Node.js is missing from the shell
-`$PATH` Claude Code sees. Install Node 20 LTS or
-later, then run `/reload-plugins`.
+`$PATH` Claude Code sees. Install Node 18 or later
+(20 LTS recommended), then run `/reload-plugins`.

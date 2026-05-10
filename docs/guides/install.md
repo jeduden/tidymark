@@ -231,8 +231,8 @@ plugin manifest's `args` to read
 
 If the `/plugin` Errors tab shows `Executable not
 found in $PATH`, Node.js is missing from the shell
-`$PATH` Claude Code sees. Install Node 20 LTS or
-later, then run `/reload-plugins`.
+`$PATH` Claude Code sees. Install Node 18 or later
+(20 LTS recommended), then run `/reload-plugins`.
 
 See the
 [Claude Code editor README](../../editors/claude-code/README.md)
