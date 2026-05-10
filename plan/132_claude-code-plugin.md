@@ -179,21 +179,22 @@ documented stdio invocation.
    [`docs/guides/install.md`](../docs/guides/install.md)
    listing the two `/plugin` commands and linking
    to the new editor README.
-5. Update [.mdsmith.yml](../.mdsmith.yml)'s
-   `directory-structure.allowed` list to include
-   `.claude-plugin/**` (the new top-level
-   marketplace dir). The current allow-list (lines
-   63–74) covers `.claude/**` but not
-   `.claude-plugin/**`; without the addition,
-   `mdsmith check .` fails on the new manifest.
-   `editors/**` is already allowed, so the plugin
-   manifest under `editors/claude-code/` does not
-   need a separate entry. This change is
-   config-touching, so surface the diff before
-   applying per [CLAUDE.md](../CLAUDE.md). Add an
-   `ignore:` entry too if the JSON manifests
-   trigger any rules; default to leaving them
-   linted.
+5. No change to
+   [.mdsmith.yml](../.mdsmith.yml)'s
+   `directory-structure.allowed` list is needed:
+   the rule only applies to Markdown files, and
+   the new `.claude-plugin/` tree contains JSON
+   only. `editors/**` is already allowed, so the
+   Markdown README under `editors/claude-code/`
+   does not need a separate entry either. Add a
+   tight per-glob override under `overrides:` for
+   `editors/claude-code/**/*.md` (line-length 72,
+   max-file-length 80, paragraph-structure 3
+   sentences / 25 words, paragraph-readability 12,
+   token-budget 2000) so the new plugin README
+   stays terse. This change is config-touching, so
+   surface the diff before applying per
+   [CLAUDE.md](../CLAUDE.md).
 6. Validate the manifest locally with
    `claude plugin validate ./editors/claude-code` (or
    `/plugin validate` inside an active Claude Code
@@ -231,10 +232,12 @@ documented stdio invocation.
 - [ ] `claude plugin validate` reports no errors on
       the new manifests. *(Pending — `claude` CLI not
       available in the build sandbox.)*
-- [x] After the `.mdsmith.yml`
-      `directory-structure.allowed` update, `mdsmith
-      check .` passes against the new
-      `.claude-plugin/marketplace.json` location.
+- [x] `mdsmith check .` passes against the new
+      `.claude-plugin/marketplace.json` location
+      without any change to
+      `directory-structure.allowed` (the rule only
+      fires on Markdown files, and the new tree
+      contains JSON only).
 - [ ] When the `mdsmith` binary is absent from
       `$PATH`, the `/plugin` Errors tab shows
       `Executable not found in $PATH` (no silent

@@ -70,7 +70,6 @@ rules:
       - "internal/metrics/**"
       - "internal/concepts/**"
       - ".claude/**"
-      - ".claude-plugin/**"
       - ".github/**"
       - "editors/**"
       - "npm/**"
