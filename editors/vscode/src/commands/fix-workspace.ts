@@ -6,7 +6,7 @@
 // The spawn function is injectable so tests can mock it without
 // starting a real child process.
 
-import { SpawnFn, defaultSpawn } from "./runner";
+import { SpawnFn, SpawnResult, defaultSpawn } from "./runner";
 
 export interface FixStats {
   checked: number;
@@ -74,7 +74,18 @@ export async function runFixWorkspace(deps: FixWorkspaceHandlerDeps): Promise<vo
   const args = deps.configPath
     ? ["fix", ".", "--config", deps.configPath]
     : ["fix", "."];
-  const result = await spawnFn(deps.binary, args, deps.workspaceRoot);
+  let result: SpawnResult;
+  try {
+    result = await spawnFn(deps.binary, args, deps.workspaceRoot);
+  } catch (err) {
+    deps.appendOutput(`mdsmith fix: could not start: ${err}\n`);
+    const choice = await deps.showInfo(
+      "mdsmith fix: could not start. See output for details.",
+      "Show Output"
+    );
+    if (choice === "Show Output") deps.showOutput();
+    return;
+  }
 
   deps.appendOutput(result.stderr);
   if (result.stdout) deps.appendOutput(result.stdout);

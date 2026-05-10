@@ -81,4 +81,14 @@ describe("runInit", () => {
     expect(args).toEqual(["init"]);
     expect(cwd).toBe("/repo");
   });
+
+  test("shows could-not-start notification when spawn rejects", async () => {
+    const { deps, infoMessages, output } = makeDeps();
+    deps.spawn = async () => { throw new Error("ENOENT: mdsmith"); };
+    await runInit(deps);
+    expect(infoMessages).toHaveLength(1);
+    expect(infoMessages[0].msg).toContain("could not start");
+    expect(infoMessages[0].buttons).toContain("Show Output");
+    expect(output.join("")).toContain("ENOENT");
+  });
 });

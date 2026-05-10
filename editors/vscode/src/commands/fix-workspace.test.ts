@@ -187,4 +187,14 @@ describe("runFixWorkspace", () => {
     await runFixWorkspace(deps);
     expect(capturedArgs).toEqual(["fix", ".", "--config", "/custom/.mdsmith.yml"]);
   });
+
+  test("shows could-not-start notification when spawn rejects", async () => {
+    const { deps, infoMessages, output } = makeDeps();
+    deps.spawn = async () => { throw new Error("ENOENT: mdsmith"); };
+    await runFixWorkspace(deps);
+    expect(infoMessages).toHaveLength(1);
+    expect(infoMessages[0].msg).toContain("could not start");
+    expect(infoMessages[0].buttons).toContain("Show Output");
+    expect(output.join("")).toContain("ENOENT");
+  });
 });

@@ -3,7 +3,7 @@
 // The command is trust-gated; the handler re-checks isTrusted() in
 // case the workspace trust state changed after registration.
 
-import { SpawnFn, defaultSpawn } from "./runner";
+import { SpawnFn, SpawnResult, defaultSpawn } from "./runner";
 
 export interface MergeDriverHandlerDeps {
   binary: string;
@@ -32,11 +32,22 @@ export async function runMergeDriverInstall(deps: MergeDriverHandlerDeps): Promi
   if (!confirmed) return;
 
   const spawnFn = deps.spawn ?? defaultSpawn;
-  const result = await spawnFn(
-    deps.binary,
-    ["merge-driver", "install"],
-    deps.workspaceRoot
-  );
+  let result: SpawnResult;
+  try {
+    result = await spawnFn(
+      deps.binary,
+      ["merge-driver", "install"],
+      deps.workspaceRoot
+    );
+  } catch (err) {
+    deps.appendOutput(`mdsmith merge-driver install: could not start: ${err}\n`);
+    const choice = await deps.showInfo(
+      "mdsmith merge-driver install: could not start. See output for details.",
+      "Show Output"
+    );
+    if (choice === "Show Output") deps.showOutput();
+    return;
+  }
 
   if (result.stderr) deps.appendOutput(result.stderr);
   if (result.stdout) deps.appendOutput(result.stdout);

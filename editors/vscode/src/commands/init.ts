@@ -1,7 +1,7 @@
 // Handler logic for mdsmith.init: runs "mdsmith init" in the workspace root.
 // Trust-gated because it creates .mdsmith.yml (fails if the file already exists).
 
-import { SpawnFn, defaultSpawn } from "./runner";
+import { SpawnFn, SpawnResult, defaultSpawn } from "./runner";
 
 export interface InitHandlerDeps {
   binary: string;
@@ -26,7 +26,18 @@ export async function runInit(deps: InitHandlerDeps): Promise<void> {
   }
 
   const spawnFn = deps.spawn ?? defaultSpawn;
-  const result = await spawnFn(deps.binary, ["init"], deps.workspaceRoot);
+  let result: SpawnResult;
+  try {
+    result = await spawnFn(deps.binary, ["init"], deps.workspaceRoot);
+  } catch (err) {
+    deps.appendOutput(`mdsmith init: could not start: ${err}\n`);
+    const choice = await deps.showInfo(
+      "mdsmith init: could not start. See output for details.",
+      "Show Output"
+    );
+    if (choice === "Show Output") deps.showOutput();
+    return;
+  }
 
   if (result.stderr) deps.appendOutput(result.stderr);
   if (result.stdout) deps.appendOutput(result.stdout);
