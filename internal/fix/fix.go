@@ -355,6 +355,34 @@ func atomicWriteFile(path string, data []byte, mode os.FileMode) error {
 	return nil
 }
 
+// FixSource applies auto-fixes to in-memory source bytes and returns the
+// fixed bytes plus any remaining diagnostics (violations that could not be
+// auto-fixed). No files are read from or written to disk. The path argument
+// is used only for config resolution and diagnostic File fields.
+func (f *Fixer) FixSource(path string, source []byte) ([]byte, []lint.Diagnostic, []error) {
+	var errs []error
+
+	lf, dirFS, fmKinds, err := f.prepareFile(path, source)
+	if err != nil {
+		return source, nil, []error{err}
+	}
+
+	effective := f.effectiveWithCategories(path, fmKinds)
+	f.logRules(effective)
+
+	fixable, settingsErrs := f.fixableRules(effective)
+	errs = append(errs, settingsErrs...)
+	lf.GeneratedRanges = gensection.FindAllGeneratedRanges(lf)
+
+	fixed := f.applyFixPasses(path, lf.Source, fixable, lf, dirFS, &errs)
+
+	finalFile := buildPostFixFile(path, fixed, lf, dirFS)
+	remaining, checkErrs := engine.CheckRules(finalFile, f.Rules, effective)
+	errs = append(errs, checkErrs...)
+
+	return fixed, remaining, errs
+}
+
 // fixableRules returns enabled rules that implement FixableRule, sorted by ID.
 // If a rule implements Configurable and has settings, it is cloned and
 // configured before being returned.

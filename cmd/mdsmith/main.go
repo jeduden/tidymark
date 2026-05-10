@@ -85,6 +85,7 @@ Commands:
   help              Show help for rules and topics
   metrics           Show and rank shared Markdown metrics
   merge-driver      Git merge driver for regenerable sections
+  mcp               Run an MCP server for Claude Code integration
   pre-merge-commit  Install/manage pre-merge-commit hook
   kinds             Inspect declared kinds and resolve effective config per file
   init              Generate a default .mdsmith.yml config file
@@ -134,6 +135,8 @@ func run() int {
 		return runMetrics(os.Args[2:])
 	case "merge-driver":
 		return runMergeDriver(os.Args[2:])
+	case "mcp":
+		return runMCP(os.Args[2:])
 	case "pre-merge-commit":
 		return runPreMergeCommit(os.Args[2:])
 	case "kinds":
