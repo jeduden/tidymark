@@ -42,6 +42,7 @@ Commands:
   check             Lint Markdown files (default when given file arguments)
   fix               Auto-fix lint issues in place
   query             Select files by CUE expression on front matter
+  backlinks         List workspace links that point at a file
   help              Show help for rules and topics
   metrics           Show and rank shared Markdown metrics
   merge-driver      Git merge driver for regenerable sections
@@ -89,6 +90,8 @@ func run() int {
 		return runFix(os.Args[2:])
 	case "query":
 		return runQuery(os.Args[2:])
+	case "backlinks":
+		return runBacklinks(os.Args[2:])
 	case "help":
 		return runHelp(os.Args[2:])
 	case "metrics":
