@@ -268,7 +268,22 @@ function resolveActiveBinary(extensionPath: string): string {
 // is granted — no onDidGrantWorkspaceTrust subscription is required.
 function registerPaletteCommands(context: vscode.ExtensionContext): void {
   const getBinary = () => resolveActiveBinary(context.extensionPath);
-  const getWorkspaceRoot = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  // In multi-root workspaces, prefer the folder containing the active
+  // editor so file-modifying commands operate in the folder the user is
+  // working in. Falls back to the first folder when there is no active
+  // editor or it lives outside any workspace folder.
+  const getWorkspaceRoot = (): string | undefined => {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) return undefined;
+    if (folders.length > 1) {
+      const activeUri = vscode.window.activeTextEditor?.document.uri;
+      if (activeUri) {
+        const folder = vscode.workspace.getWorkspaceFolder(activeUri);
+        if (folder) return folder.uri.fsPath;
+      }
+    }
+    return folders[0].uri.fsPath;
+  };
   const getConfigPath = (): string | undefined => {
     const v = vscode.workspace.getConfiguration("mdsmith").get<string>("config", "");
     return v || undefined;

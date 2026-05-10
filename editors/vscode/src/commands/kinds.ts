@@ -3,7 +3,7 @@
 // JSON output of the corresponding kinds subcommand.
 
 import { SpawnFn, defaultSpawn } from "./runner";
-import { buildResolveUri, buildWhyUri } from "./virtual-doc";
+import { buildResolveUri, buildWhyUri, fetchKindsContent } from "./virtual-doc";
 
 export interface DiagnosticLike {
   code?: string | number | { value: string | number; target: unknown };
@@ -83,7 +83,6 @@ export function makeKindsContentProvider(
 ): KindsContentProvider {
   return {
     async provideTextDocumentContent(uri: string): Promise<string> {
-      const { fetchKindsContent } = await import("./virtual-doc.js");
       return fetchKindsContent(uri, binary, workspaceRoot, spawn);
     },
   };
