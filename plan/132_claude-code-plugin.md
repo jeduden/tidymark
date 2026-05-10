@@ -133,9 +133,10 @@ maps both common Markdown extensions to the
 }
 ```
 
-`npx` ships with Node.js, which Claude Code already
-requires. First launch downloads `@mdsmith/cli`
-plus the platform binary subpackage (e.g.
+`npx` is bundled with npm, which standard Node.js
+installers ship and Claude Code already requires.
+First launch downloads `@mdsmith/cli` plus the
+platform binary subpackage (e.g.
 `@mdsmith/linux-x64`) from npm and caches them; the
 explicit `-p @mdsmith/cli mdsmith` form makes the
 bin selection unambiguous. `npx` prepends its

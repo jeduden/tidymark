@@ -221,18 +221,20 @@ the plugin:
 /reload-plugins
 ```
 
-`npx` ships with Node.js, which Claude Code already
-requires. First launch downloads `@mdsmith/cli` and
-the platform binary subpackage from npm; later
-launches reuse the npm cache. No global `mdsmith`
-install is needed. To pin a version, edit the
-plugin manifest's `args` to read
-`@mdsmith/cli@<ver>` in place of `@mdsmith/cli`.
+`npx` is bundled with npm, which standard Node.js
+installers ship and Claude Code already requires.
+First launch downloads `@mdsmith/cli` and the
+platform binary subpackage from npm; later launches
+reuse the npm cache. No global `mdsmith` install is
+needed. To pin a version, edit the plugin
+manifest's `args` to read `@mdsmith/cli@<ver>` in
+place of `@mdsmith/cli`.
 
 If the `/plugin` Errors tab shows `Executable not
-found in $PATH`, Node.js is missing from the shell
+found in $PATH`, `npx` is missing from the shell
 `$PATH` Claude Code sees. Install Node 18 or later
-(20 LTS recommended), then run `/reload-plugins`.
+(20 LTS recommended) — the standard installer
+bundles npm and npx — then run `/reload-plugins`.
 
 See the
 [Claude Code editor README](../../editors/claude-code/README.md)

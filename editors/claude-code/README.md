@@ -26,10 +26,10 @@ The plugin spawns this command:
 npx -y -p @mdsmith/cli mdsmith lsp
 ```
 
-`npx` ships with Node.js, which Claude Code
-already requires. First launch downloads
-`@mdsmith/cli` and the platform binary subpackage
-from npm; later launches reuse the npm cache.
+Node 18+ (with npm) must be on `$PATH`. Standard
+Node installers bundle npm and `npx`. First launch
+fetches `@mdsmith/cli` plus the platform binary
+subpackage from npm; later launches reuse the cache.
 
 To pin a specific version, edit the plugin
 manifest's `args` to read
@@ -38,6 +38,7 @@ manifest's `args` to read
 ## Troubleshooting
 
 If the `/plugin` Errors tab shows `Executable not
-found in $PATH`, Node.js is missing from the shell
+found in $PATH`, `npx` is missing from the shell
 `$PATH` Claude Code sees. Install Node 18 or later
-(20 LTS recommended), then run `/reload-plugins`.
+(20 LTS recommended) — the standard installer
+bundles npm and npx — then run `/reload-plugins`.
