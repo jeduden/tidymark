@@ -4,7 +4,7 @@ import {
   runKindsResolve,
   runKindsWhy,
   type DiagnosticLike,
-  type KindsHandlerDeps
+  type KindsWhyHandlerDeps
 } from "./kinds";
 import {
   buildResolveUri,
@@ -184,14 +184,14 @@ describe("fetchKindsContent", () => {
 
 // ---- runKindsResolve / runKindsWhy ----
 
-function makeDeps(overrides: Partial<KindsHandlerDeps> = {}): {
-  deps: KindsHandlerDeps;
+function makeDeps(overrides: Partial<KindsWhyHandlerDeps> = {}): {
+  deps: KindsWhyHandlerDeps;
   openedUris: string[];
   errors: string[];
 } {
   const openedUris: string[] = [];
   const errors: string[] = [];
-  const deps: KindsHandlerDeps = {
+  const deps: KindsWhyHandlerDeps = {
     binary: "mdsmith",
     workspaceRoot: "/repo",
     getActiveFilePath: () => "/repo/doc.md",

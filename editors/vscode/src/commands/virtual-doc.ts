@@ -31,7 +31,7 @@ export function parseKindsUri(uri: string): {
   file: string;
   rule?: string;
 } | null {
-  const match = uri.match(/^mdsmith-kinds:\/\/(resolve|why)\?(.+)$/);
+  const match = uri.match(new RegExp(`^${KINDS_SCHEME}://(resolve|why)\\?(.+)$`));
   if (!match) return null;
   const command = match[1] as "resolve" | "why";
   const params = new URLSearchParams(match[2]);

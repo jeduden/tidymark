@@ -174,14 +174,11 @@ function disposeConfigWatcher(): void {
   }
 }
 
-// showOutput reveals the "mdsmith" output channel where the
-// language client logs RPC traffic and the server's stderr.
+// showOutput reveals the "mdsmith" output channel. Uses
+// getOutputChannel() so the standalone channel created by palette
+// commands is also reachable when the LSP client is not running.
 function showOutput(): void {
-  // The LanguageClient registers an OutputChannel under
-  // outputChannelName ("mdsmith"). Calling outputChannel.show on
-  // the client's own handle is the safest way to reveal it without
-  // importing internals.
-  client?.outputChannel.show(true);
+  getOutputChannel().show(true);
 }
 
 // MdsmithErrorHandler replaces vscode-languageclient's default
@@ -343,10 +340,6 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
           vscode.window.activeTextEditor?.document.uri.fsPath,
         getDiagnostics: (filePath) =>
           vscode.languages.getDiagnostics(vscode.Uri.file(filePath)),
-        pickRule: async (rules) =>
-          vscode.window.showQuickPick(rules, {
-            placeHolder: "Pick a rule ID (no diagnostics — enter any rule ID)",
-          }),
         openVirtualDoc: async (uri) => {
           const doc = await vscode.workspace.openTextDocument(
             vscode.Uri.parse(uri)

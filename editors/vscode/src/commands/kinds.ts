@@ -22,18 +22,23 @@ export function extractRuleIds(diagnostics: DiagnosticLike[]): string[] {
   return Array.from(ids).sort();
 }
 
-export interface KindsHandlerDeps {
+// KindsResolveHandlerDeps covers the resolve command, which needs no rule picker.
+export interface KindsResolveHandlerDeps {
   binary: string;
   workspaceRoot: string | undefined;
   getActiveFilePath: () => string | undefined;
   getDiagnostics: (filePath: string) => DiagnosticLike[];
-  pickRule: (rules: string[]) => Promise<string | undefined>;
   openVirtualDoc: (uri: string) => Promise<void>;
   showError: (msg: string) => Promise<void>;
   spawn?: SpawnFn;
 }
 
-export async function runKindsResolve(deps: KindsHandlerDeps): Promise<void> {
+// KindsWhyHandlerDeps extends resolve deps with a rule picker for the why command.
+export interface KindsWhyHandlerDeps extends KindsResolveHandlerDeps {
+  pickRule: (rules: string[]) => Promise<string | undefined>;
+}
+
+export async function runKindsResolve(deps: KindsResolveHandlerDeps): Promise<void> {
   const filePath = deps.getActiveFilePath();
   if (!filePath) {
     await deps.showError("mdsmith: Open a Markdown file first.");
@@ -44,7 +49,7 @@ export async function runKindsResolve(deps: KindsHandlerDeps): Promise<void> {
   await deps.openVirtualDoc(uri);
 }
 
-export async function runKindsWhy(deps: KindsHandlerDeps): Promise<void> {
+export async function runKindsWhy(deps: KindsWhyHandlerDeps): Promise<void> {
   const filePath = deps.getActiveFilePath();
   if (!filePath) {
     await deps.showError("mdsmith: Open a Markdown file first.");

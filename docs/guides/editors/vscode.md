@@ -212,15 +212,17 @@ Command Palette under the `mdsmith:` category.
 
 | Command                              | Requires trust | Action                                                                      |
 |--------------------------------------|:--------------:|-----------------------------------------------------------------------------|
-| `mdsmith: Initialize config`         |                | Run `mdsmith init` in the workspace root to create `.mdsmith.yml`.          |
+| `mdsmith: Initialize config`         | yes            | Run `mdsmith init` in the workspace root to create `.mdsmith.yml`.          |
 | `mdsmith: Install Git merge driver`  | yes            | Run `mdsmith merge-driver install` after a confirmation dialog.             |
 | `mdsmith: Fix all Markdown`          | yes            | Run `mdsmith fix .` against the workspace; show a fixed-of-total summary.   |
 | `mdsmith: Explain rule on this file` |                | Pick a rule; open `mdsmith kinds why <file> <rule> --json` in a side panel. |
 | `mdsmith: Show resolved config`      |                | Open `mdsmith kinds resolve <file> --json` in a side panel.                 |
 
-`mdsmith: Fix all Markdown` and `mdsmith: Install Git merge driver`
-are hidden from the palette in untrusted workspaces and show a
-confirmation dialog before modifying files.
+`mdsmith: Initialize config`, `mdsmith: Fix all Markdown`, and
+`mdsmith: Install Git merge driver` are hidden from the palette in
+untrusted workspaces. `mdsmith: Fix all Markdown` and
+`mdsmith: Install Git merge driver` also show a confirmation dialog
+before modifying files.
 
 `mdsmith: Explain rule on this file` and
 `mdsmith: Show resolved config` are visible only when a Markdown
