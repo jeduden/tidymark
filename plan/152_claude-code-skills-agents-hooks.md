@@ -1,7 +1,7 @@
 ---
 id: 152
 title: Claude Code plugin extensions — skills, agents, hooks
-status: "🔲"
+status: "🔳"
 model: sonnet
 summary: >-
   Extend the Claude Code marketplace from plan 132
