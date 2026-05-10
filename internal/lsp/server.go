@@ -36,6 +36,7 @@ type Server struct {
 	discoverConfig func(string) (string, error)
 	logger         *vlog.Logger
 	docs           *documentStore
+	diagStore      *diagCache // last-published diagnostics per URI, for hover
 
 	configMu   sync.RWMutex
 	config     *config.Config
@@ -138,6 +139,7 @@ func New(opts Options) *Server {
 		discoverConfig: config.Discover,
 		logger:         logger,
 		docs:           newDocumentStore(),
+		diagStore:      newDiagCache(),
 		settings:       userSettings{Run: runOnSave},
 		pending:        make(map[string]*time.Timer),
 		pendingResp:    make(map[string]chan rpcResponse),
@@ -316,6 +318,8 @@ func (s *Server) dispatchDocument(ctx context.Context, msg *requestMessage) bool
 		s.handleDidClose(msg.Params)
 	case "textDocument/codeAction":
 		s.handleCodeAction(msg)
+	case "textDocument/hover":
+		s.handleHover(msg)
 	default:
 		return false
 	}
@@ -402,6 +406,7 @@ func (s *Server) handleInitialize(msg *requestMessage) {
 			ReferencesProvider:      true,
 			WorkspaceSymbolProvider: true,
 			CallHierarchyProvider:   true,
+			HoverProvider:           true,
 		},
 		ServerInfo: serverInfo{Name: "mdsmith", Version: "lsp"},
 	}
@@ -508,6 +513,7 @@ func (s *Server) handleDidClose(raw json.RawMessage) {
 		s.indexReloadFromDisk(doc.path)
 	}
 	// Clear diagnostics so VS Code stops showing stale squiggles.
+	s.diagStore.delete(p.TextDocument.URI)
 	_ = s.t.writeNotification("textDocument/publishDiagnostics",
 		publishDiagnosticsParams{URI: p.TextDocument.URI, Diagnostics: []Diagnostic{}})
 }
@@ -708,6 +714,7 @@ func (s *Server) runLint(uri string) {
 	}
 	relPath := workspaceRelative(root, doc.path)
 	if config.IsIgnored(cfg.Ignore, relPath) {
+		s.diagStore.set(uri, []Diagnostic{})
 		_ = s.t.writeNotification("textDocument/publishDiagnostics",
 			publishDiagnosticsParams{URI: uri, Version: doc.version, Diagnostics: []Diagnostic{}})
 		return
@@ -757,6 +764,7 @@ func (s *Server) runLint(uri string) {
 	docDiags, otherDiags := partitionDocDiagnostics(res.Diagnostics, relPath)
 	s.surfaceForeignDiagnostics(uri, otherDiags)
 	lspDiags := toLSPAll(docDiags, doc.text)
+	s.diagStore.set(uri, lspDiags)
 	_ = s.t.writeNotification("textDocument/publishDiagnostics",
 		publishDiagnosticsParams{URI: uri, Version: doc.version, Diagnostics: lspDiags})
 }

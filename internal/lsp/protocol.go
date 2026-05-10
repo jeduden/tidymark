@@ -103,6 +103,26 @@ type serverCapabilities struct {
 	ReferencesProvider      bool                    `json:"referencesProvider,omitempty"`
 	WorkspaceSymbolProvider bool                    `json:"workspaceSymbolProvider,omitempty"`
 	CallHierarchyProvider   bool                    `json:"callHierarchyProvider,omitempty"`
+	HoverProvider           bool                    `json:"hoverProvider,omitempty"`
+}
+
+// hoverParams mirrors LSP §3.18 TextDocumentPositionParams (hover).
+type hoverParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Position     Position               `json:"position"`
+}
+
+// markupContent mirrors LSP MarkupContent. Kind is always "markdown"
+// in this server.
+type markupContent struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
+// hoverResult is the LSP Hover response.
+type hoverResult struct {
+	Contents markupContent `json:"contents"`
+	Range    *Range        `json:"range,omitempty"`
 }
 
 // textDocumentSyncKind is the LSP enum for change notification mode.

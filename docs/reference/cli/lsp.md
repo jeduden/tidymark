@@ -36,6 +36,7 @@ uses stdio either way.
 | `referencesProvider`              | Workspace links pointing at the symbol under the cursor                            |
 | `workspaceSymbolProvider`         | Substring search across headings, link refs, front-matter `title:`, and kind names |
 | `callHierarchyProvider`           | File-level call graph over `<?include?>`, `<?catalog?>`, `<?build?>`, and links    |
+| `hoverProvider`                   | Rule docs on hover over a diagnostic; directive guide on hover inside `<?…?>`      |
 | `workspace/didChangeWatchedFiles` | Re-lint open buffers on `.mdsmith.yml` change; index refresh on Markdown changes   |
 
 `mdsmith.run` controls when the server actually re-lints:
@@ -79,6 +80,29 @@ prints:
 - **`source.fixAll.mdsmith`** — runs `mdsmith fix` on the
   current buffer; produces the same bytes the on-disk fixer
   would write.
+
+## Hover
+
+`textDocument/hover` resolves in two passes:
+
+1. **Diagnostic-first.** If the cursor position falls
+   inside an active diagnostic range, the server
+   returns `MarkupContent{kind: markdown}` whose body
+   is the diagnostic message followed by the rule's
+   full documentation (the same text `mdsmith help
+   rule <id>` prints).
+2. **Directive fallback.** If no diagnostic covers
+   the cursor, the server checks whether the cursor
+   falls inside a `<?directive …?>` block. If it
+   does, the server returns the directive's guide
+   documentation from `docs/guides/directives/`.
+
+When neither condition matches, the server returns
+`null` (no hover popup).
+
+Each hover response includes a `range` field. The
+range is the matched diagnostic span or the full
+directive block. Clients use it to anchor the popup.
 
 ## Symbol navigation
 
