@@ -27,18 +27,25 @@ export function buildWhyUri(filePath: string, rule: string): string {
 
 // parseKindsUri extracts command, file, and optional rule from a
 // mdsmith-kinds: URI string. Returns null when the URI is malformed.
+// Uses URL parsing so both "mdsmith-kinds://resolve?file=…" and the
+// normalized form "mdsmith-kinds://resolve/?file=…" are accepted.
 export function parseKindsUri(uri: string): {
   command: "resolve" | "why";
   file: string;
   rule?: string;
 } | null {
-  const match = uri.match(new RegExp(`^${KINDS_SCHEME}://(resolve|why)\\?(.+)$`));
-  if (!match) return null;
-  const command = match[1] as "resolve" | "why";
-  const params = new URLSearchParams(match[2]);
-  const file = params.get("file");
+  let url: URL;
+  try {
+    url = new URL(uri);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== `${KINDS_SCHEME}:`) return null;
+  const command = url.hostname;
+  if (command !== "resolve" && command !== "why") return null;
+  const file = url.searchParams.get("file");
   if (!file) return null;
-  const rule = params.get("rule") ?? undefined;
+  const rule = url.searchParams.get("rule") ?? undefined;
   if (command === "why" && !rule) return null;
   return { command, file, rule };
 }
@@ -50,21 +57,17 @@ export async function fetchKindsContent(
   uri: string,
   binary: string,
   workspaceRoot: string | undefined,
-  spawn: SpawnFn = defaultSpawn,
-  configPath?: string
+  spawn: SpawnFn = defaultSpawn
 ): Promise<string> {
   const parsed = parseKindsUri(uri);
   if (!parsed) {
     return `<!-- mdsmith: malformed kinds URI: ${uri} -->`;
   }
 
-  const baseArgs =
+  const args =
     parsed.command === "resolve"
-      ? ["kinds", "resolve", parsed.file]
-      : ["kinds", "why", parsed.file, parsed.rule!];
-  const args = configPath
-    ? [...baseArgs, "--config", configPath, "--json"]
-    : [...baseArgs, "--json"];
+      ? ["kinds", "resolve", parsed.file, "--json"]
+      : ["kinds", "why", parsed.file, parsed.rule!, "--json"];
 
   let result: Awaited<ReturnType<typeof spawn>>;
   try {

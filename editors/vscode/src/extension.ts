@@ -24,7 +24,6 @@ import { runInit } from "./commands/init";
 import { runMergeDriverInstall } from "./commands/merge-driver";
 import { runKindsResolve, runKindsWhy, makeKindsContentProvider } from "./commands/kinds";
 import { KINDS_SCHEME } from "./commands/virtual-doc";
-import { defaultSpawn } from "./commands/runner";
 
 let client: LanguageClient | undefined;
 // Track the .mdsmith.yml file watcher across the activate /
@@ -406,9 +405,7 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         provideTextDocumentContent: (uri: vscode.Uri) => {
           const provider = makeKindsContentProvider(
             getBinary(),
-            getWorkspaceRoot(),
-            defaultSpawn,
-            getConfigPath()
+            getWorkspaceRoot()
           );
           return provider.provideTextDocumentContent(uri.toString());
         },

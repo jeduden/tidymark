@@ -79,13 +79,12 @@ export interface KindsContentProvider {
 export function makeKindsContentProvider(
   binary: string,
   workspaceRoot: string | undefined,
-  spawn: SpawnFn = defaultSpawn,
-  configPath?: string
+  spawn: SpawnFn = defaultSpawn
 ): KindsContentProvider {
   return {
     async provideTextDocumentContent(uri: string): Promise<string> {
       const { fetchKindsContent } = await import("./virtual-doc.js");
-      return fetchKindsContent(uri, binary, workspaceRoot, spawn, configPath);
+      return fetchKindsContent(uri, binary, workspaceRoot, spawn);
     },
   };
 }
