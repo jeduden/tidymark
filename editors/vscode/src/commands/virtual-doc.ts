@@ -6,7 +6,7 @@
 //   mdsmith-kinds://resolve?file=<encoded-path>
 //   mdsmith-kinds://why?file=<encoded-path>&rule=<rule-id>
 
-import { dirname } from "path";
+import { dirname } from "node:path";
 import { SpawnFn, defaultSpawn } from "./runner";
 
 export const KINDS_SCHEME = "mdsmith-kinds";

@@ -79,7 +79,8 @@ export async function runFixWorkspace(deps: FixWorkspaceHandlerDeps): Promise<vo
   deps.appendOutput(result.stderr);
   if (result.stdout) deps.appendOutput(result.stdout);
 
-  if (result.exitCode !== 0) {
+  // exit code >= 2 is a hard failure (bad config, binary error, etc.)
+  if (result.exitCode >= 2) {
     const choice = await deps.showInfo(
       `mdsmith fix failed (exit ${result.exitCode}). See output for details.`,
       "Show Output"
@@ -88,6 +89,7 @@ export async function runFixWorkspace(deps: FixWorkspaceHandlerDeps): Promise<vo
     return;
   }
 
+  // exit code 0 = all clean, exit code 1 = some issues remain — both show stats
   const stats = parseRunStats(result.stderr);
   const msg = stats
     ? buildFixNotificationMessage(stats)

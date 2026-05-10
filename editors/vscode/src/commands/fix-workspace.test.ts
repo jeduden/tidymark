@@ -128,7 +128,19 @@ describe("runFixWorkspace", () => {
     expect(infoMessages[0].msg).toBe("mdsmith fix completed.");
   });
 
-  test("shows failure notification and Show Output on non-zero exit", async () => {
+  test("shows stats summary on exit code 1 (some issues remain)", async () => {
+    const { deps, infoMessages } = makeDeps();
+    deps.spawn = async () => ({
+      stdout: "",
+      stderr: "stats: checked=10 fixed=3 failures=0 unfixed=7\n",
+      exitCode: 1,
+    });
+    await runFixWorkspace(deps);
+    expect(infoMessages).toHaveLength(1);
+    expect(infoMessages[0].msg).toBe("Fixed 3 of 10 files");
+  });
+
+  test("shows failure notification and Show Output on exit code >= 2", async () => {
     const { deps, infoMessages } = makeDeps();
     deps.spawn = async () => ({ stdout: "", stderr: "error: bad config\n", exitCode: 2 });
     await runFixWorkspace(deps);
