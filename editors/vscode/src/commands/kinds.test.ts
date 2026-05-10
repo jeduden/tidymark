@@ -204,6 +204,22 @@ function makeDeps(overrides: Partial<KindsHandlerDeps> = {}): {
   return { deps, openedUris, errors };
 }
 
+describe("makeKindsContentProvider", () => {
+  test("provideTextDocumentContent delegates to fetchKindsContent via spawn", async () => {
+    const { makeKindsContentProvider } = await import("./kinds.js");
+    const spawn = async (_bin: string, _args: string[]) => ({
+      stdout: '{"file":"a.md"}',
+      stderr: "",
+      exitCode: 0,
+    });
+    const provider = makeKindsContentProvider("mdsmith", "/repo", spawn);
+    const uri = buildResolveUri("/repo/a.md");
+    const content = await provider.provideTextDocumentContent(uri);
+    expect(content).toContain("```json");
+    expect(content).toContain('{"file":"a.md"}');
+  });
+});
+
 describe("runKindsResolve", () => {
   test("opens a resolve virtual doc for the active file", async () => {
     const { deps, openedUris } = makeDeps();
