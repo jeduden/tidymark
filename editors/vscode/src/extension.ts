@@ -313,6 +313,18 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
     showOutput: () => getOutputChannel().show(true),
   });
 
+  // showNotification routes failures (messages containing "failed" or
+  // "could not start") to showWarningMessage so they surface as warnings
+  // rather than appearing informational to the user.
+  const showNotification = (msg: string, ...buttons: string[]): Promise<string | undefined> => {
+    const isFailure = msg.includes("failed") || msg.includes("could not start");
+    return Promise.resolve(
+      isFailure
+        ? vscode.window.showWarningMessage(msg, ...buttons)
+        : vscode.window.showInformationMessage(msg, ...buttons)
+    );
+  };
+
   const confirmDestructive = (label: string) => async () => {
     const answer = await vscode.window.showWarningMessage(
       `Run \`${label}\` in the workspace? This will modify files.`,
@@ -330,7 +342,7 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         workspaceRoot: getWorkspaceRoot(),
         isTrusted,
         showInfo: (msg, ...buttons) =>
-          Promise.resolve(vscode.window.showInformationMessage(msg, ...buttons)),
+          showNotification(msg, ...buttons),
         showError: (msg) =>
           Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
         ...od,
@@ -345,7 +357,7 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         isTrusted,
         confirm: confirmDestructive("mdsmith merge-driver install"),
         showInfo: (msg, ...buttons) =>
-          Promise.resolve(vscode.window.showInformationMessage(msg, ...buttons)),
+          showNotification(msg, ...buttons),
         showError: (msg) =>
           Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
         ...od,
@@ -361,7 +373,7 @@ function registerPaletteCommands(context: vscode.ExtensionContext): void {
         isTrusted,
         confirm: confirmDestructive("mdsmith fix ."),
         showInfo: (msg, ...buttons) =>
-          Promise.resolve(vscode.window.showInformationMessage(msg, ...buttons)),
+          showNotification(msg, ...buttons),
         showError: (msg) =>
           Promise.resolve(vscode.window.showErrorMessage(msg)).then(() => {}),
         ...od,

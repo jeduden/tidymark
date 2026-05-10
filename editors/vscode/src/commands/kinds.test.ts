@@ -119,7 +119,7 @@ describe("fetchKindsContent", () => {
     });
     const uri = buildResolveUri("/repo/foo.md");
     const content = await fetchKindsContent(uri, "mdsmith", "/repo", spawn);
-    expect(content).toContain("```json");
+    expect(content).toContain("~~~json");
     expect(content).toContain('{"kinds":["plan"]}');
     expect(content).toContain("Resolved config: /repo/foo.md");
   });
@@ -133,7 +133,7 @@ describe("fetchKindsContent", () => {
     const uri = buildWhyUri("/repo/foo.md", "MDS001");
     const content = await fetchKindsContent(uri, "mdsmith", "/repo", spawn);
     expect(content).toContain("Rule MDS001 on /repo/foo.md");
-    expect(content).toContain("```json");
+    expect(content).toContain("~~~json");
   });
 
   test("returns error block on non-zero exit", async () => {
@@ -213,7 +213,7 @@ describe("makeKindsContentProvider", () => {
     const provider = makeKindsContentProvider("mdsmith", "/repo", spawn);
     const uri = buildResolveUri("/repo/a.md");
     const content = await provider.provideTextDocumentContent(uri);
-    expect(content).toContain("```json");
+    expect(content).toContain("~~~json");
     expect(content).toContain('{"file":"a.md"}');
   });
 });

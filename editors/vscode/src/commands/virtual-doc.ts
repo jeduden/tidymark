@@ -61,10 +61,10 @@ export async function fetchKindsContent(
 ): Promise<string> {
   const parsed = parseKindsUri(uri);
   if (!parsed) {
-    return `**mdsmith: malformed kinds URI**\n\n\`\`\`\n${uri}\n\`\`\``;
+    return `**mdsmith: malformed kinds URI**\n\n~~~\n${uri}\n~~~`;
   }
   if (!isAbsolute(parsed.file)) {
-    return `**mdsmith: kinds URI file path must be absolute**\n\n\`\`\`\n${parsed.file}\n\`\`\``;
+    return `**mdsmith: kinds URI file path must be absolute**\n\n~~~\n${parsed.file}\n~~~`;
   }
 
   const args =
@@ -76,11 +76,11 @@ export async function fetchKindsContent(
   try {
     result = await spawn(binary, args, workspaceRoot ?? dirname(parsed.file));
   } catch (err) {
-    return `**mdsmith ${args.slice(0, 2).join(" ")} could not start**\n\n\`\`\`\n${err}\n\`\`\``;
+    return `**mdsmith ${args.slice(0, 2).join(" ")} could not start**\n\n~~~\n${err}\n~~~`;
   }
 
   if (result.exitCode !== 0) {
-    return `**mdsmith ${args.slice(0, 2).join(" ")} failed (exit ${result.exitCode})**\n\n\`\`\`\n${result.stderr.trim()}\n\`\`\``;
+    return `**mdsmith ${args.slice(0, 2).join(" ")} failed (exit ${result.exitCode})**\n\n~~~\n${result.stderr.trim()}\n~~~`;
   }
 
   const label =
@@ -88,5 +88,5 @@ export async function fetchKindsContent(
       ? `Resolved config: ${parsed.file}`
       : `Rule ${parsed.rule} on ${parsed.file}`;
 
-  return `# ${label}\n\n\`\`\`json\n${result.stdout.trim()}\n\`\`\``;
+  return `# ${label}\n\n~~~json\n${result.stdout.trim()}\n~~~`;
 }
