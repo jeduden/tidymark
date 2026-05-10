@@ -550,6 +550,60 @@ func TestRenameLinkRefAfterDidChangeRewritesLiveBuffer(t *testing.T) {
 	assert.NotEmpty(t, edit.Changes[uri])
 }
 
+// TestPrepareRenameSkipsCodeBlockDefLookalike verifies that
+// prepareRename returns null for `[label]: url` lines inside a
+// fenced code block — those are content, not defs, and the
+// rename surface must not offer to rewrite them.
+func TestPrepareRenameSkipsCodeBlockDefLookalike(t *testing.T) {
+	t.Parallel()
+	src := "# T\n\n```\n[fake]: https://x\n```\n"
+	h, _, rootURI := rootedHarness(t, map[string]string{"a.md": src})
+	uri := rootURI + "/a.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: src},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	raw, errResp := h.request("textDocument/prepareRename", textDocumentPositionParams{
+		TextDocument: textDocumentIdentifier{URI: uri},
+		// Cursor inside `[fake]: https://x` (line 4, 1-based).
+		Position: Position{Line: 3, Character: 2},
+	})
+	require.Nil(t, errResp)
+	assert.Equal(t, "null", string(raw))
+}
+
+// TestRenameLinkRefIgnoresCodeBlockLookalike verifies that an
+// actual rename targeting a real def doesn't accidentally rewrite
+// a `[label]: url`-looking line inside a fenced code block. The
+// rewrite should hit the real def only.
+func TestRenameLinkRefIgnoresCodeBlockLookalike(t *testing.T) {
+	t.Parallel()
+	src := "# T\n\nUse [t][docs].\n\n```\n[docs]: https://wrong\n```\n\n[docs]: https://right\n"
+	h, _, rootURI := rootedHarness(t, map[string]string{"a.md": src})
+	uri := rootURI + "/a.md"
+	h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+		TextDocument: textDocumentItem{URI: uri, LanguageID: "markdown", Version: 1, Text: src},
+	})
+	_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	raw, errResp := h.request("textDocument/rename", renameParams{
+		TextDocument: textDocumentIdentifier{URI: uri},
+		// Cursor on the real def line `[docs]: https://right` (line 9, 1-based).
+		Position: Position{Line: 8, Character: 2},
+		NewName:  "manual",
+	})
+	require.Nil(t, errResp)
+	var edit workspaceEdit
+	require.NoError(t, json.Unmarshal(raw, &edit))
+	require.Contains(t, edit.Changes, uri)
+	// Two edits: the real def + the `[t][docs]` use.
+	require.Len(t, edit.Changes[uri], 2)
+	for _, e := range edit.Changes[uri] {
+		// Code-block line is line 6 (0-based 5); ensure no edit
+		// targets it.
+		assert.NotEqual(t, 5, e.Range.Start.Line, "edit must not target code-block line")
+	}
+}
+
 // TestResolveURIAndSourceFallbackToDisk verifies the open-doc
 // scan falls back to on-disk read when no buffer matches the
 // requested rel. The closed file's URI is the canonical

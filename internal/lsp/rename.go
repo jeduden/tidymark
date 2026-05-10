@@ -52,6 +52,13 @@ func (s *Server) prepareRenameAt(source []byte, rel string, pos Position) (prepa
 	case index.TokenHeading:
 		return headingPrepareRange(source, line, res.Name)
 	case index.TokenRefDef:
+		// Locator's regex tags any `[label]: url`-looking line as
+		// a def, including matches inside fenced code blocks. Gate
+		// on the parser-validated set so the rename popup never
+		// surfaces on code samples.
+		if !isValidRefDefLine(source, line) {
+			return prepareRenameResult{}, false
+		}
 		return refDefPrepareRange(source, line, res.Label)
 	case index.TokenRefUse:
 		return refUsePrepareRange(source, line, col, res.Label)
@@ -64,6 +71,19 @@ func (s *Server) prepareRenameAt(source []byte, rel string, pos Position) (prepa
 		return prepareRenameResult{}, false
 	}
 	return prepareRenameResult{}, false
+}
+
+// isValidRefDefLine reports whether a 1-based source line holds a
+// real reference definition (one goldmark accepted), translating
+// the source-coordinate line into body coordinates so the
+// validRefDefBodyLines lookup matches.
+func isValidRefDefLine(source []byte, line int) bool {
+	body, fmOffset := bodyAndFMOffset(source)
+	bodyLine := line - fmOffset
+	if bodyLine < 1 {
+		return false
+	}
+	return validRefDefBodyLines(body)[bodyLine]
 }
 
 // headingPrepareRange builds the rename range for an ATX or setext
@@ -927,28 +947,116 @@ func (s *Server) renameLinkRef(
 // definition in the file other than the one being renamed. Empty
 // string means "no conflict".
 //
-// The scan goes through the source directly rather than through
-// idx.File(rel).Symbols, because the index intentionally
-// deduplicates link-reference definitions: only the first def per
-// normalized label survives. Trusting the index would let a rename
-// pass collision when the buffer carries a duplicate `[label]: …`
-// line for newLabel — silently producing two coexisting defs that
-// MDS053 / MDS054 would have to clean up later.
+// The scan filters regex matches through goldmark's parser context
+// (validRefDefMatches) so a `[label]: url`-looking line inside a
+// fenced code block or PI body doesn't count as a real def — both
+// shapes parse as content, not as references, and the rename must
+// not flag a phantom collision against them.
 func labelConflict(source []byte, oldLabel, newLabel string) string {
 	body, _ := bodyAndFMOffset(source)
-	for _, m := range index.RefDefRegexpMatches(body) {
-		raw := body[m[2]:m[3]]
-		norm := normalizedLabel(raw)
-		if norm == oldLabel {
+	for _, m := range validRefDefMatches(body) {
+		if m.normLabel == oldLabel {
 			// Defs that match the rename's source label are the
 			// ones being rewritten — they don't count as collisions.
 			continue
 		}
-		if norm == newLabel {
-			return string(raw)
+		if m.normLabel == newLabel {
+			return m.rawLabel
 		}
 	}
 	return ""
+}
+
+// validRefDefMatch is one source-validated reference definition
+// position. Validation goes through goldmark's parser context so
+// matches inside code/PI blocks (which goldmark refuses as
+// references) drop out before reaching the rename.
+type validRefDefMatch struct {
+	bodyLine  int    // 1-based line within body
+	rawLabel  string // bytes between `[` and `]`, unmodified
+	normLabel string // util.ToLinkReference normalized form
+	matchIdx  []int  // refDefRegexpMatches indices for further use
+}
+
+// validRefDefMatches returns the regex matches that goldmark also
+// recognized as reference definitions. Lines inside fenced or
+// indented code blocks and inside processing-instruction bodies
+// are excluded — `[label]: url`-shaped text in those contexts is
+// content, not a def, even if a real def with the same label
+// appears elsewhere in the file.
+func validRefDefMatches(body []byte) []validRefDefMatch {
+	ctx := parser.NewContext()
+	root := lint.NewParser().Parse(text.NewReader(body), parser.WithContext(ctx))
+	wanted := map[string]bool{}
+	for _, ref := range ctx.References() {
+		// Normalize via util.ToLinkReference so the lookup
+		// matches the same form the regex-side normalizer
+		// produces. Goldmark's ref.Label() is the raw bytes,
+		// not the lowercased + whitespace-collapsed form.
+		wanted[string(util.ToLinkReference(ref.Label()))] = true
+	}
+	if len(wanted) == 0 {
+		return nil
+	}
+	codeLines := contentBlockLines(root, body)
+	var out []validRefDefMatch
+	for _, m := range index.RefDefRegexpMatches(body) {
+		bodyLine := lineOfBodyOffset(body, m[2])
+		if codeLines[bodyLine] {
+			continue
+		}
+		raw := body[m[2]:m[3]]
+		norm := normalizedLabel(raw)
+		if !wanted[norm] {
+			continue
+		}
+		out = append(out, validRefDefMatch{
+			bodyLine:  bodyLine,
+			rawLabel:  string(raw),
+			normLabel: norm,
+			matchIdx:  m,
+		})
+	}
+	return out
+}
+
+// contentBlockLines returns the set of body-line numbers that fall
+// inside a fenced code block, an indented code block, or a
+// processing-instruction body. The rename surface uses this to
+// drop ref-def regex matches that goldmark would parse as content
+// rather than as references.
+func contentBlockLines(root ast.Node, body []byte) map[int]bool {
+	out := map[int]bool{}
+	mark := func(n ast.Node) {
+		ls := n.Lines()
+		for i := 0; i < ls.Len(); i++ {
+			seg := ls.At(i)
+			out[lineOfBodyOffset(body, seg.Start)] = true
+		}
+	}
+	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch n.(type) {
+		case *ast.FencedCodeBlock, *ast.CodeBlock, *lint.ProcessingInstruction:
+			mark(n)
+		}
+		return ast.WalkContinue, nil
+	})
+	return out
+}
+
+// validRefDefBodyLines reports body-line indices that hold a real
+// reference definition (one goldmark accepted, not a code-block
+// look-alike). prepareRenameAt uses it to suppress the rename UI
+// on lines the parser doesn't treat as defs.
+func validRefDefBodyLines(body []byte) map[int]bool {
+	out := map[int]bool{}
+	for _, m := range validRefDefMatches(body) {
+		out[m.bodyLine] = true
+	}
+	return out
 }
 
 // linkRefEdits walks the source for the def line and every
@@ -972,18 +1080,21 @@ func linkRefEdits(source []byte, oldLabel, newName string) []textEdit {
 // definition for a given label, but the file may legally carry
 // duplicate def lines (the rest are unused). We rewrite all of them
 // so the file ends up internally consistent.
+//
+// Filtering goes through validRefDefMatches so a `[label]: url`-
+// looking line inside a fenced code block or PI body does not get
+// rewritten — those parse as content, and overwriting them would
+// corrupt examples in the docs.
 func refDefEditsInBody(
 	body []byte, lines [][]byte, fmOffset int,
 	oldLabel, newName string,
 ) []textEdit {
 	var out []textEdit
-	for _, m := range refDefMatches(body) {
-		raw := body[m[2]:m[3]]
-		if normalizedLabel(raw) != oldLabel {
+	for _, m := range validRefDefMatches(body) {
+		if m.normLabel != oldLabel {
 			continue
 		}
-		bodyLine := lineOfBodyOffset(body, m[2])
-		fileLine := bodyLine + fmOffset
+		fileLine := m.bodyLine + fmOffset
 		if fileLine-1 >= len(lines) {
 			continue
 		}
@@ -1003,12 +1114,6 @@ func refDefEditsInBody(
 		})
 	}
 	return out
-}
-
-// refDefMatches wraps refDefRE.FindAllSubmatchIndex so the caller
-// can iterate without repeating the regex name.
-func refDefMatches(body []byte) [][]int {
-	return index.RefDefRegexpMatches(body)
 }
 
 // refUseEditsInBody walks the AST for ast.Link nodes whose
