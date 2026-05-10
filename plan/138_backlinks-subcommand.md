@@ -1,7 +1,7 @@
 ---
 id: 138
 title: "`mdsmith backlinks` subcommand"
-status: "🔲"
+status: "🔳"
 model: sonnet
 summary: >-
   Surface MDS027's link graph as a CLI subcommand.
@@ -158,20 +158,20 @@ trigger.
 
 ## Acceptance Criteria
 
-- [ ] `mdsmith backlinks docs/api.md` returns
+- [x] `mdsmith backlinks docs/api.md` returns
       every workspace link to that path, one
       per line, with source path and line.
-- [ ] `mdsmith backlinks docs/api.md#auth`
+- [x] `mdsmith backlinks docs/api.md#auth`
       filters by resolved anchor.
-- [ ] `mdsmith backlinks --format json` emits
+- [x] `mdsmith backlinks --format json` emits
       the documented JSON shape.
-- [ ] `--include GLOB` and `--limit N` scope
+- [x] `--include GLOB` and `--limit N` scope
       the result.
-- [ ] MDS027 and the subcommand share one
+- [x] MDS027 and the subcommand share one
       link-graph builder (no duplicated walk).
-- [ ] A new `docs/reference/cli/backlinks.md`
+- [x] A new `docs/reference/cli/backlinks.md`
       page describes the subcommand with one
       worked example.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues.

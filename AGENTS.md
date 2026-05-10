@@ -51,6 +51,7 @@ row: "- [{summary}]({filename})"
 - [Trade-offs and threshold guidance for readability, structure, length, and token budgets.](docs/guides/metrics-tradeoffs.md)
 - [Declare a document-structure schema inline on a kind or in a proto.md file, validate headings and front matter, and tighten rule config per section.](docs/guides/schemas.md)
 - [CLI commands, flags, exit codes, and output format.](docs/reference/cli.md)
+- [List workspace links that point at a file.](docs/reference/cli/backlinks.md)
 - [Lint Markdown files for style issues.](docs/reference/cli/check.md)
 - [Auto-fix lint issues in Markdown files in place.](docs/reference/cli/fix.md)
 - [Show built-in documentation for rules, metrics, and concept pages.](docs/reference/cli/help.md)

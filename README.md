@@ -143,6 +143,7 @@ row: "| [`{command}`]({filename}) | {summary} |"
 ?>
 | Command                                                      | Description                                                                          |
 |--------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| [`backlinks`](docs/reference/cli/backlinks.md)               | List workspace links that point at a file.                                           |
 | [`check`](docs/reference/cli/check.md)                       | Lint Markdown files for style issues.                                                |
 | [`fix`](docs/reference/cli/fix.md)                           | Auto-fix lint issues in Markdown files in place.                                     |
 | [`help`](docs/reference/cli/help.md)                         | Show built-in documentation for rules, metrics, and concept pages.                   |
