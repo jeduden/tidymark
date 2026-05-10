@@ -89,7 +89,15 @@ describe("buildClientOptions", () => {
 
   test("forwards a shared OutputChannel and omits outputChannelName", () => {
     const watcher: FileSystemWatcherLike = {};
-    const channel = { id: "shared" };
+    const channel = {
+      name: "mdsmith",
+      append: () => {},
+      appendLine: () => {},
+      clear: () => {},
+      show: () => {},
+      hide: () => {},
+      dispose: () => {},
+    };
     const opts = buildClientOptions(watcher, channel);
     expect(opts.outputChannel as unknown).toBe(channel as unknown);
     expect(opts.outputChannelName).toBeUndefined();

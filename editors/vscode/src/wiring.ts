@@ -40,11 +40,19 @@ export function buildServerOptions(
   };
 }
 
-// OutputChannelLike is a marker for a vscode.OutputChannel instance
-// forwarded into LanguageClientOptions. Defined here so wiring.ts
-// stays decoupled from the `vscode` runtime package; the real
-// instance is supplied by extension.ts.
-export interface OutputChannelLike {}
+// OutputChannelLike captures the OutputChannel methods that
+// vscode-languageclient calls when LanguageClientOptions.outputChannel
+// is set. Defined structurally so wiring.ts stays decoupled from the
+// `vscode` runtime package while still rejecting unrelated objects.
+export interface OutputChannelLike {
+  readonly name: string;
+  append(value: string): void;
+  appendLine(value: string): void;
+  clear(): void;
+  show(preserveFocus?: boolean): void;
+  hide(): void;
+  dispose(): void;
+}
 
 export function buildClientOptions(
   configWatcher: FileSystemWatcherLike,

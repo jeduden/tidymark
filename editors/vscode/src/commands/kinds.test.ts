@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   extractRuleIds,
+  makeKindsContentProvider,
   runKindsResolve,
   runKindsWhy,
   type DiagnosticLike,
@@ -206,7 +207,6 @@ function makeDeps(overrides: Partial<KindsWhyHandlerDeps> = {}): {
 
 describe("makeKindsContentProvider", () => {
   test("provideTextDocumentContent delegates to fetchKindsContent via spawn", async () => {
-    const { makeKindsContentProvider } = await import("./kinds.js");
     const spawn = async (_bin: string, _args: string[]) => ({
       stdout: '{"file":"a.md"}',
       stderr: "",
