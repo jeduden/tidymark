@@ -100,15 +100,15 @@ pip install mdsmith            # or: uvx mdsmith / pipx install mdsmith
 Editor extension (LSP-backed; runs `mdsmith lsp`):
 
 ```bash
-code --install-extension jeduden.mdsmith     # VS Code, Codespaces, GitHub.dev
+code --install-extension jeduden.mdsmith     # VS Code, Codespaces (Marketplace)
 codium --install-extension jeduden.mdsmith   # Cursor, VSCodium, Theia, Gitpod (Open VSX)
 ```
 
-Any LSP-aware editor (Neovim, Helix, JetBrains) works by
-pointing at `mdsmith lsp`.
+Any LSP-aware editor (Neovim, Helix, JetBrains via the LSP
+plugin) works by pointing at `mdsmith lsp`.
 
 More: [all install channels](docs/guides/install.md) covers
-direct downloads, asdf, and mise.
+direct downloads and mise (asdf pending).
 [VS Code integration](docs/guides/editors/vscode.md) covers
 settings, code actions, and troubleshooting.
 
