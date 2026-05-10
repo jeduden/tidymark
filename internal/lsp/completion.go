@@ -29,7 +29,14 @@ func (s *Server) handleCompletion(msg *requestMessage) {
 	line := p.Position.Line + 1
 	col := lspPositionToByteColumn(source, line, p.Position.Character)
 	ctx := index.Locator{Path: rel}.CompletionContext(source, line, col)
-	idx := s.ensureIndex()
+	if ctx.Tag == index.CompletionNone {
+		_ = s.t.writeResponse(msg.ID, completionList{IsIncomplete: false, Items: []completionItem{}})
+		return
+	}
+	var idx *index.Index
+	if ctx.Tag != index.CompletionKindValue {
+		idx = s.ensureIndex()
+	}
 
 	items := s.completionItems(ctx, rel, idx)
 	_ = s.t.writeResponse(msg.ID, completionList{IsIncomplete: false, Items: items})
@@ -136,9 +143,9 @@ func (s *Server) kindItems(prefix string) []completionItem {
 	return items
 }
 
-// directivePathItems returns workspace .md paths matching prefix, expressed
-// relative to the open buffer's directory (matching how include/build/catalog
-// directives resolve paths via ResolveRelTarget).
+// directivePathItems returns workspace Markdown paths (both .md and .markdown)
+// matching prefix, expressed relative to the open buffer's directory (matching
+// how include/build/catalog directives resolve paths via ResolveRelTarget).
 func (s *Server) directivePathItems(rel, prefix string, idx *index.Index) []completionItem {
 	dir := path.Dir(rel)
 	if dir == "." {

@@ -212,9 +212,9 @@ matches first for anchor completion.
 | `[text][prefix`                  | Link-ref labels in current file | `Reference`  |
 | Front-matter `kind: prefix`      | Kind names from `.mdsmith.yml`  | `EnumMember` |
 | Front-matter `kinds:` list item  | Kind names from `.mdsmith.yml`  | `EnumMember` |
-| `<?include file: "prefix"?>` arg | Workspace `.md` paths           | `File`       |
-| `<?build source: "prefix"?>` arg | Workspace `.md` paths           | `File`       |
-| `<?catalog glob: "prefix"` entry | Workspace `.md` paths           | `File`       |
+| `<?include file: "prefix"?>` arg | Workspace Markdown paths        | `File`       |
+| `<?build source: "prefix"?>` arg | Workspace Markdown paths        | `File`       |
+| `<?catalog glob: "prefix"` entry | Workspace Markdown paths        | `File`       |
 | Any other position               | Empty list (no error)           | —            |
 
 The `detail` field carries the source file path for headings and
