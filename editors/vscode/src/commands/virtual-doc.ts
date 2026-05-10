@@ -61,10 +61,10 @@ export async function fetchKindsContent(
 ): Promise<string> {
   const parsed = parseKindsUri(uri);
   if (!parsed) {
-    return `<!-- mdsmith: malformed kinds URI: ${uri} -->`;
+    return `**mdsmith: malformed kinds URI**\n\n\`\`\`\n${uri}\n\`\`\``;
   }
   if (!isAbsolute(parsed.file)) {
-    return `<!-- mdsmith: kinds URI file path must be absolute: ${parsed.file} -->`;
+    return `**mdsmith: kinds URI file path must be absolute**\n\n\`\`\`\n${parsed.file}\n\`\`\``;
   }
 
   const args =
