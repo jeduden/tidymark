@@ -107,6 +107,16 @@ codium --install-extension jeduden.mdsmith   # Cursor, VSCodium, Theia, Gitpod (
 Any LSP-aware editor (Neovim, Helix, JetBrains via the LSP
 plugin) works by pointing at `mdsmith lsp`.
 
+Claude Code plugin (inline diagnostics plus definition,
+references, symbol search, and call-hierarchy queries
+across your docs):
+
+```text
+/plugin marketplace add jeduden/mdsmith
+/plugin install mdsmith-lsp@mdsmith
+/reload-plugins
+```
+
 More: the [install guide](docs/guides/install.md) covers
 direct downloads and mise (asdf pending).
 [VS Code integration](docs/guides/editors/vscode.md) covers
