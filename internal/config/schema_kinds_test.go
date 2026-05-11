@@ -118,6 +118,92 @@ func TestEffectiveClearsPriorSchemaWhenNewSourceArrives(t *testing.T) {
 		"later inline source should be present")
 }
 
+// TestValidateKindAllowsInlineWithoutFileSchemaSetting covers
+// validateKindSchemaSources' early-return branches: inline schema
+// alone, inline schema plus other rule settings, and inline schema
+// plus a required-structure entry that has no `schema:` key.
+func TestValidateKindAllowsInlineWithoutFileSchemaSetting(t *testing.T) {
+	cases := []struct {
+		name string
+		body KindBody
+	}{
+		{
+			name: "inline only",
+			body: KindBody{Schema: map[string]any{"sections": []any{}}},
+		},
+		{
+			name: "inline plus unrelated rule",
+			body: KindBody{
+				Schema: map[string]any{"sections": []any{}},
+				Rules: map[string]RuleCfg{
+					"line-length": {Enabled: true},
+				},
+			},
+		},
+		{
+			name: "inline plus required-structure without schema key",
+			body: KindBody{
+				Schema: map[string]any{"sections": []any{}},
+				Rules: map[string]RuleCfg{
+					"required-structure": {Enabled: true, Settings: map[string]any{
+						"placeholders": []any{"foo"},
+					}},
+				},
+			},
+		},
+		{
+			name: "inline plus required-structure with empty schema",
+			body: KindBody{
+				Schema: map[string]any{"sections": []any{}},
+				Rules: map[string]RuleCfg{
+					"required-structure": {Enabled: true, Settings: map[string]any{
+						"schema": "",
+					}},
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{Kinds: map[string]KindBody{"k": tc.body}}
+			assert.NoError(t, ValidateKinds(cfg))
+		})
+	}
+}
+
+func TestKindDeclaresSchemaRecognisesInlineSchemaSetting(t *testing.T) {
+	// A kind that supplies `inline-schema` via the rules map (not
+	// via KindBody.Schema) still counts as a schema source so the
+	// merge clears prior state.
+	cfg := &Config{
+		Rules: map[string]RuleCfg{
+			"required-structure": {Enabled: true, Settings: map[string]any{
+				"schema": "schemas/base.md",
+			}},
+		},
+		ExplicitRules: map[string]bool{"required-structure": true},
+		Kinds: map[string]KindBody{
+			"k": {Rules: map[string]RuleCfg{
+				"required-structure": {Enabled: true, Settings: map[string]any{
+					"inline-schema": map[string]any{
+						"sections": []any{
+							map[string]any{"heading": "X"},
+						},
+					},
+				}},
+			}},
+		},
+		KindAssignment: []KindAssignmentEntry{
+			{Glob: []string{"*.md"}, Kinds: []string{"k"}},
+		},
+	}
+	effective := Effective(cfg, "foo.md", nil)
+	rs := effective["required-structure"]
+	assert.NotContains(t, rs.Settings, "schema",
+		"a kind installing inline-schema via rules should clear the file path")
+	assert.Contains(t, rs.Settings, "inline-schema")
+}
+
 // TestEffectiveClearsPriorSchemaForOverrideInlineSchema covers the
 // path where an override (not a kind) installs an inline-schema:
 // the helper rulesDeclareSchema must recognise inline-schema as a

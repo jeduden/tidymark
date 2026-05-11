@@ -733,6 +733,62 @@ func TestValidateFrontmatter_HandlesNilFM(t *testing.T) {
 	assert.NoError(t, ValidateFrontmatter(sch, nil))
 }
 
+func TestParseFile_EmptySchemaYieldsNoSections(t *testing.T) {
+	// A proto.md with no headings at all hits the rootLevel==0
+	// branch in headingsToScopes.
+	dir := t.TempDir()
+	p := writeFile(t, dir, "proto.md", "Just prose, no headings.\n")
+	sch, err := ParseFile(&FileReader{}, p)
+	require.NoError(t, err)
+	assert.Empty(t, sch.Sections)
+	assert.Equal(t, 2, sch.RootLevel)
+}
+
+func TestParseFile_HeadingWithEmphasis(t *testing.T) {
+	// Heading with **strong** content exercises writeNodeText's
+	// recursive child branch (neither Text nor CodeSpan).
+	dir := t.TempDir()
+	p := writeFile(t, dir, "proto.md", "# **Bold** Title\n\n## Goal\n")
+	sch, err := ParseFile(&FileReader{}, p)
+	require.NoError(t, err)
+	require.Len(t, sch.Sections, 1)
+	assert.Contains(t, sch.Sections[0].Heading, "Bold")
+}
+
+func TestParseFile_IncludeEmptyFileParam(t *testing.T) {
+	dir := t.TempDir()
+	p := writeFile(t, dir, "proto.md",
+		"# ?\n\n<?include\nfile: \"\"\n?>\n")
+	_, err := ParseFile(&FileReader{}, p)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing required 'file' attribute")
+}
+
+func TestParseFile_IncludeMalformedYAMLDirective(t *testing.T) {
+	dir := t.TempDir()
+	p := writeFile(t, dir, "proto.md",
+		"# ?\n\n<?include\nfile: [unterminated\n?>\n")
+	_, err := ParseFile(&FileReader{}, p)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid include directive YAML")
+}
+
+func TestStripDelimiters_NoTrailingNewline(t *testing.T) {
+	// White-box test: the fallback branch only fires when the
+	// closing `---` has no trailing newline (a malformed but
+	// permissive case).
+	got := stripDelimiters([]byte("---\nfoo: 1\n---"))
+	assert.Equal(t, "foo: 1\n", string(got))
+}
+
+func TestStripDelimiters_OnlyLeadingFence(t *testing.T) {
+	// Truly malformed input with no closing fence; the function
+	// returns whatever follows the leading `---\n` so the YAML
+	// parser surfaces the real diagnostic downstream.
+	got := stripDelimiters([]byte("---\nfoo: 1\n"))
+	assert.Equal(t, "foo: 1\n", string(got))
+}
+
 func TestParseFile_FrontmatterEmptyBody(t *testing.T) {
 	// "---\n---\n" yields empty content between delimiters; the
 	// parser should accept it as an empty (no constraints) FM.
@@ -772,6 +828,53 @@ func TestParseFile_IncludeMaxDepthExceeded(t *testing.T) {
 		filepath.Join(dir, "f0.md"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "include depth exceeds maximum")
+}
+
+func TestParseInline_NilRawReturnsEmpty(t *testing.T) {
+	// Nil raw map exercises the early-return branch.
+	sch, err := ParseInline(nil, "kind x")
+	require.NoError(t, err)
+	require.NotNil(t, sch)
+	assert.True(t, sch.IsEmpty())
+	assert.Equal(t, 2, sch.RootLevel)
+}
+
+func TestParseInline_NestedSectionsRejectsBadType(t *testing.T) {
+	// Inner sections list with an invalid scope; exercises the
+	// error propagation through setScopeSections.
+	raw := map[string]any{
+		"sections": []any{
+			map[string]any{
+				"heading":  "Parent",
+				"sections": []any{42},
+			},
+		},
+	}
+	_, err := ParseInline(raw, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "scope must be a mapping")
+}
+
+func TestIsCUEIdent_EmptyAndDigitFirst(t *testing.T) {
+	// Empty string and digit-leading strings are not valid CUE
+	// identifiers; cueFieldLabel quotes them.
+	assert.False(t, isCUEIdent(""))
+	assert.False(t, isCUEIdent("1foo"))
+	assert.False(t, isCUEIdent("foo-bar"))
+	assert.True(t, isCUEIdent("foo_bar"))
+	assert.True(t, isCUEIdent("foo123"))
+}
+
+func TestValidate_FilenameMatchesPattern(t *testing.T) {
+	// The "matched" return branch of validateFilename.
+	raw := map[string]any{
+		"require": map[string]any{"filename": "doc.md"},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md", "# T\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	assert.Empty(t, diags)
 }
 
 func TestPatternRegex_NilOnCompileError(t *testing.T) {

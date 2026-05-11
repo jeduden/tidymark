@@ -254,6 +254,56 @@ func TestCheck_InlineSchema_FrontmatterCUE(t *testing.T) {
 		"front matter does not satisfy schema CUE constraints")
 }
 
+// TestApplyScopeRules_NilSchemaShortCircuits covers the defensive
+// guard at the top of applyScopeRules so coverage reflects the
+// fact that nil schemas are handled.
+func TestApplyScopeRules_NilSchemaShortCircuits(t *testing.T) {
+	r := &Rule{}
+	f := newTestFile(t, "doc.md", "# T\n\n## Foo\n")
+	diags := r.applyScopeRules(f, nil)
+	assert.Empty(t, diags)
+}
+
+// TestCheck_InlineSchema_NestedScopeRuleOverride covers walkScopes'
+// recursion branch: a parent scope with a `rules:` block AND nested
+// children, both with overrides.
+func TestCheck_InlineSchema_NestedScopeRuleOverride(t *testing.T) {
+	r := &Rule{InlineSchema: inlineSchema(t, map[string]any{
+		"sections": []any{
+			map[string]any{
+				"heading": "Parent",
+				"sections": []any{
+					map[string]any{
+						"heading": "Child",
+						"rules": map[string]any{
+							"line-length": map[string]any{
+								"max":     20,
+								"stern":   true,
+								"exclude": []any{},
+							},
+						},
+					},
+				},
+			},
+		},
+	})}
+	// Long line lives inside the Child section.
+	src := "# Doc\n\n" +
+		"## Parent\n\n" +
+		"### Child\n\n" +
+		"This child line is well over twenty chars and should fire.\n"
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	var lineLength []lint.Diagnostic
+	for _, d := range diags {
+		if d.RuleID == "MDS001" {
+			lineLength = append(lineLength, d)
+		}
+	}
+	require.NotEmpty(t, lineLength,
+		"nested-scope rule override should be applied inside the Child window")
+}
+
 // TestCheck_InlineSchema_ScopeRulesUnderFieldHeading exercises
 // matchesScopeText against a placeholder-bearing heading — the
 // walker should still pair the scope with the matching doc heading
