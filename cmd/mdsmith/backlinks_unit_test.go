@@ -70,6 +70,33 @@ func TestNormalizeWorkspacePath(t *testing.T) {
 	assert.Equal(t, "docs/api.md", normalizeWorkspacePath(abs, root))
 }
 
+// TestNormalizeWorkspacePath_FileNameStartsWithTwoDots guards against
+// the prefix-check bug: a legitimate workspace file like `..foo.md`
+// (whose relative path starts with two dots without a separator)
+// must not be misclassified as a parent-directory traversal.
+func TestNormalizeWorkspacePath_FileNameStartsWithTwoDots(t *testing.T) {
+	root := t.TempDir()
+	abs := filepath.Join(root, "..foo.md")
+	got := normalizeWorkspacePath(abs, root)
+	assert.Equal(t, "..foo.md", got,
+		"file name beginning with two dots must still be treated as in-workspace")
+}
+
+// TestNormalizeWorkspacePath_RealParentTraversalRejected confirms
+// that absolute paths genuinely outside the workspace fall back to
+// the cleaned absolute form (so backlinks against them match nothing).
+func TestNormalizeWorkspacePath_RealParentTraversalRejected(t *testing.T) {
+	root := t.TempDir()
+	parent := filepath.Dir(root)
+	outside := filepath.Join(parent, "outside.md")
+	got := normalizeWorkspacePath(outside, root)
+	// The path is not made workspace-relative; the cleaned absolute
+	// (forward-slashed) form is returned and won't match any
+	// workspace-internal source path.
+	assert.NotEqual(t, "..outside.md", got)
+	assert.NotEqual(t, "outside.md", got)
+}
+
 func TestSourceMatches(t *testing.T) {
 	assert.True(t, sourceMatches("docs/api.md", nil))
 	assert.True(t, sourceMatches("docs/api.md", []string{"docs/**"}))

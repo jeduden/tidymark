@@ -135,6 +135,17 @@ func TestE2E_Backlinks_AnchorOnlyTarget_ExitsTwo(t *testing.T) {
 	assert.Contains(t, stderr, "target must include a file path")
 }
 
+func TestE2E_Backlinks_NegativeLimit_ExitsTwo(t *testing.T) {
+	// --limit is documented as `0 = no cap`; negative values would
+	// otherwise be silently treated as "no cap" because emitBacklinks
+	// only caps when limit > 0. Reject upfront.
+	dir := setupBacklinksWorkspace(t)
+	_, stderr, exitCode := runBinaryInDir(
+		t, dir, "", "backlinks", "--limit", "-1", "docs/api.md")
+	require.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, "--limit must be >= 0")
+}
+
 func TestE2E_Backlinks_InvalidMaxInputSize_ExitsTwo(t *testing.T) {
 	dir := setupBacklinksWorkspace(t)
 	_, stderr, exitCode := runBinaryInDir(

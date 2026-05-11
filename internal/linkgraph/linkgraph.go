@@ -172,14 +172,11 @@ func linkPosition(f *lint.File, n ast.Node) (int, int) {
 	if offset < 0 {
 		return 1, 1
 	}
-	line := f.LineOfOffset(offset)
-	lineStart := 0
-	for i := 0; i < offset && i < len(f.Source); i++ {
-		if f.Source[i] == '\n' {
-			lineStart = i + 1
-		}
-	}
-	return line, offset - lineStart + 1
+	// f.ColumnOfOffset scans backward from offset to the previous
+	// newline, so it's O(column) per call instead of the O(offset)
+	// forward scan a hand-rolled version would do — meaningful for
+	// `mdsmith backlinks` which can call this many times per file.
+	return f.LineOfOffset(offset), f.ColumnOfOffset(offset)
 }
 
 func firstTextOffset(n ast.Node) int {

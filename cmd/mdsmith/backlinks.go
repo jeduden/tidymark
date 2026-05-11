@@ -104,6 +104,10 @@ func runBacklinks(args []string) int {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
 		return 2
 	}
+	if opts.limit < 0 {
+		fmt.Fprintf(os.Stderr, "mdsmith: --limit must be >= 0 (got %d)\n", opts.limit)
+		return 2
+	}
 
 	cfg, cfgPath, _, files, code := discoverFiles(opts.configPath, false, opts.walk)
 	if code >= 0 {
@@ -174,7 +178,11 @@ func normalizeWorkspacePath(target, rootDir string) string {
 	if filepath.IsAbs(filepath.FromSlash(t)) && rootDir != "" {
 		absRoot, _ := filepath.Abs(rootDir)
 		rel, err := filepath.Rel(absRoot, filepath.FromSlash(t))
-		if err == nil && !strings.HasPrefix(rel, "..") {
+		// `HasPrefix(rel, "..")` would misclassify in-root files
+		// whose names happen to start with two dots (e.g.
+		// `..notes.md`). Only treat a leading `..` followed by a
+		// path separator (or the bare `..`) as a true escape.
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			t = filepath.ToSlash(rel)
 		}
 	}
