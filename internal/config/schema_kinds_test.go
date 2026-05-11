@@ -272,6 +272,29 @@ func TestEmptyInlineSchemaDoesNotClearPriorState(t *testing.T) {
 		"empty schema map must not install an inline-schema entry")
 }
 
+// TestInlineSchemaMarksRequiredStructureExplicit regresses a
+// bug where an inline `schema:` on a kind would resolve to an
+// enabled required-structure rule, but EffectiveExplicitRules
+// would not flag it as explicit (it only walked body.Rules). A
+// disabled `meta` category then silently wiped the inline
+// schema's effect. The explicit map must now include
+// required-structure when KindBody.Schema is non-empty.
+func TestInlineSchemaMarksRequiredStructureExplicit(t *testing.T) {
+	cfg := &Config{
+		Kinds: map[string]KindBody{
+			"k": {Schema: map[string]any{
+				"sections": []any{map[string]any{"heading": "X"}},
+			}},
+		},
+		KindAssignment: []KindAssignmentEntry{
+			{Glob: []string{"*.md"}, Kinds: []string{"k"}},
+		},
+	}
+	explicit := EffectiveExplicitRules(cfg, "foo.md", nil)
+	assert.True(t, explicit["required-structure"],
+		"an inline kind schema must mark required-structure as explicit")
+}
+
 // TestBoolOnlyRequiredStructureRuleCfg covers the case where a
 // kind or override sets `required-structure: true/false` — the
 // RuleCfg has Settings=nil, and ValidateKinds / Effective must not

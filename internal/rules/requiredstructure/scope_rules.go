@@ -203,10 +203,12 @@ func runScopeRules(
 					fmt.Sprintf(
 						"scope rule override for %q has no effect: "+
 							"the rule does not accept settings", name)))
+				continue
 			}
-			continue
-		}
-		if err := c.ApplySettings(override); err != nil {
+			// Empty override on a non-configurable rule is a
+			// request to re-run the rule with its defaults inside
+			// this scope; fall through to the Check call.
+		} else if err := c.ApplySettings(override); err != nil {
 			diags = append(diags, makeDiag(f.Path, startLine,
 				fmt.Sprintf(
 					"scope rule override for %q is invalid: %v",

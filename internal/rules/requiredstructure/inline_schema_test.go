@@ -476,6 +476,37 @@ func TestCheck_InlineSchema_ScopeRuleNonConfigurable(t *testing.T) {
 		`scope rule override for "blank-line-around-fenced-code" has no effect`)
 }
 
+// TestCheck_InlineSchema_ScopeRuleNonConfigurableEmptyOverride
+// regresses the empty-override-on-non-Configurable case: an empty
+// map means "re-run this rule inside the scope with its defaults",
+// so the rule's Check must fire (and diagnostics inside the scope
+// are kept). Without this, a `rules: { blank-line-around-fenced-
+// code: {} }` entry would silently no-op.
+func TestCheck_InlineSchema_ScopeRuleNonConfigurableEmptyOverride(t *testing.T) {
+	r := &Rule{InlineSchema: inlineSchema(t, map[string]any{
+		"sections": []any{
+			map[string]any{
+				"heading": "Section",
+				"rules": map[string]any{
+					"blank-line-around-fenced-code": map[string]any{},
+				},
+			},
+		},
+	})}
+	// Place a fenced block right against a heading inside Section.
+	// blank-line-around-fenced-code flags missing blank lines
+	// around fenced code; we just verify it runs (no MDS020 "no
+	// effect" diagnostic, and the rule's own diagnostics flow when
+	// applicable).
+	f := newTestFile(t, "doc.md",
+		"# T\n\n## Section\n```\nx\n```\n")
+	diags := r.Check(f)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "has no effect",
+			"empty override on non-configurable rule should re-run, not no-op")
+	}
+}
+
 // TestCheck_InlineSchema_ScopeRulesUnderFieldHeading exercises
 // matchesScopeText against a placeholder-bearing heading — the
 // walker should still pair the scope with the matching doc heading

@@ -471,6 +471,15 @@ func effectiveExplicit(cfg *Config, filePath string, kinds []string) map[string]
 		for k := range body.Rules {
 			result[k] = true
 		}
+		// An inline `schema:` block on the kind is an explicit
+		// configuration of required-structure even though it lives
+		// outside body.Rules. Without this, a `meta` category
+		// disable would silently wipe an inline-schema kind's
+		// effect — inconsistent with the file-source path that
+		// lives under body.Rules.
+		if len(body.Schema) > 0 {
+			result["required-structure"] = true
+		}
 	}
 	for _, o := range cfg.Overrides {
 		if matchesAny(o.Patterns(), filePath) {
