@@ -289,13 +289,13 @@ func parseQueryFlags(args []string) (queryOptions, []string, error) {
 func runQuery(args []string) int {
 	opts, posArgs, err := parseQueryFlags(args)
 	if err != nil {
-		if code := reportFlagParseErr(err, os.Stderr, "mdsmith: query"); code >= 0 {
+		if code := reportFlagParseErr(err, os.Stderr, "mdsmith: list query"); code >= 0 {
 			return code
 		}
 	}
 
 	if len(posArgs) == 0 {
-		fmt.Fprintf(os.Stderr, "mdsmith: query requires a CUE expression argument\n")
+		fmt.Fprintf(os.Stderr, "mdsmith: list query requires a CUE expression argument\n")
 		return 2
 	}
 

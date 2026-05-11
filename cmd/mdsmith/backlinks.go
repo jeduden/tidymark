@@ -81,7 +81,7 @@ func parseBacklinksFlags(args []string) (backlinksOptions, []string, error) {
 func runBacklinks(args []string) int {
 	opts, posArgs, err := parseBacklinksFlags(args)
 	if err != nil {
-		if code := reportFlagParseErr(err, os.Stderr, "mdsmith: backlinks"); code >= 0 {
+		if code := reportFlagParseErr(err, os.Stderr, "mdsmith: list backlinks"); code >= 0 {
 			return code
 		}
 	}
@@ -135,11 +135,11 @@ func runBacklinks(args []string) int {
 // exit code with a message already written to stderr.
 func validateBacklinksArgs(opts backlinksOptions, posArgs []string) (targetPath, targetAnchor string, code int) {
 	if len(posArgs) == 0 {
-		fmt.Fprint(os.Stderr, "mdsmith: backlinks requires a target file argument\n")
+		fmt.Fprint(os.Stderr, "mdsmith: list backlinks requires a target file argument\n")
 		return "", "", 2
 	}
 	if len(posArgs) > 1 {
-		fmt.Fprintf(os.Stderr, "mdsmith: backlinks takes one target argument, got %d\n", len(posArgs))
+		fmt.Fprintf(os.Stderr, "mdsmith: list backlinks takes one target argument, got %d\n", len(posArgs))
 		return "", "", 2
 	}
 	// Route the target through the same parser the link walker uses
@@ -154,7 +154,7 @@ func validateBacklinksArgs(opts backlinksOptions, posArgs []string) (targetPath,
 		return "", "", 2
 	}
 	if parsed.LocalAnchor {
-		fmt.Fprint(os.Stderr, "mdsmith: backlinks target must include a file path\n")
+		fmt.Fprint(os.Stderr, "mdsmith: list backlinks target must include a file path\n")
 		return "", "", 2
 	}
 	targetPath, targetAnchor = parsed.Path, parsed.Anchor
