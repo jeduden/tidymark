@@ -910,8 +910,8 @@ func TestValidate_LateListedScopeRecursesIntoChildren(t *testing.T) {
 // TestParseInline_RejectsWildcardAsHeadingText regresses a
 // confusing-input case: a mapping-form scope with `heading: "..."`
 // would silently be treated as a literal section named "...".
-// Reject it at parse time so the only path to a wildcard slot is
-// the bare-string entry form.
+// Reject it at parse time so the only inline path to a slot is
+// `heading: {unlisted: true}` (the mapping form).
 func TestParseInline_RejectsWildcardAsHeadingText(t *testing.T) {
 	raw := map[string]any{
 		"sections": []any{

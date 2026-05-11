@@ -17,10 +17,13 @@
 // See plan/146_inline-schema-in-kinds.md for the design context.
 package schema
 
-// SectionWildcard is the literal text used in a proto.md heading or
-// an inline `sections:` entry to mark a positional escape hatch: a
-// slot that does not require any heading and that tolerates any
-// unlisted sections in its place, even under closed: true.
+// SectionWildcard is the literal text the file-based parser
+// recognises in a proto.md heading row (`## ...`) as a positional
+// slot — the on-disk surface for what the inline grammar spells
+// `heading: {unlisted: true}`. The inline parser rejects this
+// string when it appears as `heading:` or `aliases:` text;
+// authors must use the mapping form. The constant lives here so
+// the two parsers agree on the same on-disk token.
 const SectionWildcard = "..."
 
 // Schema is the parsed representation of a single document schema.
