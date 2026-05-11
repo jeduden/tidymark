@@ -174,6 +174,26 @@ func TestBacklinksForBreaksTiesBySourceCol(t *testing.T) {
 	assert.Less(t, got[0].SourceCol, got[1].SourceCol)
 }
 
+// TestBacklinksForExcludesCatalogPhantoms verifies that a
+// `<?catalog?>` directive in some other file isn't surfaced as a
+// backlink. The index emits the catalog edge with empty
+// TargetFile so call-hierarchy can render "uses a catalog";
+// IncomingEdges treats empty TargetFile as self-reference, which
+// would otherwise make every catalog host appear as its own
+// backlink.
+func TestBacklinksForExcludesCatalogPhantoms(t *testing.T) {
+	t.Parallel()
+	idx := New("/root")
+	idx.Update("target.md", []byte("# Target\n"))
+	idx.Update("host.md", []byte("# H\n\n<?catalog\nglob: [\"docs/*.md\"]\n?>\n<?/catalog?>\n"))
+	// target.md gets no backlinks (the catalog edge in host.md
+	// is a self-marker, not a citation of target.md).
+	assert.Empty(t, idx.BacklinksFor("target.md"))
+	// host.md itself also gets no backlinks — the catalog edge
+	// must not surface as a phantom self-backlink there either.
+	assert.Empty(t, idx.BacklinksFor("host.md"))
+}
+
 // TestBacklinksForEmptyTarget covers the no-incoming-edges path.
 func TestBacklinksForEmptyTarget(t *testing.T) {
 	t.Parallel()
