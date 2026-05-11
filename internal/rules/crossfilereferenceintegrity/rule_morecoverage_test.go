@@ -5,8 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	gast "github.com/yuin/goldmark/ast"
-
+	"github.com/jeduden/mdsmith/internal/linkgraph"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +17,7 @@ func TestCollectHeadingAnchors_EmptySlug(t *testing.T) {
 	// An empty heading "# " produces an empty slug.
 	f, err := lint.NewFile("test.md", []byte("# \n\nSome text.\n"))
 	require.NoError(t, err)
-	anchors := collectHeadingAnchors(f)
+	anchors := linkgraph.CollectAnchors(f)
 	// Empty slug is skipped, so anchors should be empty.
 	require.Empty(t, anchors)
 }
@@ -28,7 +27,7 @@ func TestCollectHeadingAnchors_EmptySlug(t *testing.T) {
 func TestCollectHeadingAnchors_DuplicateHeadings(t *testing.T) {
 	f, err := lint.NewFile("test.md", []byte("# Intro\n\n## Intro\n"))
 	require.NoError(t, err)
-	anchors := collectHeadingAnchors(f)
+	anchors := linkgraph.CollectAnchors(f)
 	require.True(t, anchors["intro"], "first heading should be 'intro'")
 	require.True(t, anchors["intro-1"], "second heading should be 'intro-1'")
 }
@@ -94,7 +93,7 @@ func TestResolveTargetOSPath_DotSourcePath(t *testing.T) {
 func TestParseTarget_EmptyPathNoFragment(t *testing.T) {
 	// A URL like "?" (query only) has no scheme, host, path, or fragment.
 	// url.Parse("?q=1") => {RawQuery: "q=1"} — path == "", fragment == ""
-	_, ok := parseTarget("?q=1")
+	_, ok := linkgraph.ParseTarget("?q=1")
 	require.False(t, ok, "URL with only query should return false")
 }
 
@@ -185,7 +184,7 @@ func TestCheck_InvalidExcludeGlobReturnsConfigDiag(t *testing.T) {
 // --- parseTarget: plain relative path sets Path, not Opaque ---
 // url.Parse("guide.md") sets Path="guide.md"; Opaque is empty.
 func TestParseTarget_PlainRelativePath(t *testing.T) {
-	target, ok := parseTarget("guide.md")
+	target, ok := linkgraph.ParseTarget("guide.md")
 	require.True(t, ok)
 	require.Equal(t, "guide.md", target.Path)
 	require.Empty(t, target.Anchor)
@@ -216,23 +215,6 @@ func TestMatchesPathFilters_IncludeNoMatch(t *testing.T) {
 	// "other/page.md" doesn't match "docs/**"
 	result := matchesPathFilters("other/page.md", include, nil)
 	require.False(t, result, "path not in include should return false")
-}
-
-// --- linkPosition: offset < 0 (no *ast.Text children in the link) ---
-
-func TestLinkPosition_NoTextChildren(t *testing.T) {
-	// Build a lint.File and a fake ast.Link with no children.
-	// linkPosition calls firstTextOffset, which returns -1 when no ast.Text
-	// nodes are found, causing the "if offset < 0 { return 1, 1 }" branch.
-	f, err := lint.NewFile("test.md", []byte("# Title\n"))
-	require.NoError(t, err)
-
-	linkNode := gast.NewLink()
-	// No children → firstTextOffset returns -1 → offset < 0 → return 1, 1
-
-	line, col := linkPosition(f, linkNode)
-	require.Equal(t, 1, line)
-	require.Equal(t, 1, col)
 }
 
 // --- Collect: compute returns an error path in rank.go ---

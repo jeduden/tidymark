@@ -7,8 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	gast "github.com/yuin/goldmark/ast"
-
+	"github.com/jeduden/mdsmith/internal/linkgraph"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 
@@ -53,6 +52,34 @@ func TestCheck_MissingHeadingAnchor(t *testing.T) {
 	require.Len(t, diags, 1, "expected 1 diagnostic, got %d", len(diags))
 	require.Contains(t, diags[0].Message, "guide.md#missing",
 		"message = %q, want to include guide.md#missing", diags[0].Message)
+}
+
+// TestCheck_FrontMatterLineNumbersBodyRelative verifies that MDS027
+// emits body-relative line numbers when the source has front matter.
+// The engine adds f.LineOffset to every diagnostic in CheckRules, so
+// link.Line must NOT already include that offset — otherwise the line
+// is shifted twice and points past the end of the file.
+func TestCheck_FrontMatterLineNumbersBodyRelative(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "doc.md")
+	// 3 lines of front matter + body. The broken link is on body line 3.
+	source := "---\ntitle: x\n---\n# Doc\n\nSee [missing](missing.md).\n"
+	writeFile(t, sourcePath, source)
+
+	data, err := os.ReadFile(sourcePath)
+	require.NoError(t, err)
+	// Use NewFileFromSource (the same shape the engine uses for files
+	// with front matter): strips the prefix, records LineOffset=3.
+	f, err := lint.NewFileFromSource(sourcePath, data, true)
+	require.NoError(t, err)
+	f.FS = os.DirFS(filepath.Dir(sourcePath))
+
+	diags := (&Rule{}).Check(f)
+	require.Len(t, diags, 1)
+	// Body-relative: link is on body line 3 ("See [missing]…"), not
+	// file-relative 6. The engine adds LineOffset later.
+	require.Equal(t, 3, diags[0].Line,
+		"diagnostic must use body-relative coordinates; engine adds f.LineOffset")
 }
 
 func TestCheck_ValidRelativeAndLocalAnchors(t *testing.T) {
@@ -503,7 +530,7 @@ func TestCheck_InvalidIncludeGlobReturnsConfigDiag(t *testing.T) {
 // =====================================================================
 
 func TestParseTarget_AnchorOnly(t *testing.T) {
-	target, ok := parseTarget("#section")
+	target, ok := linkgraph.ParseTarget("#section")
 	require.True(t, ok)
 	require.Equal(t, "#section", target.Raw)
 	require.Equal(t, "section", target.Anchor)
@@ -512,22 +539,22 @@ func TestParseTarget_AnchorOnly(t *testing.T) {
 }
 
 func TestParseTarget_Empty(t *testing.T) {
-	_, ok := parseTarget("")
+	_, ok := linkgraph.ParseTarget("")
 	require.False(t, ok)
 }
 
 func TestParseTarget_ProtocolRelative(t *testing.T) {
-	_, ok := parseTarget("//example.com/path")
+	_, ok := linkgraph.ParseTarget("//example.com/path")
 	require.False(t, ok)
 }
 
 func TestParseTarget_AbsoluteURL(t *testing.T) {
-	_, ok := parseTarget("https://example.com/path")
+	_, ok := linkgraph.ParseTarget("https://example.com/path")
 	require.False(t, ok)
 }
 
 func TestParseTarget_PathWithAnchor(t *testing.T) {
-	target, ok := parseTarget("guide.md#intro")
+	target, ok := linkgraph.ParseTarget("guide.md#intro")
 	require.True(t, ok)
 	require.Equal(t, "guide.md", target.Path)
 	require.Equal(t, "intro", target.Anchor)
@@ -535,7 +562,7 @@ func TestParseTarget_PathWithAnchor(t *testing.T) {
 }
 
 func TestParseTarget_EncodedPath(t *testing.T) {
-	target, ok := parseTarget("my%20file.md")
+	target, ok := linkgraph.ParseTarget("my%20file.md")
 	require.True(t, ok)
 	// url.Parse decodes percent-encoded characters in the path.
 	require.Equal(t, "my file.md", target.Path)
@@ -612,21 +639,6 @@ func TestAnchorsForFile_ReadError(t *testing.T) {
 	_, err := anchorsForFile(tf, cache)
 	require.Error(t, err)
 	require.Equal(t, readErr, err)
-}
-
-// =====================================================================
-// Additional coverage: appendNodeText with *ast.String
-// =====================================================================
-
-// TestAppendNodeText_AstString exercises the *ast.String branch of appendNodeText.
-// ast.String is created by the typographer extension and other paragraph
-// transforms; we construct one directly to keep the test self-contained.
-func TestAppendNodeText_AstString(t *testing.T) {
-	strNode := gast.NewString([]byte("hello"))
-
-	var b strings.Builder
-	appendNodeText(&b, strNode, nil)
-	require.Equal(t, "hello", b.String())
 }
 
 // =====================================================================

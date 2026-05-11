@@ -41,7 +41,7 @@ const usageText = `Usage: mdsmith <command> [flags] [files...]
 Commands:
   check             Lint Markdown files (default when given file arguments)
   fix               Auto-fix lint issues in place
-  query             Select files by CUE expression on front matter
+  list              Walk the workspace and emit matches (files or link records)
   help              Show help for rules and topics
   metrics           Show and rank shared Markdown metrics
   merge-driver      Git merge driver for regenerable sections
@@ -87,8 +87,8 @@ func run() int {
 		return runCheck(os.Args[2:])
 	case "fix":
 		return runFix(os.Args[2:])
-	case "query":
-		return runQuery(os.Args[2:])
+	case "list":
+		return runList(os.Args[2:])
 	case "help":
 		return runHelp(os.Args[2:])
 	case "metrics":
@@ -273,7 +273,7 @@ func parseQueryFlags(args []string) (queryOptions, []string, error) {
 		"Maximum file size to process (e.g. 2MB, 500KB, 0=unlimited)")
 
 	fs.Usage = func() {
-		fmt.Fprint(os.Stderr, "Usage: mdsmith query [flags] <cue-expr> [files...]\n\n"+
+		fmt.Fprint(os.Stderr, "Usage: mdsmith list query [flags] <cue-expr> [files...]\n\n"+
 			"Print paths of Markdown files whose front matter satisfies a CUE expression.\n"+
 			"With no file arguments, searches the current directory recursively.\n\n"+
 			"Exit codes: 0 match, 1 no match, 2 error\n\nFlags:\n")
@@ -289,13 +289,13 @@ func parseQueryFlags(args []string) (queryOptions, []string, error) {
 func runQuery(args []string) int {
 	opts, posArgs, err := parseQueryFlags(args)
 	if err != nil {
-		if code := reportFlagParseErr(err, os.Stderr, "mdsmith: query"); code >= 0 {
+		if code := reportFlagParseErr(err, os.Stderr, "mdsmith: list query"); code >= 0 {
 			return code
 		}
 	}
 
 	if len(posArgs) == 0 {
-		fmt.Fprintf(os.Stderr, "mdsmith: query requires a CUE expression argument\n")
+		fmt.Fprintf(os.Stderr, "mdsmith: list query requires a CUE expression argument\n")
 		return 2
 	}
 

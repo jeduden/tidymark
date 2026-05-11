@@ -1,16 +1,16 @@
 ---
 id: 138
-title: "`mdsmith backlinks` subcommand"
-status: "🔲"
+title: "`mdsmith list backlinks` subcommand"
+status: "✅"
 model: sonnet
 summary: >-
   Surface MDS027's link graph as a CLI subcommand.
-  `mdsmith backlinks <file>` lists every workspace
+  `mdsmith list backlinks <file>` lists every workspace
   file with a link to the target, optionally
   scoped by anchor. JSON output for agent / tooling
   consumers.
 ---
-# `mdsmith backlinks` subcommand
+# `mdsmith list backlinks` subcommand
 
 ## Goal
 
@@ -51,7 +51,7 @@ read in reverse.
 ### Invocation
 
 ```bash
-mdsmith backlinks docs/api.md
+mdsmith list backlinks docs/api.md
 ```
 
 Output is one line per incoming link, sorted by
@@ -72,7 +72,7 @@ learn a second shape.
 ### Anchor scoping
 
 ```bash
-mdsmith backlinks docs/api.md#authentication
+mdsmith list backlinks docs/api.md#authentication
 ```
 
 Returns only links whose anchor resolves to the
@@ -82,7 +82,7 @@ MDS027 applies for cross-file anchor checks.
 ### JSON output
 
 ```bash
-mdsmith backlinks --format json docs/api.md
+mdsmith list backlinks --format json docs/api.md
 ```
 
 ```json
@@ -158,20 +158,20 @@ trigger.
 
 ## Acceptance Criteria
 
-- [ ] `mdsmith backlinks docs/api.md` returns
+- [x] `mdsmith list backlinks docs/api.md` returns
       every workspace link to that path, one
       per line, with source path and line.
-- [ ] `mdsmith backlinks docs/api.md#auth`
+- [x] `mdsmith list backlinks docs/api.md#auth`
       filters by resolved anchor.
-- [ ] `mdsmith backlinks --format json` emits
+- [x] `mdsmith list backlinks --format json` emits
       the documented JSON shape.
-- [ ] `--include GLOB` and `--limit N` scope
+- [x] `--include GLOB` and `--limit N` scope
       the result.
-- [ ] MDS027 and the subcommand share one
+- [x] MDS027 and the subcommand share one
       link-graph builder (no duplicated walk).
-- [ ] A new `docs/reference/cli/backlinks.md`
+- [x] A new `docs/reference/cli/backlinks.md`
       page describes the subcommand with one
       worked example.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues.

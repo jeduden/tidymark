@@ -10,11 +10,10 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/jeduden/mdsmith/internal/globpath"
+	"github.com/jeduden/mdsmith/internal/linkgraph"
 	"github.com/jeduden/mdsmith/internal/lint"
-	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/placeholders"
 	"github.com/jeduden/mdsmith/internal/rule"
-	"github.com/yuin/goldmark/ast"
 )
 
 func init() {
@@ -50,58 +49,44 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		return []lint.Diagnostic{configDiag(f.Path, r, err)}
 	}
 
-	selfAnchors := collectHeadingAnchors(f)
+	selfAnchors := linkgraph.CollectAnchors(f)
 	anchorCache := map[string]map[string]bool{"self": selfAnchors}
 
 	// Precompute the resolved absolute root once for all link checks.
 	resolvedRoot := resolveAbsRoot(f.RootDir)
 
 	var diags []lint.Diagnostic
-	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-
-		linkNode, ok := n.(*ast.Link)
-		if !ok {
-			return ast.WalkContinue, nil
-		}
-
+	for _, link := range linkgraph.ExtractLinks(f) {
 		diags = append(diags, r.checkLink(
 			f,
-			linkNode,
+			link,
 			r.Include,
 			r.Exclude,
 			selfAnchors,
 			resolvedRoot,
 			anchorCache,
 		)...)
-
-		return ast.WalkContinue, nil
-	})
+	}
 
 	return diags
 }
 
 func (r *Rule) checkLink(
 	f *lint.File,
-	linkNode *ast.Link,
+	link linkgraph.Link,
 	includePatterns []string,
 	excludePatterns []string,
 	selfAnchors map[string]bool,
 	resolvedRoot string,
 	anchorCache map[string]map[string]bool,
 ) []lint.Diagnostic {
-	target, ok := parseTarget(string(linkNode.Destination))
-	if !ok {
-		return nil
-	}
+	target := link.Target
 
 	if placeholders.ContainsBodyToken(target.Raw, r.Placeholders) {
 		return nil
 	}
 
-	line, col := linkPosition(f, linkNode)
+	line, col := link.Line, link.Column
 
 	if target.LocalAnchor {
 		return checkLocalAnchor(f.Path, line, col, r, target, selfAnchors)
@@ -137,16 +122,16 @@ func (r *Rule) checkLink(
 	if err != nil {
 		return []lint.Diagnostic{unreadableTargetDiag(f.Path, line, col, r, target.Raw, err)}
 	}
-	if targetAnchors[normalizeAnchor(target.Anchor)] {
+	if targetAnchors[linkgraph.NormalizeAnchor(target.Anchor)] {
 		return nil
 	}
 	return []lint.Diagnostic{brokenHeadingDiag(f.Path, line, col, r, target.Raw)}
 }
 
 func checkLocalAnchor(
-	path string, line, col int, r *Rule, target linkTarget, selfAnchors map[string]bool,
+	path string, line, col int, r *Rule, target linkgraph.Target, selfAnchors map[string]bool,
 ) []lint.Diagnostic {
-	if selfAnchors[normalizeAnchor(target.Anchor)] {
+	if selfAnchors[linkgraph.NormalizeAnchor(target.Anchor)] {
 		return nil
 	}
 	return []lint.Diagnostic{brokenHeadingDiag(path, line, col, r, target.Raw)}
@@ -259,7 +244,7 @@ func anchorsForFile(target targetFile, cache map[string]map[string]bool) (map[st
 		return nil, err
 	}
 
-	anchors := collectHeadingAnchors(file)
+	anchors := linkgraph.CollectAnchors(file)
 	cache[target.cacheKey] = anchors
 	return anchors, nil
 }
@@ -360,116 +345,9 @@ func resolveTargetOSPath(sourcePath, linkPath string) (string, bool) {
 	return filepath.Clean(filepath.Join(filepath.Dir(sourcePath), linkPath)), true
 }
 
-func collectHeadingAnchors(f *lint.File) map[string]bool {
-	anchors := make(map[string]bool)
-	seen := make(map[string]int)
-
-	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-
-		h, ok := n.(*ast.Heading)
-		if !ok {
-			return ast.WalkContinue, nil
-		}
-
-		slug := mdtext.Slugify(extractText(h, f.Source))
-		if slug == "" {
-			return ast.WalkContinue, nil
-		}
-
-		count := seen[slug]
-		anchor := slug
-		if count > 0 {
-			anchor = fmt.Sprintf("%s-%d", slug, count)
-		}
-		seen[slug] = count + 1
-		anchors[anchor] = true
-
-		return ast.WalkContinue, nil
-	})
-
-	return anchors
-}
-
-func extractText(node ast.Node, source []byte) string {
-	var b strings.Builder
-	appendNodeText(&b, node, source)
-	return b.String()
-}
-
-func appendNodeText(b *strings.Builder, node ast.Node, source []byte) {
-	switch n := node.(type) {
-	case *ast.Text:
-		b.Write(n.Segment.Value(source))
-		return
-	case *ast.String:
-		b.Write(n.Value)
-		return
-	}
-
-	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		appendNodeText(b, child, source)
-	}
-}
-
-func normalizeAnchor(anchor string) string {
-	decoded, err := url.PathUnescape(anchor)
-	if err == nil {
-		anchor = decoded
-	}
-	return mdtext.Slugify(anchor)
-}
-
 func isMarkdownPath(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return ext == ".md" || ext == ".markdown"
-}
-
-type linkTarget struct {
-	Raw         string
-	Path        string
-	Anchor      string
-	LocalAnchor bool
-}
-
-func parseTarget(dest string) (linkTarget, bool) {
-	dest = strings.TrimSpace(dest)
-	if dest == "" || strings.HasPrefix(dest, "//") {
-		return linkTarget{}, false
-	}
-
-	u, err := url.Parse(dest)
-	if err != nil {
-		return linkTarget{}, false
-	}
-	if u.Scheme != "" || u.Host != "" {
-		return linkTarget{}, false
-	}
-
-	path := u.Path
-	if path == "" && u.Opaque != "" {
-		path = u.Opaque
-	}
-
-	if path == "" && u.Fragment != "" {
-		return linkTarget{
-			Raw:         dest,
-			Anchor:      u.Fragment,
-			LocalAnchor: true,
-		}, true
-	}
-
-	if path == "" {
-		return linkTarget{}, false
-	}
-
-	return linkTarget{
-		Raw:    dest,
-		Path:   path,
-		Anchor: u.Fragment,
-	}, true
 }
 
 func normalizeLinkPath(linkPath string) string {
@@ -516,39 +394,6 @@ func matchesPathFilters(path string, include, exclude []string) bool {
 	}
 
 	return true
-}
-
-func linkPosition(f *lint.File, n ast.Node) (int, int) {
-	offset := firstTextOffset(n)
-	if offset < 0 {
-		return 1, 1
-	}
-	line := f.LineOfOffset(offset)
-	lineStart := 0
-	for i := 0; i < offset && i < len(f.Source); i++ {
-		if f.Source[i] == '\n' {
-			lineStart = i + 1
-		}
-	}
-	return line, offset - lineStart + 1
-}
-
-func firstTextOffset(n ast.Node) int {
-	offset := -1
-	_ = ast.Walk(n, func(cur ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		text, ok := cur.(*ast.Text)
-		if !ok {
-			return ast.WalkContinue, nil
-		}
-		if offset == -1 || text.Segment.Start < offset {
-			offset = text.Segment.Start
-		}
-		return ast.WalkContinue, nil
-	})
-	return offset
 }
 
 func configDiag(path string, r *Rule, err error) lint.Diagnostic {
