@@ -220,6 +220,37 @@ func TestValidateKindAllowsInlineWithoutFileSchemaSetting(t *testing.T) {
 	}
 }
 
+// TestBoolOnlyRequiredStructureRuleCfg covers the case where a
+// kind or override sets `required-structure: true/false` — the
+// RuleCfg has Settings=nil, and ValidateKinds / Effective must not
+// panic when probing schema-source state.
+func TestBoolOnlyRequiredStructureRuleCfg(t *testing.T) {
+	cfg := &Config{
+		Rules: map[string]RuleCfg{
+			"required-structure": {Enabled: true},
+		},
+		ExplicitRules: map[string]bool{"required-structure": true},
+		Kinds: map[string]KindBody{
+			"k": {Rules: map[string]RuleCfg{
+				"required-structure": {Enabled: false}, // bool-only
+			}},
+		},
+		KindAssignment: []KindAssignmentEntry{
+			{Glob: []string{"*.md"}, Kinds: []string{"k"}},
+		},
+		Overrides: []Override{
+			{Glob: []string{"x.md"}, Rules: map[string]RuleCfg{
+				"required-structure": {Enabled: true}, // bool-only override
+			}},
+		},
+	}
+	require.NoError(t, ValidateKinds(cfg),
+		"bool-only RuleCfg must not crash schema-source validation")
+	effective := Effective(cfg, "foo.md", nil)
+	assert.NotNil(t, effective["required-structure"],
+		"bool-only kind entry must still resolve")
+}
+
 func TestClearSchemaState_NoRequiredStructureEntry(t *testing.T) {
 	// clearSchemaState should be a no-op when result has no
 	// required-structure entry. Cover the early-return branch.

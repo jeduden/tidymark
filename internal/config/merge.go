@@ -405,10 +405,15 @@ func overrideDeclaresSchema(o Override) bool {
 }
 
 // rulesDeclareSchema reports whether a per-layer rules map sets
-// either schema source on required-structure.
+// either schema source on required-structure. A bool-only entry
+// (`required-structure: true/false`) leaves Settings nil; bail
+// before the lookups to keep the contract explicit.
 func rulesDeclareSchema(rules map[string]RuleCfg) bool {
 	rs, ok := rules["required-structure"]
 	if !ok {
+		return false
+	}
+	if rs.Settings == nil {
 		return false
 	}
 	if path, ok := rs.Settings["schema"].(string); ok && path != "" {

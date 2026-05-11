@@ -70,7 +70,7 @@ func validateKindSchemaSources(name string, body KindBody) error {
 }
 
 func schemaPathSetting(rs RuleCfg, hasRS bool) (bool, string) {
-	if !hasRS {
+	if !hasRS || rs.Settings == nil {
 		return false, ""
 	}
 	v, ok := rs.Settings["schema"]
@@ -85,7 +85,7 @@ func schemaPathSetting(rs RuleCfg, hasRS bool) (bool, string) {
 }
 
 func schemaInlineSetting(rs RuleCfg, hasRS bool) (bool, map[string]any) {
-	if !hasRS {
+	if !hasRS || rs.Settings == nil {
 		return false, nil
 	}
 	v, ok := rs.Settings["inline-schema"]
