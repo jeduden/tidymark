@@ -14,7 +14,7 @@ schema.
 | Setting         | Type   | Default | Description                                                                                                                |
 |-----------------|--------|---------|----------------------------------------------------------------------------------------------------------------------------|
 | `schema`        | string | `""`    | Path to a schema file (a `proto.md`)                                                                                       |
-| `inline-schema` | map    | `{}`    | Inline schema (set by `kinds.<name>.schema:`; not usually written by hand on a rule)                                       |
+| `inline-schema` | map    | (unset) | Inline schema injected by `kinds.<name>.schema:`; not usually written by hand on a rule. DefaultSettings does not list it. |
 | `placeholders`  | list   | `[]`    | Placeholder tokens to treat as opaque; see [placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md) |
 
 Useful tokens: `cue-frontmatter`.

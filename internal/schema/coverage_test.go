@@ -13,18 +13,12 @@ import (
 
 // ---- ParseInline edge cases ----
 
-func TestParseInline_RejectsNonIntegerFloat(t *testing.T) {
-	// `min` is rejected wholesale (plan 142 land), but the int-type
-	// check still fires first when the value is float-but-not-whole.
-	raw := map[string]any{
-		"sections": []any{
-			map[string]any{
-				"heading": "Bounded",
-				"min":     1.5,
-			},
-		},
-	}
-	_, err := ParseInline(raw, "kind x")
+func TestSetScopeInt_RejectsNonIntegerFloat(t *testing.T) {
+	// setScopeInt's float branch should reject non-whole values.
+	// We can't reach it via ParseInline because the repeating-
+	// pattern key gets blocked first, so call the helper directly.
+	var dst int
+	err := setScopeInt(&dst, 1.5, "scope", "min")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must be an integer")
 }
@@ -227,31 +221,21 @@ func TestParseInline_RejectsBadAliasItemType(t *testing.T) {
 	assert.Contains(t, err.Error(), "aliases[0] must be a string")
 }
 
-func TestParseInline_RejectsBadIntType(t *testing.T) {
-	raw := map[string]any{
-		"sections": []any{map[string]any{
-			"heading": "X", "min": "two",
-		}},
-	}
-	_, err := ParseInline(raw, "kind x")
+func TestSetScopeInt_RejectsNonNumericType(t *testing.T) {
+	// Direct setScopeInt call exercises the default branch — a
+	// string value can't be coerced to int.
+	var dst int
+	err := setScopeInt(&dst, "two", "scope", "min")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "min must be an integer")
 }
 
-func TestParseInline_AcceptsInt64(t *testing.T) {
-	// `min` is rejected wholesale (plan 142), but the int-type
-	// check fires before the rejection, so this still surfaces the
-	// "needs an integer" message when the value is non-numeric.
-	// Use a different scope key that accepts ints to test int64
-	// coercion separately.
-	raw := map[string]any{
-		"sections": []any{map[string]any{
-			"heading": "X", "min": int64(2),
-		}},
-	}
-	_, err := ParseInline(raw, "kind x")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "repeating-pattern keys")
+func TestSetScopeInt_AcceptsInt64(t *testing.T) {
+	// YAML decoders may surface an integer as int64; setScopeInt
+	// must accept that without coercing to the float branch.
+	var dst int
+	require.NoError(t, setScopeInt(&dst, int64(2), "scope", "min"))
+	assert.Equal(t, 2, dst)
 }
 
 func TestParseInline_RejectsBadRulesType(t *testing.T) {
@@ -1230,23 +1214,13 @@ func TestParseInline_ScopeLevelClosed(t *testing.T) {
 
 func TestSetScopeInt_AcceptsPlainInt(t *testing.T) {
 	// `int` (Go-typed, not int64 or float64) is uncommon from a
-	// YAML decoder but the helper accepts it. Since the parent
-	// scope is rejected wholesale for any repeating-pattern key,
-	// the error must surface AFTER the int-type check, not because
-	// of it — assert the resulting error mentions plan 142, not a
-	// type mismatch.
-	raw := map[string]any{
-		"sections": []any{
-			map[string]any{
-				"heading": "Repeating",
-				"min":     int(2),
-				"max":     int(5),
-			},
-		},
-	}
-	_, err := ParseInline(raw, "kind x")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "repeating-pattern keys")
+	// YAML decoder but the helper accepts it. Tested directly
+	// because the only ParseInline path that would feed setScopeInt
+	// is the repeating-pattern keys, and those are rejected up
+	// front based on key presence.
+	var dst int
+	require.NoError(t, setScopeInt(&dst, int(2), "scope", "min"))
+	assert.Equal(t, 2, dst)
 }
 
 func TestSetScopeSections_RejectsNonList(t *testing.T) {

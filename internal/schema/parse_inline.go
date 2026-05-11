@@ -193,6 +193,15 @@ func parseInlineScopeEntry(entry any, path string) (Scope, error) {
 		return Scope{}, fmt.Errorf(
 			"%s: scope must be a mapping, got %T", path, entry)
 	}
+	if k, found := firstRepeatingPatternKey(m); found {
+		return Scope{}, fmt.Errorf(
+			"%s: scope sets %q, but the repeating-pattern keys "+
+				"(`repeats`, `sequential`, `min`, `max`) are not yet "+
+				"enforced (tracked on plan 142); remove them until "+
+				"repeating-pattern validation lands so the schema "+
+				"does not appear to constrain counts it ignores",
+			path, k)
+	}
 	sc := Scope{Required: true}
 	if err := applyScopeFields(m, &sc, path); err != nil {
 		return Scope{}, err
@@ -201,16 +210,22 @@ func parseInlineScopeEntry(entry any, path string) (Scope, error) {
 		return Scope{}, fmt.Errorf(
 			"%s: non-wildcard scope must set a non-empty heading", path)
 	}
-	if sc.Repeats || sc.Sequential || sc.Min != 0 || sc.Max != 0 {
-		return Scope{}, fmt.Errorf(
-			"%s: repeating-pattern keys (`repeats`, `sequential`, "+
-				"`min`, `max`) are parsed but not yet enforced "+
-				"(tracked on plan 142); remove them until "+
-				"repeating-pattern validation lands so the schema "+
-				"does not appear to constrain counts it ignores",
-			path)
-	}
 	return sc, nil
+}
+
+// firstRepeatingPatternKey returns the first repeating-pattern key
+// present in m (in a stable order), so the parse rejection fires
+// based on key PRESENCE rather than the post-parsed value. Schemas
+// that explicitly write `repeats: false` or `min: 0` are still
+// rejected — the key being there at all signals an intent the
+// validator does not yet honour.
+func firstRepeatingPatternKey(m map[string]any) (string, bool) {
+	for _, k := range []string{"repeats", "sequential", "min", "max"} {
+		if _, ok := m[k]; ok {
+			return k, true
+		}
+	}
+	return "", false
 }
 
 // applyScopeFields walks the scope mapping and populates sc. Each
