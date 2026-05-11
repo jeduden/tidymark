@@ -140,6 +140,18 @@ not exist or supplies settings the rule rejects, the
 override surfaces as an MDS020 diagnostic at the
 scope's heading line.
 
+Today the scope override runs the rule again with
+the override's settings, in addition to the engine's
+normal run with the file-level settings. If the same
+rule is enabled globally and the override only
+tightens the cap, both runs may fire on the same
+line — producing two diagnostics where the user
+expected one. Workaround until engine-level dispatch
+lands: disable the rule globally for files that rely
+on the scope override (a kind or override that sets
+`rule-name: false` plus the scope's per-section
+override).
+
 ## File-based schemas (`proto.md`)
 
 A `proto.md` schema is a Markdown file whose headings

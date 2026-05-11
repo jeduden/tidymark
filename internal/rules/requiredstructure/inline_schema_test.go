@@ -9,9 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	// Imported for its init-time rule registration; the scope-rule
-	// override fixture relies on line-length being resolvable via
-	// rule.ByName at run time.
+	// Imported for their init-time rule registration; the scope-
+	// rule override fixtures rely on these rules being resolvable
+	// via rule.ByName at run time.
+	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundfencedcode"
 	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
 )
 
@@ -449,6 +450,30 @@ func TestCheck_InlineSchema_NestedScopeRuleOverride(t *testing.T) {
 	}
 	require.NotEmpty(t, lineLength,
 		"nested-scope rule override should be applied inside the Child window")
+}
+
+// TestCheck_InlineSchema_ScopeRuleNonConfigurable surfaces a
+// diagnostic when an override is targeted at a rule that does not
+// implement rule.Configurable. blank-line-around-fenced-code is
+// non-configurable in the project, and a non-empty override map
+// would silently no-op without this guard.
+func TestCheck_InlineSchema_ScopeRuleNonConfigurable(t *testing.T) {
+	r := &Rule{InlineSchema: inlineSchema(t, map[string]any{
+		"sections": []any{
+			map[string]any{
+				"heading": "Section",
+				"rules": map[string]any{
+					"blank-line-around-fenced-code": map[string]any{
+						"max": 1,
+					},
+				},
+			},
+		},
+	})}
+	f := newTestFile(t, "doc.md", "# T\n\n## Section\n\nx\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		`scope rule override for "blank-line-around-fenced-code" has no effect`)
 }
 
 // TestCheck_InlineSchema_ScopeRulesUnderFieldHeading exercises

@@ -38,16 +38,20 @@ func (r *Rule) applyScopeRules(f *lint.File, sch *schema.Schema) []lint.Diagnost
 	return diags
 }
 
-// skipBelow strips heading entries whose level is shallower than
-// rootLevel so the walker starts at the first heading the schema
-// actually covers.
+// skipBelow returns heads with every entry shallower than
+// rootLevel filtered out. A stray higher-level heading (e.g. a
+// second H1 mid-document) must not break the walker the same way
+// it would have terminated the validator: the walker scans by
+// level + window, and shallow leftovers would otherwise stay in
+// the slice and confuse scopeEndLine.
 func skipBelow(heads []schema.DocHeading, rootLevel int) []schema.DocHeading {
-	for i, h := range heads {
+	out := make([]schema.DocHeading, 0, len(heads))
+	for _, h := range heads {
 		if h.Level >= rootLevel {
-			return heads[i:]
+			out = append(out, h)
 		}
 	}
-	return nil
+	return out
 }
 
 // walkScopes pairs each scope with a doc heading and invokes visit
@@ -192,14 +196,22 @@ func runScopeRules(
 			continue
 		}
 		configured := rule.CloneRule(base)
-		if c, ok := configured.(rule.Configurable); ok {
-			if err := c.ApplySettings(override); err != nil {
+		c, ok := configured.(rule.Configurable)
+		if !ok {
+			if len(override) > 0 {
 				diags = append(diags, makeDiag(f.Path, startLine,
 					fmt.Sprintf(
-						"scope rule override for %q is invalid: %v",
-						name, err)))
-				continue
+						"scope rule override for %q has no effect: "+
+							"the rule does not accept settings", name)))
 			}
+			continue
+		}
+		if err := c.ApplySettings(override); err != nil {
+			diags = append(diags, makeDiag(f.Path, startLine,
+				fmt.Sprintf(
+					"scope rule override for %q is invalid: %v",
+					name, err)))
+			continue
 		}
 		for _, d := range configured.Check(f) {
 			if d.Line >= startLine && d.Line < endLine {

@@ -14,6 +14,8 @@ import (
 // ---- ParseInline edge cases ----
 
 func TestParseInline_RejectsNonIntegerFloat(t *testing.T) {
+	// `min` is rejected wholesale (plan 142 land), but the int-type
+	// check still fires first when the value is float-but-not-whole.
 	raw := map[string]any{
 		"sections": []any{
 			map[string]any{
@@ -27,43 +29,37 @@ func TestParseInline_RejectsNonIntegerFloat(t *testing.T) {
 	assert.Contains(t, err.Error(), "must be an integer")
 }
 
-func TestParseInline_AcceptsIntegerFloat(t *testing.T) {
-	// YAML decoders surface plain numbers as float64; whole-number
-	// floats must still pass as integers.
-	raw := map[string]any{
-		"sections": []any{
-			map[string]any{
-				"heading": "Bounded",
-				"min":     1.0,
-				"max":     3.0,
-			},
-		},
+// TestParseInline_RejectsRepeatingPatternKeys covers the parse-
+// time rejection of `repeats`, `sequential`, `min`, and `max` —
+// the validator does not enforce them yet, so accepting them would
+// give users a false sense of constraint.
+func TestParseInline_RejectsRepeatingPatternKeys(t *testing.T) {
+	cases := []struct {
+		name string
+		key  string
+		val  any
+	}{
+		{"repeats", "repeats", true},
+		{"sequential", "sequential", true},
+		{"min", "min", 1},
+		{"max", "max", 3},
 	}
-	sch, err := ParseInline(raw, "kind x")
-	require.NoError(t, err)
-	require.Len(t, sch.Sections, 1)
-	assert.Equal(t, 1, sch.Sections[0].Min)
-	assert.Equal(t, 3, sch.Sections[0].Max)
-}
-
-// TestParseInline_RejectsRepeatsUntilImplemented locks in the
-// reviewer's preference: until plan 142 ships repeating-pattern
-// validation, `repeats: true` is rejected at parse time so users
-// don't see spurious "unexpected section" diagnostics from extra
-// matches.
-func TestParseInline_RejectsRepeatsUntilImplemented(t *testing.T) {
-	raw := map[string]any{
-		"sections": []any{
-			map[string]any{
-				"heading": "Step {n}",
-				"repeats": true,
-			},
-		},
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := map[string]any{
+				"sections": []any{
+					map[string]any{
+						"heading": "Step",
+						tc.key:    tc.val,
+					},
+				},
+			}
+			_, err := ParseInline(raw, "kind x")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "repeating-pattern keys")
+			assert.Contains(t, err.Error(), "plan 142")
+		})
 	}
-	_, err := ParseInline(raw, "kind x")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "repeats")
-	assert.Contains(t, err.Error(), "plan 142")
 }
 
 func TestParseInline_RejectsEmptyHeading(t *testing.T) {
@@ -243,14 +239,19 @@ func TestParseInline_RejectsBadIntType(t *testing.T) {
 }
 
 func TestParseInline_AcceptsInt64(t *testing.T) {
+	// `min` is rejected wholesale (plan 142), but the int-type
+	// check fires before the rejection, so this still surfaces the
+	// "needs an integer" message when the value is non-numeric.
+	// Use a different scope key that accepts ints to test int64
+	// coercion separately.
 	raw := map[string]any{
 		"sections": []any{map[string]any{
 			"heading": "X", "min": int64(2),
 		}},
 	}
-	sch, err := ParseInline(raw, "kind x")
-	require.NoError(t, err)
-	assert.Equal(t, 2, sch.Sections[0].Min)
+	_, err := ParseInline(raw, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "repeating-pattern keys")
 }
 
 func TestParseInline_RejectsBadRulesType(t *testing.T) {
@@ -1028,6 +1029,29 @@ func TestParseFile_DefaultMaxBytesCapped(t *testing.T) {
 	assert.Contains(t, err.Error(), "file too large")
 }
 
+// TestValidate_StrayShallowerHeadingDoesNotTerminate regresses a
+// matchScope bug: an H1 (or otherwise shallower) heading in the
+// middle of the document used to terminate root-level matching,
+// leaving subsequent required scopes flagged as missing even
+// though they were present.
+func TestValidate_StrayShallowerHeadingDoesNotTerminate(t *testing.T) {
+	raw := map[string]any{
+		"sections": []any{
+			map[string]any{"heading": "Overview", "required": true},
+			map[string]any{"heading": "Decision", "required": true},
+		},
+	}
+	sch, err := ParseInline(raw, "kind rfc")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Overview\n\nx\n\n# Another\n\n## Decision\n\ny\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "missing required",
+			"stray H1 must not stop the root walk from claiming later scopes")
+	}
+}
+
 // TestValidate_OpenScopeFlagsLateListedScope regresses a Copilot
 // finding: schema [A(req), B(opt), C(req)] with doc A → C → B
 // previously silently accepted B because the open trailing loop
@@ -1206,8 +1230,11 @@ func TestParseInline_ScopeLevelClosed(t *testing.T) {
 
 func TestSetScopeInt_AcceptsPlainInt(t *testing.T) {
 	// `int` (Go-typed, not int64 or float64) is uncommon from a
-	// YAML decoder but the helper accepts it. Pass via the
-	// applyScopeFields path so we exercise setScopeInt directly.
+	// YAML decoder but the helper accepts it. Since the parent
+	// scope is rejected wholesale for any repeating-pattern key,
+	// the error must surface AFTER the int-type check, not because
+	// of it — assert the resulting error mentions plan 142, not a
+	// type mismatch.
 	raw := map[string]any{
 		"sections": []any{
 			map[string]any{
@@ -1217,10 +1244,9 @@ func TestSetScopeInt_AcceptsPlainInt(t *testing.T) {
 			},
 		},
 	}
-	sch, err := ParseInline(raw, "kind x")
-	require.NoError(t, err)
-	assert.Equal(t, 2, sch.Sections[0].Min)
-	assert.Equal(t, 5, sch.Sections[0].Max)
+	_, err := ParseInline(raw, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "repeating-pattern keys")
 }
 
 func TestSetScopeSections_RejectsNonList(t *testing.T) {

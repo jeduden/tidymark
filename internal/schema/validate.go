@@ -86,17 +86,22 @@ func Validate(
 	return diags
 }
 
-// skipBelow returns heads starting from the first heading at level
-// >= rootLevel. Headings shallower than rootLevel (typically the H1
-// document title when validating against an inline schema) are
-// dropped so they do not appear as "unexpected" sections.
+// skipBelow returns a filtered slice that omits every heading
+// whose level is shallower than rootLevel. The previous
+// truncate-at-first-deep-heading variant only stripped a leading
+// title, but an out-of-place shallower heading in the middle of the
+// document would later terminate matchScope at the root and leave
+// subsequent required scopes unmatched. Filtering throughout
+// removes those terminators so the root walk continues across
+// stray H1-level headings.
 func skipBelow(heads []DocHeading, rootLevel int) []DocHeading {
-	for i, h := range heads {
+	out := make([]DocHeading, 0, len(heads))
+	for _, h := range heads {
 		if h.Level >= rootLevel {
-			return heads[i:]
+			out = append(out, h)
 		}
 	}
-	return nil
+	return out
 }
 
 // validateScopes walks scopes (the listed children of a single level)

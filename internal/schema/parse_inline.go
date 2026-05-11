@@ -201,11 +201,13 @@ func parseInlineScopeEntry(entry any, path string) (Scope, error) {
 		return Scope{}, fmt.Errorf(
 			"%s: non-wildcard scope must set a non-empty heading", path)
 	}
-	if sc.Repeats {
+	if sc.Repeats || sc.Sequential || sc.Min != 0 || sc.Max != 0 {
 		return Scope{}, fmt.Errorf(
-			"%s: `repeats:` is parsed but not yet enforced (tracked on "+
-				"plan 142); remove the key until repeating-pattern "+
-				"validation lands so extras are not flagged as unexpected",
+			"%s: repeating-pattern keys (`repeats`, `sequential`, "+
+				"`min`, `max`) are parsed but not yet enforced "+
+				"(tracked on plan 142); remove them until "+
+				"repeating-pattern validation lands so the schema "+
+				"does not appear to constrain counts it ignores",
 			path)
 	}
 	return sc, nil
