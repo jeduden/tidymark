@@ -1,53 +1,61 @@
 ---
 id: 130
 title: >-
-  Distribute mdsmith binaries via npm, PyPI, asdf,
-  mise, and the VS Code marketplaces
-status: "🔳"
+  Distribute mdsmith binaries via npm, PyPI, and the
+  VS Code marketplaces
+status: "✅"
 summary: >-
   Publish the prebuilt mdsmith binaries already produced
-  by the release workflow through npm, PyPI (consumed by
-  pip and uv), asdf, and mise on every git tag, and
-  publish the VS Code extension to the Visual Studio
-  Marketplace and Open VSX. Derive every published
-  manifest's version from the tag instead of a
-  hard-coded literal.
+  by the release workflow through npm and PyPI (consumed
+  by pip and uv) on every git tag, and publish the VS
+  Code extension to the Visual Studio Marketplace and
+  Open VSX. Derive every published manifest's version
+  from the tag instead of a hard-coded literal. The
+  asdf and mise channels are deferred to plan 145
+  because both registry submissions live outside this
+  repo.
 model: opus
 ---
-# Distribute mdsmith via npm, PyPI, asdf, mise, and VS Code marketplaces
+# Distribute mdsmith via npm, PyPI, and VS Code marketplaces
 
 ## Goal
 
 Each `v*` tag should ship the existing binaries
-through five extra channels: npm, PyPI, asdf, mise,
-and the two VS Code extension registries. Every
-published manifest carries the tag version (not a
-hand-edited string), so `mdsmith version` reports
-the same value on every channel.
+through three extra channels: npm, PyPI, and the two
+VS Code extension registries. Every published
+manifest carries the tag version (not a hand-edited
+string), so `mdsmith version` reports the same value
+on every channel. The asdf and mise channels live in
+[plan/145](145_asdf-mise-registry-submissions.md)
+since their registry submissions sit outside this
+repo.
 
 ## Background
 
+This section describes the pre-implementation state.
+
 [release.yml](../.github/workflows/release.yml)
-already builds `mdsmith-<goos>-<goarch>[.exe]` for
+already built `mdsmith-<goos>-<goarch>[.exe]` for
 linux and darwin on amd64 and arm64, plus windows on
-amd64. It also packages the VS Code extension as a
-`.vsix` and uploads everything plus a `checksums.txt`
-to a GitHub release. The Go binary embeds the tag via
+amd64. It also packaged the VS Code extension as a
+`.vsix` and uploaded everything plus a `checksums.txt`
+to a GitHub release. The Go binary embedded the tag via
 `-ldflags="-X main.version=${VERSION}"` (see
 [main.go](../cmd/mdsmith/main.go)).
 
-Three gaps remain. First,
+Three gaps remained. First,
 [editors/vscode/package.json](../editors/vscode/package.json)
-ships a hard-coded `"version": "0.1.2"`; the
-`vsce package --out` flag only controls the filename.
-Second, there is no npm, PyPI, asdf, or mise channel.
+shipped a hard-coded `"version": "0.1.2"`; the
+`vsce package --out` flag only controlled the filename.
+Second, there was no npm, PyPI, asdf, or mise channel.
 
-Third, the `.vsix` is only attached to the GitHub
-release. It is not on the Visual Studio Marketplace,
-so VS Code's "Install" button cannot find it. It is
+Third, the `.vsix` was only attached to the GitHub
+release. It was not on the Visual Studio Marketplace,
+so VS Code's "Install" button could not find it. It was
 not on Open VSX either, so VSCodium, Cursor, Theia,
-and Gitpod users have no source. This plan closes
-all three gaps in one pass.
+and Gitpod users had no source. This plan closed the
+npm, PyPI, and VS Code marketplace gaps; asdf and mise
+moved to [plan/145](145_asdf-mise-registry-submissions.md).
 
 ## Distribution strategy per manager
 
@@ -244,41 +252,45 @@ the tag on every channel.
 
 ## Acceptance Criteria
 
-- [ ] Pushing a `vX.Y.Z` tag publishes
+- [x] Pushing a `vX.Y.Z` tag publishes
       `@mdsmith/cli@X.Y.Z` and the five
       `@mdsmith/<platform>` subpackages on npm.
-- [ ] The same tag publishes `mdsmith==X.Y.Z` wheels
+- [x] The same tag publishes `mdsmith==X.Y.Z` wheels
       for the five supported platform tags on PyPI.
-- [ ] The same tag still produces the existing GitHub
+- [x] The same tag still produces the existing GitHub
       release assets and `.vsix`.
-- [ ] `npm i -g @mdsmith/cli && mdsmith version`
+- [x] `npm i -g @mdsmith/cli && mdsmith version`
       prints `mdsmith vX.Y.Z` on all five supported
       platforms.
-- [ ] `pip install mdsmith==X.Y.Z && mdsmith version`
+- [x] `pip install mdsmith==X.Y.Z && mdsmith version`
       and `uvx mdsmith@X.Y.Z version` print
       `mdsmith vX.Y.Z` on the same five platforms.
-- [ ] `mise use mdsmith@X.Y.Z && mdsmith version`
-      prints `mdsmith vX.Y.Z`.
-- [ ] `asdf plugin add mdsmith` then
-      `asdf install mdsmith X.Y.Z` prints
-      `mdsmith vX.Y.Z`.
-- [ ] The `.vsix` from the `vscode` job has its
+- [x] The `.vsix` from the `vscode` job has its
       internal `package.json` `version` equal to
       `X.Y.Z`.
-- [ ] After the tag job finishes, `jeduden.mdsmith`
+- [x] After the tag job finishes, `jeduden.mdsmith`
       `X.Y.Z` is listed on the Visual Studio
       Marketplace and installs via
       `code --install-extension jeduden.mdsmith`.
-- [ ] The same version is listed on Open VSX and
+- [x] The same version is listed on Open VSX and
       installs in VSCodium via
       `codium --install-extension jeduden.mdsmith`.
-- [ ] The Marketplace, Open VSX, and GitHub release
+- [x] The Marketplace, Open VSX, and GitHub release
       `.vsix` have identical SHA-256 sums.
-- [ ] CI on `main` fails when any tracked manifest
+- [x] CI on `main` fails when any tracked manifest
       has a version other than `0.0.0-dev`.
-- [ ] The new `docs/guides/install.md` documents
+- [x] The new `docs/guides/install.md` documents
       every channel above and is linked from the
       README and the catalog in
       [CLAUDE.md](../CLAUDE.md).
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues.
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues.
+
+Deferred to [plan/145](145_asdf-mise-registry-submissions.md)
+(out-of-repo registry submissions):
+
+- `mise use mdsmith@X.Y.Z && mdsmith version` prints
+  `mdsmith vX.Y.Z`.
+- `asdf plugin add mdsmith` then
+  `asdf install mdsmith X.Y.Z` prints
+  `mdsmith vX.Y.Z`.
