@@ -85,28 +85,9 @@ func runBacklinks(args []string) int {
 		}
 	}
 
-	if len(posArgs) == 0 {
-		fmt.Fprint(os.Stderr, "mdsmith: backlinks requires a target file argument\n")
-		return 2
-	}
-	if len(posArgs) > 1 {
-		fmt.Fprintf(os.Stderr, "mdsmith: backlinks takes one target argument, got %d\n", len(posArgs))
-		return 2
-	}
-
-	targetPath, targetAnchor := splitTarget(posArgs[0])
-	if targetPath == "" {
-		fmt.Fprint(os.Stderr, "mdsmith: backlinks target must include a file path\n")
-		return 2
-	}
-
-	if err := validateIncludePatterns(opts.includePatterns); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return 2
-	}
-	if opts.limit < 0 {
-		fmt.Fprintf(os.Stderr, "mdsmith: --limit must be >= 0 (got %d)\n", opts.limit)
-		return 2
+	targetPath, targetAnchor, code := validateBacklinksArgs(opts, posArgs)
+	if code >= 0 {
+		return code
 	}
 
 	cfg, cfgPath, _, files, code := discoverFiles(opts.configPath, false, opts.walk)
@@ -128,7 +109,10 @@ func runBacklinks(args []string) int {
 	rootDir := rootDirFromConfig(cfgPath)
 	wantTarget := normalizeWorkspacePath(targetPath, rootDir)
 
-	records, errs := collectBacklinks(files, rootDir, wantTarget, targetAnchor, opts.includePatterns, maxBytes)
+	records, errs := collectBacklinks(
+		files, rootDir, wantTarget, targetAnchor,
+		opts.includePatterns, maxBytes, frontMatterEnabled(cfg),
+	)
 	for _, e := range errs {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", e)
 	}
@@ -142,6 +126,35 @@ func runBacklinks(args []string) int {
 		return 2
 	}
 	return code
+}
+
+// validateBacklinksArgs checks the positional arg shape and the
+// numeric/glob flag invariants for backlinks. It returns the parsed
+// target (path + anchor) plus code = -1 on success, or a non-negative
+// exit code with a message already written to stderr.
+func validateBacklinksArgs(opts backlinksOptions, posArgs []string) (targetPath, targetAnchor string, code int) {
+	if len(posArgs) == 0 {
+		fmt.Fprint(os.Stderr, "mdsmith: backlinks requires a target file argument\n")
+		return "", "", 2
+	}
+	if len(posArgs) > 1 {
+		fmt.Fprintf(os.Stderr, "mdsmith: backlinks takes one target argument, got %d\n", len(posArgs))
+		return "", "", 2
+	}
+	targetPath, targetAnchor = splitTarget(posArgs[0])
+	if targetPath == "" {
+		fmt.Fprint(os.Stderr, "mdsmith: backlinks target must include a file path\n")
+		return "", "", 2
+	}
+	if err := validateIncludePatterns(opts.includePatterns); err != nil {
+		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
+		return "", "", 2
+	}
+	if opts.limit < 0 {
+		fmt.Fprintf(os.Stderr, "mdsmith: --limit must be >= 0 (got %d)\n", opts.limit)
+		return "", "", 2
+	}
+	return targetPath, targetAnchor, -1
 }
 
 // validateIncludePatterns rejects any --include glob that doublestar
@@ -195,6 +208,9 @@ func normalizeWorkspacePath(target, rootDir string) string {
 // is non-empty, the link's anchor must also match (after slugifying).
 // includePatterns, when non-empty, filters source paths.
 //
+// stripFrontMatter must mirror the config's frontMatter setting so
+// reported line numbers match MDS027 / the engine for the same file.
+//
 // Per-file read or parse failures do not abort the walk; instead they
 // are collected and returned so the caller can surface them on stderr
 // alongside whatever results were produced.
@@ -203,6 +219,7 @@ func collectBacklinks(
 	rootDir, wantTarget, wantAnchor string,
 	includePatterns []string,
 	maxBytes int64,
+	stripFrontMatter bool,
 ) ([]backlinkRecord, []error) {
 	wantAnchorSlug := ""
 	if wantAnchor != "" {
@@ -226,8 +243,10 @@ func collectBacklinks(
 			continue
 		}
 		// Reuse the lint pipeline's front-matter handling so line
-		// numbers in records match what users see in editors.
-		f, err := lint.NewFileFromSource(src, data, true)
+		// numbers in records match what users see in editors. Mirror
+		// the config's frontMatter setting so backlinks stays aligned
+		// with MDS027 when stripping is turned off.
+		f, err := lint.NewFileFromSource(src, data, stripFrontMatter)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("parsing %s: %w", srcRel, err))
 			continue
