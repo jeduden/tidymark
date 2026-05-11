@@ -275,8 +275,10 @@ func rejectKeys(m map[string]any, path, shape string, keys ...string) error {
 	for _, k := range keys {
 		if _, ok := m[k]; ok {
 			return fmt.Errorf(
-				"%s: `%s:` is not allowed on a %s scope "+
-					"(the key is silently ignored — remove it)",
+				"%s: `%s:` is not allowed on a %s scope — "+
+					"the validator would ignore it, so the "+
+					"parser surfaces it as a config error; "+
+					"remove the key",
 				path, k, shape)
 		}
 	}
