@@ -8,14 +8,14 @@ on:
 permissions:
   contents: read
 
-# A second tag push must not run while a publish is in flight: the npm
-# Trusted Publisher exchanges this workflow's OIDC token for a short-
-# lived publish credential, and overlapping runs would race to mint
-# tokens against the same registry record. `cancel-in-progress: false`
-# keeps the first run going (cancelling mid-publish would leave the
-# scoped platform packages out of sync with the root package).
+# Serialize every release run so two publish jobs cannot mint OIDC
+# tokens against the same registry at the same time. The group is
+# tag-agnostic — different tags pushed close together queue rather
+# than overlap. `cancel-in-progress: false` keeps the first run
+# going (cancelling mid-publish would leave the scoped platform
+# packages out of sync with the root package).
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:

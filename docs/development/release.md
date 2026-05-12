@@ -29,10 +29,10 @@ git push origin v0.13.0
 
 `release.yml` is wired to `on: push: tags: ["v*"]`,
 so the tag push starts the pipeline. The workflow
-also sets `concurrency: { group: release-${{ github.ref }} }`
-so a second tag push (intentional or not) waits for
-the first run to complete before starting — the
-publish window cannot be raced.
+also sets `concurrency: { group: release }`, which is
+tag-agnostic: any second tag push (same tag or
+different) waits for the in-flight run to finish
+before starting. The publish window cannot be raced.
 
 No other trigger publishes anything. There is no
 `workflow_dispatch`, no `pull_request_target`, no
@@ -178,8 +178,9 @@ enough.
 - **`if: github.repository == 'jeduden/mdsmith'`** on
   every publishing job, so a fork-cloned release
   workflow cannot reach the publish steps.
-- **`concurrency: { group: release-${{ github.ref }} }`**
-  to serialize tag pushes.
+- **`concurrency: { group: release }`** (tag-agnostic)
+  to serialize every release run, so no two publish
+  jobs can race the registry at the same time.
 - **Pinned third-party action SHAs** so a tag move
   on an upstream action cannot silently inject
   behavior.
@@ -211,8 +212,7 @@ enough.
 - **CODEOWNERS** requires owner review on every file
   under `.github/workflows/` and on this document.
 
-The [supply-chain hardening security
-note](../security/2026-05-12-supply-chain-hardening.md)
+The [hardening note](../security/2026-05-12-supply-chain-hardening.md)
 walks through the above against the TanStack /
 mini-shai-hulud attack chain.
 

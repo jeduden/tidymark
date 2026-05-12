@@ -157,10 +157,11 @@ GitHub UI steps.
 A second `git push --tags` while a release was in
 flight previously ran the publish jobs in parallel
 against the same registry record. The new
-`concurrency: { group: release-${{ github.ref }}, cancel-in-progress: false }`
-at the workflow level serializes runs. The first
-publish completes; the second waits and then no-ops
-because the registry already has the version.
+`concurrency: { group: release, cancel-in-progress: false }`
+at the workflow level serializes every release run
+— tag-agnostic, so different tags pushed back-to-back
+queue rather than overlap. The first publish
+completes; the second runs after.
 
 ### 3. Lifecycle scripts of dev-time dependencies could run during CI
 
