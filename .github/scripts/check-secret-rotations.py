@@ -155,7 +155,8 @@ def _issue_body(entry: dict, status: str, days: int) -> str:
     # link would 404 mid-page. The doc is short — a reader scrolling
     # to the `{name}` section finds it instantly.
     doc_url = f"{repo_url}/blob/main/docs/development/secret-rotations.md"
-    workflow_url = f"{repo_url}/blob/main/.github/workflows/secret-rotation-reminder.yml"
+    reminder_url = f"{repo_url}/blob/main/.github/workflows/secret-rotation-reminder.yml"
+    record_url = f"{repo_url}/actions/workflows/record-secret-rotation.yml"
     return f"""\
 {headline}
 
@@ -171,13 +172,18 @@ def _issue_body(entry: dict, status: str, days: int) -> str:
 Rotation procedure (jump to the `{name}` section):
 {doc_url}
 
-After rotation:
+After rotating the credential at the issuer, do not
+hand-edit the front matter or close this issue.
+Instead, run the **Record Secret Rotation** workflow:
+{record_url}
 
-1. Update the `last-rotated` field for `{name}` in the front matter
-   of `docs/development/secret-rotations.md`. Merge the change.
-2. Close this issue.
+Pick `{name}` from the dropdown and click `Run workflow`.
+The workflow opens a PR that updates `last-rotated`
+and includes `Closes #` referencing this issue, so
+the merge both records the rotation and closes this
+reminder in one step.
 
-This reminder is opened automatically by {workflow_url}.
+This reminder was opened automatically by {reminder_url}.
 """
 
 
@@ -195,6 +201,10 @@ def main() -> int:
     label_ensured = False
 
     for entry in rotations:
+        if not isinstance(entry, dict):
+            raise SystemExit(
+                f"rotation entry is not a mapping: {entry!r}"
+            )
         for key in ("name", "last-rotated", "period-days", "provider", "issuer-url", "used-by", "scope"):
             if key not in entry:
                 raise SystemExit(

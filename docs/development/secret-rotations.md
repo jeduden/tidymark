@@ -142,11 +142,15 @@ to `schedule: { cron: "0 9 1 * *" }`, so it runs at
 also be triggered manually via
 `workflow_dispatch`.
 
-The script does not auto-close issues. After a
-rotation completes, edit the `last-rotated` date in
-the front matter above, merge the change, and close
-the issue. The next monthly run sees the new date
-and waits.
+The reminder script does not auto-close issues.
+Nobody hand-edits the front matter either. Both
+happen through the `Record Secret Rotation`
+workflow (step 5 of the rotation order above). The
+workflow updates `last-rotated` and opens a PR with
+`Closes #N` pointing at the reminder issue. The
+merge records the date and closes the reminder. The
+next monthly reminder run sees the new date and
+stays quiet until the next window.
 
 [script]: ../../.github/scripts/check-secret-rotations.py
 [reminder]: ../../.github/workflows/secret-rotation-reminder.yml
