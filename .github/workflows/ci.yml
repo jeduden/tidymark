@@ -66,17 +66,20 @@ jobs:
           go-version-file: go.mod
       - run: go run ./cmd/mdsmith-release check
 
-  # Block any future PR from adding install-time lifecycle scripts to
-  # the published npm packages. The shai-hulud / TanStack worm class
-  # (npm supply-chain compromise, 2025-2026) propagates by inserting
-  # `preinstall` / `postinstall` hooks into otherwise innocuous
-  # packages so the hook runs on every `npm install`. mdsmith's npm
-  # shim (npm/mdsmith/bin/mdsmith.js) deliberately runs zero
-  # install-time code; this guard enforces the property in CI rather
-  # than relying on convention. The VS Code extension is published
-  # via `vsce package --no-dependencies` so it doesn't ship lifecycle
-  # hooks to end users, but the manifest is checked here too as
-  # defense in depth.
+  # Block any future PR from adding install-time or publish-time
+  # lifecycle scripts to the published npm packages. The shai-hulud
+  # / TanStack worm class (npm supply-chain compromise, 2025-2026)
+  # propagates by inserting `preinstall` / `postinstall` hooks into
+  # otherwise innocuous packages so the hook runs on every
+  # `npm install`. The same family of attacks can target the
+  # publishing side via `prepublishOnly` / `prepack` etc., which
+  # would run in the release workflow with the OIDC publish token
+  # in scope. mdsmith's npm shim (npm/mdsmith/bin/mdsmith.js)
+  # deliberately runs zero lifecycle code; this guard enforces the
+  # property in CI rather than relying on convention. The VS Code
+  # extension is published via `vsce package --no-dependencies` so
+  # it doesn't ship lifecycle hooks to end users, but the manifest
+  # is checked here too as defense in depth.
   npm-lifecycle-guard:
     runs-on: ubuntu-latest
     steps:
@@ -85,11 +88,16 @@ jobs:
           persist-credentials: false
       - name: Reject lifecycle scripts in published manifests
         run: |
-          # Hooks npm executes on `npm install` / `npm publish` —
-          # any of these would let a malicious package version
-          # (or a compromised upstream dep merged into a manifest)
-          # run code on every install.
-          banned='preinstall|install|postinstall|preuninstall|uninstall|postuninstall|preprepare|prepare|postprepare'
+          # Hooks npm executes on `npm install`, `npm pack`, or
+          # `npm publish` — any of these would let a malicious
+          # package version (or a compromised upstream dep merged
+          # into a manifest) run code at install or publish time.
+          # Install-time:  preinstall, install, postinstall,
+          #                preuninstall, uninstall, postuninstall,
+          #                preprepare, prepare, postprepare
+          # Publish/pack-time: prepublish (legacy), prepublishOnly,
+          #                prepack, postpack, publish, postpublish
+          banned='preinstall|install|postinstall|preuninstall|uninstall|postuninstall|preprepare|prepare|postprepare|prepublish|prepublishOnly|prepack|postpack|publish|postpublish'
           status=0
           for manifest in npm/mdsmith/package.json editors/vscode/package.json; do
             if [ ! -f "$manifest" ]; then
