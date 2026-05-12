@@ -75,6 +75,29 @@ def _gh(args: list[str]) -> str:
     return proc.stdout
 
 
+def _ensure_label() -> None:
+    """Idempotently create the `secret-rotation` label.
+
+    The first scheduled run of this script in a fresh repo would 422
+    on `gh issue create --label ...` because the label does not yet
+    exist. `gh label create --force` creates-or-updates the label so
+    subsequent issue creation always succeeds. Subsequent runs are
+    no-ops (the label just gets re-described, which is fine).
+    """
+    _gh(
+        [
+            "label",
+            "create",
+            ISSUE_LABEL,
+            "--force",
+            "--color",
+            "C5DEF5",
+            "--description",
+            "Long-lived secret is due (or overdue) for rotation",
+        ]
+    )
+
+
 def _existing_open_issue(title: str) -> int | None:
     """Return the number of an open issue whose title exactly matches."""
     out = _gh(
@@ -169,6 +192,7 @@ def main() -> int:
     today = dt.date.today()
     opened: list[str] = []
     skipped: list[str] = []
+    label_ensured = False
 
     for entry in rotations:
         for key in ("name", "last-rotated", "period-days", "provider", "issuer-url", "used-by", "scope"):
@@ -186,6 +210,12 @@ def main() -> int:
         if _existing_open_issue(title) is not None:
             skipped.append(name)
             continue
+        if not label_ensured:
+            # Bootstrap the label on first issue creation. Skipping
+            # this would 422 on a fresh repo where the label has not
+            # been created yet.
+            _ensure_label()
+            label_ensured = True
         body = _issue_body(entry, status, days)
         _gh(
             [
