@@ -88,6 +88,11 @@ jobs:
           persist-credentials: false
       - name: Reject lifecycle scripts in published manifests
         run: |
+          # `set -euo pipefail` so a parse failure in jq (e.g. a
+          # malformed package.json a malicious PR slips in) fails
+          # the step instead of being masked by the `|| true` on
+          # the grep below.
+          set -euo pipefail
           # Hooks npm executes on `npm install`, `npm pack`, or
           # `npm publish` — any of these would let a malicious
           # package version (or a compromised upstream dep merged
@@ -105,12 +110,17 @@ jobs:
               status=1
               continue
             fi
-            # jq parses the manifest and emits one `key=value` line per
-            # entry under .scripts. grep -E then matches the banned set
-            # exactly (anchored on key=), so a script named `test` or
-            # `build` is not mistaken for a banned hook.
-            hits=$(jq -r '.scripts // {} | to_entries[] | "\(.key)=\(.value)"' "$manifest" \
-              | grep -E "^($banned)=" || true)
+            # jq parses the manifest and emits one `key=value` line
+            # per entry under .scripts. We assign the output to its
+            # own variable so a jq parse failure aborts the step
+            # immediately (under pipefail) instead of being swallowed
+            # by the `|| true` on the grep that follows. grep -E
+            # matches the banned set anchored on `key=`, so a script
+            # named `test` or `build` is never mistaken for a hook.
+            # `|| true` keeps a clean (no-banned-hooks) manifest from
+            # tripping grep's exit-1-on-no-match.
+            entries=$(jq -r '.scripts // {} | to_entries[] | "\(.key)=\(.value)"' "$manifest")
+            hits=$(printf '%s\n' "$entries" | grep -E "^($banned)=" || true)
             if [ -n "$hits" ]; then
               echo "$manifest declares forbidden lifecycle script(s):" >&2
               echo "$hits" >&2

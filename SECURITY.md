@@ -49,17 +49,15 @@ git tag v0.13.0
 git push origin v0.13.0
 ```
 
-A `v*` tag push is the only trigger.
-`release.yml` does not declare `workflow_dispatch`,
-`pull_request_target`, or `workflow_run`. Those
-triggers would let something other than a signed
-tag mint OIDC tokens or use the long-lived
-publisher PATs.
-
-The workflow also sets
-`concurrency: { group: release }` — tag-agnostic, so
-a second tag push waits for the in-flight run to
-finish. The publish window cannot be raced.
+A `v*` tag push is the only trigger. `release.yml`
+omits `workflow_dispatch`, `pull_request_target`,
+and `workflow_run`. Those triggers could mint OIDC
+tokens or reach the PATs from a non-tag context.
+`concurrency: { group: release, cancel-in-progress: false }`
+serializes every run tag-agnostically. A second
+push queues. The flag lets the in-flight publish
+finish; cancelling mid-publish would desync the
+platform packages from the root.
 
 #### Channels and Jobs
 
