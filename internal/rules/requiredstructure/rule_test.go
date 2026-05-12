@@ -746,6 +746,138 @@ func TestCheck_FilenamePatternNotSet(t *testing.T) {
 }
 
 // =====================================================================
+// Kind-level path-pattern validation
+// =====================================================================
+
+// newRootedFile builds a *lint.File anchored at a workspace root so
+// path-pattern matching has a workspace-relative path to compare
+// against. The file is written under root/path so its absolute Path
+// resolves correctly through filepath.Rel inside the rule.
+func newRootedFile(t *testing.T, root, path, source string) *lint.File {
+	t.Helper()
+	abs := filepath.Join(root, path)
+	require.NoError(t, os.MkdirAll(filepath.Dir(abs), 0o755))
+	require.NoError(t, os.WriteFile(abs, []byte(source), 0o644))
+	f, err := lint.NewFileFromSource(abs, []byte(source), true)
+	require.NoError(t, err)
+	f.SetRootDir(root)
+	return f
+}
+
+func TestCheck_PathPattern_Match(t *testing.T) {
+	root := t.TempDir()
+	f := newRootedFile(t, root, "plan/140_my-plan.md", "# My Plan\n")
+	r := &Rule{PathPatterns: []PathPattern{
+		{Kind: "plan", Pattern: "plan/[0-9][0-9]*_*.md"},
+	}}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_PathPattern_Mismatch(t *testing.T) {
+	root := t.TempDir()
+	f := newRootedFile(t, root, "plan/early-draft.md", "# Draft\n")
+	r := &Rule{PathPatterns: []PathPattern{
+		{Kind: "plan", Pattern: "plan/[0-9][0-9]*_*.md"},
+	}}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	assert.Contains(t, diags[0].Message,
+		`filename: got "plan/early-draft.md"`)
+	assert.Contains(t, diags[0].Message,
+		`glob plan/[0-9][0-9]*_*.md`)
+	assert.Contains(t, diags[0].Message,
+		`schema: kinds[plan] / path-pattern`)
+	assert.Equal(t, "MDS020", diags[0].RuleID)
+	assert.Equal(t, "required-structure", diags[0].RuleName)
+	assert.Equal(t, 1, diags[0].Line)
+}
+
+func TestCheck_PathPattern_NoPatternsIsNoOp(t *testing.T) {
+	root := t.TempDir()
+	f := newRootedFile(t, root, "anywhere/anything.md", "# Hi\n")
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestCheck_PathPattern_MultipleKindsBothFail(t *testing.T) {
+	root := t.TempDir()
+	f := newRootedFile(t, root, "docs/notes.md", "# Notes\n")
+	r := &Rule{PathPatterns: []PathPattern{
+		{Kind: "plan", Pattern: "plan/[0-9]*_*.md"},
+		{Kind: "rfc", Pattern: "docs/rfc/RFC-*.md"},
+	}}
+	diags := r.Check(f)
+	expectDiags(t, diags, 2)
+	expectDiagMsg(t, diags, "kinds[plan] / path-pattern")
+	expectDiagMsg(t, diags, "kinds[rfc] / path-pattern")
+}
+
+func TestCheck_PathPattern_PlusRequireFilenameBothEmit(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "proto.md"),
+		[]byte(`<?require
+filename: "[0-9]*_*.md"
+?>
+# ?
+`), 0o644))
+	f := newRootedFile(t, root, "plan/my-plan.md", "# My Plan\n")
+	r := &Rule{
+		Schema: "proto.md",
+		PathPatterns: []PathPattern{
+			{Kind: "plan", Pattern: "plan/[0-9][0-9]*_*.md"},
+		},
+	}
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		`filename "my-plan.md" does not match required pattern`)
+	expectDiagMsg(t, diags, "kinds[plan] / path-pattern")
+}
+
+func TestApplySettings_PathPatternsParsesList(t *testing.T) {
+	r := &Rule{}
+	err := r.ApplySettings(map[string]any{
+		"path-patterns": []any{
+			map[string]any{"kind": "plan", "pattern": "plan/*.md"},
+			map[string]any{"kind": "rfc", "pattern": "docs/rfc/*.md"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, r.PathPatterns, 2)
+	assert.Equal(t, "plan", r.PathPatterns[0].Kind)
+	assert.Equal(t, "plan/*.md", r.PathPatterns[0].Pattern)
+	assert.Equal(t, "rfc", r.PathPatterns[1].Kind)
+}
+
+func TestApplySettings_PathPatternsRejectsBadShape(t *testing.T) {
+	cases := []struct {
+		name string
+		v    any
+	}{
+		{"not a list", "plan/*.md"},
+		{"entry not a map", []any{"plan/*.md"}},
+		{"missing pattern", []any{map[string]any{"kind": "plan"}}},
+		{"missing kind", []any{map[string]any{"pattern": "plan/*.md"}}},
+		{"empty kind", []any{map[string]any{"kind": "", "pattern": "x"}}},
+		{"empty pattern", []any{map[string]any{"kind": "x", "pattern": ""}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := (&Rule{}).ApplySettings(map[string]any{
+				"path-patterns": tc.v,
+			})
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestSettingMergeMode_PathPatternsIsAppend(t *testing.T) {
+	r := &Rule{}
+	assert.Equal(t, rule.MergeAppend, r.SettingMergeMode("path-patterns"))
+}
+
+// =====================================================================
 // Schema file skipping
 // =====================================================================
 

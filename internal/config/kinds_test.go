@@ -372,6 +372,73 @@ func TestCopyKindsNilSettingsRemainNil(t *testing.T) {
 	assert.Nil(t, copied["plan"].Rules["no-hard-tabs"].Settings)
 }
 
+// --- path-pattern ---
+
+func TestKindsPathPatternParsesFromYAML(t *testing.T) {
+	yml := `
+kinds:
+  plan:
+    path-pattern: "plan/[0-9][0-9]*_*.md"
+  rfc:
+    path-pattern: "docs/rfc/RFC-[0-9][0-9][0-9][0-9].md"
+`
+	cfg := loadFromString(t, yml)
+	require.Contains(t, cfg.Kinds, "plan")
+	assert.Equal(t, "plan/[0-9][0-9]*_*.md", cfg.Kinds["plan"].PathPattern)
+	assert.Equal(t, "docs/rfc/RFC-[0-9][0-9][0-9][0-9].md",
+		cfg.Kinds["rfc"].PathPattern)
+}
+
+func TestEffectiveRules_PathPatternInstallsListSetting(t *testing.T) {
+	cfg := &Config{
+		Kinds: map[string]KindBody{
+			"plan": {PathPattern: "plan/[0-9]*_*.md"},
+		},
+		KindAssignment: []KindAssignmentEntry{
+			{Glob: []string{"plan/*.md"}, Kinds: []string{"plan"}},
+		},
+	}
+	eff, _, _ := EffectiveAll(cfg, "plan/01_x.md", nil)
+	rs, ok := eff["required-structure"]
+	require.True(t, ok, "required-structure rule should be present")
+	assert.True(t, rs.Enabled)
+	list, ok := rs.Settings["path-patterns"].([]any)
+	require.True(t, ok, "path-patterns should be a list")
+	require.Len(t, list, 1)
+	entry := list[0].(map[string]any)
+	assert.Equal(t, "plan", entry["kind"])
+	assert.Equal(t, "plan/[0-9]*_*.md", entry["pattern"])
+}
+
+func TestEffectiveRules_PathPatternAccumulatesAcrossKinds(t *testing.T) {
+	cfg := &Config{
+		Kinds: map[string]KindBody{
+			"plan": {PathPattern: "plan/*.md"},
+			"rfc":  {PathPattern: "docs/rfc/*.md"},
+		},
+	}
+	eff, _, _ := EffectiveAll(cfg, "anywhere.md", []string{"plan", "rfc"})
+	rs := eff["required-structure"]
+	list, _ := rs.Settings["path-patterns"].([]any)
+	require.Len(t, list, 2)
+	assert.Equal(t, "plan", list[0].(map[string]any)["kind"])
+	assert.Equal(t, "rfc", list[1].(map[string]any)["kind"])
+}
+
+func TestEffectiveRules_PathPatternAbsentLeavesRuleAlone(t *testing.T) {
+	cfg := &Config{
+		Kinds: map[string]KindBody{
+			"plan": {Rules: map[string]RuleCfg{"line-length": {Enabled: false}}},
+		},
+	}
+	eff, _, _ := EffectiveAll(cfg, "anywhere.md", []string{"plan"})
+	if rs, ok := eff["required-structure"]; ok {
+		_, hasList := rs.Settings["path-patterns"]
+		assert.False(t, hasList,
+			"path-patterns should be absent when no kind declares one")
+	}
+}
+
 // --- helpers ---
 
 func loadFromString(t *testing.T, yml string) *Config {

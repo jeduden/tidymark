@@ -130,10 +130,18 @@ func (o Override) Patterns() []string {
 // rules.required-structure.schema:). A kind that sets both Schema
 // and rules.required-structure.schema: is a config error; see
 // ValidateKinds.
+//
+// PathPattern, when set, is a glob the workspace-relative path of every
+// file assigned to this kind must match. The pattern uses the same
+// doublestar syntax as overrides:, ignore:, and kind-assignment:. A
+// path mismatch surfaces as an MDS020 diagnostic. PathPattern is the
+// kind-config counterpart to the per-schema `<?require filename:?>`
+// directive; both feed the same matcher and may coexist.
 type KindBody struct {
-	Rules      map[string]RuleCfg `yaml:"rules"`
-	Categories map[string]bool    `yaml:"categories"`
-	Schema     map[string]any     `yaml:"schema,omitempty"`
+	Rules       map[string]RuleCfg `yaml:"rules"`
+	Categories  map[string]bool    `yaml:"categories"`
+	Schema      map[string]any     `yaml:"schema,omitempty"`
+	PathPattern string             `yaml:"path-pattern,omitempty"`
 }
 
 // KindAssignmentEntry assigns one or more kinds to files matching glob
