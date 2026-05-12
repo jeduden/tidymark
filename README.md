@@ -15,59 +15,63 @@ cross-file integrity. Written in Go.
 
 **🔧 Auto-fix Markdown formatting.**
 `mdsmith fix` rewrites whitespace, headings, code fences,
-bare URLs, list indentation, and table alignment in place;
-multi-pass resolves cascading edits. `mdsmith check` is
-the read-only CI sibling.
+bare URLs, list indentation, and table alignment in place,
+re-running until edits settle. `mdsmith check` is the
+read-only CI sibling.
 
-**✏️ Live diagnostics in every editor.**
+**✏️ Live diagnostics wherever you write.**
 `mdsmith lsp` powers the [VS Code extension][vsc-mp]
-(quick-fixes plus opt-in fix-on-save), [Open VSX][vsc-ovsx]
-for Cursor, VSCodium, Theia, Gitpod, and any LSP client
-(Neovim, Helix, JetBrains). The
-[Claude Code plugin](docs/guides/install.md) adds the same
-diagnostics inside Claude Code, plus definition,
-references, symbol search, and call-hierarchy across docs.
+(quick-fixes plus opt-in fix-on-save),
+[Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, and
+Gitpod, and any LSP client (Neovim, Helix, JetBrains).
+The [Claude Code plugin](docs/guides/install.md) loads the
+same server so agents editing Markdown inside Claude Code
+see mdsmith diagnostics and link navigation inline.
 
 **🔗 Cross-file integrity.**
-[`cross-file-reference-integrity`](internal/rules/MDS027-cross-file-reference-integrity/README.md)
-flags broken links and missing anchors,
-[`required-structure`](internal/rules/MDS020-required-structure/README.md)
-enforces sections per file via inline schemas or `kinds:`,
-and
-[`directory-structure`](internal/rules/MDS033-directory-structure/README.md)
-keeps Markdown in the folders it belongs.
+Built-in rules flag broken links and missing anchors
+([`MDS027`](internal/rules/MDS027-cross-file-reference-integrity/README.md)),
+enforce per-file section schemas
+([`MDS020`](internal/rules/MDS020-required-structure/README.md)),
+and keep Markdown in the right folders
+([`MDS033`](internal/rules/MDS033-directory-structure/README.md)).
+Schemas can be inline on a
+[file kind](docs/guides/file-kinds.md) or shared via proto
+files.
 
 **🤖 Guardrails for AI-generated docs.**
-Cap size with
-[`max-file-length`](internal/rules/MDS022-max-file-length/README.md),
-[`max-section-length`](internal/rules/MDS036-max-section-length/README.md),
+Cap [file](internal/rules/MDS022-max-file-length/README.md),
+[section](internal/rules/MDS036-max-section-length/README.md),
 and
-[`token-budget`](internal/rules/MDS028-token-budget/README.md);
-hold reading-grade and sentence count with
-[`paragraph-readability`](internal/rules/MDS023-paragraph-readability/README.md)
-and
-[`paragraph-structure`](internal/rules/MDS024-paragraph-structure/README.md);
-catch copy-paste with
-[`duplicated-content`](internal/rules/MDS037-duplicated-content/README.md).
+[token-budget](internal/rules/MDS028-token-budget/README.md)
+size; enforce
+[reading grade and sentence count](internal/rules/MDS023-paragraph-readability/README.md);
+flag
+[verbatim copy-paste](internal/rules/MDS037-duplicated-content/README.md)
+across files.
 
 **📋 Self-maintaining sections.**
-`<?toc?>`, `<?catalog?>`, and `<?include?>` blocks
-regenerate on `mdsmith fix`. `merge-driver install`
-registers a Git driver that resolves merge conflicts
-inside them automatically.
+On `mdsmith fix`, `<?toc?>` rebuilds a heading
+table-of-contents, `<?catalog?>` assembles a table from
+matching files' front matter, and `<?include?>` splices in
+another file. `merge-driver install` registers a Git
+driver that auto-resolves merge conflicts inside those
+blocks.
 
 **📊 Gate releases on doc status.**
-`mdsmith list query 'status: "✅"' plan/` lists finished
-plans for a release script;
+`mdsmith list query 'status: "✅"' plan/` selects files by
+a [CUE expression](docs/reference/cli/query.md) on front
+matter;
 `mdsmith metrics rank --by token-estimate --top 10 docs/`
-spots the file an AI just doubled in size.
+ranks files by any shared metric — both ready to pipe into
+a release script.
 
 **📖 Rule docs your agent can read.**
 `mdsmith help rule [name]` prints settings, examples, and
 diagnostics straight from the binary — no network. Drop
 the output into `.cursor/rules`, `AGENTS.md`, or
-`CLAUDE.md` so your agent knows the rules without an extra
-fetch.
+`CLAUDE.md` and your agent knows the rules without an
+extra fetch.
 
 **🆚 How does it compare?** See:
 <?catalog
