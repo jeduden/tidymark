@@ -12,7 +12,7 @@ Usage:
 
 The argument is the secret's name (e.g. `VSCE_PAT`), never its
 value. The script never reads, prints, or stores credential
-material — `secret_name` flows only as a lookup key for the
+material — `entry_name` flows only as a lookup key for the
 rotations table.
 
 Exit codes:
@@ -43,10 +43,10 @@ def _split_front_matter(text: str) -> tuple[str, str, str]:
     return text[:4], text[4:end], text[end:]
 
 
-def _update_last_rotated(yaml_block: str, secret_name: str, date: str) -> str:
-    """Rewrite the YAML to set last-rotated for `secret_name` to `date`.
+def _update_last_rotated(yaml_block: str, entry_name: str, date: str) -> str:
+    """Rewrite the YAML to set last-rotated for `entry_name` to `date`.
 
-    The structural rewrite uses pyyaml to validate that `secret_name`
+    The structural rewrite uses pyyaml to validate that `entry_name`
     exists in the rotations list. The actual textual edit uses a
     regex on the source so unrelated formatting (key order, quoting
     style, comments) is preserved.
@@ -56,14 +56,14 @@ def _update_last_rotated(yaml_block: str, secret_name: str, date: str) -> str:
     if not isinstance(rotations, list):
         raise SystemExit("front matter has no `rotations:` list")
     matched = next(
-        (r for r in rotations if isinstance(r, dict) and r.get("name") == secret_name),
+        (r for r in rotations if isinstance(r, dict) and r.get("name") == entry_name),
         None,
     )
     if matched is None:
         names = ", ".join(
             r.get("name", "?") for r in rotations if isinstance(r, dict)
         )
-        raise SystemExit(f"unknown name {secret_name!r}; known: {names}")
+        raise SystemExit(f"unknown name {entry_name!r}; known: {names}")
 
     # Match the YAML block that begins with `- name: <SECRET_NAME>`
     # and rewrite the `last-rotated:` line directly under it.
@@ -71,7 +71,7 @@ def _update_last_rotated(yaml_block: str, secret_name: str, date: str) -> str:
     #   group(1): the `- name: NAME\n` line + indented preamble
     #   group(2): the value of last-rotated
     pattern = re.compile(
-        r"(- name:\s*" + re.escape(secret_name) + r"\b[^\n]*\n"  # name line
+        r"(- name:\s*" + re.escape(entry_name) + r"\b[^\n]*\n"  # name line
         r"(?:[ \t]+[^\n]*\n)*?"                                  # other keys before last-rotated
         r"[ \t]+last-rotated:\s*)"                               # last-rotated key
         r'("?[^"\n]*"?)'                                         # current value (quoted or bare)
@@ -79,7 +79,7 @@ def _update_last_rotated(yaml_block: str, secret_name: str, date: str) -> str:
     new_block, count = pattern.subn(rf'\g<1>"{date}"', yaml_block, count=1)
     if count == 0:
         raise SystemExit(
-            f"could not locate `last-rotated:` line under `- name: {secret_name}`"
+            f"could not locate `last-rotated:` line under `- name: {entry_name}`"
         )
     return new_block
 
@@ -88,7 +88,7 @@ def main(argv: list[str]) -> int:
     if len(argv) != 3:
         sys.stderr.write("usage: record-rotation.py <SECRET_NAME> <YYYY-MM-DD>\n")
         return 1
-    secret_name, date_str = argv[1], argv[2]
+    entry_name, date_str = argv[1], argv[2]
     try:
         dt.date.fromisoformat(date_str)
     except ValueError as exc:
@@ -96,12 +96,12 @@ def main(argv: list[str]) -> int:
         return 1
     text = ROTATION_DOC.read_text(encoding="utf-8")
     marker, fm_yaml, rest = _split_front_matter(text)
-    updated = _update_last_rotated(fm_yaml, secret_name, date_str)
+    updated = _update_last_rotated(fm_yaml, entry_name, date_str)
     if updated == fm_yaml:
-        sys.stdout.write(f"{secret_name} already at {date_str}; no change\n")
+        sys.stdout.write(f"{entry_name} already at {date_str}; no change\n")
         return 0
     ROTATION_DOC.write_text(marker + updated + rest, encoding="utf-8")
-    sys.stdout.write(f"updated {secret_name}.last-rotated -> {date_str}\n")
+    sys.stdout.write(f"updated {entry_name}.last-rotated -> {date_str}\n")
     return 0
 
 
