@@ -20,13 +20,13 @@ re-running until edits settle. `mdsmith check` is the
 read-only CI sibling.
 
 **✏️ Live diagnostics wherever you write.**
-`mdsmith lsp` powers the [VS Code extension][vsc-mp]
-(quick-fixes plus opt-in fix-on-save),
-[Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, and
-Gitpod, and any LSP client (Neovim, Helix, JetBrains).
-The [Claude Code plugin](docs/guides/install.md) loads the
-same server so agents editing Markdown inside Claude Code
-see mdsmith diagnostics and link navigation inline.
+`mdsmith lsp` is one server. It powers the
+[VS Code extension][vsc-mp] (also on
+[Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, Gitpod),
+any LSP client (Neovim, Helix, JetBrains), and the
+[Claude Code plugin](docs/guides/install.md). Same
+diagnostics, quick-fixes, fix-on-save, and link navigation
+whether you edit in an IDE or with an agent.
 
 **🔗 Cross-file integrity.**
 Built-in rules flag broken links and missing anchors
@@ -52,9 +52,9 @@ across files.
 
 **📋 Self-maintaining sections.**
 On `mdsmith fix`, `<?toc?>` rebuilds a heading
-table-of-contents, `<?catalog?>` assembles a table from
-matching files' front matter, and `<?include?>` splices in
-another file. `merge-driver install` registers a Git
+table-of-contents, `<?catalog?>` builds a table from the
+front matter of files matching a glob, and `<?include?>`
+splices in another file. `merge-driver install` registers a Git
 driver that auto-resolves merge conflicts inside those
 blocks.
 
