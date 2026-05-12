@@ -12,7 +12,9 @@ summary: >-
 # Release Pipeline
 
 A single GitHub Actions workflow publishes mdsmith to
-six channels: `.github/workflows/release.yml`. Every
+five channels: `.github/workflows/release.yml`. The
+channels are npm, PyPI, the Visual Studio
+Marketplace, Open VSX, and GitHub Releases. Every
 release-time secret travels as a short-lived OIDC
 token. The two long-lived publisher PATs that remain
 (`VSCE_PAT`, `OVSX_PAT`) are gated by the `release`
