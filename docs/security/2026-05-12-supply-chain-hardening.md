@@ -11,11 +11,11 @@ title: Supply-Chain Hardening — mini-shai-hulud / TanStack Class
 summary: >-
   Confirms mdsmith is not vulnerable to the direct TanStack attack
   chain (pull_request_target pwn, fork-network orphan-commit OIDC
-  abuse, runtime memory extraction of publish tokens). Adds defense
-  in depth: concurrency group, repository-and-environment guards on
-  publishing jobs, `--ignore-scripts` on every `bun install`, a CI
-  guard that fails any future PR introducing npm lifecycle hooks,
-  and centralizes the release pipeline documentation.
+  abuse, runtime memory extraction of publish tokens). Adds
+  defense-in-depth controls: concurrency group, repository-and-
+  environment guards on publishing jobs, `--ignore-scripts` on every
+  `bun install`, a CI guard that fails any future PR introducing npm
+  lifecycle hooks, and centralizes the release pipeline documentation.
 ---
 # Security Review: mini-shai-hulud / TanStack Supply-Chain Class
 
@@ -149,7 +149,7 @@ PyPI side, an attacker who somehow runs `release.yml`
 outside the `release` environment cannot mint a valid
 publish token. The
 [release pipeline operational checklist](../development/release.md#operational-checklist)
-lists the corresponding npm.js.org, pypi.org, and
+lists the corresponding npmjs.com, pypi.org, and
 GitHub UI steps.
 
 ### 2. Concurrent tag pushes could race the publish window

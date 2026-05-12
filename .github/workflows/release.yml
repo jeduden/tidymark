@@ -194,7 +194,7 @@ jobs:
     runs-on: ubuntu-latest
     # See docs/development/release.md for the canonical description
     # of `if:`, `environment:`, OIDC Trusted Publishing scope, and
-    # the operational checklist for npm.js.org / pypi.org / GitHub
+    # the operational checklist for npmjs.com / pypi.org / GitHub
     # environment configuration. Workflow comments here only record
     # the local intent of each setting.
     if: github.repository == 'jeduden/mdsmith'
@@ -257,7 +257,7 @@ jobs:
         # an optionalDependency npm cannot find. The root package
         # publishes last, after every platform exists. Auth uses npm
         # Trusted Publishing (OIDC) — see docs/development/release.md
-        # for the npm.js.org publisher configuration each of the six
+        # for the npmjs.com publisher configuration each of the six
         # packages needs.
         run: |
           for pkg in npm/dist/*; do
