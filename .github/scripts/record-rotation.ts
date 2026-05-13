@@ -116,33 +116,55 @@ export function isIsoDate(s: string): boolean {
 }
 
 /** Find the per-secret file whose front-matter `title` matches
- * `entryTitle`. Returns the absolute file path and the known
- * titles for the error message if no match. */
-async function findEntry(entryTitle: string): Promise<{ path: string; titles: string[] }> {
+ * `entryTitle`. Returns the absolute file path and the sorted
+ * list of known titles for the error message if no match.
+ *
+ * Fails loudly on malformed per-secret files (no front matter
+ * fence, no closing fence, non-mapping root, or missing/non-string
+ * `title`) and on duplicate `title` values across files. The
+ * workflow this script powers rewrites repo docs in place, so a
+ * silent skip would mutate the wrong file or surface as a
+ * confusing "unknown title" with an incomplete known-title list. */
+export async function findEntry(entryTitle: string): Promise<{ path: string; titles: string[] }> {
   const glob = new Glob("*.md");
-  const titles: string[] = [];
-  let match: string | null = null;
+  // title → first path where that title was seen. Lets us raise a
+  // clear `duplicate title` error pointing at both files rather
+  // than letting the last-write win.
+  const titleToPath = new Map<string, string>();
   for await (const rel of glob.scan({ cwd: ROTATIONS_DIR })) {
     const path = resolve(ROTATIONS_DIR, rel);
     const text = await Bun.file(path).text();
+    if (!text.startsWith("---\n")) {
+      throw new SystemExit(`${path}: no front matter (must start with '---\\n')`);
+    }
+    const fmEnd = text.indexOf("\n---\n", 4);
+    if (fmEnd === -1) {
+      throw new SystemExit(`${path}: unterminated front matter`);
+    }
     // Cheap parse: only need the title for matching, but use the
     // YAML parser anyway to avoid hand-rolled string handling.
-    const fmEnd = text.indexOf("\n---\n", 4);
-    if (fmEnd === -1) continue;
     const fm = yamlParse(text.slice(4, fmEnd));
-    if (fm !== null && typeof fm === "object" && !Array.isArray(fm)) {
-      const title = (fm as { title?: unknown }).title;
-      if (typeof title === "string") {
-        titles.push(title);
-        if (title === entryTitle) match = path;
-      }
+    if (fm === null || typeof fm !== "object" || Array.isArray(fm)) {
+      throw new SystemExit(`${path}: front matter is not a mapping`);
     }
+    const title = (fm as { title?: unknown }).title;
+    if (typeof title !== "string") {
+      throw new SystemExit(`${path}: front matter \`title\` is missing or not a string`);
+    }
+    const prev = titleToPath.get(title);
+    if (prev !== undefined) {
+      throw new SystemExit(
+        `duplicate title '${title}' in ${prev} and ${path}; titles must be unique`,
+      );
+    }
+    titleToPath.set(title, path);
   }
-  if (match === null) {
-    titles.sort();
+  const match = titleToPath.get(entryTitle);
+  if (match === undefined) {
+    const titles = [...titleToPath.keys()].sort();
     throw new SystemExit(`unknown title '${entryTitle}'; known: ${titles.join(", ")}`);
   }
-  return { path: match, titles };
+  return { path: match, titles: [...titleToPath.keys()].sort() };
 }
 
 async function main(argv: string[]): Promise<number> {
