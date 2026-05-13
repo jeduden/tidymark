@@ -119,7 +119,13 @@ jobs:
             # named `test` or `build` is never mistaken for a hook.
             # `|| true` keeps a clean (no-banned-hooks) manifest from
             # tripping grep's exit-1-on-no-match.
-            entries=$(jq -r '.scripts // {} | to_entries[] | "\(.key)=\(.value)"' "$manifest")
+            # `.[]?` is the optional iterator — yields nothing on a
+            # missing or empty `.scripts`, which keeps the step a
+            # clean pass for manifests that legitimately declare no
+            # scripts. Without `?` an empty `to_entries[]` is still
+            # exit 0 in practice, but the optional form documents
+            # the intent.
+            entries=$(jq -r '.scripts // {} | to_entries | .[]? | "\(.key)=\(.value)"' "$manifest")
             hits=$(printf '%s\n' "$entries" | grep -E "^($banned)=" || true)
             if [ -n "$hits" ]; then
               echo "$manifest declares forbidden lifecycle script(s):" >&2
