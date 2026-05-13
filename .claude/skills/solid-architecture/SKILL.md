@@ -18,6 +18,10 @@ description: >-
   "solid principles".
 user-invocable: true
 argument-hint: "[mode: design | plan | audit]"
+allowed-tools: >-
+  Bash(git fetch:*), Bash(git log:*),
+  Bash(git diff:*), Bash(git branch:*),
+  Bash(go run ./cmd/mdsmith:*)
 ---
 
 # SOLID and clean architecture for mdsmith

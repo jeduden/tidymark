@@ -98,9 +98,10 @@ without modifying `extension.ts`. Steps:
 `extension.ts` today. The helper is
 `registerPaletteCommands`. Add new
 entries there. Move that helper to
-`wiring.ts` later. Do not call
-`vscode.commands.registerCommand` from
-`activate`.
+`wiring.ts` later. Keep `activate` thin:
+delegate registration to a helper instead
+of inlining `vscode.commands.registerCommand`
+calls in the activation body.
 
 The `contributes` section of `package.json`
 is the public surface for VS Code commands
