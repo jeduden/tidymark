@@ -61,15 +61,21 @@ function splitFrontMatter(text: string, path: string): SplitFrontMatter {
 
 /** Rewrite the `lastRotated:` line in the YAML block to the new
  * date. The structural rewrite is a regex on the source so
- * unrelated formatting (key order, quoting style, comments) is
+ * unrelated formatting (key order, comments, blank lines) is
  * preserved. We expect one entry per file, so the matcher does
  * not need to disambiguate multiple `lastRotated:` keys.
+ *
+ * Quoting style is normalized to double-quoted regardless of
+ * what the source had: dates are bare ISO-8601 strings that YAML
+ * could parse either as a string or a date depending on the
+ * parser, and double-quoting forces the string interpretation
+ * the rest of the toolchain expects.
  */
 function updateLastRotated(yamlBlock: string, date: string): string {
-  // Captures:
-  //   group(1): the `lastRotated:` key
-  //   group(2): the current value (quoted or bare)
-  const pattern = /(^lastRotated:\s*)("?[^"\n]*"?)/m;
+  // The matched range covers the `lastRotated:` key plus the
+  // existing value (quoted or bare); we drop the value and emit
+  // a freshly double-quoted date.
+  const pattern = /(^lastRotated:\s*)"?[^"\n]*"?/m;
   let matched = 0;
   const rewritten = yamlBlock.replace(pattern, (_, preamble) => {
     matched++;

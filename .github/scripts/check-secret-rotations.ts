@@ -123,9 +123,14 @@ async function ensureLabel(): Promise<void> {
 }
 
 function issueBody(entry: RotationEntry, fileBasename: string, status: DueState, days: number): string {
-  const headline = status === "overdue"
-    ? `\`${entry.title}\` is OVERDUE by ${-days} days.`
-    : `\`${entry.title}\` is due in ${days} days.`;
+  let headline: string;
+  if (status === "overdue") {
+    headline = `\`${entry.title}\` is OVERDUE by ${-days} days.`;
+  } else if (days === 0) {
+    headline = `\`${entry.title}\` is due today.`;
+  } else {
+    headline = `\`${entry.title}\` is due in ${days} days.`;
+  }
   const fileUrl = `${repoUrl()}/blob/main/docs/development/secret-rotations/${fileBasename}`;
   const reminderUrl = `${repoUrl()}/blob/main/.github/workflows/secret-rotation-reminder.yml`;
   const recordUrl = `${repoUrl()}/actions/workflows/record-secret-rotation.yml`;

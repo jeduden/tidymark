@@ -661,16 +661,25 @@ func (s *Server) scheduleLint(uri string, trigger lintTrigger) {
 	// but the callback never reads p.timer — it only compares its
 	// captured p against s.pending[uri], so no field-assignment race
 	// is observable from the callback path.
+	//
+	// The previous entry's timer.Stop() runs OUTSIDE pendingMu. Stop
+	// can be slow under load (heap operation on the runtime timer
+	// wheel) and holding the lock across it would serialize every
+	// concurrent scheduleLint call. A previous callback whose
+	// goroutine started before Stop wins this race only to find
+	// `s.pending[uri] == p` (not `prev`), so live=false and it
+	// returns silently.
 	s.pendingMu.Lock()
-	if existing, ok := s.pending[uri]; ok {
-		existing.timer.Stop()
-	}
+	prev, hadPrev := s.pending[uri]
 	p := &pendingLint{}
 	p.timer = time.AfterFunc(delay, func() {
 		s.runLintIfCurrent(uri, p)
 	})
 	s.pending[uri] = p
 	s.pendingMu.Unlock()
+	if hadPrev {
+		prev.timer.Stop()
+	}
 }
 
 // pendingLint is the identity token a debounced lint registers in
