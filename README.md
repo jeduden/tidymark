@@ -16,20 +16,20 @@ cross-file integrity. Written in Go.
 **🔧 Auto-fix Markdown formatting.**
 `mdsmith fix` rewrites whitespace, headings, code fences,
 bare URLs, list indentation, and table alignment in place,
-re-running until edits settle. `mdsmith check` is the
-read-only CI sibling.
+re-running up to 10 passes until edits stabilize.
+`mdsmith check` is the read-only CI sibling.
 
 **✏️ Live diagnostics wherever you write.**
 `mdsmith lsp` emits diagnostics, quick-fixes, and
-navigation (definition, references, symbol search,
-call-hierarchy). The [VS Code extension][vsc-mp] surfaces
-all of it with opt-in fix-on-save (also on
-[Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, and
-Gitpod); generic LSP clients (Neovim, Helix, JetBrains)
-expose what they support. The
-[Claude Code plugin](docs/guides/install.md) feeds
-diagnostics and navigation to the agent so it sees mdsmith
-inline while editing Markdown.
+navigation (definition, references, symbol search, and a
+call-hierarchy over `<?include?>`/`<?catalog?>` and links).
+The [VS Code extension][vsc-mp] surfaces all of it with
+opt-in fix-on-save (also on [Open VSX][vsc-ovsx] for
+Cursor, VSCodium, Theia, and Gitpod); generic LSP clients
+(Neovim, Helix, JetBrains) expose what they support. The
+[Claude Code plugin](docs/guides/install.md#claude-code-plugin)
+feeds diagnostics and navigation to the agent so it sees
+mdsmith inline while editing Markdown.
 
 **🔗 Cross-file integrity.**
 Built-in rules flag broken links and missing anchors
