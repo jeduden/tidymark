@@ -60,6 +60,13 @@ kinds:
 The `frontmatter:` mapping reuses CUE expressions per
 key: regex, disjunction, list, and any other CUE form
 is accepted. Trailing `?` on a key marks it optional.
+Named shortcuts —
+`date`, `datetime`, `time`, `email`, `url`, `filename`,
+`nonEmpty` — substitute for their canonical CUE so a
+schema can write `created: date` instead of repeating
+the ISO regex; see
+[Schema field types](../reference/schema-types.md)
+for the registered names and how they are matched.
 
 `require.filename:` is a glob the document basename
 must match.

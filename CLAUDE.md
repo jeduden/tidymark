@@ -69,6 +69,7 @@ row: "- [{summary}]({filename})"
 - [Print the mdsmith build version and exit.](docs/reference/cli/version.md)
 - [Built-in Markdown conventions, the rule presets each one applies, and how user config layers on top via deep-merge.](docs/reference/conventions.md)
 - [Glob pattern syntax across mdsmith config, directives, and CLI argument expansion, with the supported exclusion semantics for each surface.](docs/reference/globs.md)
+- [Named field-type shortcuts for inline schema frontmatter values — the registered names, the canonical CUE each one resolves to, and example usage.](docs/reference/schema-types.md)
 <?/catalog?>
 
 ## Development Workflow

@@ -329,3 +329,8 @@ For a quick primer on the same model from the CLI, run
 - [Placeholder grammar](../background/concepts/placeholder-grammar.md)
   — opt-in tokens that let kinds keep template files
   green under the same rules used for content.
+- [Schema field types](../reference/schema-types.md)
+  — named shortcuts (`date`, `email`, `url`, …) for
+  schema frontmatter values, so a kind's `schema:`
+  block does not have to re-derive the same CUE regex
+  every project lands on.

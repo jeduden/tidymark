@@ -345,8 +345,7 @@ Describe the goal here.
 - **Status**: ready
 - **Default**: enabled
 - **Fixable**: index side-output only (when `schema.index:` is set)
-- **Implementation**:
-  [source](./)
+- **Implementation**: [source](./)
 - **Guide**:
   [directive guide](../../../docs/guides/directives/enforcing-structure.md)
 - **Category**: meta
@@ -354,3 +353,4 @@ Describe the goal here.
 ## See also
 
 - [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+- [Schema field types](../../../docs/reference/schema-types.md)

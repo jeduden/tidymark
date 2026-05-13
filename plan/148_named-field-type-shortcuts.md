@@ -1,7 +1,7 @@
 ---
 id: 148
 title: Named field-type shortcuts for inline schemas
-status: "🔲"
+status: "✅"
 model: sonnet
 depends-on: [146]
 summary: >-
@@ -58,9 +58,19 @@ them.
 ### The shortcut library
 
 A package lives at a stable, importable module
-path. The provisional path is
-`github.com/jeduden/mdsmith/types`. The plan
-settles it on landing. The initial vocabulary:
+path. **Settled paths (on landing):**
+
+- On-disk source: `cue/types/types.cue` in this
+  repository, declaring `package types`.
+- CUE import path: `github.com/jeduden/mdsmith/types`
+  (reserved for future CUE-native consumers; the
+  literal `import` statement is not yet wired up).
+- Distribution: embedded asset. `cue/types/types.go`
+  uses `//go:embed types.cue`; `internal/schema`
+  reads the source for the drift test and seeds its
+  runtime registry from the same definitions.
+
+The initial vocabulary:
 
 ```cue
 package types
@@ -74,12 +84,11 @@ package types
 #nonEmpty: string & != ""
 ```
 
-The library source lives in this repo, likely
-at `cue/types/types.cue`. The distribution
-mechanism (vendored overlay, embedded asset,
-public Go module) is settled in the
-implementation. The user-visible contract is
-the import path and the symbol names.
+The contract a user sees is the import path and the
+symbol names. Only one surface is wired up today:
+the bare-name shortcut described below. A literal
+`import "github.com/jeduden/mdsmith/types"` is
+reserved for a future plan.
 
 ### File-schema use
 
@@ -158,63 +167,90 @@ complex stays raw CUE.
 
 ## Tasks
 
-1. Create the CUE source for the shortcut
-   library at the chosen module path.
-   Settle the path (publicly importable,
-   versioned) and document the choice in the
-   plan.
-2. Wire mdsmith's CUE overlay so external
-   `proto.md` schemas can resolve the import
-   without network access.
-3. In `internal/config/`, add a registry of
-   short names → canonical CUE expressions.
-4. In the inline-schema loader (plan 146), look
-   up bare-string `frontmatter:` values in the
-   registry; rewrite to the canonical expression
-   before evaluation. Anything else passes
-   through as raw CUE.
-5. Add a documentation page at
-   `docs/reference/schema-types.md` listing the
-   registered names, the canonical CUE, and an
-   example use.
-6. Cross-link the page from the
-   [file-kinds guide](../docs/guides/file-kinds.md)
-   and the
+1. ✅ Create the CUE source for the shortcut
+   library at `cue/types/types.cue`, declaring
+   `package types`. The CUE import path
+   `github.com/jeduden/mdsmith/types` is documented
+   but not yet wired up as a CUE module; the
+   user-facing surface is the bare-name shortcut.
+2. ✅ Ship the library via `go:embed` in
+   `cue/types/types.go`. The runtime registry seeds
+   from the same source, so `proto.md` schemas
+   resolve shortcuts with no network access — the
+   library is in the binary.
+3. ✅ Registry of short names → canonical CUE
+   expressions lives at
+   `internal/schema/shortcuts.go` (kept next to
+   `frontmatterExpr`, which is the single
+   substitution point shared by inline and
+   file-based parsing).
+4. ✅ `frontmatterExpr` in
+   `internal/schema/parse_inline.go` calls
+   `resolveBareName` first. Bare identifiers
+   matching `[a-zA-Z_][a-zA-Z0-9_-]*` go through:
+   registered shortcuts are substituted, CUE
+   built-ins (`string`, `int`, `bool`, …) pass
+   through verbatim, and unknown bare names error
+   with the field path. Operators, whitespace,
+   and quoted forms pass through unchanged.
+5. ✅ Documentation page at
+   `docs/reference/schema-types.md` lists every
+   registered name, its canonical CUE, accept /
+   reject examples, and an inline / proto.md usage
+   walk-through.
+6. ✅ Cross-linked from the
+   [file-kinds guide](../docs/guides/file-kinds.md),
+   the
+   [schemas guide](../docs/guides/schemas.md), and
+   the
    [MDS020 README](../internal/rules/MDS020-required-structure/README.md).
-7. Tests:
+7. ✅ Tests in
+   `internal/schema/shortcuts_test.go`:
 
-  - each shortcut accepts the canonical inputs
-     and rejects clear violations,
-  - a value that is `date & >="2020-01-01"`
-     parses as raw CUE, not as a shortcut,
-  - an unknown bare name produces a clear
-     config error naming the field and the
-     unknown name.
+  - each shortcut accepts canonical inputs and
+    rejects clear violations
+    (`TestShortcutRegistry_CanonicalsCompileAndMatch`);
+  - a value containing operators (`"open" | "done"`,
+    `date & >="2020-01-01"`) is parsed as raw CUE
+    (`TestResolveBareName_IgnoresNonBareCandidates`,
+    `TestParseInline_RawCUEPassesThroughUnchanged`);
+  - an unknown bare name errors with the field name
+    and the unknown identifier
+    (`TestParseInline_UnknownShortcutErrorNamesField`);
+  - an offline `proto.md` schema resolves through
+    the embedded library
+    (`TestValidate_File_ShortcutWorksOffline`);
+  - the registry stays in sync with the embedded CUE
+    (`TestShortcutRegistry_MatchesEmbeddedCUE`).
 
 ## Acceptance Criteria
 
-- [ ] The shortcut library defines `#date`,
+- [x] The shortcut library defines `#date`,
       `#datetime`, `#time`, `#email`, `#url`,
       `#filename`, `#nonEmpty` at the chosen
       import path.
-- [ ] An external `proto.md` schema resolves the
-      import without internet access (covered by
-      a fixture test using an offline CUE
-      module cache).
-- [ ] An inline schema with `created: date`
+- [x] An external `proto.md` schema resolves the
+      shortcut library without network access —
+      the library is embedded in the binary
+      (`TestValidate_File_ShortcutWorksOffline`
+      in `internal/schema/shortcuts_test.go`).
+- [x] An inline schema with `created: date`
       validates `2024-05-01` and rejects
-      `2024-5-1`.
-- [ ] An inline-schema value that is not a
+      `2024-5-1`
+      (`TestValidate_Inline_ShortcutAcceptsAndRejects`).
+- [x] An inline-schema value that is not a
       registered bare name (`status: '"open" |
       "done"'`) is parsed as raw CUE without
-      lookup.
-- [ ] An inline-schema value that looks like a
+      lookup
+      (`TestParseInline_RawCUEPassesThroughUnchanged`).
+- [x] An inline-schema value that looks like a
       shortcut but is unknown (`created:
       iso-date`) produces a config error
-      naming the field and the unknown name.
-- [ ] A new `docs/reference/schema-types.md`
+      naming the field and the unknown name
+      (`TestParseInline_UnknownShortcutErrorNamesField`).
+- [x] A new `docs/reference/schema-types.md`
       page lists every registered name with the
       canonical CUE expression and an example.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues.

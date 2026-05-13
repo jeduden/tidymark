@@ -8,7 +8,11 @@
 // is `github.com/jeduden/mdsmith/types`. The literal
 // CUE import syntax is not yet implemented; today's
 // surface is the bare-name YAML scalar handled by
-// internal/schema's frontmatterExpr.
+// internal/schema's frontmatterExpr. The Go package
+// name matches the directory so the Go and CUE
+// import paths line up for future module wiring.
+//
+//nolint:revive // "types" mirrors the CUE-side import path
 package types
 
 import _ "embed"
