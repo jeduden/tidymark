@@ -13,70 +13,65 @@ cross-file integrity. Written in Go.
 
 ## ✨ Why mdsmith
 
-**🔧 Stop hand-formatting Markdown.**
-Whitespace, heading style, code fences, bare URLs, list
-indentation, table alignment — `mdsmith fix` handles them
-in place. Multi-pass fixing resolves cascading changes so
-you don't run it twice. `mdsmith check` is the read-only
-sibling for CI.
+**🔧 Auto-fix Markdown formatting.**
+`mdsmith fix` rewrites whitespace, headings, code fences,
+bare URLs, list indentation, and table alignment in place,
+re-running up to 10 passes and stopping early once edits
+stabilize. `mdsmith check` is the read-only CI sibling.
 
-**✏️ See lint errors live in your editor.**
-The [VS Code extension][vsc-mp] runs `mdsmith lsp` and
-shows inline squiggles, per-rule quick fixes, and an
-opt-in `source.fixAll.mdsmith` action for fix-on-save
-(set `mdsmith.fixOnSave: true` to enable). Also on
-[Open VSX][vsc-ovsx] for Cursor, VSCodium, Theia, and
-Gitpod. Any LSP-aware editor — Neovim, Helix, JetBrains —
-works the same way by pointing at `mdsmith lsp`.
+**✏️ Live diagnostics wherever you write.**
+`mdsmith lsp` emits diagnostics, quick-fixes, and
+navigation (definition, references, symbol search, and a
+call-hierarchy over `<?include?>`/`<?catalog?>` and
+cross-file links).
+The [VS Code extension][vsc-mp] surfaces all of it with
+opt-in fix-on-save (also on [Open VSX][vsc-ovsx] for
+Cursor, VSCodium, Theia, and Gitpod). Generic LSP clients
+(Neovim, Helix, JetBrains) expose what they support. The
+[Claude Code plugin](docs/guides/install.md#claude-code-plugin)
+feeds diagnostics and navigation to the agent so it sees
+mdsmith inline while editing Markdown.
 
-**🔗 Catch broken links before they merge.**
-Refactors silently break Markdown links and anchors.
-[`cross-file-reference-integrity`](internal/rules/MDS027-cross-file-reference-integrity/README.md)
-flags every missing file and missing heading anchor in PR
-review. Pair it with
-[`required-structure`](internal/rules/MDS020-required-structure/README.md)
-to enforce that each file has the sections it should
-(reusable schemas live in your repo and are referenced by
-path or named via `kinds:`), and
-[`directory-structure`](internal/rules/MDS033-directory-structure/README.md)
-to keep Markdown in the folders it belongs.
+**🔗 Cross-file integrity.**
+Built-in rules flag broken links and missing anchors
+([`MDS027`](internal/rules/MDS027-cross-file-reference-integrity/README.md)),
+enforce per-file section schemas
+([`MDS020`](internal/rules/MDS020-required-structure/README.md)),
+and keep Markdown in the right folders
+([`MDS033`](internal/rules/MDS033-directory-structure/README.md)).
+Schemas can be inline on a
+[file kind](docs/guides/file-kinds.md) or shared via
+`proto.md` files.
 
-**🤖 Stop AI from bloating your docs.**
-LLMs produce walls of text. Cap file length with
-[`max-file-length`](internal/rules/MDS022-max-file-length/README.md),
-section length with
-[`max-section-length`](internal/rules/MDS036-max-section-length/README.md),
-and tokens with
-[`token-budget`](internal/rules/MDS028-token-budget/README.md).
-[`paragraph-readability`](internal/rules/MDS023-paragraph-readability/README.md)
+**🤖 Guardrails for AI-generated docs.**
+Cap [file](internal/rules/MDS022-max-file-length/README.md),
+[section](internal/rules/MDS036-max-section-length/README.md),
 and
-[`paragraph-structure`](internal/rules/MDS024-paragraph-structure/README.md)
-hold reading-grade and sentence count in line.
-[`duplicated-content`](internal/rules/MDS037-duplicated-content/README.md)
-flags verbatim repetition across files.
+[token-budget](internal/rules/MDS028-token-budget/README.md)
+size; enforce
+[reading grade](internal/rules/MDS023-paragraph-readability/README.md)
+and
+[sentence count](internal/rules/MDS024-paragraph-structure/README.md);
+flag
+[verbatim copy-paste](internal/rules/MDS037-duplicated-content/README.md)
+across files.
 
-**📋 Make tables of contents and indexes maintain themselves.**
-Embed `<?toc?>` for a heading list,
-`<?catalog?>` for a table built from front matter,
-or `<?include?>` to splice in another file. `mdsmith fix`
-regenerates them in place. After a merge conflict in one
-of these blocks, `merge-driver install` registers a Git
-driver that resolves it automatically.
+**📋 Self-maintaining sections.**
+On `mdsmith fix`, `<?toc?>` rebuilds a heading
+table-of-contents, `<?catalog?>` generates an
+index — list, table, or any row template — from the front
+matter of files matching a glob, and `<?include?>` splices
+in another file. `mdsmith merge-driver install` registers
+a Git driver that auto-resolves merge conflicts inside
+those blocks.
 
 **📊 Gate releases on doc status.**
-`mdsmith list query 'status: "✅"' plan/` lists every plan
-that's done — pipe it to a release script, or fail the
-release if anything is still open.
-`mdsmith metrics rank --by token-estimate --top 10 docs/` is the
-PR-time complement: spot the file an AI just doubled in
-size before it lands.
-
-**📖 Make rule docs readable by AI agents (and humans).**
-`mdsmith help rule [name]` prints the full rule spec —
-settings, examples, diagnostics — straight from the
-binary. No network calls. Drop the output into
-`.cursor/rules`, `AGENTS.md`, or `CLAUDE.md` and your
-agent knows the rules without an extra fetch.
+`mdsmith list query 'status: "✅"' plan/` selects files by
+a [CUE expression](docs/reference/cli/query.md) on front
+matter;
+`mdsmith metrics rank --by token-estimate --top 10 docs/`
+ranks files by any shared metric — both ready to pipe into
+a release script.
 
 **🆚 How does it compare?** See:
 <?catalog
