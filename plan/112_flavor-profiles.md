@@ -179,7 +179,7 @@ land in follow-up plans, `plain` gains them and
 diverges from `portable`.
 
 Conventions are declared in the
-[markdownflavor package](../internal/rules/markdownflavor/conventions.go)
+[convention package](../internal/convention/convention.go)
 as a table: name → flavor + rule preset map.
 
 ### How preset application works
@@ -248,7 +248,7 @@ existing ApplySettings handles it normally.
 
 1. [x] Add a Convention type and built-in table in
    the
-   [markdownflavor package](../internal/rules/markdownflavor/conventions.go)
+   [convention package](../internal/convention/convention.go)
    with a `Lookup(name string) (Convention, error)`
    helper.
 2. [x] Add a top-level `Convention string` field on

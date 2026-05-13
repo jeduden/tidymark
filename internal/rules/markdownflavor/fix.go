@@ -38,7 +38,7 @@ func (r *Rule) fixByteRangeFeatures(f *lint.File) []byte {
 		})
 	}
 
-	if !r.Flavor.Supports(FeatureBareURLAutolinks) {
+	if !Supports(r.Flavor, FeatureBareURLAutolinks) {
 		for _, fin := range detectBareURLs(f) {
 			edits = append(edits, wrapBareURL(f.Source, fin))
 		}
@@ -52,13 +52,14 @@ func (r *Rule) fixByteRangeFeatures(f *lint.File) []byte {
 
 // needsAnyDualFix reports whether any dual-parser fixable feature is
 // unsupported by the configured flavor. Skips the dual re-parse for
-// flavors that accept every dual feature (e.g. FlavorAny, Pandoc).
+// flavors that accept every dual feature (e.g. convention.FlavorAny,
+// convention.FlavorPandoc).
 func (r *Rule) needsAnyDualFix() bool {
 	for _, feat := range []Feature{
 		FeatureHeadingIDs, FeatureStrikethrough, FeatureTaskLists,
 		FeatureSuperscript, FeatureSubscript,
 	} {
-		if !r.Flavor.Supports(feat) {
+		if !Supports(r.Flavor, feat) {
 			return true
 		}
 	}
@@ -71,27 +72,27 @@ func (r *Rule) needsAnyDualFix() bool {
 func (r *Rule) dualNodeEdits(f *lint.File, n ast.Node) []edit {
 	switch node := n.(type) {
 	case *ast.Heading:
-		if r.Flavor.Supports(FeatureHeadingIDs) {
+		if Supports(r.Flavor, FeatureHeadingIDs) {
 			return nil
 		}
 		return headingIDEdits(f, node)
 	case *extast.Strikethrough:
-		if r.Flavor.Supports(FeatureStrikethrough) {
+		if Supports(r.Flavor, FeatureStrikethrough) {
 			return nil
 		}
 		return delimiterPairEdits(node, len("~~"))
 	case *extast.TaskCheckBox:
-		if r.Flavor.Supports(FeatureTaskLists) {
+		if Supports(r.Flavor, FeatureTaskLists) {
 			return nil
 		}
 		return taskCheckBoxEdits(f, node)
 	case *ext.SuperscriptNode:
-		if r.Flavor.Supports(FeatureSuperscript) {
+		if Supports(r.Flavor, FeatureSuperscript) {
 			return nil
 		}
 		return delimiterPairEdits(node, len("^"))
 	case *ext.SubscriptNode:
-		if r.Flavor.Supports(FeatureSubscript) {
+		if Supports(r.Flavor, FeatureSubscript) {
 			return nil
 		}
 		return delimiterPairEdits(node, len("~"))

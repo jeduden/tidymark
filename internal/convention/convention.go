@@ -1,4 +1,4 @@
-package markdownflavor
+package convention
 
 import (
 	"fmt"
@@ -32,8 +32,8 @@ type Convention struct {
 
 // RulePreset is a convention's preset for a single rule. It mirrors
 // the shape of config.RuleCfg without depending on the config
-// package, so the markdownflavor package can declare convention
-// tables without the import cycle that would otherwise result.
+// package, so this package can declare convention tables without the
+// import cycle that would otherwise result.
 type RulePreset struct {
 	Enabled  bool
 	Settings map[string]any
@@ -176,7 +176,7 @@ func Lookup(name string, userConventions map[string]Convention) (Convention, err
 	}
 	c, ok := conventions[name]
 	if !ok {
-		names := conventionNamesWithUser(userConventions)
+		names := namesWithUser(userConventions)
 		return Convention{}, fmt.Errorf(
 			"unknown convention %q (valid: %s)",
 			name, strings.Join(names, ", "),
@@ -185,10 +185,10 @@ func Lookup(name string, userConventions map[string]Convention) (Convention, err
 	return cloneConvention(c), nil
 }
 
-// conventionNamesWithUser returns a sorted list of all available
-// convention names — built-in names plus user-defined names.
-func conventionNamesWithUser(userConventions map[string]Convention) []string {
-	names := ConventionNames()
+// namesWithUser returns a sorted list of all available convention
+// names — built-in names plus user-defined names.
+func namesWithUser(userConventions map[string]Convention) []string {
+	names := Names()
 	for name := range userConventions {
 		names = append(names, name)
 	}
@@ -259,9 +259,8 @@ func cloneValue(v any) any {
 	}
 }
 
-// ConventionNames returns the sorted list of built-in convention
-// names.
-func ConventionNames() []string {
+// Names returns the sorted list of built-in convention names.
+func Names() []string {
 	names := make([]string, 0, len(conventions))
 	for k := range conventions {
 		names = append(names, k)

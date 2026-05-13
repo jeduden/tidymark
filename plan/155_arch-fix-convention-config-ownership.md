@@ -1,7 +1,7 @@
 ---
 id: 155
 title: 'arch-fix: relocate convention types out of markdownflavor'
-status: "🔲"
+status: "✅"
 summary: >-
   Hoist Convention, RulePreset and ParseFlavor
   out of the markdownflavor rule into a layer
@@ -73,26 +73,26 @@ inverted.
 
 ## Acceptance Criteria
 
-- [ ] `internal/convention/` exists.
+- [x] `internal/convention/` exists.
   Its package comment states it owns
   convention and flavor data shapes
   independent of any rule. (SRP)
-- [ ] Search reports no
+- [x] Search reports no
   `internal/rules/` imports under
   `internal/config/`. (DIP /
   dependency direction)
-- [ ] `internal/rules/markdownflavor`
+- [x] `internal/rules/markdownflavor`
   still compiles. It continues to
   expose its `rule.Rule` impl. It
   consumes the new package for data,
   not the other way round.
-- [ ] All tests pass:
+- [x] All tests pass:
   `go test ./...`.
-- [ ] `go tool golangci-lint run`
+- [x] `go tool golangci-lint run`
   reports no issues.
-- [ ] `mdsmith check .` passes after
+- [x] `mdsmith check .` passes after
   the refactor.
-- [ ] The audit entry for this
+- [x] The audit entry for this
   blocker moves to a "Resolved by
   plan/155" section in
   [the audit log](../docs/development/architecture-audit.md).

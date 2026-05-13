@@ -7,6 +7,7 @@ import (
 
 	"github.com/yuin/goldmark/ast"
 
+	"github.com/jeduden/mdsmith/internal/convention"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
 )
@@ -22,7 +23,7 @@ func init() {
 // other rules' settings) is handled at config load — see
 // internal/config/convention.go.
 type Rule struct {
-	Flavor Flavor
+	Flavor convention.Flavor
 }
 
 // ID implements rule.Rule.
@@ -47,10 +48,10 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return fmt.Errorf("markdown-flavor: flavor must be a string, got %T", v)
 			}
 			if s == "" {
-				r.Flavor = flavorInvalid
+				r.Flavor = convention.Flavor(0)
 				continue
 			}
-			fl, ok := ParseFlavor(s)
+			fl, ok := convention.ParseFlavor(s)
 			if !ok {
 				return fmt.Errorf(
 					"markdown-flavor: unknown flavor %q (expected one of: "+
@@ -75,14 +76,14 @@ func (r *Rule) DefaultSettings() map[string]any {
 
 // Check implements rule.Rule.
 func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
-	if r.Flavor == flavorInvalid {
+	if !r.Flavor.IsValid() {
 		return nil
 	}
 	// Only ask detectors about features this flavor rejects. Detectors
 	// like the bare-URL regex scan then skip large files entirely when
 	// the flavor (gfm, goldmark) accepts them.
 	unsupported := func(feat Feature) bool {
-		return !r.Flavor.Supports(feat)
+		return !Supports(r.Flavor, feat)
 	}
 	var diags []lint.Diagnostic
 	for _, found := range DetectFiltered(f, unsupported) {
@@ -109,11 +110,11 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 // alerts are stripped the byte-range pass re-parses the rewritten
 // source so AST offsets match the new bytes.
 func (r *Rule) Fix(f *lint.File) []byte {
-	if r.Flavor == flavorInvalid {
+	if !r.Flavor.IsValid() {
 		return f.Source
 	}
 	current := f
-	if !r.Flavor.Supports(FeatureGitHubAlerts) {
+	if !Supports(r.Flavor, FeatureGitHubAlerts) {
 		stripped := r.fixGitHubAlerts(f)
 		if !bytes.Equal(stripped, f.Source) {
 			reparsed, err := lint.NewFile(f.Path, stripped)

@@ -58,33 +58,29 @@ helper packages (e.g.
 donor and consumer rules. Scheduled by
 [plan/154](../../plan/154_arch-fix-rule-helper-extraction.md).
 
+### resolved by plan/155
+
 Config imports a rule package.
 
 [`internal/config/convention.go`](../../internal/config/convention.go)
-imports `internal/rules/markdownflavor`.
+imported `internal/rules/markdownflavor`
+to use `Convention`, `RulePreset`,
+`ParseFlavor`, `Lookup`, and
+`ConventionNames`.
 
-The imported symbols are:
+[plan/155](../../plan/155_arch-fix-convention-config-ownership.md)
+hoisted those shapes into a new
+[internal/convention package](../../internal/convention/convention.go).
+The markdownflavor rule now imports
+`internal/convention` for the `Flavor`
+type. The config package depends on
+`internal/convention`, not on a rule.
 
-- `Convention`
-- `RulePreset`
-- `ParseFlavor`
-- `Lookup`
-- `ConventionNames`
-
-This violates dependency direction. The
-[layering map](architecture/index.md)
-puts rules at the lowest layer. Config
-is a mid-layer.
-
-Severity: blocker.
-
-Fix by hoisting the convention and flavor
-data shapes into a layer config can own.
-A new `internal/convention` package
-works. The markdownflavor rule then
-consumes those types instead of defining
-them. Scheduled by
-[plan/155](../../plan/155_arch-fix-convention-config-ownership.md).
+`TestConfigDoesNotImportRules` guards
+the new direction. It parses every
+non-test file under `internal/config/`.
+It fails if any import path contains
+`internal/rules/`.
 
 ### tax
 

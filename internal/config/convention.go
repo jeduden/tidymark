@@ -6,8 +6,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/jeduden/mdsmith/internal/convention"
 	"github.com/jeduden/mdsmith/internal/rule"
-	"github.com/jeduden/mdsmith/internal/rules/markdownflavor"
 )
 
 // applyConvention reads the top-level Convention selector from the
@@ -42,7 +42,7 @@ func applyConvention(cfg *Config) error {
 	if cfg.Convention == "" {
 		return nil
 	}
-	convention, err := markdownflavor.Lookup(cfg.Convention, userMap)
+	conv, err := convention.Lookup(cfg.Convention, userMap)
 	if err != nil {
 		return fmt.Errorf("convention: %w", err)
 	}
@@ -53,16 +53,16 @@ func applyConvention(cfg *Config) error {
 		if err != nil {
 			return err
 		}
-		if userFlavor != "" && userFlavor != convention.Flavor.String() {
+		if userFlavor != "" && userFlavor != conv.Flavor.String() {
 			return fmt.Errorf(
 				"rules.markdown-flavor: convention %q requires flavor %q, but flavor is set to %q",
-				convention.Name, convention.Flavor, userFlavor,
+				conv.Name, conv.Flavor, userFlavor,
 			)
 		}
 	}
 
-	preset := make(map[string]RuleCfg, len(convention.Rules))
-	for ruleName, p := range convention.Rules {
+	preset := make(map[string]RuleCfg, len(conv.Rules))
+	for ruleName, p := range conv.Rules {
 		preset[ruleName] = RuleCfg{
 			Enabled:  p.Enabled,
 			Settings: cloneSettings(p.Settings),
@@ -103,7 +103,7 @@ func copyConventionPreset(p map[string]RuleCfg) map[string]RuleCfg {
 }
 
 // buildUserConventionMap validates every entry in cfg.Conventions and
-// returns them as a map[string]markdownflavor.Convention ready for
+// returns them as a map[string]convention.Convention ready for
 // Lookup. Validation checks:
 //   - The name must not be a reserved built-in name.
 //   - The flavor must be a recognised flavor string.
@@ -112,17 +112,17 @@ func copyConventionPreset(p map[string]RuleCfg) map[string]RuleCfg {
 //     check (called on a cloned instance so the registry is unaffected).
 //
 // Returns nil when cfg.Conventions is empty.
-func buildUserConventionMap(cfg *Config) (map[string]markdownflavor.Convention, error) {
+func buildUserConventionMap(cfg *Config) (map[string]convention.Convention, error) {
 	if len(cfg.Conventions) == 0 {
 		return nil, nil
 	}
 
-	reserved := make(map[string]bool, len(markdownflavor.ConventionNames()))
-	for _, name := range markdownflavor.ConventionNames() {
+	reserved := make(map[string]bool, len(convention.Names()))
+	for _, name := range convention.Names() {
 		reserved[name] = true
 	}
 
-	result := make(map[string]markdownflavor.Convention, len(cfg.Conventions))
+	result := make(map[string]convention.Convention, len(cfg.Conventions))
 	for name, uc := range cfg.Conventions {
 		if reserved[name] {
 			return nil, fmt.Errorf(
@@ -131,7 +131,7 @@ func buildUserConventionMap(cfg *Config) (map[string]markdownflavor.Convention, 
 			)
 		}
 
-		fl, ok := markdownflavor.ParseFlavor(uc.Flavor)
+		fl, ok := convention.ParseFlavor(uc.Flavor)
 		if !ok {
 			return nil, fmt.Errorf(
 				"convention %q: unknown flavor %q",
@@ -139,7 +139,7 @@ func buildUserConventionMap(cfg *Config) (map[string]markdownflavor.Convention, 
 			)
 		}
 
-		rules := make(map[string]markdownflavor.RulePreset, len(uc.Rules))
+		rules := make(map[string]convention.RulePreset, len(uc.Rules))
 		for ruleName, rc := range uc.Rules {
 			r := rule.ByName(ruleName)
 			if r == nil {
@@ -153,13 +153,13 @@ func buildUserConventionMap(cfg *Config) (map[string]markdownflavor.Convention, 
 					return nil, err
 				}
 			}
-			rules[ruleName] = markdownflavor.RulePreset{
+			rules[ruleName] = convention.RulePreset{
 				Enabled:  rc.Enabled,
 				Settings: cloneSettings(rc.Settings),
 			}
 		}
 
-		result[name] = markdownflavor.Convention{
+		result[name] = convention.Convention{
 			Name:   name,
 			Flavor: fl,
 			Rules:  rules,

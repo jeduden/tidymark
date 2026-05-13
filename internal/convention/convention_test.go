@@ -1,4 +1,4 @@
-package markdownflavor
+package convention
 
 import (
 	"sort"
@@ -177,9 +177,9 @@ func TestLookup_UnknownListsUserAndBuiltin(t *testing.T) {
 	assert.Contains(t, err.Error(), "portable", "error must list built-in name")
 }
 
-func TestConventionNamesSorted(t *testing.T) {
-	names := ConventionNames()
+func TestNamesSorted(t *testing.T) {
+	names := Names()
 	assert.True(t, sort.StringsAreSorted(names),
-		"ConventionNames should return a sorted slice; got %v", names)
+		"Names should return a sorted slice; got %v", names)
 	assert.ElementsMatch(t, []string{"github", "plain", "portable"}, names)
 }

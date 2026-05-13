@@ -1,6 +1,9 @@
 package config
 
 import (
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +18,30 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/markdownflavor"
 	_ "github.com/jeduden/mdsmith/internal/rules/nohardtabs"
 )
+
+// TestConfigDoesNotImportRules guards the dependency direction
+// recorded in docs/development/architecture/index.md: rules sit at
+// the lowest layer, config sits above them, so config must not
+// import any rule package. The convention and flavor data types
+// live in internal/convention so this constraint can be enforced.
+// Test files are exempt because they need to register rules to
+// exercise rule.ByName lookups.
+func TestConfigDoesNotImportRules(t *testing.T) {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, ".", func(fi fs.FileInfo) bool {
+		return !strings.HasSuffix(fi.Name(), "_test.go")
+	}, parser.ImportsOnly)
+	require.NoError(t, err)
+	for _, pkg := range pkgs {
+		for fname, file := range pkg.Files {
+			for _, imp := range file.Imports {
+				path := strings.Trim(imp.Path.Value, `"`)
+				assert.NotContains(t, path, "internal/rules/",
+					"%s imports a rule package: %s", fname, path)
+			}
+		}
+	}
+}
 
 func TestApplyConvention_NoConventionSet_NoOp(t *testing.T) {
 	cfg := &Config{

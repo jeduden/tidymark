@@ -53,8 +53,8 @@ type Config struct {
 	// values: "portable", "github", "plain". User-defined
 	// conventions may also be referenced here after being declared
 	// under the top-level `conventions:` key. Empty means no
-	// convention. See internal/rules/markdownflavor/conventions.go
-	// and docs/reference/conventions.md.
+	// convention. See internal/convention/convention.go and
+	// docs/reference/conventions.md.
 	Convention string `yaml:"convention,omitempty"`
 
 	// Conventions holds user-defined convention bundles declared
