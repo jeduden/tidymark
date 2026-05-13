@@ -704,7 +704,12 @@ func (s *Server) runLintIfCurrent(uri string, timerPtr **time.Timer) {
 	}
 	s.pendingMu.Lock()
 	timer := *timerPtr
-	live := s.pending[uri] == timer
+	// Defense-in-depth: pending[uri] is also nil for a missing key,
+	// so a nil timer would silently match (live=true) if scheduleLint
+	// ever started unlocking before completing the timer assignment.
+	// Treat nil as not-live so a future refactor can't reintroduce a
+	// stale-publish misfire.
+	live := timer != nil && s.pending[uri] == timer
 	if live {
 		delete(s.pending, uri)
 	}

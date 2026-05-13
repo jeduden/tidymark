@@ -199,7 +199,7 @@ def main() -> int:
             f"{ROTATION_DOC}: front matter has no `rotations:` list"
         )
 
-    today = dt.date.today()
+    today = dt.datetime.now(dt.timezone.utc).date()
     opened: list[str] = []
     skipped: list[str] = []
     label_ensured = False

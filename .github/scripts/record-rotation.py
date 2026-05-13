@@ -35,7 +35,15 @@ ROTATION_DOC = REPO_ROOT / "docs" / "development" / "secret-rotations.md"
 
 
 def _split_front_matter(text: str) -> tuple[str, str, str]:
-    """Return (leading_marker, front_matter_yaml, rest_of_doc)."""
+    """Return (opening_marker, yaml_block, closing_plus_body).
+
+    `opening_marker` is the literal `"---\\n"` opener.
+    `yaml_block` is the YAML between the two `---\\n` fences (no
+    fences included).
+    `closing_plus_body` is the closing `"\\n---\\n"` fence plus the
+    rest of the document, so concatenating the three pieces
+    reproduces `text` byte-for-byte.
+    """
     if not text.startswith("---\n"):
         raise SystemExit(f"{ROTATION_DOC}: no front matter")
     end = text.find("\n---\n", 4)
@@ -96,12 +104,12 @@ def main(argv: list[str]) -> int:
         sys.stderr.write(f"invalid date {date_str!r}: {exc}\n")
         return 1
     text = ROTATION_DOC.read_text(encoding="utf-8")
-    marker, fm_yaml, rest = _split_front_matter(text)
+    opening, fm_yaml, closing_and_body = _split_front_matter(text)
     updated = _update_last_rotated(fm_yaml, entry_name, date_str)
     if updated == fm_yaml:
         sys.stdout.write(f"{entry_name} already at {date_str}; no change\n")
         return 0
-    ROTATION_DOC.write_text(marker + updated + rest, encoding="utf-8")
+    ROTATION_DOC.write_text(opening + updated + closing_and_body, encoding="utf-8")
     sys.stdout.write(f"updated {entry_name}.last-rotated -> {date_str}\n")
     return 0
 
