@@ -311,11 +311,27 @@ func (f *Fixer) prepareFile(path string, source []byte) (*lint.File, fs.FS, []st
 	if err := config.ValidateFrontMatterKinds(f.Config, path, kinds); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	fields, err := lint.ParseFrontMatterFields(lf.FrontMatter)
+	fields, err := parseFieldsForSelector(f.Config, path, lf.FrontMatter)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("parsing front matter in %q: %w", path, err)
+		return nil, nil, nil, nil, err
 	}
 	return lf, dirFS, kinds, fields, nil
+}
+
+// parseFieldsForSelector decodes the full front-matter mapping only when
+// the loaded config actually uses the kind-assignment `fields-present:`
+// selector. Skipping the parse when no entry needs it preserves the
+// kinds-only parse path's leniency toward FM YAML errors that
+// ParseFrontMatterKinds' fast path ignores.
+func parseFieldsForSelector(cfg *config.Config, path string, fm []byte) (map[string]any, error) {
+	if !config.HasFieldsPresentSelector(cfg) {
+		return nil, nil
+	}
+	fields, err := lint.ParseFrontMatterFields(fm)
+	if err != nil {
+		return nil, fmt.Errorf("parsing front matter in %q: %w", path, err)
+	}
+	return fields, nil
 }
 
 // effectiveWithCategories computes the effective rule config for a file

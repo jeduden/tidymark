@@ -62,3 +62,20 @@ func formatSelector(entry KindAssignmentEntry) string {
 	}
 	return strings.Join(parts, " AND ")
 }
+
+// HasFieldsPresentSelector reports whether any kind-assignment entry
+// uses the fields-present: selector. Callers that wire front-matter
+// fields into resolution can short-circuit the full-FM YAML decode
+// when this returns false — both saving work and avoiding a parse
+// error mode that the kinds-only path never triggered.
+func HasFieldsPresentSelector(cfg *Config) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, entry := range cfg.KindAssignment {
+		if len(entry.FieldsPresent) > 0 {
+			return true
+		}
+	}
+	return false
+}

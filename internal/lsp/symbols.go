@@ -105,9 +105,12 @@ func effectiveKindsFor(cfg *config.Config, rel string, source []byte) []string {
 	if scalar, ok := frontMatterScalarKind(fmBytes); ok {
 		fmKinds = append([]string{scalar}, fmKinds...)
 	}
-	fmFields, err := lint.ParseFrontMatterFields(fmBytes)
-	if err != nil {
-		fmFields = nil
+	var fmFields map[string]any
+	if config.HasFieldsPresentSelector(cfg) {
+		fmFields, err = lint.ParseFrontMatterFields(fmBytes)
+		if err != nil {
+			fmFields = nil
+		}
 	}
 	if len(fmKinds) == 0 && cfg == nil {
 		return nil

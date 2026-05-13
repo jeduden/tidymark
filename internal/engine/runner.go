@@ -311,8 +311,14 @@ func (r *Runner) parseFrontMatterKinds(path string, fm []byte) ([]string, error)
 }
 
 // parseFrontMatterFields parses a file's front-matter block into a
-// top-level map. It feeds the kind-assignment `fields-present:` selector.
+// top-level map. It feeds the kind-assignment `fields-present:` selector
+// and returns (nil, nil) when no entry uses the selector — skipping the
+// full YAML decode entirely so configs without fields-present keep their
+// kinds-only parse path (and its narrower error surface).
 func (r *Runner) parseFrontMatterFields(path string, fm []byte) (map[string]any, error) {
+	if !config.HasFieldsPresentSelector(r.Config) {
+		return nil, nil
+	}
 	fields, err := lint.ParseFrontMatterFields(fm)
 	if err != nil {
 		return nil, fmt.Errorf("parsing front matter in %q: %w", path, err)

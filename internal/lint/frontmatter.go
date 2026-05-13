@@ -57,10 +57,12 @@ func ParseFrontMatterKinds(fm []byte) ([]string, error) {
 }
 
 // ParseFrontMatterFields decodes a YAML front-matter block (including its
-// --- delimiters) into a map of top-level keys to raw values. Returns nil
-// and nil error when fm is empty or contains no mapping. Used by the
-// kind-assignment field-presence selector — a field is considered present
-// when its value is non-null.
+// --- delimiters) into a map of top-level keys to raw values. Returns
+// (nil, nil) when fm is empty or whitespace-only. Returns an error when
+// the body is non-empty but does not decode into a mapping (sequence or
+// scalar payloads are rejected) or when the YAML is otherwise invalid.
+// Used by the kind-assignment field-presence selector — a field is
+// considered present when its value is non-null.
 func ParseFrontMatterFields(fm []byte) (map[string]any, error) {
 	if len(fm) == 0 {
 		return nil, nil
