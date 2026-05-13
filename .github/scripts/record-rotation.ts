@@ -70,12 +70,23 @@ function splitFrontMatter(text: string, path: string): SplitFrontMatter {
  * could parse either as a string or a date depending on the
  * parser, and double-quoting forces the string interpretation
  * the rest of the toolchain expects.
+ *
+ * The value matcher accepts double-quoted, single-quoted, or
+ * unquoted bare values. Any trailing inline comment (e.g.
+ * `lastRotated: 2026-05-12 # rotated after incident`) is left
+ * intact because the match stops at the first whitespace or `#`
+ * after the value.
  */
 function updateLastRotated(yamlBlock: string, date: string): string {
-  // The matched range covers the `lastRotated:` key plus the
-  // existing value (quoted or bare); we drop the value and emit
-  // a freshly double-quoted date.
-  const pattern = /(^lastRotated:\s*)"?[^"\n]*"?/m;
+  // Group 1: the `lastRotated:` key plus its leading spaces.
+  // Match continues with the value, which is dropped wholesale:
+  //   - `"..."` — double-quoted string
+  //   - `'...'` — single-quoted string
+  //   - `[^\s#"']\S*` — bare value (one non-space/comment/quote
+  //     leading char, then any non-space chars). Stops at the
+  //     first whitespace or `#`, so a trailing inline comment is
+  //     preserved by the surrounding text outside the match.
+  const pattern = /(^lastRotated:[ \t]*)(?:"[^"\n]*"|'[^'\n]*'|[^\s#"'][^\s#]*)/m;
   let matched = 0;
   const rewritten = yamlBlock.replace(pattern, (_, preamble) => {
     matched++;
@@ -139,11 +150,11 @@ async function main(argv: string[]): Promise<number> {
   const { opening, yamlBlock, closingPlusBody } = splitFrontMatter(text, path);
   const updated = updateLastRotated(yamlBlock, dateStr);
   if (updated === yamlBlock) {
-    console.log(`${entryTitle} (${basename(path)}) already at ${dateStr}; no change`);
+    console.log(`${entryTitle} (${basename(path)}) lastRotated already at ${dateStr}; no change`);
     return 0;
   }
   await Bun.write(path, opening + updated + closingPlusBody);
-  console.log(`updated ${entryTitle} (${basename(path)}).last-rotated -> ${dateStr}`);
+  console.log(`updated ${entryTitle} (${basename(path)}) lastRotated -> ${dateStr}`);
   return 0;
 }
 
