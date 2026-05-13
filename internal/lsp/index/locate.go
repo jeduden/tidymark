@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/jeduden/mdsmith/internal/linkgraph"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/yuin/goldmark/ast"
@@ -389,20 +390,20 @@ func linkToLocate(srcPath string, l *ast.Link, source []byte) LocateResult {
 		}
 	}
 	dest := string(l.Destination)
-	t, ok := parseLinkTarget(dest)
+	t, ok := linkgraph.ParseTarget(dest)
 	if !ok {
 		return LocateResult{Tag: TokenNone}
 	}
 	if t.LocalAnchor {
 		return LocateResult{
 			Tag:          TokenAnchorLink,
-			TargetAnchor: mdtext.Slugify(decodeAnchor(t.Anchor)),
+			TargetAnchor: linkgraph.NormalizeAnchor(t.Anchor),
 		}
 	}
 	return LocateResult{
 		Tag:          TokenFileLink,
-		TargetFile:   resolveRelTarget(srcPath, t.Path),
-		TargetAnchor: mdtext.Slugify(decodeAnchor(t.Anchor)),
+		TargetFile:   linkgraph.ResolveRelTarget(srcPath, t.Path),
+		TargetAnchor: linkgraph.NormalizeAnchor(t.Anchor),
 	}
 }
 
