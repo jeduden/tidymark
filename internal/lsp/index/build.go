@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/linkgraph"
@@ -16,6 +17,17 @@ import (
 	"github.com/yuin/goldmark/util"
 	"gopkg.in/yaml.v3"
 )
+
+// parserPool reuses goldmark parsers across buildFileEntry calls.
+// lint.NewParser() builds a substantial config (block parsers, inline
+// parsers, paragraph transformers); constructing one per file
+// dominated the parallel-build wall-clock budget. parser.Parser
+// instances are safe to reuse sequentially within a single goroutine.
+var parserPool = sync.Pool{
+	New: func() any {
+		return lint.NewParser()
+	},
+}
 
 // buildFileEntry parses source under filePath (workspace-relative) and
 // extracts the symbol/edge tables for that file.
@@ -38,22 +50,27 @@ func buildFileEntry(filePath string, source []byte) *FileEntry {
 
 	// Front matter is parsed first because it carries the file's
 	// title / kinds — both surfaced as workspace-symbol matches.
+	// frontMatterAll walks the YAML mapping once and surfaces the
+	// outline keys, title, and kinds in a single pass to keep the
+	// per-file allocation budget low (this was a measurable
+	// bottleneck under parallel Build).
 	fmBytes, body := lint.StripFrontMatter(source)
 	fmOffset := countLines(fmBytes)
-	fe.Symbols = append(fe.Symbols, frontMatterSymbols(fe.Path, fmBytes)...)
-	if title, ok := frontMatterScalar(fmBytes, "title"); ok {
-		fe.Title = title
-	}
-	if kinds, ok := frontMatterStringList(fmBytes, "kinds"); ok {
-		fe.Kinds = kinds
-	}
+	fmSyms, fmTitle, fmKinds := frontMatterAll(fe.Path, fmBytes)
+	fe.Symbols = append(fe.Symbols, fmSyms...)
+	fe.Title = fmTitle
+	fe.Kinds = fmKinds
 
 	// Parse the body with the same goldmark configuration the lint
 	// pipeline uses, so processing-instructions surface as our
 	// custom AST node. The parser context carries the reference
 	// definitions; collectLinkRefDefs reads from it directly.
+	// Pull a parser out of the pool — building one is expensive
+	// compared to a single parse.
+	p := parserPool.Get().(parser.Parser)
 	ctx := parser.NewContext()
-	root := lint.NewParser().Parse(text.NewReader(body), parser.WithContext(ctx))
+	root := p.Parse(text.NewReader(body), parser.WithContext(ctx))
+	parserPool.Put(p)
 	lines := bytes.Split(body, []byte("\n"))
 
 	// Wrap the parsed body in a *lint.File so the linkgraph
@@ -227,12 +244,81 @@ func lineOfOffset(source []byte, offset int) int {
 	return line
 }
 
+// frontMatterAll walks the front-matter YAML once and returns the
+// per-key outline symbols, the title scalar, and the kinds list.
+// Equivalent to calling frontMatterSymbols + frontMatterScalar(title)
+// + frontMatterStringList(kinds) but parses the YAML body only one
+// time, which removed a measurable bottleneck under parallel Build.
+//
+// Parsing goes through yamlutil so the index never expands a YAML
+// alias on user-controlled content — the rest of mdsmith treats
+// every front-matter parse as a potential alias-bomb vector and the
+// symbol index has to match.
+func frontMatterAll(filePath string, fm []byte) (syms []Symbol, title string, kinds []string) {
+	if len(fm) == 0 {
+		return nil, "", nil
+	}
+	node, err := yamlutil.UnmarshalNodeSafe(stripDelimiters(fm))
+	if err != nil || len(node.Content) == 0 {
+		return nil, "", nil
+	}
+	mapping := node.Content[0]
+	if mapping.Kind != yaml.MappingNode {
+		return nil, "", nil
+	}
+	syms = make([]Symbol, 0, len(mapping.Content)/2)
+	for i := 0; i < len(mapping.Content); i += 2 {
+		k := mapping.Content[i]
+		v := mapping.Content[i+1]
+		if k.Kind != yaml.ScalarNode || k.Value == "" {
+			continue
+		}
+		// yaml.v3 line numbers are 1-based within the parsed buffer;
+		// the stripped buffer drops the leading "---" line so add 1.
+		syms = append(syms, Symbol{
+			File:          filePath,
+			Kind:          SymbolFrontMatter,
+			Name:          k.Value,
+			StartLine:     k.Line + 1,
+			EndLine:       k.Line + 1,
+			SelectionLine: k.Line + 1,
+			SelectionCol:  k.Column,
+		})
+		switch k.Value {
+		case "title":
+			if v.Kind == yaml.ScalarNode {
+				title = v.Value
+			}
+		case "kinds":
+			if v.Kind == yaml.SequenceNode {
+				for _, item := range v.Content {
+					if item.Kind != yaml.ScalarNode {
+						continue
+					}
+					// yaml.v3 sets Tag to "!!str" for explicit
+					// strings and "" for unresolved plain scalars
+					// (which the type resolver maps to string
+					// when the value doesn't look like a number /
+					// bool). Anything tagged !!int, !!bool,
+					// !!float, etc. is filtered out — the previous
+					// map[string]any path dropped them via type
+					// assertion.
+					if item.Tag != "" && item.Tag != "!!str" {
+						continue
+					}
+					kinds = append(kinds, item.Value)
+				}
+			}
+		}
+	}
+	return syms, title, kinds
+}
+
 // frontMatterSymbols extracts top-level YAML keys from the front
-// matter prefix and returns one Symbol per key. Lines are 1-based
-// from the start of the file. Parsing goes through yamlutil so the
-// index never expands a YAML alias on user-controlled content — the
-// rest of mdsmith treats every front-matter parse as a potential
-// alias-bomb vector and the symbol index has to match.
+// matter prefix and returns one Symbol per key. Kept exported-ish
+// (package-private) for the targeted coverage test in
+// coverage_test.go; the symbol-index build path now uses
+// frontMatterAll for a single-pass parse.
 func frontMatterSymbols(filePath string, fm []byte) []Symbol {
 	if len(fm) == 0 {
 		return nil

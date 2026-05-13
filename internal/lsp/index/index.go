@@ -16,6 +16,7 @@ package index
 
 import (
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -260,7 +261,28 @@ func (i *Index) UpdateWithKinds(path string, source []byte, kinds []string) {
 //
 // Build replaces the entire current index, including evicting any
 // entries whose path no longer appears in files.
+//
+// Build fans out the per-file extractor across runtime.GOMAXPROCS(0)
+// worker goroutines so a multi-thousand-file workspace lands in the
+// graph in roughly wall-clock / cpu-cores time. The extractor itself
+// is pure given (path, bytes); the only shared state is the result
+// map, which a single collector goroutine drains. The supplied loader
+// is called concurrently — callers whose loader is not safe for
+// concurrent calls must serialise inside it or fall back to
+// BuildSerial.
 func (i *Index) Build(files []string, load func(path string) ([]byte, error)) {
+	if i == nil {
+		return
+	}
+	next := buildEntriesParallel(files, load, runtime.GOMAXPROCS(0))
+	i.mu.Lock()
+	i.files = next
+	i.mu.Unlock()
+}
+
+// BuildSerial is the single-threaded variant of Build. Use this when
+// the loader is not safe for concurrent calls.
+func (i *Index) BuildSerial(files []string, load func(path string) ([]byte, error)) {
 	if i == nil {
 		return
 	}
@@ -279,6 +301,78 @@ func (i *Index) Build(files []string, load func(path string) ([]byte, error)) {
 	i.mu.Lock()
 	i.files = next
 	i.mu.Unlock()
+}
+
+// buildEntriesParallel runs the per-file extractor across workers
+// goroutines and returns the assembled map. workers <= 1 falls back
+// to a sequential build so callers can dial the parallelism via the
+// caller (Build uses GOMAXPROCS).
+//
+// Each worker handles a contiguous slice of files and writes into
+// its own local map; the final merge happens after wg.Wait so no
+// channel or mutex is in the hot path. The per-file extractor is
+// pure given (path, bytes), so workers share no mutable state.
+func buildEntriesParallel(files []string, load func(path string) ([]byte, error), workers int) map[string]*FileEntry {
+	if workers < 1 {
+		workers = 1
+	}
+	if workers == 1 || len(files) <= 1 {
+		next := make(map[string]*FileEntry, len(files))
+		for _, p := range files {
+			path := NormalizePath(p)
+			if path == "" {
+				continue
+			}
+			data, err := load(path)
+			if err != nil || len(data) == 0 {
+				continue
+			}
+			next[path] = buildFileEntry(path, data)
+		}
+		return next
+	}
+	chunkSize := (len(files) + workers - 1) / workers
+	localMaps := make([]map[string]*FileEntry, workers)
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		start := w * chunkSize
+		if start >= len(files) {
+			break
+		}
+		end := start + chunkSize
+		if end > len(files) {
+			end = len(files)
+		}
+		wg.Add(1)
+		go func(idx int, chunk []string) {
+			defer wg.Done()
+			local := make(map[string]*FileEntry, len(chunk))
+			for _, p := range chunk {
+				path := NormalizePath(p)
+				if path == "" {
+					continue
+				}
+				data, err := load(path)
+				if err != nil || len(data) == 0 {
+					continue
+				}
+				local[path] = buildFileEntry(path, data)
+			}
+			localMaps[idx] = local
+		}(w, files[start:end])
+	}
+	wg.Wait()
+	total := 0
+	for _, m := range localMaps {
+		total += len(m)
+	}
+	next := make(map[string]*FileEntry, total)
+	for _, m := range localMaps {
+		for k, v := range m {
+			next[k] = v
+		}
+	}
+	return next
 }
 
 // IncomingEdges returns every workspace edge whose target is the
