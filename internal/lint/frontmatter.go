@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
@@ -61,13 +59,12 @@ func ParseFrontMatterKinds(fm []byte) ([]string, error) {
 
 // ParseFrontMatterFields decodes a YAML front-matter block (including its
 // --- delimiters) into a map of top-level keys to raw values. Returns
-// (nil, nil) when fm is empty or whitespace-only, or when the payload
-// decodes to YAML null (yaml.v3 surfaces a null document as a scalar
-// node with no decode error). Returns an error when the payload is a
-// non-null scalar or a sequence — both reject because the
-// field-presence selector requires named keys — or when the YAML is
-// otherwise invalid. Used by the kind-assignment field-presence
-// selector; a field is considered present when its value is non-null.
+// (nil, nil) when fm is empty, whitespace-only, or decodes to YAML null.
+// Returns an error when the payload is a non-null scalar or a sequence
+// — both reject because the field-presence selector requires named
+// keys — or when the YAML is otherwise invalid. Used by the
+// kind-assignment field-presence selector; a field is considered
+// present when its value is non-null.
 func ParseFrontMatterFields(fm []byte) (map[string]any, error) {
 	if len(fm) == 0 {
 		return nil, nil
@@ -78,29 +75,16 @@ func ParseFrontMatterFields(fm []byte) (map[string]any, error) {
 	if len(bytes.TrimSpace(body)) == 0 {
 		return nil, nil
 	}
-	node, err := yamlutil.UnmarshalNodeSafe(body)
-	if err != nil {
+	var raw any
+	if err := yamlutil.UnmarshalSafe(body, &raw); err != nil {
 		return nil, err
 	}
-	if node.Kind == 0 || len(node.Content) == 0 {
+	if raw == nil {
 		return nil, nil
 	}
-	root := node.Content[0]
-	switch root.Kind {
-	case yaml.MappingNode:
-		var parsed map[string]any
-		if err := root.Decode(&parsed); err != nil {
-			return nil, err
-		}
-		return parsed, nil
-	case yaml.ScalarNode:
-		if root.Tag == "!!null" {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("front matter must be a mapping, got scalar")
-	case yaml.SequenceNode:
-		return nil, fmt.Errorf("front matter must be a mapping, got sequence")
-	default:
-		return nil, fmt.Errorf("front matter must be a mapping")
+	parsed, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("front matter must be a mapping, got %T", raw)
 	}
+	return parsed, nil
 }
