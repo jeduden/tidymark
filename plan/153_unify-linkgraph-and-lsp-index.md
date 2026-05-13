@@ -1,7 +1,7 @@
 ---
 id: 153
 title: Unify linkgraph and the LSP symbol index
-status: "🔲"
+status: "🔳"
 model: opus
 depends-on: [151]
 summary: >-
