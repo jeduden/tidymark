@@ -59,7 +59,8 @@ constraints in this codebase:
   or push the special case down.
 - **Interface segregation**: the `rule`
   package defines small interfaces (`Rule`,
-  `Fixer`, `ListMerger`, …) so a rule only
+  `FixableRule`, `ListMerger`, …) so a rule
+  only
   depends on the capabilities it uses. Do
   not add methods to `Rule` because one rule
   wants them.

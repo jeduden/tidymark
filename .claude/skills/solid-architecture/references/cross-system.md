@@ -27,17 +27,17 @@ release on their own schedule.
 
 ### The boundaries
 
-| Boundary                  | Owner in repo                 | Consumers                        |
-|---------------------------|-------------------------------|----------------------------------|
-| LSP wire protocol         | `internal/lsp`                | VS Code extension, other editors |
-| CLI flags + exit codes    | `cmd/mdsmith`                 | shell scripts, CI, git hooks     |
-| `.mdsmith.yml` schema     | `internal/config`             | every project using mdsmith      |
-| Generated section markers | `internal/engine`             | every project's Markdown files   |
-| Plugin manifest           | `.claude-plugin/`             | Claude Code marketplace          |
-| npm package shim          | `npm/mdsmith/`                | Node users                       |
-| PyPI wheel shim           | `python/`                     | Python users                     |
-| asdf / mise plugin        | external repos                | language-tool users              |
-| VS Code `contributes`     | `editors/vscode/package.json` | the extension host               |
+| Boundary                  | Owner in repo                   | Consumers                        |
+|---------------------------|---------------------------------|----------------------------------|
+| LSP wire protocol         | `internal/lsp`                  | VS Code extension, other editors |
+| CLI flags + exit codes    | `cmd/mdsmith`                   | shell scripts, CI, git hooks     |
+| `.mdsmith.yml` schema     | `internal/config`               | every project using mdsmith      |
+| Generated section markers | `internal/archetype/gensection` | every project's Markdown files   |
+| Plugin manifest           | `.claude-plugin/`               | Claude Code marketplace          |
+| npm package shim          | `npm/mdsmith/`                  | Node users                       |
+| PyPI wheel shim           | `python/`                       | Python users                     |
+| asdf / mise plugin        | external repos                  | language-tool users              |
+| VS Code `contributes`     | `editors/vscode/package.json`   | the extension host               |
 
 A breaking change at any of these surfaces
 is a SemVer-major event. Treat them as

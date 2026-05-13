@@ -69,7 +69,7 @@ The engine should not change when a rule is
 added. The contract that enforces this:
 
 - `internal/rule` defines the interfaces
-  (`rule.Rule`, `rule.Fixer`, …).
+  (`rule.Rule`, `rule.FixableRule`, …).
 - Each rule has a Go package at
   `internal/rules/<rule-name>/` and a
   sibling docs+fixtures directory at
@@ -85,8 +85,10 @@ When adding a new rule:
 1. Create the Go package
    `internal/rules/<rule-name>/` with
    `rule.go` and `rule_test.go`.
-2. Implement `rule.Rule` (and `rule.Fixer`
-   if the rule is fixable).
+2. Implement `rule.Rule` (and
+   `rule.FixableRule` — the
+   `Fix(f *lint.File) []byte` method — if
+   the rule is fixable).
 3. Add a blank-import line for the new
    package in `internal/rules/all/all.go`.
 4. Create the docs+fixtures directory
@@ -127,11 +129,16 @@ config layering. Keep the rule unconditional.
 The `rule` package defines small interfaces:
 
 - `rule.Rule` — the base check.
-- `rule.Fixer` — produce edits.
+- `rule.FixableRule` — produce edits via
+  `Fix(f *lint.File) []byte`.
+- `rule.Configurable` — accept user-tunable
+  settings.
+- `rule.Defaultable` — override the default
+  enabled state.
 - `rule.ListMerger` — opt a list-typed
   setting into append-mode merging.
-- `rule.SchemaContributor` — supply schema
-  fragments.
+- `rule.ConfigTarget` — validate
+  `.mdsmith.yml` itself, not Markdown.
 
 Do not add a method to `rule.Rule` because
 one rule wants it. Define a new interface
