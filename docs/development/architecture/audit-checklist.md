@@ -1,11 +1,10 @@
 ---
 title: Architecture audit checklist
 summary: >-
-  Concrete checklist for sweeping origin/main
-  for SOLID and boundary violations. Records
-  findings in the architecture audit log and
-  schedules blockers as new plan files under
-  plan/.
+  Checklist for sweeping origin/main for
+  SOLID and boundary violations. Records
+  findings in the audit log; schedules
+  blockers as new plan files.
 ---
 # Architecture audit checklist
 

@@ -1,11 +1,10 @@
 ---
 title: Architecture principles
 summary: >-
-  SOLID principles and clean architecture rules
-  for mdsmith's Go core, TypeScript VS Code
-  extension, and cross-system integration
-  surfaces. Canonical home; the
-  solid-architecture skill includes this page.
+  SOLID and clean-architecture rules for
+  mdsmith's Go core, TypeScript extension, and
+  cross-system surfaces. Canonical home for
+  the solid-architecture skill.
 ---
 # Architecture principles
 
@@ -58,12 +57,11 @@ constraints in this codebase:
   a Liskov violation — widen the interface
   or push the special case down.
 - **Interface segregation**: the `rule`
-  package defines small interfaces (`Rule`,
-  `FixableRule`, `ListMerger`, …) so a rule
-  only
-  depends on the capabilities it uses. Do
-  not add methods to `Rule` because one rule
-  wants them.
+  package defines small interfaces — `Rule`,
+  `FixableRule`, `ListMerger`, and so on —
+  so a rule depends only on the capabilities
+  it uses. Do not add methods to `Rule`
+  because one rule wants them.
 - **Dependency inversion**: high-level code
   depends on interfaces, not concretes. The
   engine talks to `rule.Rule`, never to a
@@ -166,12 +164,12 @@ header: |
   |------|-------------|
 row: "| [{title}]({filename}) | {summary} |"
 ?>
-| Page                                               | Description                                                                                                                                                                                                                                   |
-|----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Architecture audit checklist](audit-checklist.md) | Concrete checklist for sweeping origin/main for SOLID and boundary violations. Records findings in the architecture audit log and schedules blockers as new plan files under plan/.                                                           |
-| [Cross-system contracts](cross-system.md)          | Architecture rules for mdsmith's external surfaces — LSP wire protocol, CLI flags, .mdsmith.yml schema, generated section markers, plugin manifest, and distribution shims. Public APIs with stricter compatibility rules than internal code. |
-| [Go architecture patterns](go.md)                  | Go-specific SOLID and clean architecture patterns for mdsmith's cmd/ and internal/ packages.                                                                                                                                                  |
-| [TypeScript architecture patterns](typescript.md)  | SOLID and clean architecture patterns for the mdsmith VS Code extension at editors/vscode/.                                                                                                                                                   |
+| Page                                               | Description                                                                                                                                                                   |
+|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Architecture audit checklist](audit-checklist.md) | Checklist for sweeping origin/main for SOLID and boundary violations. Records findings in the audit log; schedules blockers as new plan files.                                |
+| [Cross-system contracts](cross-system.md)          | External-surface contracts: LSP, CLI, .mdsmith.yml, generated markers, plugin manifest, distribution shims. Public APIs with stricter compatibility rules than internal code. |
+| [Go architecture patterns](go.md)                  | Go-specific SOLID and clean architecture patterns for mdsmith's cmd/ and internal/ packages.                                                                                  |
+| [TypeScript architecture patterns](typescript.md)  | SOLID and clean architecture patterns for the mdsmith VS Code extension at editors/vscode/.                                                                                   |
 <?/catalog?>
 
 ## When to consult this hub

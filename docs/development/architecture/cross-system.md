@@ -1,12 +1,11 @@
 ---
 title: Cross-system contracts
 summary: >-
-  Architecture rules for mdsmith's external
-  surfaces — LSP wire protocol, CLI flags,
-  .mdsmith.yml schema, generated section
-  markers, plugin manifest, and distribution
-  shims. Public APIs with stricter
-  compatibility rules than internal code.
+  External-surface contracts: LSP, CLI,
+  .mdsmith.yml, generated markers, plugin
+  manifest, distribution shims. Public APIs
+  with stricter compatibility rules than
+  internal code.
 ---
 # Cross-system contracts
 
