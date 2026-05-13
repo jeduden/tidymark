@@ -11,14 +11,30 @@ summary: >-
 ---
 # Release Pipeline
 
-A single GitHub Actions workflow publishes mdsmith to
-five channels: `.github/workflows/release.yml`. The
-channels are npm, PyPI, the Visual Studio
-Marketplace, Open VSX, and GitHub Releases. Every
-release-time secret travels as a short-lived OIDC
-token. The two long-lived publisher PATs that remain
-(`VSCE_PAT`, `OVSX_PAT`) are gated by the `release`
-GitHub environment.
+`.github/workflows/release.yml` publishes mdsmith to
+every channel below. Release-time secrets travel as
+short-lived OIDC tokens. The remaining long-lived
+PATs are gated by the `release` GitHub environment.
+Each channel has its own file under
+`release-channels/`; the catalog re-renders on
+`mdsmith fix`.
+
+<?catalog
+glob: "release-channels/*.md"
+sort: title
+header: |
+  | Channel | Credential |
+  |---------|------------|
+row: "| [{title}]({filename}) | {credential} |"
+?>
+| Channel                                                                    | Credential              |
+|----------------------------------------------------------------------------|-------------------------|
+| [GitHub Releases](release-channels/github-releases.md)                     | GITHUB_TOKEN + OIDC     |
+| [npm](release-channels/npm.md)                                             | OIDC Trusted Publishing |
+| [Open VSX](release-channels/open-vsx.md)                                   | OVSX_PAT                |
+| [PyPI](release-channels/pypi.md)                                           | OIDC Trusted Publishing |
+| [Visual Studio Marketplace](release-channels/visual-studio-marketplace.md) | VSCE_PAT                |
+<?/catalog?>
 
 ## Triggering a Release
 
@@ -39,29 +55,15 @@ push queues. The flag lets the in-flight publish
 finish; cancelling mid-publish would desync the
 platform packages from the root.
 
-## Channels and Jobs
+## Job Topology
 
-```text
-build (matrix: 5 platforms)
-  ├─ vscode       → mdsmith-X.Y.Z.vsix    → Marketplace + Open VSX
-  ├─ npm          → @mdsmith/cli + 5 platform packages → npm registry
-  ├─ pypi         → mdsmith wheels         → PyPI
-  └─ release      → checksums + provenance → GitHub Releases
-       └─ smoke-test (matrix: npm / pip / mise)
-```
-
-| Job          | Publishes to                     | Credential                         |
-|--------------|----------------------------------|------------------------------------|
-| `build`      | upload-artifact (intra-workflow) | none                               |
-| `vscode`     | Marketplace, Open VSX, artifact  | `VSCE_PAT`, `OVSX_PAT` (env-gated) |
-| `npm`        | npm registry (6 packages)        | OIDC Trusted Publishing            |
-| `pypi`       | PyPI                             | OIDC Trusted Publishing            |
-| `release`    | GitHub Releases, Sigstore, OIDC  | `GITHUB_TOKEN`, OIDC (env-gated)   |
-| `smoke-test` | none — verifies channels resolve | none                               |
-
-Every job that holds a credential is also gated by
-`if: github.repository == 'jeduden/mdsmith'` and runs
-in the `release` GitHub environment.
+`build` produces per-platform binaries that fan out
+to `vscode`, `npm`, `pypi`, and `release`. The
+`release` job runs `smoke-test` against the freshly
+published `npm`, `pypi`, and `mise` channels. Every
+job that holds a credential is also gated by
+`if: github.repository == 'jeduden/mdsmith'` and
+runs in the `release` GitHub environment.
 
 ## OIDC Trusted Publishing
 
