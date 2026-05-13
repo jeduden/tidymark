@@ -78,15 +78,18 @@ function splitFrontMatter(text: string, path: string): SplitFrontMatter {
  * after the value.
  */
 function updateLastRotated(yamlBlock: string, date: string, path: string): string {
-  // Group 1: the `lastRotated:` key plus its leading spaces.
-  // Match continues with the value, which is dropped wholesale:
+  // Group 1: optional leading indent + the `lastRotated:` key +
+  // its trailing spaces. Match continues with the value, which
+  // is dropped wholesale:
   //   - `"..."` — double-quoted string
   //   - `'...'` — single-quoted string
   //   - `[^\s#"']\S*` — bare value (one non-space/comment/quote
   //     leading char, then any non-space chars). Stops at the
   //     first whitespace or `#`, so a trailing inline comment is
   //     preserved by the surrounding text outside the match.
-  const pattern = /(^lastRotated:[ \t]*)(?:"[^"\n]*"|'[^'\n]*'|[^\s#"'][^\s#]*)/m;
+  // Leading whitespace is tolerated so a future YAML formatter
+  // that indents top-level keys does not break the rewrite.
+  const pattern = /(^[ \t]*lastRotated:[ \t]*)(?:"[^"\n]*"|'[^'\n]*'|[^\s#"'][^\s#]*)/m;
   let matched = 0;
   const rewritten = yamlBlock.replace(pattern, (_, preamble) => {
     matched++;

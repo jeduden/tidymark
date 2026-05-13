@@ -756,11 +756,22 @@ func (s *Server) runLintIfCurrent(uri string, p *pendingLint) {
 // the shutdown/exit handlers so we do not publish diagnostics after
 // the client asked us to stop.
 func (s *Server) stopPendingLints() {
+	// Collect entries under the lock so we can drop the map state
+	// quickly, then call Stop OUTSIDE the lock. Stop hits the
+	// runtime timer heap and can block under load; holding
+	// pendingMu across N Stop calls would serialize every
+	// concurrent scheduleLint behind teardown.
 	s.pendingMu.Lock()
-	defer s.pendingMu.Unlock()
+	timers := make([]*time.Timer, 0, len(s.pending))
 	for uri, p := range s.pending {
-		p.timer.Stop()
+		if p.timer != nil {
+			timers = append(timers, p.timer)
+		}
 		delete(s.pending, uri)
+	}
+	s.pendingMu.Unlock()
+	for _, t := range timers {
+		t.Stop()
 	}
 }
 
