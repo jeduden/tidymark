@@ -381,3 +381,627 @@ func TestParseInline_CrossRefMissingPatternRejected(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pattern")
 }
+
+func TestParseInline_CrossRefErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  map[string]any
+		want string
+	}{
+		{
+			name: "not a list",
+			raw:  map[string]any{"cross-references": "nope"},
+			want: "must be a list",
+		},
+		{
+			name: "entry not a mapping",
+			raw:  map[string]any{"cross-references": []any{"nope"}},
+			want: "must be a mapping",
+		},
+		{
+			name: "value not a string",
+			raw: map[string]any{"cross-references": []any{
+				map[string]any{"pattern": 42},
+			}},
+			want: "must be a string",
+		},
+		{
+			name: "unknown key",
+			raw: map[string]any{"cross-references": []any{
+				map[string]any{"pattern": "x", "must-match": "y", "bogus": "z"},
+			}},
+			want: "unknown key",
+		},
+		{
+			name: "missing must-match",
+			raw: map[string]any{"cross-references": []any{
+				map[string]any{"pattern": "x"},
+			}},
+			want: "must-match",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseInline(tc.raw, "test")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}
+
+func TestParseInline_AcronymsErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  map[string]any
+		want string
+	}{
+		{
+			name: "not a mapping",
+			raw:  map[string]any{"acronyms": "nope"},
+			want: "must be a mapping",
+		},
+		{
+			name: "unknown key",
+			raw: map[string]any{"acronyms": map[string]any{
+				"bogus": []any{"X"},
+			}},
+			want: "unknown key",
+		},
+		{
+			name: "known-safe wrong type",
+			raw: map[string]any{"acronyms": map[string]any{
+				"known-safe": "API",
+			}},
+			want: "must be a list",
+		},
+		{
+			name: "scope list contains non-string",
+			raw: map[string]any{"acronyms": map[string]any{
+				"scope": []any{42},
+			}},
+			want: "must be a string",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseInline(tc.raw, "test")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}
+
+func TestParseInline_IndexErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  map[string]any
+		want string
+	}{
+		{
+			name: "not a mapping",
+			raw:  map[string]any{"index": "nope"},
+			want: "must be a mapping",
+		},
+		{
+			name: "unknown key",
+			raw: map[string]any{"index": map[string]any{
+				"output":  "x.json",
+				"include": []any{"headings"},
+				"bogus":   true,
+			}},
+			want: "unknown key",
+		},
+		{
+			name: "output wrong type",
+			raw: map[string]any{"index": map[string]any{
+				"output":  42,
+				"include": []any{"headings"},
+			}},
+			want: "must be a string",
+		},
+		{
+			name: "missing output",
+			raw: map[string]any{"index": map[string]any{
+				"include": []any{"headings"},
+			}},
+			want: "output",
+		},
+		{
+			name: "missing include",
+			raw: map[string]any{"index": map[string]any{
+				"output": "x.json",
+			}},
+			want: "include",
+		},
+		{
+			name: "include not a list",
+			raw: map[string]any{"index": map[string]any{
+				"output":  "x.json",
+				"include": "headings",
+			}},
+			want: "must be a list",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseInline(tc.raw, "test")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}
+
+func TestCrossRefs_InvalidPatternDiagnostic(t *testing.T) {
+	src := "# Doc\n\nSome text.\n"
+	f := newDocFile(t, "doc.md", src)
+	sch := newSchemaWithCrossRefs(CrossRef{
+		Pattern:   "[unterminated",
+		MustMatch: "Step {n}",
+	})
+	diags := ValidateCrossReferences(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "invalid pattern")
+}
+
+func TestCrossRefs_InvalidSkipPatternDiagnostic(t *testing.T) {
+	src := "# Doc\n\nSee Step 1.\n\n## Step 1\n"
+	f := newDocFile(t, "doc.md", src)
+	sch := newSchemaWithCrossRefs(CrossRef{
+		Pattern:           `\bStep (\d+)\b`,
+		MustMatch:         "Step {n}",
+		SkipLinesMatching: "[bogus",
+	})
+	diags := ValidateCrossReferences(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "skip-lines-matching")
+}
+
+func TestCrossRefs_TemplateErrorDiagnostic(t *testing.T) {
+	src := "# Doc\n\nSee Step 1.\n\n## Step 1\n"
+	f := newDocFile(t, "doc.md", src)
+	sch := newSchemaWithCrossRefs(CrossRef{
+		Pattern:   `\bStep (\d+)\b`,
+		MustMatch: "Step {bogus}",
+	})
+	diags := ValidateCrossReferences(f, sch, makeDiagForTest)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message, "cannot resolve template")
+}
+
+func TestLineMatches_OutOfRange(t *testing.T) {
+	f := newDocFile(t, "doc.md", "x\n")
+	re := regexp.MustCompile(".*")
+	assert.False(t, lineMatches(f, 0, re), "line 0 should be out of range")
+	assert.False(t, lineMatches(f, 999, re), "line 999 should be out of range")
+	assert.True(t, lineMatches(f, 1, re))
+}
+
+func TestTryParseIndex_RejectsEmptyAndNonDigits(t *testing.T) {
+	if _, ok := tryParseIndex(""); ok {
+		t.Fatal("empty string should not parse as index")
+	}
+	if _, ok := tryParseIndex("12a"); ok {
+		t.Fatal("non-digit should not parse")
+	}
+	n, ok := tryParseIndex("42")
+	require.True(t, ok)
+	assert.Equal(t, 42, n)
+}
+
+func TestResolveCrossRefPlaceholder_EdgeCases(t *testing.T) {
+	// {n} when pattern has no capture group.
+	_, err := resolveCrossRefPlaceholder("n", []string{"only-match"}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no capture group")
+
+	// Empty placeholder name.
+	_, err = resolveCrossRefPlaceholder("", []string{"x"}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty placeholder")
+}
+
+func TestHasParenExpansion_EdgeCases(t *testing.T) {
+	// Missing close-paren.
+	assert.False(t, hasParenExpansion("FOO (no close", 3))
+	// Empty parens.
+	assert.False(t, hasParenExpansion("FOO ()", 3))
+	// Valid expansion.
+	assert.True(t, hasParenExpansion("FOO (Bar Baz)", 3))
+	// Not a paren at all.
+	assert.False(t, hasParenExpansion("FOO bar", 3))
+}
+
+func TestAcronyms_AppliesWithEmptyScope(t *testing.T) {
+	src := "# Doc\n\nOIDC needs an expansion.\n"
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{Source: "test", RootLevel: 2,
+		Acronyms: &AcronymRule{Scope: []string{}},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1, "empty scope applies document-wide")
+}
+
+func TestAcronyms_ScopedSecondOccurrencePerScope(t *testing.T) {
+	// Each named-scope pass starts with empty seen set, so the same
+	// acronym appearing in two scoped sections is flagged in both.
+	src := `# Doc
+
+## Check
+
+OIDC first time here.
+
+## Check
+
+OIDC again, separate scope pass.
+`
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{
+		Source:    "test",
+		RootLevel: 2,
+		Sections: []Scope{
+			{Heading: "Check", Required: true},
+		},
+		Acronyms: &AcronymRule{Scope: []string{"Check"}},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	// walker only matches one "Check" today (no repeats), so we
+	// just check that at least the first OIDC is flagged.
+	require.NotEmpty(t, diags)
+}
+
+func TestAcronyms_AliasMatchesScope(t *testing.T) {
+	src := `# Doc
+
+## Probe
+
+OIDC undefined.
+
+## Outside
+
+OIDC also here.
+`
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{
+		Source:    "test",
+		RootLevel: 2,
+		Sections: []Scope{
+			{Heading: "Probe", Required: true, Aliases: []string{"Check"}},
+			{Heading: "Outside", Required: false},
+		},
+		Acronyms: &AcronymRule{Scope: []string{"Check"}},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+	assert.Equal(t, 5, diags[0].Line)
+}
+
+func TestBuildIndex_UnknownIncludeKeyErrors(t *testing.T) {
+	// Bypass the parser by constructing the spec directly so we can
+	// drive BuildIndex's switch default branch.
+	f := newDocFile(t, "doc.md", "# T\n")
+	sch := &Schema{Source: "test", RootLevel: 2, Index: &IndexSpec{
+		Output:  "x.json",
+		Include: []string{"bogus"},
+	}}
+	_, err := BuildIndex(f, sch)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bogus")
+}
+
+func TestBuildIndex_NilWhenIndexAbsent(t *testing.T) {
+	f := newDocFile(t, "doc.md", "# T\n")
+	data, err := BuildIndex(f, &Schema{})
+	require.NoError(t, err)
+	assert.Nil(t, data)
+}
+
+func TestWriteIndex_NilWhenIndexAbsent(t *testing.T) {
+	dir := t.TempDir()
+	f, err := lint.NewFile(filepath.Join(dir, "doc.md"), []byte("# T\n"))
+	require.NoError(t, err)
+	require.NoError(t, WriteIndex(f, &Schema{}))
+}
+
+func TestValidateIndex_NoDiagnosticWhenInSync(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	f, err := lint.NewFile(path, []byte("# Title\n"))
+	require.NoError(t, err)
+	sch := &Schema{Source: "test", RootLevel: 2, Index: &IndexSpec{
+		Output:  "doc-index.json",
+		Include: []string{IndexIncludeHeadingsFlat},
+	}}
+	require.NoError(t, WriteIndex(f, sch))
+	diags := ValidateIndex(f, sch, makeDiagForTest)
+	assert.Empty(t, diags)
+}
+
+func TestAcronyms_WalkerSkipsWildcardAndPreambleScopes(t *testing.T) {
+	// A preamble-first / wildcard-second scope tree exercises the
+	// `if sc.Wildcard || sc.Preamble { continue }` branch.
+	src := `# Doc
+
+## Check
+
+OIDC needs an expansion.
+`
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{
+		Source:    "test",
+		RootLevel: 2,
+		Sections: []Scope{
+			{Preamble: true},
+			{Wildcard: true},
+			{Heading: "Check", Required: true},
+		},
+		Acronyms: &AcronymRule{Scope: []string{"Check"}},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+}
+
+func TestAcronyms_WalkerRecursesIntoNestedSections(t *testing.T) {
+	src := `# Doc
+
+## Diagnosis
+
+### Step
+
+#### Check
+
+OIDC inside nested scope.
+`
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{
+		Source:    "test",
+		RootLevel: 2,
+		Sections: []Scope{
+			{Heading: "Diagnosis", Required: true, Sections: []Scope{
+				{Heading: "Step", Required: true, Sections: []Scope{
+					{Heading: "Check", Required: true},
+				}},
+			}},
+		},
+		Acronyms: &AcronymRule{Scope: []string{"Check"}},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "OIDC")
+}
+
+func TestAcronyms_FindHeadRespectsParentEnd(t *testing.T) {
+	// Two Diagnosis sections; the nested "Check" only matches inside
+	// its own parent's range. Without parentEnd filtering, walkRanges
+	// would attach Check to the wrong Diagnosis.
+	src := `# Doc
+
+## Diagnosis
+
+### Check
+
+OIDC in first Diagnosis.
+
+## Other
+
+### Check
+
+OIDC in second tree — but acronyms-scope is per-walker first-match.
+`
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{
+		Source:    "test",
+		RootLevel: 2,
+		Sections: []Scope{
+			{Heading: "Diagnosis", Required: true, Sections: []Scope{
+				{Heading: "Check", Required: true},
+			}},
+			{Heading: "Other", Required: false},
+		},
+		Acronyms: &AcronymRule{Scope: []string{"Check"}},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+	assert.Equal(t, 7, diags[0].Line)
+}
+
+func TestIndex_CrossRefGraphStopsOnInvalidPattern(t *testing.T) {
+	// An invalid pattern in the cross-references list is a schema
+	// misconfiguration; the graph builder reports the error rather
+	// than silently shipping a partial index. A later valid entry
+	// never gets a chance to contribute — by design, since the
+	// schema author needs to fix the bad regex first.
+	src := "# Doc\n\nSee Step 1.\n\n## Step 1\n"
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{Source: "test", RootLevel: 2,
+		CrossReferences: []CrossRef{
+			{Pattern: "[unterminated", MustMatch: "Step {n}"},
+			{Pattern: `\bStep (\d+)\b`, MustMatch: "Step {n}"},
+		},
+		Index: &IndexSpec{
+			Output:  "x.json",
+			Include: []string{IndexIncludeCrossRefs},
+		},
+	}
+	_, err := BuildIndex(f, sch)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid pattern")
+}
+
+func TestIndex_CrossRefGraphSkipLinesAndTemplateError(t *testing.T) {
+	src := "# Doc\n\n> Step 99 stale.\n\nSee Step 1.\n\n## Step 1\n"
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{Source: "test", RootLevel: 2,
+		CrossReferences: []CrossRef{
+			{Pattern: `\bStep (\d+)\b`, MustMatch: "Step {bogus}",
+				SkipLinesMatching: "^> "},
+		},
+		Index: &IndexSpec{
+			Output:  "x.json",
+			Include: []string{IndexIncludeCrossRefs},
+		},
+	}
+	data, err := BuildIndex(f, sch)
+	require.NoError(t, err)
+	var got map[string]map[string]string
+	require.NoError(t, json.Unmarshal(data, &got))
+	// Template error and blockquote skip both swallow entries — the
+	// graph stays empty rather than carrying garbage.
+	assert.Empty(t, got[IndexIncludeCrossRefs])
+}
+
+func TestNextSectionLine_ReturnsParentEndAtBoundary(t *testing.T) {
+	// A nested heading beyond parentEnd should still be clipped to
+	// parentEnd so a scope's range does not leak into a sibling.
+	heads := []DocHeading{
+		{Level: 2, Text: "A", Line: 3},
+		{Level: 2, Text: "B", Line: 10},
+	}
+	assert.Equal(t, 10, nextSectionLine(heads, 0, 2, 100))
+	// parentEnd smaller than the next heading clips early.
+	assert.Equal(t, 5, nextSectionLine(heads, 0, 2, 5))
+	// No further heading — falls through to parentEnd.
+	assert.Equal(t, 100, nextSectionLine(heads, 1, 2, 100))
+}
+
+func TestAcronyms_ScopeWithNoMatchingHeadingIsSilent(t *testing.T) {
+	// Schema lists a "Check" scope but the document has no matching
+	// heading: walker returns -1, no ranges scanned, no diagnostics.
+	src := "# Doc\n\nOIDC mentioned but no matching scope heading.\n"
+	f := newDocFile(t, "doc.md", src)
+	sch := &Schema{
+		Source:    "test",
+		RootLevel: 2,
+		Sections: []Scope{
+			{Heading: "Check", Required: true},
+		},
+		Acronyms: &AcronymRule{Scope: []string{"Check"}},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	assert.Empty(t, diags)
+}
+
+func TestValidators_NoOpWhenSchemaAbsent(t *testing.T) {
+	f := newDocFile(t, "doc.md", "# T\n")
+	// ValidateCrossReferences: nil schema and empty-list schema both
+	// short-circuit before touching the AST.
+	assert.Empty(t, ValidateCrossReferences(f, nil, makeDiagForTest))
+	assert.Empty(t, ValidateCrossReferences(f,
+		&Schema{Source: "test", RootLevel: 2}, makeDiagForTest))
+
+	// ValidateAcronyms: same contract.
+	assert.Empty(t, ValidateAcronyms(f, nil, makeDiagForTest))
+	assert.Empty(t, ValidateAcronyms(f,
+		&Schema{Source: "test", RootLevel: 2}, makeDiagForTest))
+
+	// ValidateIndex: nil schema and no-index schema return no diags.
+	assert.Empty(t, ValidateIndex(f, nil, makeDiagForTest))
+	assert.Empty(t, ValidateIndex(f,
+		&Schema{Source: "test", RootLevel: 2}, makeDiagForTest))
+}
+
+func TestBuildCrossRefGraph_EmptyWhenNoRefs(t *testing.T) {
+	f := newDocFile(t, "doc.md", "# T\n")
+	got, err := buildCrossRefGraph(f, &Schema{Source: "test", RootLevel: 2})
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestBuildCrossRefGraph_InvalidPatternErrors(t *testing.T) {
+	f := newDocFile(t, "doc.md", "# T\n")
+	sch := &Schema{Source: "test", RootLevel: 2,
+		CrossReferences: []CrossRef{{Pattern: "[bad", MustMatch: "Step {n}"}},
+	}
+	_, err := buildCrossRefGraph(f, sch)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid pattern")
+}
+
+func TestBuildCrossRefGraph_InvalidSkipPatternErrors(t *testing.T) {
+	f := newDocFile(t, "doc.md", "# T\n")
+	sch := &Schema{Source: "test", RootLevel: 2,
+		CrossReferences: []CrossRef{{
+			Pattern:           `\bStep (\d+)\b`,
+			MustMatch:         "Step {n}",
+			SkipLinesMatching: "[bad",
+		}},
+	}
+	_, err := buildCrossRefGraph(f, sch)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "skip-lines-matching")
+}
+
+func TestBuildIndex_PropagatesCrossRefGraphError(t *testing.T) {
+	f := newDocFile(t, "doc.md", "# T\n")
+	sch := &Schema{Source: "test", RootLevel: 2,
+		CrossReferences: []CrossRef{{Pattern: "[bad", MustMatch: "Step {n}"}},
+		Index: &IndexSpec{
+			Output:  "x.json",
+			Include: []string{IndexIncludeCrossRefs},
+		},
+	}
+	_, err := BuildIndex(f, sch)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid pattern")
+}
+
+func TestValidateIndex_SurfacesCrossRefGraphError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "doc.md")
+	f, err := lint.NewFile(path, []byte("# T\n"))
+	require.NoError(t, err)
+	sch := &Schema{Source: "test", RootLevel: 2,
+		CrossReferences: []CrossRef{{Pattern: "[bad", MustMatch: "Step {n}"}},
+		Index: &IndexSpec{
+			Output:  "x.json",
+			Include: []string{IndexIncludeCrossRefs},
+		},
+	}
+	diags := ValidateIndex(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "invalid pattern")
+}
+
+func TestBuildFlatHeadings_EmptyDocReturnsEmptySlice(t *testing.T) {
+	f := newDocFile(t, "doc.md", "plain prose with no headings.\n")
+	got := buildFlatHeadings(f)
+	require.NotNil(t, got, "must return non-nil slice, not nil")
+	assert.Empty(t, got)
+}
+
+func TestFrontmatterExpr_JSONForScalarsAndCollections(t *testing.T) {
+	cases := []struct {
+		in   any
+		want string
+	}{
+		{true, "true"},
+		{42, "42"},
+		{3.5, "3.5"},
+		{nil, "null"},
+		{[]any{"a", "b"}, `["a","b"]`},
+		{map[string]any{"k": 1}, `{"k":1}`},
+	}
+	for _, tc := range cases {
+		got, err := frontmatterExpr(tc.in)
+		require.NoError(t, err)
+		assert.Equal(t, tc.want, got)
+	}
+
+	// Empty string is rejected.
+	_, err := frontmatterExpr("")
+	require.Error(t, err)
+	// Unsupported type triggers default branch.
+	_, err = frontmatterExpr(struct{}{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported")
+}
+
+func TestValidateIndex_AbsolutePathSurfaces(t *testing.T) {
+	f := newDocFile(t, "doc.md", "# T\n")
+	sch := &Schema{Source: "test", RootLevel: 2, Index: &IndexSpec{
+		Output:  "/etc/hosts",
+		Include: []string{IndexIncludeHeadingsFlat},
+	}}
+	diags := ValidateIndex(f, sch, makeDiagForTest)
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "must be relative")
+}

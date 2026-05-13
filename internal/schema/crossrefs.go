@@ -74,9 +74,6 @@ func collectTextNodes(f *lint.File) []textNode {
 		}
 		seg := t.Segment
 		text := string(seg.Value(f.Source))
-		if text == "" {
-			return ast.WalkContinue, nil
-		}
 		out = append(out, textNode{Text: text, Line: f.LineOfOffset(seg.Start)})
 		return ast.WalkContinue, nil
 	})

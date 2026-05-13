@@ -75,9 +75,8 @@ func acronymRanges(f *lint.File, sch *Schema, scope []string) []lineRange {
 	var out []lineRange
 	walkRanges(sch.Sections, body, rootLevel, 1, len(f.Lines)+1,
 		func(sc Scope, start, end int) {
-			if sc.Heading == "" {
-				return
-			}
+			// walkRanges already skips preamble and wildcard scopes,
+			// so any sc reaching here has a literal Heading text.
 			if matchSet[sc.Heading] {
 				out = append(out, lineRange{Start: start, End: end})
 				return

@@ -25,7 +25,10 @@ type IndexHeading struct {
 // BuildIndex computes the JSON index document the IndexSpec asks for
 // and returns its serialised bytes. The returned bytes are
 // pretty-printed with two-space indentation so the file is reviewable
-// when diffed.
+// when diffed. Errors from sub-builders (currently only
+// `cross-ref-graph` can fail, on a bad regex) propagate so
+// ValidateIndex / Fix surface them as diagnostics instead of
+// silently shipping a partial index.
 func BuildIndex(f *lint.File, sch *Schema) ([]byte, error) {
 	if sch == nil || sch.Index == nil {
 		return nil, nil
@@ -36,7 +39,11 @@ func BuildIndex(f *lint.File, sch *Schema) ([]byte, error) {
 		case IndexIncludeStepMap:
 			doc[key] = buildStepMap(f)
 		case IndexIncludeCrossRefs:
-			doc[key] = buildCrossRefGraph(f, sch)
+			graph, err := buildCrossRefGraph(f, sch)
+			if err != nil {
+				return nil, err
+			}
+			doc[key] = graph
 		case IndexIncludeWordCounts:
 			doc[key] = buildWordCounts(f)
 		case IndexIncludeHeadingsFlat:
@@ -82,9 +89,6 @@ func resolveIndexWrite(f *lint.File, sch *Schema) (string, []byte, error) {
 	data, err := BuildIndex(f, sch)
 	if err != nil {
 		return "", nil, err
-	}
-	if data == nil {
-		return "", nil, nil
 	}
 	data = append(data, '\n')
 	dir := filepath.Dir(f.Path)
@@ -224,20 +228,35 @@ func buildStepMap(f *lint.File) map[string][]string {
 // ValidateCrossReferences emitted an unresolved-reference
 // diagnostic for any individual entry — diagnostic emission is the
 // validator's job; the index is purely descriptive.
-func buildCrossRefGraph(f *lint.File, sch *Schema) map[string]string {
+//
+// Schema-level misconfigurations (a bad `pattern:` or
+// `skip-lines-matching:` regex) are propagated as errors instead of
+// silently swallowed: a partial index would let `mdsmith fix`
+// report success while shipping data the user did not ask for.
+// Template-fill failures on individual matches are kept silent —
+// they're per-occurrence and ValidateCrossReferences already
+// surfaces them.
+func buildCrossRefGraph(f *lint.File, sch *Schema) (map[string]string, error) {
 	out := map[string]string{}
 	if len(sch.CrossReferences) == 0 {
-		return out
+		return out, nil
 	}
 	texts := collectTextNodes(f)
 	for _, cr := range sch.CrossReferences {
 		re, err := regexp.Compile(cr.Pattern)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf(
+				"index cross-ref-graph: invalid pattern %q: %w",
+				cr.Pattern, err)
 		}
 		var skipRE *regexp.Regexp
 		if cr.SkipLinesMatching != "" {
-			skipRE, _ = regexp.Compile(cr.SkipLinesMatching)
+			skipRE, err = regexp.Compile(cr.SkipLinesMatching)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"index cross-ref-graph: invalid skip-lines-matching %q: %w",
+					cr.SkipLinesMatching, err)
+			}
 		}
 		groupNames := re.SubexpNames()
 		for _, tn := range texts {
@@ -253,7 +272,7 @@ func buildCrossRefGraph(f *lint.File, sch *Schema) map[string]string {
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // buildWordCounts maps each heading slug to the word count of the
