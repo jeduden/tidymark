@@ -215,7 +215,10 @@ expects it.
   host to test logic that could be
   unit-tested out of band.
 - A `vscode.commands.registerCommand` call
-  in `extension.ts`.
+  inlined in `activate()` or anywhere
+  outside `registerPaletteCommands` (and,
+  after the planned refactor, anywhere
+  outside `wiring.ts`).
 - A `Util`, `Helpers`, or `Misc` module
   anywhere in `src/`.
 
