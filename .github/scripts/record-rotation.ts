@@ -77,7 +77,7 @@ function splitFrontMatter(text: string, path: string): SplitFrontMatter {
  * intact because the match stops at the first whitespace or `#`
  * after the value.
  */
-function updateLastRotated(yamlBlock: string, date: string): string {
+function updateLastRotated(yamlBlock: string, date: string, path: string): string {
   // Group 1: the `lastRotated:` key plus its leading spaces.
   // Match continues with the value, which is dropped wholesale:
   //   - `"..."` — double-quoted string
@@ -93,7 +93,7 @@ function updateLastRotated(yamlBlock: string, date: string): string {
     return `${preamble}"${date}"`;
   });
   if (matched === 0) {
-    throw new SystemExit(`could not locate \`lastRotated:\` line`);
+    throw new SystemExit(`${path}: could not locate \`lastRotated:\` line`);
   }
   return rewritten;
 }
@@ -148,7 +148,7 @@ async function main(argv: string[]): Promise<number> {
   const { path } = await findEntry(entryTitle);
   const text = await Bun.file(path).text();
   const { opening, yamlBlock, closingPlusBody } = splitFrontMatter(text, path);
-  const updated = updateLastRotated(yamlBlock, dateStr);
+  const updated = updateLastRotated(yamlBlock, dateStr, path);
   if (updated === yamlBlock) {
     console.log(`${entryTitle} (${basename(path)}) lastRotated already at ${dateStr}; no change`);
     return 0;

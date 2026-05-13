@@ -100,9 +100,17 @@ function repoUrl(): string {
 interface OpenIssue { number: number; title: string }
 
 async function existingOpenIssue(title: string): Promise<number | null> {
+  // Narrow the candidate set server-side via GitHub search.
+  // `in:title "<phrase>"` matches issues whose title contains the
+  // quoted phrase, so a repo with hundreds of unrelated
+  // secret-rotation-labelled issues never pushes the real match
+  // past the --limit ceiling. The exact-string check below catches
+  // GitHub search's tokenized/fuzzy behavior — we only treat the
+  // issue as existing if its title is byte-for-byte identical.
   const out = await $`gh issue list \
     --state open \
     --label ${ISSUE_LABEL} \
+    --search ${`in:title "${title.replace(/"/g, "")}"`} \
     --json number,title \
     --limit 100`.text();
   const issues = JSON.parse(out || "[]") as OpenIssue[];

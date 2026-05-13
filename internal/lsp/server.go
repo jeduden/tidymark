@@ -715,11 +715,17 @@ type pendingLint struct {
 // timers that armed before Run's deferred cleanup ran; it covers
 // the window where stopPendingLints has not yet emptied the map.
 func (s *Server) runLintIfCurrent(uri string, p *pendingLint) {
+	// Fast-path: avoid the lock when shutdown has already been
+	// initiated. The atomic re-check below catches the case where
+	// the flag flips between this check and acquiring pendingMu.
 	if s.shutdown.Load() {
 		return
 	}
 	s.pendingMu.Lock()
-	live := s.pending[uri] == p
+	// Fold the shutdown re-check into the live decision so the
+	// callback never publishes during teardown — even if shutdown
+	// flips after the fast-path above but before we get the lock.
+	live := !s.shutdown.Load() && s.pending[uri] == p
 	if live {
 		delete(s.pending, uri)
 	}
