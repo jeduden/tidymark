@@ -122,14 +122,17 @@ jobs:
           # declare any `prepublish` hook; new ones land in the doc
           # at docs/security/2026-05-12-supply-chain-hardening.md
           # before this list is relaxed.
-          # The banned set is passed as a jq array. `$banned |
-          # index(.key)` does exact-string membership against each
-          # script name (returns the index of the match or null), so
-          # a future hook with a regex metacharacter in its name (or
-          # a typo in the banned list) cannot silently shift
-          # semantics the way a grep alternation could. `index` is
-          # portable across jq 1.5+ (older runners) where `IN` is
-          # unavailable.
+          # The banned set is passed as a jq array. The select
+          # expression binds the entry's key to $k first so the
+          # `$banned | index($k)` pipeline's right-hand side
+          # evaluates against the array (not the entry record).
+          # `index` returns the array offset of $k or null, which
+          # `select` treats as a truthy/falsy filter. This does
+          # exact-string membership, so a future hook with a regex
+          # metacharacter in its name (or a typo in the banned
+          # list) cannot silently shift semantics the way a grep
+          # alternation could. `index` is portable across jq 1.5+
+          # (older runners) where `IN` is unavailable.
           banned_json='["preinstall","install","postinstall","preuninstall","uninstall","postuninstall","preprepare","prepare","postprepare","prepublish","prepublishOnly","prepack","postpack","publish","postpublish"]'
           status=0
           for manifest in npm/mdsmith/package.json editors/vscode/package.json; do
@@ -142,11 +145,12 @@ jobs:
             # KEY is in the banned set. `.[]?` is the optional
             # iterator: yields nothing on a missing/empty .scripts
             # so manifests that legitimately declare no scripts
-            # pass cleanly. No grep / no regex — `$banned | index(.key)`
-            # is jq's literal set-membership test (returns the
-            # banned-array index of `.key`, or null on miss).
+            # pass cleanly. No grep / no regex — the
+            # `.key as $k | $banned | index($k)` form is jq's
+            # literal set-membership test (returns the banned-array
+            # index of $k, or null on miss).
             hits=$(jq -r --argjson banned "$banned_json" \
-              '.scripts // {} | to_entries | .[]? | select($banned | index(.key)) | "\(.key)=\(.value)"' \
+              '.scripts // {} | to_entries | .[]? | select(.key as $k | $banned | index($k)) | "\(.key)=\(.value)"' \
               "$manifest")
             if [ -n "$hits" ]; then
               echo "$manifest declares forbidden lifecycle script(s):" >&2
