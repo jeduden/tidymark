@@ -331,6 +331,74 @@ func TestRunKindsResolve_FrontMatterDisabledDirectoryReportsError(t *testing.T) 
 	assert.Contains(t, got, "reading ")
 }
 
+// TestReadFrontMatter_FieldsPresentParseErrorWraps confirms that when a
+// kind-assignment entry uses fields-present:, a malformed FM mapping
+// produces a parse error wrapped with "parsing front matter:". Without
+// the selector, the same input passes (kinds-only fast path).
+func TestReadFrontMatter_FieldsPresentParseErrorWraps(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "bad.md")
+	require.NoError(t, os.WriteFile(mdPath,
+		[]byte("---\n- not\n- a\n- mapping\n---\n# Bad\n"), 0o644))
+
+	cfgNoSelector := &config.Config{}
+	kinds, fields, err := readFrontMatter(cfgNoSelector, mdPath, 0)
+	require.NoError(t, err, "no fields-present selector → kinds-only path")
+	assert.Nil(t, kinds)
+	assert.Nil(t, fields)
+
+	cfgWithSelector := &config.Config{
+		Kinds: map[string]config.KindBody{"task": {}},
+		KindAssignment: []config.KindAssignmentEntry{
+			{FieldsPresent: []string{"status"}, Kinds: []string{"task"}},
+		},
+	}
+	_, _, err = readFrontMatter(cfgWithSelector, mdPath, 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parsing front matter")
+}
+
+// TestReadFrontMatter_FieldsPresentReturnsMapping confirms that when the
+// selector is active and the front matter is a valid mapping, the parsed
+// fields are returned alongside the kinds list.
+func TestReadFrontMatter_FieldsPresentReturnsMapping(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "ok.md")
+	require.NoError(t, os.WriteFile(mdPath,
+		[]byte("---\nstatus: open\nid: 7\n---\n# Hi\n"), 0o644))
+
+	cfg := &config.Config{
+		Kinds: map[string]config.KindBody{"task": {}},
+		KindAssignment: []config.KindAssignmentEntry{
+			{FieldsPresent: []string{"status"}, Kinds: []string{"task"}},
+		},
+	}
+	kinds, fields, err := readFrontMatter(cfg, mdPath, 0)
+	require.NoError(t, err)
+	assert.Nil(t, kinds, "no kinds: key in front matter")
+	assert.Equal(t, "open", fields["status"])
+	assert.Equal(t, 7, fields["id"])
+}
+
+// TestReadFrontMatter_ReadErrorPropagated confirms that a missing file
+// surfaces an error from ReadFileLimited rather than silently returning
+// empty kinds.
+func TestReadFrontMatter_ReadErrorPropagated(t *testing.T) {
+	_, _, err := readFrontMatter(&config.Config{}, "/no/such/file.md", 0)
+	require.Error(t, err)
+}
+
+// TestReadFrontMatter_KindsParseErrorPropagated confirms that an invalid
+// YAML kinds: list surfaces the ParseFrontMatterKinds error.
+func TestReadFrontMatter_KindsParseErrorPropagated(t *testing.T) {
+	dir := t.TempDir()
+	mdPath := filepath.Join(dir, "bad-kinds.md")
+	require.NoError(t, os.WriteFile(mdPath,
+		[]byte("---\nkinds: [[[invalid\n---\n"), 0o644))
+	_, _, err := readFrontMatter(&config.Config{}, mdPath, 0)
+	require.Error(t, err)
+}
+
 // Compile-time assertion that the failing writers implement io.Writer.
 var (
 	_ io.Writer = alwaysFailingWriter{}
