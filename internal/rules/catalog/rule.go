@@ -215,6 +215,13 @@ func validateGlob(filePath string, line int, params map[string]string) []lint.Di
 			return []lint.Diagnostic{makeDiag(filePath, line,
 				fmt.Sprintf("generated section directive has invalid glob pattern: %s", pattern))}
 		}
+		if containsDotDotInsideBraces(pattern) {
+			// path.Clean does not expand `{a,b}` alternatives, so a
+			// `..` segment inside braces would silently bypass the
+			// project-root containment check at resolve time.
+			return []lint.Diagnostic{makeDiag(filePath, line,
+				`generated section directive has ".." inside brace expansion; rewrite as separate patterns`)}
+		}
 		if !isExclude {
 			hasInclude = true
 		}
@@ -298,35 +305,40 @@ func resolveGlobFS(f *lint.File, params map[string]string, filePath string, line
 	}
 	if f.RootFS == nil {
 		if hasDotDot {
-			return globResolution{diags: []lint.Diagnostic{makeDiag(
-				filePath, line,
-				`generated section directive glob contains ".." but project root is not configured`)}}
+			return missingRootDiag(filePath, line)
 		}
 		return localFSResolution(f, includes, excludes)
 	}
-	return resolveAgainstProjectRoot(f, sourceDir, includes, excludes, filePath, line)
+	return resolveAgainstProjectRoot(f, sourceDir, hasDotDot, includes, excludes, filePath, line)
+}
+
+func missingRootDiag(filePath string, line int) globResolution {
+	return globResolution{diags: []lint.Diagnostic{makeDiag(
+		filePath, line,
+		`generated section directive glob contains ".." but project root is not configured`)}}
 }
 
 // resolveAgainstProjectRoot rewrites include/exclude patterns relative
-// to the project root using RootFS. Falls back to the file's fs.FS when
-// the source-dir is invalid or filepath.Rel cannot resolve fileDir.
+// to the project root using RootFS. When the source-dir is invalid or
+// fileDir cannot be related to the project root, it falls back to the
+// file's fs.FS — except for ".." patterns, which still need a project
+// root and surface the missing-root diagnostic instead of silently
+// matching nothing on a fs.FS that rejects "..".
 func resolveAgainstProjectRoot(
-	f *lint.File, sourceDir string,
+	f *lint.File, sourceDir string, hasDotDot bool,
 	includes, excludes []string,
 	filePath string, line int,
 ) globResolution {
-	fileDir := path.Clean(filepath.ToSlash(filepath.Dir(f.Path)))
-	if fileDir == "." {
-		fileDir = ""
+	fileDir, ok := projectRelFileDir(f)
+	if !ok {
+		if hasDotDot {
+			return missingRootDiag(filePath, line)
+		}
+		return localFSResolution(f, includes, excludes)
 	}
 	baseRel, ok := resolveBaseRel(fileDir, sourceDir)
 	if !ok {
 		return localFSResolution(f, includes, excludes)
-	}
-	if fileDir != "" {
-		if _, err := filepath.Rel(fileDir, "."); err != nil {
-			return localFSResolution(f, includes, excludes)
-		}
 	}
 	resolvedIncludes, ok := resolvePatterns(baseRel, includes)
 	if !ok {
@@ -352,10 +364,82 @@ func resolveAgainstProjectRoot(
 	}
 }
 
+// projectRelFileDir returns the catalog-owning file's directory as a
+// slash-separated path relative to the project root, or ok=false when
+// no relation can be computed (e.g. an absolute file path with no
+// configured RootDir, or a file outside the configured root).
+//
+// Returns "" for the project root itself.
+func projectRelFileDir(f *lint.File) (string, bool) {
+	cleaned := path.Clean(filepath.ToSlash(filepath.Dir(f.Path)))
+	if cleaned == "." {
+		return "", true
+	}
+	if !filepath.IsAbs(cleaned) {
+		return cleaned, true
+	}
+	if f.RootDir == "" {
+		return "", false
+	}
+	// filepath.Abs and filepath.Rel only error for inputs we don't
+	// hand them here (Abs needs Getwd; Rel needs mismatched abs/rel).
+	rootAbs, _ := filepath.Abs(f.RootDir)
+	rel, _ := filepath.Rel(rootAbs, filepath.Dir(f.Path))
+	rel = filepath.ToSlash(rel)
+	if rel == "." {
+		return "", true
+	}
+	if rel == ".." || strings.HasPrefix(rel, "../") {
+		return "", false
+	}
+	return rel, true
+}
+
 func escapeDiag(filePath string, line int) globResolution {
 	return globResolution{diags: []lint.Diagnostic{makeDiag(
 		filePath, line,
 		"generated section directive glob escapes project root")}}
+}
+
+// containsDotDotInsideBraces reports whether p has a ".." segment inside
+// a `{a,b}` brace alternative. doublestar expands braces lazily during
+// matching, but path.Clean treats `{..,foo}` as a single opaque segment,
+// so such a `..` would slip past the project-root containment check.
+// Detecting it lets the validator reject the pattern up front instead of
+// silently producing partial matches.
+func containsDotDotInsideBraces(p string) bool {
+	depth := 0
+	for i := 0; i < len(p); i++ {
+		switch p[i] {
+		case '{':
+			depth++
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+		case '.':
+			if depth == 0 || i+1 >= len(p) || p[i+1] != '.' {
+				continue
+			}
+			if !braceSegmentBoundary(p, i-1) || !braceSegmentBoundary(p, i+2) {
+				continue
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// braceSegmentBoundary reports whether p[i] is at or past a delimiter
+// that separates path segments inside a brace expansion: `/`, `,`, `{`,
+// or `}`. Out-of-range positions are treated as boundaries so a `..`
+// at the very edge of a brace block still matches.
+func braceSegmentBoundary(p string, i int) bool {
+	if i < 0 || i >= len(p) {
+		return true
+	}
+	c := p[i]
+	return c == '/' || c == ',' || c == '{' || c == '}'
 }
 
 // dotDotInPatterns reports whether any pattern contains a ".." segment.

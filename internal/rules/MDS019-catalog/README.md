@@ -40,6 +40,12 @@ project root is not configured`. This mirrors how
 [`<?include?>`](../MDS021-include/README.md) resolves its
 `file` parameter.
 
+A `..` segment inside a `{a,b}` brace alternative (e.g.
+`{..,sibling}/*.md`) is rejected at validation time —
+brace alternatives cannot be normalized before glob
+expansion, so a pattern that mixes `..` with braces is
+written as separate top-level patterns instead.
+
 Single pattern:
 
 ```yaml
@@ -191,13 +197,14 @@ glob: "data/*.md"
 | Empty `glob`   | `...has empty "glob"`        |
 | Absolute glob  | `...has absolute glob path`  |
 
-| Condition         | Message                                                    |
-|-------------------|------------------------------------------------------------|
-| Glob escapes root | `...glob escapes project root`                             |
-| `..` without root | `...glob contains ".." but project root is not configured` |
-| Invalid glob      | `...invalid glob pattern`                                  |
-| Empty sort        | `...empty "sort" value`                                    |
-| Invalid sort      | `...invalid sort value`                                    |
+| Condition          | Message                                                            |
+|--------------------|--------------------------------------------------------------------|
+| Glob escapes root  | `...glob escapes project root`                                     |
+| `..` without root  | `...glob contains ".." but project root is not configured`         |
+| `..` inside braces | `...has ".." inside brace expansion; rewrite as separate patterns` |
+| Invalid glob       | `...invalid glob pattern`                                          |
+| Empty sort         | `...empty "sort" value`                                            |
+| Invalid sort       | `...invalid sort value`                                            |
 
 All messages above are prefixed with
 `generated section directive`. Column is always 1.

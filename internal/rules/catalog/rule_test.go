@@ -2809,6 +2809,179 @@ glob: "../sibling/*.md"
 	assert.Contains(t, result, "../sibling/guide.md")
 }
 
+func TestContainsDotDotInsideBraces(t *testing.T) {
+	cases := map[string]bool{
+		"{..,sibling}/*.md":  true,
+		"{a,..}/*.md":        true,
+		"prefix/{x,..}/*.md": true,
+		"{a,b}/*.md":         false,
+		"{a.b,c}/*.md":       false, // ".": at depth>0 but no second "."
+		"{a..b,c}/*.md":      false, // "..": embedded in segment, not a segment
+		"foo/../bar":         false, // outside braces is a separate check
+		"":                   false,
+		"..":                 false,
+		"{}":                 false,
+	}
+	for input, want := range cases {
+		assert.Equal(t, want, containsDotDotInsideBraces(input), input)
+	}
+}
+
+func TestBraceSegmentBoundary(t *testing.T) {
+	assert.True(t, braceSegmentBoundary("abc", -1))
+	assert.True(t, braceSegmentBoundary("abc", 3))
+	assert.True(t, braceSegmentBoundary("a/b", 1))
+	assert.True(t, braceSegmentBoundary("a,b", 1))
+	assert.True(t, braceSegmentBoundary("a{b", 1))
+	assert.True(t, braceSegmentBoundary("a}b", 1))
+	assert.False(t, braceSegmentBoundary("ab", 1))
+}
+
+func TestProjectRelFileDir_RelativePath(t *testing.T) {
+	f := &lint.File{Path: "docs/development/index.md"}
+	dir, ok := projectRelFileDir(f)
+	require.True(t, ok)
+	assert.Equal(t, "docs/development", dir)
+}
+
+func TestProjectRelFileDir_RootFile(t *testing.T) {
+	f := &lint.File{Path: "README.md"}
+	dir, ok := projectRelFileDir(f)
+	require.True(t, ok)
+	assert.Equal(t, "", dir)
+}
+
+func TestProjectRelFileDir_AbsolutePathNoRootDir(t *testing.T) {
+	f := &lint.File{Path: "/abs/path/index.md"}
+	_, ok := projectRelFileDir(f)
+	assert.False(t, ok, "absolute file path without RootDir cannot be related to root")
+}
+
+func TestProjectRelFileDir_AbsoluteFileAtRoot(t *testing.T) {
+	dir := t.TempDir()
+	f := &lint.File{Path: filepath.Join(dir, "index.md"), RootDir: dir}
+	got, ok := projectRelFileDir(f)
+	require.True(t, ok)
+	assert.Equal(t, "", got, "file directly at project root resolves to empty rel dir")
+}
+
+func TestDisplayPath_RelErrorReturnsMatchUnchanged(t *testing.T) {
+	// filepath.Rel returns an error when one path is absolute and the
+	// other relative. Forcing that combination exercises the err branch.
+	res := globResolution{rootRelative: true, fileDir: "skills/foo"}
+	abs := "/somewhere/api.md"
+	assert.Equal(t, abs, res.displayPath(abs))
+}
+
+func TestDisplayPath_LocalFSPassthrough(t *testing.T) {
+	res := globResolution{rootRelative: false}
+	assert.Equal(t, "docs/api.md", res.displayPath("docs/api.md"))
+}
+
+func TestDisplayPath_RelComputedFromRoot(t *testing.T) {
+	res := globResolution{rootRelative: true, fileDir: "skills/foo"}
+	assert.Equal(t, "../../docs/api.md", res.displayPath("docs/api.md"))
+}
+
+func TestCatalog_DotDotInBracesRejected(t *testing.T) {
+	// `{..,sibling}/*.md` would expand to include "..", but path.Clean
+	// can't peek inside braces — so the validator rejects it up front
+	// to avoid silent partial matches at glob time.
+	src := `<?catalog
+glob: "{..,sibling}/*.md"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{}
+	f := newTestFile(t, "home/index.md", src, mapFS)
+	f.RootFS = mapFS
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, `".." inside brace expansion`)
+}
+
+func TestCatalog_DotDotGlobAbsoluteFilePath(t *testing.T) {
+	// When the catalog-owning file's path is absolute (as happens via
+	// CLI glob expansion), `..` resolution still works as long as the
+	// project RootDir is configured: the file's directory is computed
+	// relative to RootDir before pattern resolution runs.
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "home"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sibling"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "sibling", "api.md"),
+		[]byte("# API\n"), 0o644))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "home", "index.md"),
+		[]byte("placeholder"), 0o644))
+
+	src := `<?catalog
+glob: "../sibling/*.md"
+?>
+<?/catalog?>
+`
+	absPath := filepath.Join(dir, "home", "index.md")
+	f, err := lint.NewFile(absPath, []byte(src))
+	require.NoError(t, err)
+	f.SetRootDir(dir)
+	f.FS = f.RootFS
+
+	r := &Rule{}
+	result := string(r.Fix(f))
+	assert.Contains(t, result, "../sibling/api.md")
+}
+
+func TestCatalog_DotDotGlobAbsoluteFilePathOutsideRoot(t *testing.T) {
+	// An absolute file path outside the configured RootDir cannot be
+	// related to the project root; resolution falls back to f.FS, and
+	// the dotdot pattern then errors out as "project root not
+	// configured" because that fallback path has no RootFS context.
+	dir := t.TempDir()
+	otherDir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(otherDir, "foreign.md"),
+		[]byte("placeholder"), 0o644))
+
+	src := `<?catalog
+glob: "../sibling/*.md"
+?>
+<?/catalog?>
+`
+	f, err := lint.NewFile(filepath.Join(otherDir, "foreign.md"), []byte(src))
+	require.NoError(t, err)
+	f.SetRootDir(dir)
+	f.FS = f.RootFS
+
+	r := &Rule{}
+	diags := r.Check(f)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message, `glob contains ".." but project root is not configured`)
+}
+
+func TestCatalog_DotDotExcludeEscapesRoot(t *testing.T) {
+	// An exclude pattern that resolves outside the project root is
+	// rejected with the same diagnostic as an include pattern, so the
+	// rule never silently strips matches based on out-of-root
+	// suppression rules.
+	src := `<?catalog
+glob:
+  - "*.md"
+  - "!../../escape/*.md"
+?>
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"home/index.md": {Data: []byte("# Home\n")},
+	}
+	f := newTestFile(t, "home/index.md", src, mapFS)
+	f.RootFS = mapFS
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 1)
+	expectDiagMsg(t, diags, "glob escapes project root")
+}
+
 func TestCatalog_DotDotGlobEscapesRoot(t *testing.T) {
 	// A glob whose resolved path leaves the project root is rejected
 	// with the new diagnostic message.
