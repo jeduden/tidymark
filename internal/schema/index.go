@@ -122,6 +122,14 @@ func BuildIndex(f *lint.File, sch *Schema) ([]byte, error) {
 // inside that root, so a `sub` directory that turns out to be a
 // symlink to `/etc` is caught before any bytes are written.
 //
+// The target file itself is also Lstat-checked: if an existing
+// symlink sits at the index path (an in-root symlink that points
+// outside the project — e.g. `.runbook-index.json` →
+// `/etc/passwd`), os.WriteFile would follow it and clobber the
+// link target. We reject the write instead. The write goes through
+// a sibling temp file + os.Rename so the directory entry is
+// replaced atomically and never as a symlink-follow operation.
+//
 // On error WriteIndex records the failure in the package-level
 // indexWriteErr cache keyed by f.Path so the next Check surfaces
 // the underlying I/O error instead of repeating the generic
@@ -148,11 +156,73 @@ func WriteIndex(f *lint.File, sch *Schema) error {
 		recordIndexWriteError(f.Path, err)
 		return err
 	}
-	if err := os.WriteFile(target, data, 0o644); err != nil {
+	if err := rejectSymlinkTarget(target); err != nil {
+		recordIndexWriteError(f.Path, err)
+		return err
+	}
+	if err := atomicWriteIndex(target, data); err != nil {
 		recordIndexWriteError(f.Path, err)
 		return err
 	}
 	recordIndexWriteError(f.Path, nil)
+	return nil
+}
+
+// rejectSymlinkTarget refuses to write when the index path already
+// exists as a symlink. os.WriteFile follows symlinks and would
+// overwrite whatever the link points at; an in-root link pointing
+// outside the project (e.g. `.runbook-index.json` -> `/etc/passwd`)
+// would defeat verifyIndexWithinRoot, which only checks the parent
+// directory. A non-symlink existing file is fine — atomic
+// replacement is the normal Fix path.
+func rejectSymlinkTarget(target string) error {
+	info, err := os.Lstat(target)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("schema.index: stat target %q: %w", target, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf(
+			"schema.index.output target %q is a symlink; refusing to write "+
+				"to avoid clobbering the symlink's destination",
+			target)
+	}
+	return nil
+}
+
+// atomicWriteIndex writes data to a sibling temp file in target's
+// directory and renames it into place. os.Rename replaces the
+// directory entry without following any symlink that may have
+// raced into the target after rejectSymlinkTarget ran, and yields
+// a torn-write-free result on POSIX filesystems.
+func atomicWriteIndex(target string, data []byte) error {
+	dir := filepath.Dir(target)
+	tmp, err := os.CreateTemp(dir, ".mdsmith-index-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	cleanup := func() { _ = os.Remove(tmpPath) }
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return err
+	}
+	if err := os.Rename(tmpPath, target); err != nil {
+		cleanup()
+		return err
+	}
 	return nil
 }
 

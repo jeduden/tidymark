@@ -56,9 +56,14 @@ type lineRange struct {
 }
 
 // acronymRanges returns the line windows the acronym check should
-// scan. Empty scope applies to the whole document; otherwise the
-// schema scope tree is walked and every matching scope's range is
-// included.
+// scan. An empty scope list applies to the whole document.
+// Otherwise the schema scope tree is walked and each schema scope
+// claims the first matching document heading at its level; if the
+// document repeats a heading text under the same schema scope,
+// only the first occurrence is included today. This matches the
+// validator's claim semantics; widening to multi-match would
+// require schema repeats support (currently rejected by the
+// parser) and is tracked as a follow-up.
 func acronymRanges(f *lint.File, sch *Schema, scope []string) []lineRange {
 	if len(scope) == 0 {
 		return []lineRange{{Start: 1, End: len(f.Lines) + 1}}
@@ -174,9 +179,12 @@ func checkAcronymsInRange(
 	return diags
 }
 
-// hasParenExpansion reports whether the text starting at offset look
-// includes a "(Some Words)" expansion. We accept a single space
-// between the acronym and the opening paren.
+// hasParenExpansion reports whether the text starting at offset
+// includes a "(Some Words)" expansion. Any amount of intervening
+// ASCII space (including none) between the acronym and the
+// opening paren is tolerated — prose styles vary on this point
+// and the rule is interested in whether an expansion is present,
+// not in punctuation pedantry.
 func hasParenExpansion(line string, offset int) bool {
 	rest := line[offset:]
 	rest = strings.TrimLeft(rest, " ")

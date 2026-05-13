@@ -1030,6 +1030,58 @@ func TestValidateIndex_ClearsStaleCacheWhenIndexRemoved(t *testing.T) {
 	assert.Nil(t, lastIndexWriteError(f.Path))
 }
 
+func TestWriteIndex_RejectsSymlinkAtTarget(t *testing.T) {
+	// An in-root symlink at the target path is rejected before
+	// any bytes are written, so a hostile schema cannot use it to
+	// clobber the link's destination via mdsmith fix.
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "victim")
+	require.NoError(t, os.WriteFile(outside, []byte("untouched"), 0o644))
+	link := filepath.Join(root, "out.json")
+	require.NoError(t, os.Symlink(outside, link))
+
+	path := filepath.Join(root, "doc.md")
+	require.NoError(t, os.WriteFile(path, []byte("# T\n"), 0o644))
+	f, err := lint.NewFile(path, []byte("# T\n"))
+	require.NoError(t, err)
+	f.RootDir = root
+	sch := &Schema{Source: "test", RootLevel: 2, Index: &IndexSpec{
+		Output:  "out.json",
+		Include: []string{IndexIncludeHeadingsFlat},
+	}}
+	err = WriteIndex(f, sch)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "symlink")
+
+	// The link's destination must not have been touched.
+	got, err := os.ReadFile(outside)
+	require.NoError(t, err)
+	assert.Equal(t, "untouched", string(got))
+}
+
+func TestWriteIndex_AtomicRenameReplacesExistingFile(t *testing.T) {
+	// A pre-existing regular file at the target is fine and gets
+	// replaced atomically. Old content must be gone afterwards.
+	root := t.TempDir()
+	path := filepath.Join(root, "doc.md")
+	require.NoError(t, os.WriteFile(path, []byte("# T\n"), 0o644))
+	out := filepath.Join(root, "out.json")
+	require.NoError(t, os.WriteFile(out, []byte("stale"), 0o644))
+
+	f, err := lint.NewFile(path, []byte("# T\n"))
+	require.NoError(t, err)
+	f.RootDir = root
+	sch := &Schema{Source: "test", RootLevel: 2, Index: &IndexSpec{
+		Output:  "out.json",
+		Include: []string{IndexIncludeHeadingsFlat},
+	}}
+	require.NoError(t, WriteIndex(f, sch))
+	data, err := os.ReadFile(out)
+	require.NoError(t, err)
+	assert.NotEqual(t, "stale", string(data))
+	assert.Contains(t, string(data), `"slug": "t"`)
+}
+
 func TestWriteIndex_RejectsSymlinkEscape(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()
