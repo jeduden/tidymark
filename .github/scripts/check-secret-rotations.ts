@@ -134,17 +134,22 @@ function issueBody(entry: RotationEntry, fileBasename: string, status: DueState,
   const fileUrl = `${repoUrl()}/blob/main/docs/development/secret-rotations/${fileBasename}`;
   const reminderUrl = `${repoUrl()}/blob/main/.github/workflows/secret-rotation-reminder.yml`;
   const recordUrl = `${repoUrl()}/actions/workflows/record-secret-rotation.yml`;
+  // Table padding is intentionally minimal: GitHub-flavored
+  // markdown collapses extra whitespace, so visually aligning
+  // columns in the source has no effect on the rendered issue
+  // and just creates noisy diffs whenever a value's length
+  // changes.
   return [
     `${headline}`,
     ``,
-    `| Field         | Value                                            |`,
-    `|---------------|--------------------------------------------------|`,
-    `| Provider      | ${entry.provider}                                       |`,
-    `| Issuer URL    | <${entry.issuerUrl}>                                   |`,
-    `| Used by       | ${entry.usedBy}                                        |`,
-    `| Scope         | ${entry.scope}                                          |`,
-    `| Last rotated  | ${entry.lastRotated}                                           |`,
-    `| Period (days) | ${entry.periodDays}                                         |`,
+    `| Field | Value |`,
+    `|---|---|`,
+    `| Provider | ${entry.provider} |`,
+    `| Issuer URL | <${entry.issuerUrl}> |`,
+    `| Used by | ${entry.usedBy} |`,
+    `| Scope | ${entry.scope} |`,
+    `| Last rotated | ${entry.lastRotated} |`,
+    `| Period (days) | ${entry.periodDays} |`,
     ``,
     `Rotation procedure:`,
     `${fileUrl}`,
