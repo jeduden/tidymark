@@ -10,3 +10,4 @@ e2e-cover/
 unit.cov
 merged.cov
 .github/scripts/node_modules/
+.claude/worktrees/

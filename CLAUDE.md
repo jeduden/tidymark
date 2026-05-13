@@ -21,6 +21,12 @@ row: "- [{summary}]({filename})"
 - [How generated sections work — markers, directives, and fix behavior.](docs/background/concepts/generated-section.md)
 - [How the placeholder vocabulary lets rules treat template tokens as opaque rather than flagging them as content violations.](docs/background/concepts/placeholder-grammar.md)
 - [How mdsmith compares to other Markdown linters.](docs/background/markdown-linters.md)
+- [Running log of SOLID and clean-architecture findings on origin/main. The solid-architecture skill (audit mode) appends here; blockers are also filed as plans.](docs/development/architecture-audit.md)
+- [Checklist for sweeping origin/main for SOLID and boundary violations. Records findings in the audit log; schedules blockers as new plan files.](docs/development/architecture/audit-checklist.md)
+- [External-surface contracts: LSP, CLI, .mdsmith.yml, generated markers, plugin manifest, distribution shims. Public APIs.](docs/development/architecture/cross-system.md)
+- [Go-specific SOLID and clean architecture patterns for mdsmith's cmd/ and internal/ packages.](docs/development/architecture/go.md)
+- [SOLID and clean-architecture rules for mdsmith's Go core, TypeScript extension, and cross-system surfaces. Canonical home for the solid-architecture skill.](docs/development/architecture/index.md)
+- [SOLID and clean architecture patterns for the mdsmith VS Code extension at editors/vscode/.](docs/development/architecture/typescript.md)
 - [Codecov coverage gate and CI status checks.](docs/development/coverage.md)
 - [Where to place Markdown files and documentation types.](docs/development/file-placement.md)
 - [Build commands, project layout, code style, test fixtures, coverage gate, and merge conflicts.](docs/development/index.md)
@@ -137,12 +143,25 @@ heading-level: "absolute"
 Build and test reference for mdsmith contributors.
 See also:
 
-- [Coverage gate](docs/development/coverage.md)
-- [File placement](docs/development/file-placement.md)
-- [Merge queue](docs/development/merge-queue.md)
-- [PR fixup workflow](docs/development/pr-fixup-workflow.md)
-- [Release pipeline](docs/development/release.md)
-- [Secret rotations](docs/development/secret-rotations.md)
+<?catalog
+source-dir: "docs/development"
+glob:
+  - "*.md"
+  - "*/index.md"
+  - "!index.md"
+sort: title
+row: "- [{title}](docs/development/{filename})"
+?>
+- [Architecture audit log](docs/development/architecture-audit.md)
+- [Architecture principles](docs/development/architecture/index.md)
+- [Coverage Gate](docs/development/coverage.md)
+- [File Placement](docs/development/file-placement.md)
+- [Merge Queue](docs/development/merge-queue.md)
+- [PR Fixup Workflow](docs/development/pr-fixup-workflow.md)
+- [Release Pipeline](docs/development/release.md)
+- [Release Tooling Architecture](docs/development/release-tooling.md)
+- [Secret Rotations](docs/development/secret-rotations.md)
+<?/catalog?>
 
 ### Build & Test Commands
 

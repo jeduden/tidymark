@@ -294,6 +294,20 @@ kinds:
     rules:
       required-structure:
         schema: docs/security/proto.md
+  audit-log:
+    schema:
+      frontmatter:
+        title: 'string & != ""'
+        "summary?": 'string'
+        audit-from: '=~"^[0-9a-f]{7,40}$"'
+      require:
+        filename: "architecture-audit.md"
+      closed: false
+      sections:
+        - heading: null
+          required: false
+        - heading:
+            unlisted: true
 
 # kind-assignment order matters: the proto kind applies
 # first so each proto.md also picks up its project kind,
@@ -322,3 +336,5 @@ kind-assignment:
     kinds: [skill]
   - glob: ["docs/security/*.md"]
     kinds: [security-note]
+  - glob: ["docs/development/architecture-audit.md"]
+    kinds: [audit-log]

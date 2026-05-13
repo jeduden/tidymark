@@ -1,5 +1,16 @@
 {
-"permissions": {
+  "extraKnownMarketplaces": {
+    "mdsmith": {
+      "source": {
+        "source": "file",
+        "path": "./.claude-plugin/marketplace.json"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "mdsmith-dev-lsp@mdsmith": true
+  },
+  "permissions": {
     "allow": [
       "Bash(ls:*)",
       "Bash(cat:*)",
