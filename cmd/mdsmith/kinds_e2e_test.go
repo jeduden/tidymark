@@ -317,6 +317,26 @@ kind-assignment:
 	assert.Contains(t, stdout, "plan (from kind-assignment[0]: glob plan/*.md AND fields-present id)")
 }
 
+// When the file front matter cannot be decoded as a mapping AND the
+// config has a fields-present entry that could match this path, the
+// CLI surfaces the parse failure with "parsing front matter" context
+// — not the misleading "reading <path>" prefix the unwrapped error
+// would have produced.
+func TestKinds_ResolveFieldsPresentParseErrorContext(t *testing.T) {
+	cfg := `kinds:
+  task: {}
+kind-assignment:
+  - fields-present: [status]
+    kinds: [task]
+`
+	doc := "---\n- not\n- a\n- mapping\n---\n# Bad\n"
+	dir := kindsTestDir(t, cfg, map[string]string{"bad.md": doc})
+	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve", "bad.md")
+	require.Equal(t, 2, code)
+	assert.Contains(t, stderr, "parsing front matter")
+	assert.Contains(t, stderr, "bad.md")
+}
+
 func TestKinds_ResolveMissingFileArg(t *testing.T) {
 	dir := kindsTestDir(t, sampleKindsCfg, nil)
 	_, stderr, code := runBinaryInDir(t, dir, "", "kinds", "resolve")

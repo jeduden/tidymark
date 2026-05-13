@@ -106,7 +106,7 @@ func effectiveKindsFor(cfg *config.Config, rel string, source []byte) []string {
 		fmKinds = append([]string{scalar}, fmKinds...)
 	}
 	var fmFields map[string]any
-	if config.HasFieldsPresentSelector(cfg) {
+	if config.NeedsFieldsForFile(cfg, rel) {
 		fmFields, err = lint.ParseFrontMatterFields(fmBytes)
 		if err != nil {
 			fmFields = nil

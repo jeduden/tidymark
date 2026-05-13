@@ -263,12 +263,12 @@ func readFrontMatter(cfg *config.Config, path string, maxBytes int64) ([]string,
 	if err != nil {
 		return nil, nil, err
 	}
-	if !config.HasFieldsPresentSelector(cfg) {
+	if !config.NeedsFieldsForFile(cfg, path) {
 		return kinds, nil, nil
 	}
 	fields, err := lint.ParseFrontMatterFields(prefix)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("parsing front matter in %q: %w", path, err)
 	}
 	return kinds, fields, nil
 }

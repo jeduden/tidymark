@@ -79,3 +79,27 @@ func HasFieldsPresentSelector(cfg *Config) bool {
 	}
 	return false
 }
+
+// NeedsFieldsForFile is the per-file refinement of HasFieldsPresentSelector.
+// It returns true when at least one kind-assignment entry could match the
+// given file path under its `fields-present:` selector — either because
+// the entry has no `glob:` (it considers every file) or because its glob
+// matches this path. Callers use this to skip the full FM-mapping YAML
+// decode for files no fields-present entry could ever assign a kind to.
+func NeedsFieldsForFile(cfg *Config, filePath string) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, entry := range cfg.KindAssignment {
+		if len(entry.FieldsPresent) == 0 {
+			continue
+		}
+		if len(entry.Patterns()) == 0 {
+			return true
+		}
+		if matchesAny(entry.Patterns(), filePath) {
+			return true
+		}
+	}
+	return false
+}

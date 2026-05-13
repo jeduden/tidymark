@@ -319,12 +319,12 @@ func (f *Fixer) prepareFile(path string, source []byte) (*lint.File, fs.FS, []st
 }
 
 // parseFieldsForSelector decodes the full front-matter mapping only when
-// the loaded config actually uses the kind-assignment `fields-present:`
-// selector. Skipping the parse when no entry needs it preserves the
-// kinds-only parse path's leniency toward FM YAML errors that
-// ParseFrontMatterKinds' fast path ignores.
+// a kind-assignment entry with `fields-present:` could match this file
+// path. Skipping the parse for files outside every fields-present glob
+// preserves the kinds-only parse path's leniency toward FM YAML errors
+// that ParseFrontMatterKinds' fast path ignores.
 func parseFieldsForSelector(cfg *config.Config, path string, fm []byte) (map[string]any, error) {
-	if !config.HasFieldsPresentSelector(cfg) {
+	if !config.NeedsFieldsForFile(cfg, path) {
 		return nil, nil
 	}
 	fields, err := lint.ParseFrontMatterFields(fm)

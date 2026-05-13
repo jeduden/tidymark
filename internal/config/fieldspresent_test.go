@@ -96,12 +96,17 @@ func TestFieldsPresent_GlobOnlyEntryUnchanged(t *testing.T) {
 }
 
 // Provenance surfaces the matching entry index and selector via the
-// new ResolvedKind.Selector field.
+// new ResolvedKind.Selector field. Includes an entry that does not
+// match so the resolver's skip branch runs alongside the matching
+// path.
 func TestFieldsPresent_ProvenanceCarriesSelector(t *testing.T) {
 	cfg := &Config{
-		Kinds: map[string]KindBody{"task": {}, "plan": {}},
+		Kinds: map[string]KindBody{"task": {}, "plan": {}, "draft": {}},
 		KindAssignment: []KindAssignmentEntry{
 			{FieldsPresent: []string{"status", "assignee"}, Kinds: []string{"task"}},
+			// Second entry asks for a field the file doesn't carry —
+			// the resolver must skip it without contributing a kind.
+			{FieldsPresent: []string{"draft"}, Kinds: []string{"draft"}},
 			{Glob: []string{"plan/*.md"}, FieldsPresent: []string{"id"}, Kinds: []string{"plan"}},
 		},
 	}
@@ -112,16 +117,16 @@ func TestFieldsPresent_ProvenanceCarriesSelector(t *testing.T) {
 		"assignee": "alice",
 	})
 	require := assert.New(t)
-	require.Len(res.Kinds, 2)
+	require.Len(res.Kinds, 2, "non-matching entry should not contribute a kind")
 
 	// First entry: fields-present only.
 	require.Equal("task", res.Kinds[0].Name)
 	require.Equal(KindAssignmentSource("kind-assignment[0]"), res.Kinds[0].Source)
 	require.Equal("fields-present status,assignee", res.Kinds[0].Selector)
 
-	// Second entry: glob AND fields-present.
+	// Third entry matched; second was skipped so the index jumps to 2.
 	require.Equal("plan", res.Kinds[1].Name)
-	require.Equal(KindAssignmentSource("kind-assignment[1]"), res.Kinds[1].Source)
+	require.Equal(KindAssignmentSource("kind-assignment[2]"), res.Kinds[1].Source)
 	require.Equal("glob plan/*.md AND fields-present id", res.Kinds[1].Selector)
 }
 
@@ -156,4 +161,40 @@ func TestHasFieldsPresentSelector(t *testing.T) {
 			{FieldsPresent: []string{"status"}, Kinds: []string{"task"}},
 		},
 	}), "any entry with fields-present")
+}
+
+// NeedsFieldsForFile gates the FM-mapping decode per file path: it only
+// returns true when a fields-present entry could actually match this
+// file — an entry without a glob always could, an entry with a glob
+// only if the path matches it.
+func TestNeedsFieldsForFile(t *testing.T) {
+	assert.False(t, NeedsFieldsForFile(nil, "any.md"), "nil config")
+
+	assert.False(t, NeedsFieldsForFile(&Config{
+		KindAssignment: []KindAssignmentEntry{
+			{Glob: []string{"docs/*.md"}, Kinds: []string{"doc"}},
+		},
+	}, "docs/a.md"), "no fields-present entry → false even when glob matches")
+
+	cfg := &Config{
+		KindAssignment: []KindAssignmentEntry{
+			{
+				Glob:          []string{"plan/*.md"},
+				FieldsPresent: []string{"id"},
+				Kinds:         []string{"plan"},
+			},
+		},
+	}
+	assert.True(t, NeedsFieldsForFile(cfg, "plan/9.md"),
+		"glob+fields entry matches path → needs fields")
+	assert.False(t, NeedsFieldsForFile(cfg, "docs/api.md"),
+		"glob+fields entry does not match path → no need to parse fields")
+
+	cfgUnscoped := &Config{
+		KindAssignment: []KindAssignmentEntry{
+			{FieldsPresent: []string{"status"}, Kinds: []string{"task"}},
+		},
+	}
+	assert.True(t, NeedsFieldsForFile(cfgUnscoped, "anywhere/x.md"),
+		"fields-only entry has no glob, so every path needs the parse")
 }
