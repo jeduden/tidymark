@@ -48,11 +48,11 @@ func buildKnownSet(list []string) map[string]bool {
 	return out
 }
 
-// lineRange identifies an inclusive 1-based line window for an
-// acronym scope pass.
+// lineRange identifies a half-open 1-based line window for an
+// acronym scope pass: Start is inclusive, End is exclusive.
 type lineRange struct {
 	Start int
-	End   int // exclusive
+	End   int
 }
 
 // acronymRanges returns the line windows the acronym check should
