@@ -35,7 +35,7 @@ rotations:
 Three long-lived tokens still ship outside OIDC
 Trusted Publishing. The front matter table above is
 machine-parsed by
-[`.github/scripts/check-secret-rotations.py`][script].
+[`.github/scripts/check-secret-rotations.ts`][script].
 The [`secret-rotation-reminder.yml`][reminder]
 workflow runs it on the first of each month. The
 script opens a GitHub issue when any secret is
@@ -152,6 +152,6 @@ merge records the date and closes the reminder. The
 next monthly reminder run sees the new date and
 stays quiet until the next window.
 
-[script]: ../../.github/scripts/check-secret-rotations.py
+[script]: ../../.github/scripts/check-secret-rotations.ts
 [reminder]: ../../.github/workflows/secret-rotation-reminder.yml
 [azure-pat]: https://dev.azure.com

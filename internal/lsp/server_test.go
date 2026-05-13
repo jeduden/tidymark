@@ -1220,11 +1220,14 @@ func runLintIfCurrentFixture(t *testing.T) (*Server, *safeBuffer) {
 }
 
 // newPendingEntry mints a fresh *pendingLint backed by a non-firing
-// timer. The 1-hour delay ensures the timer never fires on its own
-// during the test; t.Cleanup stops it at test end.
+// timer. time.AfterFunc is used (over time.NewTimer) because it
+// matches what scheduleLint creates, has no Timer.C channel that
+// would need draining if Stop loses the race, and only ever
+// allocates a callback goroutine if the timer fires — which a 1h
+// delay plus Cleanup-time Stop guarantees does not happen.
 func newPendingEntry(t *testing.T) *pendingLint {
 	t.Helper()
-	p := &pendingLint{timer: time.NewTimer(time.Hour)}
+	p := &pendingLint{timer: time.AfterFunc(time.Hour, func() {})}
 	t.Cleanup(func() { p.timer.Stop() })
 	return p
 }
