@@ -22,22 +22,16 @@ argument-hint: "[mode: design | plan | audit]"
 
 # SOLID and clean architecture for mdsmith
 
-Keep mdsmith's Go core, TypeScript extension,
-and integration surfaces aligned with SOLID
-and clean architecture.
+The canonical
+[architecture hub](../../../docs/development/architecture/index.md)
+holds the principles, the layering map, and
+the anti-patterns. This skill wraps that
+hub with three workflows: design, plan, and
+audit.
 
-The Go linter lives in `cmd/` and `internal/`.
-The VS Code extension lives in
-`editors/vscode/`. The distribution shims
-live in `npm/` and `python/`. The Claude
-plugin lives in `.claude-plugin/`. Each layer
-depends on stable contracts. Drift is
-expensive to unwind later.
-
-This skill operates in three modes: design,
-plan, and audit. Pick a mode based on the
-current task. Then defer to the
-language-specific reference for depth.
+Read the hub before any architectural
+recommendation. The references below offer
+depth per language and per surface.
 
 ## Modes
 
@@ -63,12 +57,13 @@ fits any of:
 
 Workflow:
 
-1. Identify which layer the change lives in
-   (see "Project layering" below).
+1. Identify which layer the change lives in.
+   Cross-check against the layering map in
+   the
+   [architecture hub](../../../docs/development/architecture/index.md).
 2. List the interface(s) the change crosses
    on a layer boundary. Confirm the
-   dependency direction matches the layering
-   map.
+   dependency direction matches.
 3. Walk the principle checklist in
    [references/go.md](references/go.md) or
    [references/typescript.md](references/typescript.md).
@@ -138,125 +133,16 @@ Workflow:
 5. Update `audit-from:` to the current
    `origin/main` SHA.
 
-## The principles, restated
-
-The five SOLID principles, as concrete
-constraints in this codebase:
-
-- **Single responsibility**: every package
-  under `internal/` answers one question.
-  `internal/lint` answers "does this file
-  violate a rule?"; `internal/fix` answers
-  "what edits make it stop violating?". Do
-  not collapse them because a function feels
-  shared.
-- **Open/closed**: new rules and fixes are
-  added by registering a new package under
-  `internal/rules/<id>-<name>/`, not by
-  editing the engine. New conventions extend
-  via deep-merge config layers, not new
-  switches in `internal/engine`.
-- **Liskov substitution**: every `rule.Rule`
-  implementation must work in every engine
-  call site without special-casing. A rule
-  that needs the engine to know its name is
-  a Liskov violation — widen the interface
-  or push the special case down.
-- **Interface segregation**: the `rule`
-  package defines small interfaces (`Rule`,
-  `Fixer`, `ListMerger`, …) so a rule only
-  depends on the capabilities it uses. Do
-  not add methods to `Rule` because one rule
-  wants them.
-- **Dependency inversion**: high-level code
-  depends on interfaces, not concretes. The
-  engine talks to `rule.Rule`, never to a
-  specific rule package. The VS Code
-  extension talks to the LSP server over
-  the protocol, never to a Go type.
-
-## Project layering
-
-Dependencies flow downward only. A higher
-layer may import a lower one; the reverse is
-a violation.
-
-Go side:
-
-```text
-cmd/mdsmith                (entry, wiring)
-  └─> internal/engine      (orchestration)
-        └─> internal/{rule, fix, config,
-                      output, lint, lsp,
-                      discovery, schema, …}
-              └─> internal/{mdtext, globpath,
-                            yamlutil, log,
-                            placeholders}
-                  (pure helpers; no
-                   cross-deps among siblings)
-```
-
-Plus the rule plugins:
-
-```text
-internal/rules/<id>-<name>/
-  └─> internal/rule (interfaces only)
-  └─> internal/mdtext (parse helpers)
-  ✗ MUST NOT import internal/engine
-  ✗ MUST NOT import another rule package
-```
-
-TypeScript side:
-
-```text
-editors/vscode/src/extension.ts   (entry)
-  └─> wiring.ts                   (compose)
-        └─> commands/*            (one each)
-              └─> binary.ts       (find +
-                                   exec)
-              └─> commands/runner.ts
-                                  (typed I/O
-                                   to binary)
-```
-
-Cross-system contracts live at the very edge.
-They include the LSP wire protocol, the
-`.mdsmith.yml` schema, generated section
-markers, the plugin manifest, and shim entry
-points. They follow their own versioning
-rules. See
-[references/cross-system.md](references/cross-system.md).
-
-## Anti-patterns to reject on sight
-
-- A new Go package named `util`, `common`,
-  `helpers`, or `lib`.
-- A rule package that imports another rule
-  package.
-- A command (TS or Go) that builds and
-  parses Markdown inline instead of
-  delegating to `internal/mdtext`.
-- A distribution shim (`npm/`, `python/`)
-  that reimplements binary logic instead of
-  exec'ing it.
-- A `.mdsmith.yml` field consumed only
-  inside one rule package — promote it to
-  that rule's settings or push the consumer
-  back to where the data is owned.
-- A test that mocks `rule.Rule` instead of
-  using a real Markdown fixture; mocks at
-  the interface boundary suggest the
-  boundary is wrong.
-- A TypeScript command that imports another
-  command.
-- A new public function in `internal/engine`
-  whose only caller is one rule — move it to
-  `internal/rule` or `internal/mdtext`.
-
 ## References
 
-- [Go: SOLID and clean architecture in
-  internal/](references/go.md)
+Each reference mirrors a canonical doc under
+`docs/development/architecture/`. Edit the
+underlying doc to change the content; run
+`mdsmith fix` to regenerate the mirror.
+
+- [Architecture hub: principles, layering,
+  anti-patterns](../../../docs/development/architecture/index.md)
+- [Go: SOLID in cmd/ and internal/](references/go.md)
 - [TypeScript: SOLID in the VS Code
   extension](references/typescript.md)
 - [Cross-system contracts (LSP, shims,

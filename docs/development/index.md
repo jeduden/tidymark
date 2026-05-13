@@ -6,6 +6,7 @@ summary: Build commands, project layout, code style, test fixtures, coverage gat
 Build and test reference for mdsmith contributors.
 See also:
 
+- [Architecture principles](architecture/index.md)
 - [Coverage gate](coverage.md)
 - [File placement](file-placement.md)
 - [Merge queue](merge-queue.md)
