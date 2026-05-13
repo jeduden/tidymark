@@ -396,7 +396,7 @@ func resolveBaseRel(fileDir, sourceDir string) (string, bool) {
 	if sd == "." {
 		sd = ""
 	}
-	if strings.HasPrefix(sd, "..") || filepath.IsAbs(sd) {
+	if sd == ".." || strings.HasPrefix(sd, "../") || filepath.IsAbs(sd) {
 		return "", false
 	}
 	return sd, true

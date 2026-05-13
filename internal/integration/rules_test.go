@@ -285,7 +285,7 @@ func runGoodFolderFile(
 // attachFixtureFS scopes a fixture's lint.File to a directory on disk.
 // For rules that resolve cross-tree paths against a project root
 // (currently MDS019 catalog) it also pins RootFS to the same FS so the
-// rule can resolve "..": segments instead of erroring out. For all
+// rule can resolve ".." segments instead of erroring out. For all
 // other rules, RootFS is left nil to preserve their existing fixture
 // semantics — notably MDS020, whose schema reader switches resolution
 // strategy based on whether RootFS is set.

@@ -101,7 +101,7 @@ Have both directives call the shared helper.
    [`internal/rules/MDS019-catalog/`](../internal/rules/MDS019-catalog/).
    The integration runner now pins
    `f.RootFS = f.FS` for MDS019 fixtures so
-   "..": resolution mirrors a real project.
+   ".." resolution mirrors a real project.
 6. [x] Add the `<?catalog?>` block in the
    [solid-architecture SKILL.md](../.claude/skills/solid-architecture/SKILL.md)
    targeting
