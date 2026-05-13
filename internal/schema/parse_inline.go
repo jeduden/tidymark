@@ -105,12 +105,27 @@ func parseInlineFrontmatter(raw map[string]any, sch *Schema) error {
 // string. Strings pass through (the canonical form). Numbers, bools,
 // nulls become their JSON encoding. Maps and lists are JSON-encoded
 // so the value carries its structure verbatim into CUE.
+//
+// A YAML scalar that is a single bare identifier (`date`, `bool`,
+// `iso-date`) goes through the shortcut registry first: registered
+// names are rewritten to their canonical CUE expression, CUE
+// built-ins pass through verbatim, and an unknown bare name is
+// rejected with a clear error so a typo surfaces at config-load
+// time instead of as an undefined CUE reference deep in
+// validation. See `internal/schema/shortcuts.go` and plan 148.
 func frontmatterExpr(v any) (string, error) {
 	switch x := v.(type) {
 	case string:
 		expr := strings.TrimSpace(x)
 		if expr == "" {
 			return "", fmt.Errorf("expression must be non-empty")
+		}
+		resolved, handled, err := resolveBareName(expr)
+		if err != nil {
+			return "", err
+		}
+		if handled {
+			return resolved, nil
 		}
 		return expr, nil
 	case bool, int, int64, float64, nil:
