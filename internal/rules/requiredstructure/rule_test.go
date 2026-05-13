@@ -819,6 +819,20 @@ func TestCheck_PathPattern_RelativeRootDir(t *testing.T) {
 	expectDiags(t, diags, 0)
 }
 
+// TestCheck_PathPattern_EmptyRootDirFallsBackToPath covers the
+// `f.RootDir == ""` branch of workspaceRelPath: with no workspace
+// root configured, the glob compares against f.Path verbatim.
+func TestCheck_PathPattern_EmptyRootDirFallsBackToPath(t *testing.T) {
+	f, err := lint.NewFileFromSource(
+		"plan/140_x.md", []byte("# x\n"), true)
+	require.NoError(t, err)
+	r := &Rule{PathPatterns: []PathPattern{
+		{Kind: "plan", Pattern: "plan/[0-9][0-9]*_*.md"},
+	}}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
 func TestCheck_PathPattern_NoPatternsIsNoOp(t *testing.T) {
 	root := t.TempDir()
 	f := newRootedFile(t, root, "anywhere/anything.md", "# Hi\n")

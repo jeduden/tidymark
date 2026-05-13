@@ -439,6 +439,33 @@ func TestEffectiveRules_PathPatternAbsentLeavesRuleAlone(t *testing.T) {
 	}
 }
 
+// TestKindLayerRules_MergesPathPatternWithExistingRules verifies
+// that the provenance helper preserves a kind's existing body.Rules
+// settings while injecting the synthetic `path-patterns` entry on
+// top of them. Without this, a kind that both disables a rule and
+// declares a `path-pattern:` would have its `body.Rules` ignored in
+// `kinds resolve` / `--explain` output.
+func TestKindLayerRules_MergesPathPatternWithExistingRules(t *testing.T) {
+	body := KindBody{
+		PathPattern: "plan/*.md",
+		Rules: map[string]RuleCfg{
+			"line-length": {Enabled: false},
+			"required-structure": {Enabled: true,
+				Settings: map[string]any{"schema": "plan/proto.md"}},
+		},
+	}
+	out := kindLayerRules("plan", body)
+	require.Contains(t, out, "line-length")
+	assert.False(t, out["line-length"].Enabled)
+	rs := out["required-structure"]
+	assert.True(t, rs.Enabled)
+	assert.Equal(t, "plan/proto.md", rs.Settings["schema"],
+		"existing required-structure settings must be preserved")
+	list := rs.Settings["path-patterns"].([]any)
+	require.Len(t, list, 1)
+	assert.Equal(t, "plan", list[0].(map[string]any)["kind"])
+}
+
 // --- helpers ---
 
 func loadFromString(t *testing.T, yml string) *Config {
