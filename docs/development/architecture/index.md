@@ -75,19 +75,29 @@ Dependencies flow downward only. A higher
 layer may import a lower one; the reverse is
 a violation.
 
-Go side:
+Go side. Both `cmd/mdsmith` and
+`internal/lsp` are top-layer entry points
+that depend on `internal/engine`; the engine
+never depends on either of them.
 
 ```text
-cmd/mdsmith                (entry, wiring)
-  └─> internal/engine      (orchestration)
-        └─> internal/{rule, fix, config,
-                      output, lint, lsp,
-                      discovery, schema, …}
-              └─> internal/{mdtext, globpath,
-                            yamlutil, log,
-                            placeholders}
-                  (pure helpers; no
-                   cross-deps among siblings)
+cmd/mdsmith              internal/lsp
+  (CLI entry)              (LSP entry)
+        └───────┐    ┌──────┘
+                ↓    ↓
+        internal/engine      (orchestration)
+              └─> internal/{rule, fix,
+                            config, output,
+                            lint, discovery,
+                            schema, …}
+                    └─> internal/{mdtext,
+                                  globpath,
+                                  yamlutil,
+                                  log,
+                                  placeholders}
+                        (pure helpers; no
+                         cross-deps among
+                         siblings)
 ```
 
 Plus the rule plugins. Each rule has a Go

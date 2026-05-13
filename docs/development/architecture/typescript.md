@@ -61,9 +61,11 @@ shape places it.
 
 Each `commands/<name>.ts` holds one command.
 Shared steps live in `commands/runner.ts`.
-That covers running the binary, reading
-output, and turning it into diagnostics. Do
-not copy those steps into each command.
+Today it owns subprocess spawn and returns
+typed `{stdout, stderr, exitCode}` results.
+Target: parse those results into typed
+domain shapes that commands consume. Do not
+copy spawn logic into each command.
 
 A command past ~200 lines should split. Pick
 three modules. One picks the args. One runs
