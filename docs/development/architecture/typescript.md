@@ -8,24 +8,18 @@ summary: >-
 ---
 # TypeScript architecture patterns
 
-Guidance for the VS Code extension at
-`editors/vscode/`. See the
-[architecture hub](index.md) for the
-cross-cutting principles; this page covers
-how to apply each in TypeScript within the
-extension's bounds.
+The
+[solid-architecture skill][skill-ts]
+holds the general TypeScript patterns;
+this page applies them to mdsmith's VS
+Code extension at `editors/vscode/`. The
+layout below is the target the extension
+is converging on. "Current state"
+callouts mark where the code differs.
 
-Where this page describes a layout or
-flow, treat it as the target state the
-extension is converging on, not always
-the current snapshot. Sections that
-describe the gap are called out
-explicitly.
+[skill-ts]: ../../../.claude/skills/solid-architecture/typescript.md
 
 ## Layout
-
-The extension is intentionally small and
-should stay small. The target shape:
 
 ```text
 editors/vscode/src/
@@ -48,207 +42,229 @@ editors/vscode/src/
 
 Tests live next to source as `*.test.ts`.
 
-**Current vs target**: today
-`extension.ts` also runs the LSP client.
-It watches the config file. It calls
-`vscode.commands.registerCommand` directly
-(see `registerPaletteCommands`). That
-work should move to `wiring.ts` and
-`commands/*`. Do not grow `extension.ts`
-further. Add new code where the target
-shape places it.
+**Current state**: `extension.ts` also
+runs the LSP client today. It watches
+`.mdsmith.yml` for config changes. It
+calls `vscode.commands.registerCommand`
+directly via `registerPaletteCommands`.
+That work should move to `wiring.ts` and
+`commands/*`. New code should not grow
+`extension.ts` further — place it where
+the target shape expects it.
 
-## Single responsibility per module
+## Modules answer one question
 
-Each `commands/<name>.ts` holds one command.
-Shared steps live in `commands/runner.ts`.
-Today it owns subprocess spawn and returns
-typed `{stdout, stderr, exitCode}` results.
-Target: parse those results into typed
-domain shapes that commands consume. Do not
-copy spawn logic into each command.
+Each `commands/<name>.ts` holds one
+command. Shared steps (subprocess spawn,
+output capture, error formatting) live
+in `commands/runner.ts`. We do not copy
+those steps into each command; if a
+command needs a variant, the variant
+goes in `runner.ts` so every consumer
+sees it.
 
-A command past ~200 lines should split. Pick
-three modules. One picks the args. One runs
-the call. One shows the result.
+A command past ~200 lines should split.
+The natural split is three modules: one
+picks the args, one runs the call, one
+shows the result.
 
-## Open/closed: adding a command
+## Adding a command (target shape)
 
-Target: a new command should be added
-without modifying `extension.ts`. Steps:
+The target is that adding a command does
+not modify `extension.ts`:
 
-1. Create `commands/<name>.ts` exporting a
-   registration function.
+1. Create `commands/<name>.ts` exporting
+   a registration function.
 2. Wire it from `wiring.ts`.
-3. Add `commands/<name>.test.ts` alongside.
+3. Add `commands/<name>.test.ts`
+   alongside.
 4. Add the matching entry to the
    `contributes.commands` section of
    `package.json`.
 
 **Current state**: commands register in
-`extension.ts` today. The helper is
+`extension.ts` today via
 `registerPaletteCommands`. Add new
-entries there. Move that helper to
-`wiring.ts` later. Keep `activate` thin:
-delegate registration to a helper instead
-of inlining `vscode.commands.registerCommand`
-calls in the activation body.
+entries to that helper. Do not call
+`vscode.commands.registerCommand` from
+the activation body. Keeping
+registration in one helper makes the
+eventual move to `wiring.ts` mechanical.
 
-The `contributes` section of `package.json`
-is the public surface for VS Code commands
-and configuration. Treat it as part of the
-contract; changing the id or arguments of a
+The `contributes` section of
+`package.json` is the public surface for
+VS Code commands and configuration.
+Treat it as part of the contract;
+changing the id or arguments of a
 shipped command is a breaking change.
 
-## Liskov: commands are interchangeable
+## Commands are interchangeable (Liskov)
 
-Every command takes the same wiring shape.
-That shape is a typed dependency object or
-`vscode.ExtensionContext`. Every command
-returns `Promise<void>` or
-`vscode.Disposable`.
+Every command takes the same wiring
+shape — a typed dependency object or
+`vscode.ExtensionContext` — and returns
+`Promise<void>` or `vscode.Disposable`.
+We do not add optional, command-specific
+parameters at the registration site. If
+a command needs extra configuration, it
+reads it from workspace settings inside
+the command.
 
-Do not introduce optional, command-specific
-parameters at the registration site. If a
-command needs extra configuration, read it
-from workspace settings inside the command.
-Do not push it onto the caller.
+A command commits to one return shape.
+"Maybe done, maybe not" violates Liskov;
+the caller should not need to know which
+kind it received.
 
-A command must commit to one return shape.
-"Maybe done, maybe not" violates Liskov. The
-caller should not need to know which kind it
-received.
+## `binary.ts` is a narrow interface
 
-## Interface segregation: the binary boundary
+`binary.ts` exposes a small interface
+for locating and invoking the `mdsmith`
+binary. Functions stay narrow:
 
-`binary.ts` exposes a small interface for
-locating and invoking `mdsmith`. Functions
-should be narrow:
+- "Find the binary path" does not also
+  warm a cache of subcommand outputs.
+- "Run `mdsmith kinds --json`" does not
+  also run `mdsmith fix .`.
 
-- "Find the binary path" should not also
-  "warm a cache of subcommand outputs".
-- "Run `mdsmith kinds --json`" should not
-  also "run `mdsmith fix .`".
+Add a new function rather than widening
+an existing one. Consumers import only
+what they need.
 
-Add a new function rather than widening an
-existing one. Consumers should only import
-the functions they need; tree-shaking is a
-nice consequence of well-segregated
-modules.
+## Typed boundaries
 
-## Dependency inversion: prefer types
-
-The extension communicates with the Go core
-through three typed boundaries. Never
+The extension talks to the Go core
+through three typed boundaries; we never
 thread raw, unparsed values across them:
 
 - **LSP protocol** — typed via
-  `vscode-languageclient`. Capabilities are
-  the contract; treat additions as additive
-  and removals as breaking.
+  `vscode-languageclient`. Capabilities
+  are the contract; additions are
+  additive, removals are breaking.
 - **Subprocess invocation** of the
   `mdsmith` binary — typed by the JSON
-  schema returned by each subcommand and
+  schema each subcommand returns,
   parsed in `commands/runner.ts`.
-- **File system reads** — typed via narrow
-  shape interfaces (e.g. a parsed
-  `.mdsmith.yml` shape, not raw YAML).
+  Today `runner.ts` owns subprocess
+  spawn and returns
+  `{stdout, stderr, exitCode}`. Target:
+  parse those results into typed
+  domain shapes that commands consume.
+- **File system reads** — typed via
+  narrow shape interfaces (e.g. a
+  parsed `.mdsmith.yml` shape, not raw
+  YAML).
 
-If `mdsmith kinds --json` returns a list,
+If a binary subcommand returns a list,
 parse it into a typed value in
-`runner.ts`; consumers see the type, not
-the raw JSON. The boundary between strings
-and types should be exactly one function
-deep.
+`runner.ts`; consumers see the type,
+not the raw JSON. The boundary between
+strings and types should be exactly one
+function deep.
 
-## Clean architecture in extension.ts
+## `extension.ts` is wiring only (target)
 
-Target: `extension.ts` should be wiring
-only:
+Target shape:
 
 - Activate the extension.
 - Construct the wiring object.
 - Hand control to `wiring.ts`.
 
-Today `extension.ts` also owns the LSP
-client, a config-file watcher, and direct
-command registrations. Those concerns are
-scheduled to move into `wiring.ts` and
-dedicated command modules. When adding
-new code, do not extend the current
-pattern — place it where the target shape
-expects it.
+**Current state**: `extension.ts` also
+owns the LSP client. It owns a
+config-file watcher. It owns direct
+command registrations. Those concerns
+are slated to move to `wiring.ts` and
+dedicated command modules. The
+violations list flags new additions to
+`extension.ts` outside the existing
+`registerPaletteCommands` helper.
 
-## Testing patterns
+## Tests
 
-- Pure unit tests for each module using the
-  project's configured test runner (see
+- Pure unit tests for each module
+  using the project's configured test
+  runner (see
   `editors/vscode/package.json` →
   `scripts.test`).
-- Extract pure functions out of command
-  bodies and unit-test those instead of
-  mocking `vscode`. Mock the `vscode` API
-  only when unavoidable.
-- For the binary boundary, prefer running
-  the real binary against a fixture
-  workspace over mocking subprocess calls.
+- Extract pure functions out of
+  command bodies and unit-test those
+  instead of mocking `vscode`. Mock
+  the `vscode` API only when
+  unavoidable.
+- For the binary boundary, prefer
+  running the real binary against a
+  fixture workspace over mocking
+  subprocess calls.
 - Place test fixtures under
   `editors/vscode/test-fixtures/` or
-  alongside the test that uses them. Do
-  not import fixture data across command
-  modules.
+  alongside the test that uses them.
+  Do not import fixture data across
+  command modules.
 
-## Common violations to flag
+## Patterns audit has caught here
 
-- A command that imports another command.
-- A command that constructs paths to
-  another command's artifacts (use
-  `wiring.ts` to share state).
-- A type declared in `extension.ts` that is
-  used by commands — should live in
+These are the mdsmith-specific shapes
+the audit flags:
+
+- **A command that imports another
+  command.** Share state through
+  `wiring.ts` instead.
+- **A command that constructs paths to
+  another command's artifacts.** Same
+  fix; go through wiring.
+- **A type declared in `extension.ts`
+  used by commands.** Belongs in
   `wiring.ts` or its own module.
-- Raw `child_process.exec` outside
-  `binary.ts` or `commands/runner.ts`.
-- A field added to `package.json`
+- **Raw `child_process.exec` outside
+  `binary.ts` or `commands/runner.ts`.**
+  The subprocess boundary is one place.
+- **A field added to `package.json`
   `contributes` without a corresponding
-  module that owns it.
-- A test that spins up the full VS Code
-  host to test logic that could be
-  unit-tested out of band.
-- A `vscode.commands.registerCommand` call
-  inlined in `activate()` or anywhere
-  outside `registerPaletteCommands` (and,
+  module that owns it.** A contract
+  drift bomb.
+- **A test that spins up the full VS
+  Code host** to test logic that could
+  be unit-tested out of band.
+- **A `vscode.commands.registerCommand`
+  call inlined in `activate()` or
+  anywhere outside
+  `registerPaletteCommands`** (and,
   after the planned refactor, anywhere
   outside `wiring.ts`).
-- A `Util`, `Helpers`, or `Misc` module
-  anywhere in `src/`.
+- **A `Util`, `Helpers`, or `Misc`
+  module anywhere in `src/`.** Same
+  smell, same fix.
 
 ## Match the npm shim
 
-`npm/mdsmith/test/shim.test.ts` tests the
-binary-launcher shim. The shim is the only
-place that knows how to find and exec the
-Go binary across platforms. The VS Code
-extension's `binary.ts` should consume that
-contract, not reimplement it. If the
-extension needs platform-specific behavior
-the shim does not provide, add the
-behavior to the shim first.
+`npm/mdsmith/test/shim.test.ts` tests
+the binary-launcher shim. The shim is
+the only place that knows how to find
+and exec the Go binary across
+platforms. The extension's `binary.ts`
+should consume that contract, not
+reimplement it. If the extension needs
+platform-specific behavior the shim
+does not provide, the behavior goes
+into the shim first.
 
-## Refactor moves that usually work
+## Refactor moves we have used
 
-- A command with three responsibilities →
-  split into three commands or one command
-  plus two helpers in `commands/runner.ts`.
-- A growing `wiring.ts` → extract a
+- A command with three responsibilities
+  splits into three commands, or one
+  command plus two helpers in
+  `commands/runner.ts`.
+- A growing `wiring.ts` extracts a
   registry module that commands enroll
-  into; `wiring.ts` becomes a thin call
+  into; `wiring.ts` stays a thin call
   list.
-- Raw JSON crossing module boundaries →
-  parse into a typed shape at the binary
-  boundary and pass the shape onward.
-- `vscode.workspace.getConfiguration` calls
-  scattered through commands → centralize
-  into a config-reader module typed to the
-  `.mdsmith.yml` and `package.json`
-  contributes schemas.
+- Raw JSON crossing module boundaries
+  parses into a typed shape at the
+  binary boundary; consumers see the
+  shape, not the JSON.
+- Scattered
+  `vscode.workspace.getConfiguration`
+  calls centralize into a config-reader
+  module typed to the `.mdsmith.yml`
+  and `package.json` `contributes`
+  schemas.

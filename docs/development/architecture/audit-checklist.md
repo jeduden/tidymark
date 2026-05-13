@@ -9,43 +9,64 @@ summary: >-
 ---
 # Architecture audit checklist
 
-Walk this list during an audit run. The
-audit is a survey; do not edit offending
-code in the same run. For each finding,
-append an entry to the audit log with:
+The
+[solid-architecture skill][skill-audit]
+holds the generic audit workflow.
 
-- File(s) involved.
-- Principle violated (one of: SRP, OCP,
-  LSP, ISP, DIP) or layering rule
-  ("dependency direction", "boundary
-  contract", etc.).
-- Severity: `blocker`, `tax`, or
-  `nice-to-have`.
-- Suggested fix — a short sentence, or a
-  bullet list if a single sentence would
-  trip MDS023 / MDS024 readability checks
-  on the audit log.
+This page is the mdsmith-specific
+binding. It pins down the audit log
+path, the plan numbering convention,
+the lint command that refreshes parent
+catalogs, and the project's lint
+budget.
 
-The audit log lives at
-`docs/development/architecture-audit.md`
-(create it on the first run; see "Initial
-file" below).
+[skill-audit]: ../../../.claude/skills/solid-architecture/audit-checklist.md
 
-## Initial file
+## mdsmith-specific bindings
 
-If `docs/development/architecture-audit.md`
-does not exist, create it with this
-shape:
+- **Audit log location**:
+  `docs/development/architecture-audit.md`.
+  Created on the first run from the
+  skill checklist's "Initial file"
+  template.
+- **`audit-from:` front-matter field**:
+  the SHA the next sweep starts from.
+  Updated at the end of every audit.
+- **Plan directory**: `plan/` with a
+  numeric prefix
+  (`plan/<NNN>_arch-fix-<slug>.md`).
+  The next available number is one above
+  the highest existing prefix.
+- **Plan status sentinel**: `🔲` for
+  "not started" (see
+  [plan/proto.md](../../../plan/proto.md)).
+- **Lint command after recording**: run
+  `mdsmith fix .` from the workspace
+  root so the audit-log entry refreshes
+  in the parent catalogs in CLAUDE.md,
+  AGENTS.md, PLAN.md, and
+  `.github/copilot-instructions.md`.
+- **Line-length budget for log
+  entries**: 80 characters outside code
+  blocks, tables, and URLs (the project
+  default in `.mdsmith.yml`).
+- **Readability budget**: bullet lists
+  beat dense paragraphs for the
+  per-finding "suggested fix". Single
+  sentences over ~30 words trip MDS023 /
+  MDS024 on the audit log.
+
+## Initial file template
 
 ```markdown
 ---
 title: Architecture audit log
 summary: >-
-  Running log of SOLID and clean-architecture
-  findings on origin/main. The
-  solid-architecture skill (audit mode)
-  appends here; blockers are also filed as
-  plans.
+  Running log of SOLID and clean-
+  architecture findings on origin/main.
+  The solid-architecture skill (audit
+  mode) appends here; blockers are also
+  filed as plans.
 audit-from: <commit SHA one month ago>
 ---
 # Architecture audit log
@@ -63,214 +84,90 @@ solid-architecture skill in audit mode.
 ### nice-to-have
 ```
 
-Pick a starting SHA one month back unless
-the user supplies a different baseline.
-
-If the one-month-back lookup returns empty
-on a young repo, fall back to the root
-commit:
+If the one-month-back lookup returns
+empty on this repo, fall back to the
+root commit:
 
 ```bash
 git rev-list --max-parents=0 origin/main
 ```
 
-The first SHA in that output is the
-baseline.
+Use the first SHA from that output as
+the baseline. (At the time of writing,
+the mdsmith repo is younger than a
+month, so every audit so far has used
+this fallback.)
 
-## Step 1: refresh the checkpoint
+## Walking the checklist
 
-Read the last audit SHA from the audit log's
-front matter (`audit-from:`). Call it
-`<from-sha>` below; paste the literal SHA
-into each command rather than capturing it
-into a shell variable (the allowed-tools
-allowlist matches on the command's leading
-token, so a `VAR=… cmd` prefix or `$(…)`
-capture would block the call).
+Follow the steps in
+[the skill's audit checklist][skill-audit]
+exactly. The skill describes the
+generic workflow:
 
-Fetch:
+1. Refresh the checkpoint (with the
+   shell-variable warnings the skill
+   spells out).
+2. Walk the language-level layering
+   checks — Go and TypeScript — using
+   [Go patterns](go.md) and
+   [TypeScript patterns](typescript.md)
+   on this repo.
+3. Walk the cross-system contract
+   checks against
+   [cross-system contracts](cross-system.md).
+4. Apply the severity rubric.
+5. Append findings to the audit log
+   under a new `## Audit YYYY-MM-DD`
+   heading.
+6. Group blockers by the structural fix
+   they share into one plan each.
+7. Tell the user what was found and
+   what was scheduled.
 
-```bash
-git fetch origin main
-```
+## mdsmith-specific checks worth flagging
 
-List the files touched since the checkpoint
-— replace `<from-sha>` with the actual SHA
-before running:
+These show up enough that they deserve
+explicit mention here:
 
-```bash
-git log --name-only --pretty=format: <from-sha>..origin/main
-```
+- **A rule package importing another
+  rule package** — always a DIP
+  blocker. Helpers belong in
+  `internal/mdtext` or
+  `internal/rules/astutil`.
+- **`cmd/mdsmith/main.go` past ~1000
+  lines** — handler bodies have crept
+  in; relocate to `internal/engine` or
+  a per-subcommand file.
+- **`internal/lsp/server.go` or
+  `symbols.go` past ~1000 lines** —
+  split along the dispatch groups.
+- **A `.mdsmith.yml` field reachable
+  from only one rule** — push it into
+  that rule's settings struct.
+- **A new public method on
+  `internal/engine` added to satisfy
+  one LSP capability** — consider
+  consuming an existing engine output
+  instead.
+- **A test that imports
+  `internal/engine` to test a rule** —
+  push it to a fixture under the
+  rule's `good/` or `bad/` directory.
 
-Keep the file list in your notes as the
-"touched set" for the rest of this audit;
-do not assign it to a shell variable.
-
-When auditing in a worktree, first verify
-the worktree has the architecture docs.
-Run `ls docs/development/architecture/`.
-Concurrent worktree creation can race;
-catch the mismatch before walking.
-
-## Step 2: Go layering checks
-
-For each Go file in the touched set:
-
-- Does it import only from lower layers?
-  Cross-check against the layering map in
-  the [architecture hub](index.md).
-- Is its package still answering one
-  question? If the package has grown three
-  new files in unrelated areas, flag it
-  for split (SRP).
-- Are new `rule.Rule` implementations
-  using only `rule.*` interfaces and not
-  reaching into `internal/engine`? (DIP)
-- Does any new function in
-  `internal/engine` only serve one rule?
-  If so, flag it for relocation. (SRP)
-- Are new interfaces minimal? An interface
-  with one implementor is a smell unless
-  it sits on a boundary. (ISP)
-- Do any new error types add fields that
-  callers ignore? Flag for simplification.
-- Are there new packages named `util`,
-  `common`, `helpers`, or `lib`? Always a
-  blocker (SRP).
-
-## Step 3: TypeScript layering checks
-
-For each `.ts` file in the touched set
-under `editors/vscode/`:
-
-- Does a command import another command?
-  Flag (DIP).
-- Did `extension.ts` gain logic? Flag — it
-  should only call `wiring.ts` (SRP).
-- Did `binary.ts` grow non-binary
-  concerns? Flag (SRP).
-- Are new tests new modules or new
-  assertions on existing ones? New
-  command modules without tests are
-  blockers.
-- Did `package.json` `contributes` gain a
-  field with no owning module? Blocker.
-- Did any command call `child_process`
-  directly outside `binary.ts` or
-  `commands/runner.ts`? Blocker (DIP).
-
-## Step 4: cross-system contract checks
-
-- Did the `.mdsmith.yml` schema gain a
-  field? If yes, is it documented under
-  `docs/reference/`? Is it backward
-  compatible? If not, blocker.
-- Did CLI flags change? Run
-  `mdsmith help` and diff against the
-  reference docs. Any renamed or removed
-  flags are blockers without a
-  deprecation window.
-- Did the LSP server gain a capability?
-  Is there a fixture test? Did the VS
-  Code client opt into it (if expected
-  to)?
-- Did `npm/`, `python/`, or the plugin
-  manifest gain logic that should live in
-  the binary? Flag.
-- Did a generated section marker syntax
-  change in any way that breaks parsing
-  of older markers? Blocker.
-
-## Step 5: severity rubric
-
-- **blocker** — violates dependency
-  direction, breaks a published contract,
-  or makes a future refactor materially
-  harder. Schedule a fix before the next
-  release. File a plan under `plan/` with
-  a back-link to the audit entry.
-- **tax** — works today but adds friction
-  (e.g. a function in the wrong package,
-  a rule with one-off settings). Schedule
-  inside the next plan cycle; leave the
-  entry in the audit log until picked up.
-- **nice-to-have** — cosmetic (naming,
-  small duplication, doc tightening).
-  Batch into a cleanup commit when
-  convenient.
-
-## Step 6: record findings
-
-Append to the audit log under a new
-`## Audit YYYY-MM-DD (range: …)` section.
-For each severity, list bullets:
-
-```markdown
-### blockers
-
-- `internal/engine/foo.go`: imports
-  `internal/rules/mds001-...`. Violates
-  DIP — engine must not depend on rule
-  packages. Fix by routing through
-  `rule.Rule`.
-```
-
-Update the `audit-from:` field to the
-current `origin/main` SHA. Then run
-`mdsmith fix .` from the workspace root.
-That refreshes the audit log's own catalog
-and the parent catalogs in CLAUDE.md,
-AGENTS.md, PLAN.md, and
-.github/copilot-instructions.md.
-
-## Step 7: schedule
-
-Group blockers by the structural fix they
-need. One plan covers one fix, even if it
-resolves several audit entries; the plan
-lists each entry it closes out.
-
-For each group:
-
-- Create a new plan file under `plan/`
-  using the next available numeric
-  prefix. Title format:
-  `arch-fix-<short-slug>`. Reference every
-  audit entry the plan closes in the
-  plan's "Context" section.
-- Set the plan `status` to `🔲`.
-- If the plan would exceed
-  `mdsmith check`'s `max-file-length`,
-  split it along the natural seams of the
-  fix (per-package, per-surface) and have
-  the split plans link to each other in
-  the "Context" section.
-
-For each tax and nice-to-have:
-
-- Leave in the audit log. Mention in the
-  next routine cleanup plan.
-
-## Step 8: tell the user
-
-Summarize: number of blockers, number of
-tax, number of nice-to-have. List the new
-plan filenames. Do not modify offending
-code; the audit run is complete.
-
-## Common skip cases
+## Common skip cases in this repo
 
 - Files under `testdata/` and
   `internal/rules/MDS###-<rule-name>/{good,bad}/`
-  are fixtures; their architecture is by
-  design.
+  are fixtures; their architecture is
+  by design.
 - Generated section bodies (between
   `<?directive?>` markers) are
   auto-produced; review the directive
   parameters, not the body.
-- Comments-only changes do not require an
-  audit entry unless they document a
-  contract that has changed.
+- Comments-only changes do not require
+  an audit entry unless they document
+  a contract that has changed.
 - Vendored or generated Go code
-  (`*_gen.go`, code under `internal/…/gen`)
-  is excluded.
+  (`*_gen.go`, code under
+  `internal/…/gen`) is excluded.

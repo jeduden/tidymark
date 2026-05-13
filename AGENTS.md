@@ -37,7 +37,7 @@ row: "- [{summary}]({filename})"
 - [How mdsmith compares to other Markdown linters.](docs/background/markdown-linters.md)
 - [Running log of SOLID and clean-architecture findings on origin/main. The solid-architecture skill (audit mode) appends here; blockers are also filed as plans.](docs/development/architecture-audit.md)
 - [Checklist for sweeping origin/main for SOLID and boundary violations. Records findings in the audit log; schedules blockers as new plan files.](docs/development/architecture/audit-checklist.md)
-- [External-surface contracts: LSP, CLI, .mdsmith.yml, generated markers, plugin manifest, distribution shims. Public APIs with stricter compatibility rules than internal code.](docs/development/architecture/cross-system.md)
+- [External-surface contracts: LSP, CLI, .mdsmith.yml, generated markers, plugin manifest, distribution shims. Public APIs.](docs/development/architecture/cross-system.md)
 - [Go-specific SOLID and clean architecture patterns for mdsmith's cmd/ and internal/ packages.](docs/development/architecture/go.md)
 - [SOLID and clean-architecture rules for mdsmith's Go core, TypeScript extension, and cross-system surfaces. Canonical home for the solid-architecture skill.](docs/development/architecture/index.md)
 - [SOLID and clean architecture patterns for the mdsmith VS Code extension at editors/vscode/.](docs/development/architecture/typescript.md)
