@@ -33,9 +33,12 @@ versioning rules that apply.
 | asdf / mise plugin                    | external repos                                       | language-tool users                        |
 | VS Code `contributes`                 | `editors/vscode/package.json`                        | the extension host                         |
 
-A breaking change at any of these surfaces
-is a SemVer-major event. Treat them as
-public APIs.
+Treat each surface as a public API. mdsmith
+is at major 0 today, so strict SemVer does
+not bind us yet — but breaks must be
+deliberate and noted in the changelog so
+downstream consumers can keep up. Once we
+hit 1.0 a break is a SemVer-major event.
 
 ## How mdsmith holds the line
 
@@ -79,6 +82,12 @@ allowed to reach into the binary's
 internals.
 
 ## Versioning rules (concrete)
+
+The rules below describe the post-1.0
+contract we are converging on. Today
+(major 0) we still aim for them — every
+break should be deliberate and noted in
+the changelog.
 
 - The **CLI** follows SemVer. Adding a
   flag is minor; renaming or removing

@@ -33,8 +33,12 @@ surfaces and their owner packages.
 | Distribution shim      | Language-specific install wrapper (npm, pip, …)                   |
 | Editor `contributes`   | The plugin's contributed commands and settings                    |
 
-A breaking change at any of these surfaces
-is a SemVer-major event.
+Once the project is at major 1, a breaking
+change at any of these surfaces is a
+SemVer-major event. Pre-1.0 the bar is
+softer: breaks are allowed but should be
+deliberate and recorded in the changelog
+so consumers can keep up.
 
 ## Dependency inversion at the boundary
 
@@ -82,6 +86,13 @@ new fields on every JSON envelope "in
 case someone wants them".
 
 ## Versioning and compatibility
+
+Rules below assume the project is at
+major 1 or higher. Pre-1.0 the
+constraints are looser but the same
+shape applies; record every break in
+the changelog and prefer additive
+changes when feasible.
 
 - The **CLI** follows SemVer. Adding a
   flag is minor; renaming or removing
