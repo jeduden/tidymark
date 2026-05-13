@@ -9,3 +9,4 @@ internal/rules/concisenessscoring/wasmclassifier/classifier.wasm
 e2e-cover/
 unit.cov
 merged.cov
+.github/scripts/node_modules/

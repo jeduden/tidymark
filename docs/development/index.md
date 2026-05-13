@@ -10,6 +10,8 @@ See also:
 - [File placement](file-placement.md)
 - [Merge queue](merge-queue.md)
 - [PR fixup workflow](pr-fixup-workflow.md)
+- [Release pipeline](release.md)
+- [Secret rotations](secret-rotations.md)
 
 ## Build & Test Commands
 

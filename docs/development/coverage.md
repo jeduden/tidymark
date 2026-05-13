@@ -21,9 +21,9 @@ percentages. Fix regressions by adding tests for the
 uncovered code paths before merging.
 
 Configuration lives in `codecov.yml` at the repo
-root. The `test` job in `.github/workflows/ci.yml`
-uploads the merged coverage profile to Codecov after
-each run.
+root. Two CI jobs upload reports — `test` under flag
+`go` and `vscode-extension` under flag `typescript`.
+Each flag scopes the report to its language's files.
 
 ## Branch and function coverage
 

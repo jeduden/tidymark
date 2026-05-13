@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/jeduden/mdsmith/internal/release"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -227,5 +229,164 @@ version = "0.0.0-dev"
 		full := filepath.Join(root, rel)
 		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
 		require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+	}
+}
+
+// TestRunRecordRotationHappyPath dispatches through `run` with
+// a real per-secret file in a temp tree so the runRecordRotation
+// success-with-change branch is covered end-to-end.
+func TestRunRecordRotationHappyPath(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "docs", "development", "secret-rotations")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	body := "---\n" +
+		"title: VSCE_PAT\n" +
+		"lastRotated: \"2026-04-01\"\n" +
+		"periodDays: 335\n" +
+		"---\nbody\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vsce-pat.md"), []byte(body), 0o644))
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	assert.Equal(t, 0, run([]string{"record-rotation", "VSCE_PAT", "2026-05-12"}))
+	// Re-run with the same date: returns 0 but logs the no-op
+	// path through runRecordRotation.
+	assert.Equal(t, 0, run([]string{"record-rotation", "VSCE_PAT", "2026-05-12"}))
+}
+
+// TestRunRecordRotationBadDate covers the err branch of
+// runRecordRotation: a calendar-invalid date trips IsISODate
+// inside release.RecordRotation and propagates back as exit 1.
+func TestRunRecordRotationBadDate(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "docs", "development", "secret-rotations")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	assert.Equal(t, 1, run([]string{"record-rotation", "ANY", "2026-02-31"}))
+}
+
+// TestRunRecordRotationRejectsBadArity covers the fs.NArg()
+// guard in runRecordRotation. The CLI prints usage and returns
+// 2 when the caller forgets the date arg.
+func TestRunRecordRotationRejectsBadArity(t *testing.T) {
+	assert.Equal(t, 2, run([]string{"record-rotation", "VSCE_PAT"}))
+}
+
+// TestRunCheckSecretRotationsRejectsBadArity covers the
+// fs.NArg() guard in runCheckSecretRotations.
+func TestRunCheckSecretRotationsRejectsBadArity(t *testing.T) {
+	assert.Equal(t, 2, run([]string{"check-secret-rotations", "extra-arg"}))
+}
+
+// TestRunCheckSecretRotationsErrorsOnMissingDir covers the err
+// branch of runCheckSecretRotations: with no secret-rotations
+// directory in cwd, LoadRotations returns an error and the
+// subcommand exits 1.
+func TestRunCheckSecretRotationsErrorsOnMissingDir(t *testing.T) {
+	root := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	assert.Equal(t, 1, run([]string{"check-secret-rotations"}))
+}
+
+// TestRunCheckSecretRotationsHappyPath dispatches through `run`
+// with a per-secret file whose lastRotated is the workflow's
+// `today` value (so no entries are due). The subcommand prints
+// the "no secrets due for rotation" line and returns 0,
+// covering runCheckSecretRotations' default success branches
+// without needing a real `gh` binary on the runner.
+func TestRunCheckSecretRotationsHappyPath(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "docs", "development", "secret-rotations")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	// Make periodDays large enough that the entry is not due no
+	// matter what real-clock day the test runs. 4000 days ~ 11
+	// years from any lastRotated within the last decade.
+	body := "---\n" +
+		"title: VSCE_PAT\n" +
+		"lastRotated: \"2026-05-12\"\n" +
+		"periodDays: 4000\n" +
+		"provider: Azure\n" +
+		"issuerUrl: https://x\n" +
+		"usedBy: r\n" +
+		"scope: s\n" +
+		"---\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "v.md"), []byte(body), 0o644))
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	assert.Equal(t, 0, run([]string{"check-secret-rotations"}))
+}
+
+// TestRunCheckSecretRotationsRejectsUnknownFlag covers the
+// pflag parse-error path. ContinueOnError + reportFlagParseErr
+// returns 2 with the message on stderr.
+func TestRunCheckSecretRotationsRejectsUnknownFlag(t *testing.T) {
+	assert.Equal(t, 2, run([]string{"check-secret-rotations", "--bogus"}))
+}
+
+// TestRunRecordRotationRejectsUnknownFlag covers the
+// reportFlagParseErr branch of runRecordRotation.
+func TestRunRecordRotationRejectsUnknownFlag(t *testing.T) {
+	assert.Equal(t, 2, run([]string{"record-rotation", "--bogus", "T", "2026-05-12"}))
+}
+
+// TestPrintCheckResult verifies the three formatting branches
+// of the human-readable summary.
+func TestPrintCheckResult(t *testing.T) {
+	cases := []struct {
+		name string
+		res  release.CheckSecretRotationsResult
+		want []string
+	}{
+		{
+			name: "opened only",
+			res:  release.CheckSecretRotationsResult{Opened: []string{"A", "B"}},
+			want: []string{"opened secret-rotation reminders for: [A B]"},
+		},
+		{
+			name: "skipped only",
+			res:  release.CheckSecretRotationsResult{Skipped: []string{"C"}},
+			want: []string{"existing open reminders (skipped): [C]"},
+		},
+		{
+			name: "opened and skipped together",
+			res: release.CheckSecretRotationsResult{
+				Opened:  []string{"A"},
+				Skipped: []string{"B"},
+			},
+			want: []string{
+				"opened secret-rotation reminders for: [A]",
+				"existing open reminders (skipped): [B]",
+			},
+		},
+		{
+			name: "neither",
+			res:  release.CheckSecretRotationsResult{},
+			want: []string{"no secrets due for rotation"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			printCheckResult(&buf, tc.res)
+			for _, line := range tc.want {
+				assert.Contains(t, buf.String(), line)
+			}
+		})
 	}
 }

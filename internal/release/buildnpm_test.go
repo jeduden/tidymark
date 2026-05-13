@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,6 +117,58 @@ func TestBuildNpmPlatformsFailsWhenRootManifestMissing(t *testing.T) {
 	err := BuildNpmPlatforms(root, artifacts, filepath.Join(root, "dist"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "npm/mdsmith/package.json")
+}
+
+// TestNpmChannelDocMatchesPlatformBuilds is the consistency gate
+// for the npm package enumeration. `docs/development/release-
+// channels/npm.md` is documented as the canonical list (release.md
+// and docs/guides/install.md link to it instead of duplicating);
+// this test parses the first contiguous bullet list in that file
+// and asserts an exact ordered match against `npmPlatformBuilds`
+// (preceded by the `@mdsmith/cli` root). The exact match catches
+// missing entries, extra/obsolete entries, reordering, and
+// occurrences that happen to appear in unrelated prose or in code
+// blocks — any of which would silently let publishing drift from
+// the docs.
+func TestNpmChannelDocMatchesPlatformBuilds(t *testing.T) {
+	// Walk up from this package to the repo root. The doc path is
+	// relative to that, not relative to internal/release.
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	require.NoError(t, err)
+	docPath := filepath.Join(repoRoot, "docs", "development", "release-channels", "npm.md")
+	body, err := os.ReadFile(docPath)
+	require.NoError(t, err)
+
+	// Extract the first contiguous run of bullet lines. The doc
+	// has exactly one such block (the canonical list); any future
+	// edit that adds a second list above it would fail this test
+	// loudly, which is the intended UX. A blank line ends the run.
+	var actual []string
+	inList := false
+	for _, line := range strings.Split(string(body), "\n") {
+		// Strip trailing CR for CRLF-checked-out files.
+		line = strings.TrimRight(line, "\r")
+		if strings.HasPrefix(line, "- ") {
+			actual = append(actual, line)
+			inList = true
+			continue
+		}
+		if inList {
+			break
+		}
+	}
+	require.NotEmpty(t, actual, "npm.md: no bullet list found")
+
+	expected := []string{"- `@mdsmith/cli` — root, contains the shim"}
+	for _, pb := range npmPlatformBuilds {
+		expected = append(expected, "- `@mdsmith/"+pb.NodeTarget+"`")
+	}
+
+	assert.Equal(t, expected, actual,
+		"npm.md's first bullet list does not exactly match "+
+			"npmPlatformBuilds (preceded by @mdsmith/cli). "+
+			"Update both together — the doc is the single source "+
+			"of truth that the release and install docs link to.")
 }
 
 func TestBuildNpmPlatformsFailsWhenOutDirIsFile(t *testing.T) {

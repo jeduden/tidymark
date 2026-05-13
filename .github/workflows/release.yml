@@ -8,6 +8,16 @@ on:
 permissions:
   contents: read
 
+# Serialize every release run so two publish jobs cannot mint OIDC
+# tokens against the same registry at the same time. The group is
+# tag-agnostic — different tags pushed close together queue rather
+# than overlap. `cancel-in-progress: false` keeps the first run
+# going (cancelling mid-publish would leave the scoped platform
+# packages out of sync with the root package).
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   build:
     strategy:
@@ -61,18 +71,17 @@ jobs:
 
   vscode:
     runs-on: ubuntu-latest
+    # VSCE_PAT and OVSX_PAT are long-lived publisher tokens — see
+    # docs/development/release.md for why the `release` environment
+    # gates them and what reviewer rules the maintainer should set
+    # on it.
+    if: github.repository == 'jeduden/mdsmith'
+    environment: release
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      # `no-cache: true` disables the GitHub Actions tool cache that
-      # zizmor's cache-poisoning rule flags as an unprotected mutation
-      # surface; the action still downloads and verifies the bun
-      # release from oven-sh/bun for each run.
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: "1.3.11"
-          no-cache: true
+      - uses: ./.github/actions/setup-bun
       - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: go.mod
@@ -88,7 +97,15 @@ jobs:
         run: go run ./cmd/mdsmith-release stamp "${VERSION#v}"
       - name: Install extension dependencies
         working-directory: editors/vscode
-        run: bun install --frozen-lockfile
+        # `--ignore-scripts` blocks postinstall / preinstall hooks from
+        # every dep in the resolved tree. The mdsmith extension's
+        # production deps (vscode-languageclient) and dev deps
+        # (@vscode/vsce, typescript, @types/*) are pure-JS and need
+        # no install-time hooks — disabling them shrinks the blast
+        # radius if a future lockfile update or registry compromise
+        # ships a malicious lifecycle script (the TanStack /
+        # shai-hulud worm class).
+        run: bun install --frozen-lockfile --ignore-scripts
       - name: Run extension unit tests
         working-directory: editors/vscode
         run: bun test
@@ -168,6 +185,13 @@ jobs:
   npm:
     needs: [build]
     runs-on: ubuntu-latest
+    # See docs/development/release.md for the canonical description
+    # of `if:`, `environment:`, OIDC Trusted Publishing scope, and
+    # the operational checklist for npmjs.com / pypi.org / GitHub
+    # environment configuration. Workflow comments here only record
+    # the local intent of each setting.
+    if: github.repository == 'jeduden/mdsmith'
+    environment: release
     # `id-token: write` lets `npm publish --provenance` mint an OIDC
     # token so the npm registry stamps each tarball with verifiable
     # build metadata pointing at this exact workflow run.
@@ -224,18 +248,10 @@ jobs:
       - name: Publish platform packages
         # Platform packages publish first so the root never advertises
         # an optionalDependency npm cannot find. The root package
-        # publishes last, after every platform exists.
-        #
-        # Auth uses npm Trusted Publishing (OIDC): the workflow's
-        # `id-token: write` permission mints an OIDC token that npm
-        # exchanges for a short-lived publish credential. No
-        # NODE_AUTH_TOKEN required. Each of the six packages
-        # (@mdsmith/cli + 5 platform subpackages) needs a Trusted
-        # Publisher configured at
-        # https://www.npmjs.com/package/<name>/access (or, for
-        # packages that don't exist yet, as a "pending publisher"
-        # at https://www.npmjs.com/settings/<user>/trusted-publishers)
-        # pointing at jeduden/mdsmith and release.yml.
+        # publishes last, after every platform exists. Auth uses npm
+        # Trusted Publishing (OIDC) — see docs/development/release.md
+        # for the npmjs.com publisher configuration each of the six
+        # packages needs.
         run: |
           for pkg in npm/dist/*; do
             (cd "$pkg" && npm publish --access public --provenance)
@@ -247,10 +263,11 @@ jobs:
   pypi:
     needs: [build]
     runs-on: ubuntu-latest
-    # `id-token: write` lets pypa/gh-action-pypi-publish use Trusted
-    # Publishing (OIDC) so PyPI accepts each upload without a
-    # long-lived API token. Configure the trusted publisher on
-    # pypi.org → Manage Project → Publishing before the first tag.
+    # See docs/development/release.md for the canonical PyPI Trusted
+    # Publisher config (workflow + environment scope) and the
+    # operational checklist.
+    if: github.repository == 'jeduden/mdsmith'
+    environment: release
     permissions:
       contents: read
       id-token: write
@@ -289,12 +306,10 @@ jobs:
   release:
     needs: [build, vscode]
     runs-on: ubuntu-latest
-    # `id-token: write` mints the OIDC token that
-    # `actions/attest-build-provenance` and `cosign sign-blob`
-    # exchange for a short-lived Sigstore credential. No
-    # long-lived secrets. `attestations: write` is the dedicated
-    # scope the GitHub attestations API gates the
-    # provenance upload on.
+    # See docs/development/release.md for the rationale on `if:`,
+    # `environment:`, and the OIDC + attestations permission set.
+    if: github.repository == 'jeduden/mdsmith'
+    environment: release
     permissions:
       contents: write
       id-token: write

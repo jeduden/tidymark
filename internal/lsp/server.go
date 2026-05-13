@@ -49,7 +49,7 @@ type Server struct {
 	clientCaps   clientCapabilities
 
 	pendingMu     sync.Mutex
-	pending       map[string]*time.Timer
+	pending       map[string]*pendingLint
 	pendingRespMu sync.Mutex
 	pendingResp   map[string]chan rpcResponse
 
@@ -145,7 +145,7 @@ func New(opts Options) *Server {
 		logger:         logger,
 		docs:           newDocumentStore(),
 		settings:       userSettings{Run: runOnSave},
-		pending:        make(map[string]*time.Timer),
+		pending:        make(map[string]*pendingLint),
 		pendingResp:    make(map[string]chan rpcResponse),
 		diags:          make(map[string][]Diagnostic),
 	}
@@ -518,13 +518,22 @@ func (s *Server) handleDidClose(raw json.RawMessage) {
 	doc, _ := s.docs.get(uri)
 	s.docs.delete(uri)
 	// Cancel any armed debounce timer so a pending runLint cannot fire
-	// and re-publish diagnostics after we clear them below.
+	// and re-publish diagnostics after we clear them below. Collect the
+	// timer under the lock, delete the map entry, then call Stop OUTSIDE
+	// pendingMu — Stop hits the runtime timer heap and can block under
+	// load, and holding pendingMu across it would serialize concurrent
+	// scheduleLint callers. The local is named `pending` (not `p`) to
+	// avoid shadowing the function parameter holding the LSP params.
 	s.pendingMu.Lock()
-	if timer, ok := s.pending[uri]; ok {
-		timer.Stop()
+	var pendingTimer *time.Timer
+	if pending, ok := s.pending[uri]; ok {
+		pendingTimer = pending.timer
 		delete(s.pending, uri)
 	}
 	s.pendingMu.Unlock()
+	if pendingTimer != nil {
+		pendingTimer.Stop()
+	}
 	// Refresh the index from on-disk content so the closed buffer's
 	// last-saved state replaces the editor-only edits we accumulated.
 	// When the file no longer exists on disk we silently skip — the
@@ -653,54 +662,120 @@ func (s *Server) scheduleLint(uri string, trigger lintTrigger) {
 	if trigger != lintTriggerChange {
 		delay = 0
 	}
-	// Identity-checked replacement: the closure captures its own
-	// timer handle and only removes it from the pending map if the
-	// map still points at it. Without that check, a callback whose
-	// firing raced with a fresh scheduleLint would delete the new
-	// timer's map entry, breaking debouncing for the next change.
+	// Identity-token allocation: see runLintIfCurrent below. `p`
+	// is allocated before AfterFunc starts the timer goroutine, so
+	// the closure captures a stable, non-nil *pendingLint as its
+	// identity. The callback never reads `p.timer` — it only
+	// compares its captured `p` against `s.pending[uri]` — so the
+	// subsequent `p.timer = AfterFunc(...)` assignment is invisible
+	// to the callback path and cannot race the callback.
+	//
+	// The previous entry's timer.Stop() runs OUTSIDE pendingMu. Stop
+	// can be slow under load (heap operation on the runtime timer
+	// wheel) and holding the lock across it would serialize every
+	// concurrent scheduleLint call. A previous callback whose
+	// goroutine started before Stop wins this race only to find
+	// `s.pending[uri] == p` (not `prev`), so live=false and it
+	// returns silently.
 	s.pendingMu.Lock()
-	if existing, ok := s.pending[uri]; ok {
-		existing.Stop()
-	}
-	var timer *time.Timer
-	timer = time.AfterFunc(delay, func() {
-		// Re-check shutdown so a timer that armed before
-		// shutdown/exit but fires after them does not publish
-		// stale diagnostics during teardown.
-		if s.shutdown.Load() {
-			return
-		}
-		// Only run lint if THIS timer is still the live one for
-		// uri. A racing scheduleLint(uri) may have replaced us
-		// with a newer timer; that newer timer (or its immediate
-		// runLint, when debounce==0) is responsible for the next
-		// publish. Without this guard, an already-replaced timer
-		// could fire after Stop() lost the race and emit stale
-		// diagnostics on top of fresher ones.
-		s.pendingMu.Lock()
-		live := s.pending[uri] == timer
-		if live {
-			delete(s.pending, uri)
-		}
-		s.pendingMu.Unlock()
-		if !live {
-			return
-		}
-		s.runLint(uri)
+	prev, hadPrev := s.pending[uri]
+	p := &pendingLint{}
+	p.timer = time.AfterFunc(delay, func() {
+		s.runLintIfCurrent(uri, p)
 	})
-	s.pending[uri] = timer
+	s.pending[uri] = p
 	s.pendingMu.Unlock()
+	// Under pendingMu above, p is allocated, p.timer is assigned,
+	// and s.pending[uri] = p all happen atomically — no concurrent
+	// reader can observe a registered *pendingLint with a nil
+	// timer. The nil guard here is pure defense against a future
+	// caller that constructs a *pendingLint without going through
+	// scheduleLint and forgets to assign timer; production paths
+	// never trigger it.
+	if hadPrev && prev.timer != nil {
+		prev.timer.Stop()
+	}
+}
+
+// pendingLint is the identity token a debounced lint registers in
+// s.pending. The pointer itself is the identity key — each
+// scheduleLint call allocates a fresh *pendingLint. A stale
+// callback can identify itself by comparing its captured pointer
+// against s.pending[uri]: equal means we are still the live entry,
+// not equal means a newer scheduleLint has replaced us.
+//
+// The Stop handle is kept on the entry so handleDidClose and
+// stopPendingLints can cancel a still-pending timer without
+// reaching back into closure-captured locals.
+type pendingLint struct {
+	timer *time.Timer
+}
+
+// runLintIfCurrent is the body of the AfterFunc callback armed by
+// scheduleLint. It is a method (not an inline closure) so the
+// live-flag branch — which a real timer race only reaches
+// nondeterministically — is unit-testable.
+//
+// `p` is the *pendingLint scheduleLint allocated and registered in
+// s.pending. The pointer is captured by the closure, so a callback
+// firing before scheduleLint releases pendingMu blocks at the Lock
+// below; by the time it proceeds, the registration has completed
+// and `s.pending[uri] == p` resolves cleanly. A racing scheduleLint
+// that replaces s.pending[uri] makes `p` stale, and we bail out —
+// the replacement is responsible for the next publish, and without
+// this guard the editor would see back-to-back lints with the
+// older one flashing stale diagnostics on every fast keystroke.
+//
+// The shutdown re-check at the top is a cheap early-return for
+// timers that armed before Run's deferred cleanup ran; it covers
+// the window where stopPendingLints has not yet emptied the map.
+func (s *Server) runLintIfCurrent(uri string, p *pendingLint) {
+	// Fast-path: avoid the lock when shutdown has already been
+	// initiated. The atomic re-check below catches the case where
+	// the flag flips between this check and acquiring pendingMu.
+	if s.shutdown.Load() {
+		return
+	}
+	s.pendingMu.Lock()
+	// Fold the shutdown re-check into the live decision so the
+	// callback never publishes during teardown — even if shutdown
+	// flips after the fast-path above but before we get the lock.
+	// The explicit `ok` makes the check robust against a caller
+	// that ever passes a nil p: without `ok`, a missing map entry
+	// (nil) would compare equal to a nil p, leading to a spurious
+	// runLint on a deleted URI.
+	cur, ok := s.pending[uri]
+	live := ok && cur == p && !s.shutdown.Load()
+	if live {
+		delete(s.pending, uri)
+	}
+	s.pendingMu.Unlock()
+	if !live {
+		return
+	}
+	s.runLint(uri)
 }
 
 // stopPendingLints cancels every armed debounce timer. Called from
 // the shutdown/exit handlers so we do not publish diagnostics after
 // the client asked us to stop.
 func (s *Server) stopPendingLints() {
+	// Collect entries under the lock so we can drop the map state
+	// quickly, then call Stop OUTSIDE the lock. Stop hits the
+	// runtime timer heap and can block under load; holding
+	// pendingMu across N Stop calls would serialize every
+	// concurrent scheduleLint behind teardown.
 	s.pendingMu.Lock()
-	defer s.pendingMu.Unlock()
-	for uri, timer := range s.pending {
-		timer.Stop()
+	timers := make([]*time.Timer, 0, len(s.pending))
+	for uri, p := range s.pending {
+		if p.timer != nil {
+			timers = append(timers, p.timer)
+		}
 		delete(s.pending, uri)
+	}
+	s.pendingMu.Unlock()
+	for _, t := range timers {
+		t.Stop()
 	}
 }
 
