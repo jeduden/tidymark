@@ -30,6 +30,9 @@ flag_management:
     - name: typescript
       paths:
         - "editors/vscode/src/**"
+    - name: scripts
+      paths:
+        - ".github/scripts/**"
 
 component_management:
   individual_components:
@@ -41,6 +44,10 @@ component_management:
       name: TypeScript
       paths:
         - "editors/vscode/src/**"
+    - component_id: scripts
+      name: CI Scripts
+      paths:
+        - ".github/scripts/**"
 
 comment:
   layout: "condensed_header, condensed_files, condensed_footer, components"

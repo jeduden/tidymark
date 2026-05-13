@@ -46,12 +46,12 @@ interface RotationEntry {
   scope: string;
 }
 
-class SystemExit extends Error {}
+export class SystemExit extends Error {}
 
 /** Validate that `s` is a real calendar date in YYYY-MM-DD form.
  * Round-trips the parsed components so normalized invalid dates
  * (e.g. `2026-02-31` parsing to March 3) are rejected. */
-function isIsoDate(s: string): boolean {
+export function isIsoDate(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const parsed = new Date(`${s}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return false;
@@ -63,7 +63,7 @@ function isIsoDate(s: string): boolean {
 
 /** Compute today's date in UTC. The cron schedule is UTC, so the
  * computed due-state must match the workflow's wall clock. */
-function utcToday(): Date {
+export function utcToday(): Date {
   const now = new Date();
   return new Date(Date.UTC(
     now.getUTCFullYear(),
@@ -73,13 +73,13 @@ function utcToday(): Date {
 }
 
 /** Days between two UTC midnights, truncated to integer. */
-function daysBetween(later: Date, earlier: Date): number {
+export function daysBetween(later: Date, earlier: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.floor((later.getTime() - earlier.getTime()) / msPerDay);
 }
 
 /** Extract the YAML front matter block from a markdown file. */
-function parseFrontMatter(text: string, path: string): Record<string, unknown> {
+export function parseFrontMatter(text: string, path: string): Record<string, unknown> {
   if (!text.startsWith("---\n")) {
     throw new SystemExit(`${path}: no front matter (must start with '---\\n')`);
   }
@@ -94,18 +94,18 @@ function parseFrontMatter(text: string, path: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-type DueState = "ok" | "due" | "overdue";
+export type DueState = "ok" | "due" | "overdue";
 
 /** A signed days-until-due. Positive while the rotation is still
  * in the future, zero on the due date, negative once past due.
  * Callers format the value differently per status: "due in N
  * days" / "due today" / "OVERDUE by N days" (negate). */
-interface DueResult {
+export interface DueResult {
   status: DueState;
   daysUntilDue: number;
 }
 
-function dueState(today: Date, lastRotated: Date, periodDays: number): DueResult {
+export function dueState(today: Date, lastRotated: Date, periodDays: number): DueResult {
   const dueOn = new Date(lastRotated);
   dueOn.setUTCDate(dueOn.getUTCDate() + periodDays);
   const daysUntilDue = daysBetween(dueOn, today);
@@ -115,7 +115,7 @@ function dueState(today: Date, lastRotated: Date, periodDays: number): DueResult
 }
 
 /** Return the absolute GitHub URL of this repository. */
-function repoUrl(): string {
+export function repoUrl(): string {
   const server = (process.env.GITHUB_SERVER_URL ?? "https://github.com").replace(/\/+$/, "");
   const repo = process.env.GITHUB_REPOSITORY ?? "jeduden/mdsmith";
   return `${server}/${repo}`;
@@ -154,7 +154,7 @@ async function ensureLabel(): Promise<void> {
   labelEnsured = true;
 }
 
-function issueBody(entry: RotationEntry, fileBasename: string, due: DueResult): string {
+export function issueBody(entry: RotationEntry, fileBasename: string, due: DueResult): string {
   let headline: string;
   if (due.status === "overdue") {
     // daysUntilDue is negative once past due; negate for the
@@ -204,58 +204,64 @@ function issueBody(entry: RotationEntry, fileBasename: string, due: DueResult): 
   ].join("\n");
 }
 
+const REQUIRED_FRONT_MATTER_KEYS: (keyof RotationEntry)[] = [
+  "title", "lastRotated", "periodDays", "provider", "issuerUrl", "usedBy", "scope",
+];
+
+/** Validate a single rotation entry's front matter and project it
+ * into a `RotationEntry`. Throws `SystemExit` with a path-prefixed
+ * message on any structural failure. Separated from `loadRotations`
+ * so the validation rules are reachable from unit tests without
+ * filesystem fixtures. */
+export function validateRotationEntry(fm: Record<string, unknown>, path: string): RotationEntry {
+  for (const key of REQUIRED_FRONT_MATTER_KEYS) {
+    if (!(key in fm)) {
+      throw new SystemExit(`${path}: front matter missing \`${key}\``);
+    }
+  }
+  const lastStr = String(fm.lastRotated);
+  if (!isIsoDate(lastStr)) {
+    throw new SystemExit(
+      `${path}: \`lastRotated\` is not a valid ISO-8601 date (${JSON.stringify(lastStr)})`,
+    );
+  }
+  const periodDays = Number(fm.periodDays);
+  if (!Number.isInteger(periodDays)) {
+    throw new SystemExit(
+      `${path}: \`periodDays\` is not an integer (${JSON.stringify(fm.periodDays)})`,
+    );
+  }
+  // A zero or negative period would compute a due date on or
+  // before lastRotated, so every run would treat the secret as
+  // overdue and the reminder workflow would never go quiet.
+  // Reject the value at load time with a clear pointer to the
+  // bad file rather than silently spamming issues.
+  if (periodDays <= 0) {
+    throw new SystemExit(
+      `${path}: \`periodDays\` must be a positive integer (got ${periodDays})`,
+    );
+  }
+  return {
+    title: String(fm.title),
+    lastRotated: lastStr,
+    periodDays,
+    provider: String(fm.provider),
+    issuerUrl: String(fm.issuerUrl),
+    usedBy: String(fm.usedBy),
+    scope: String(fm.scope),
+  };
+}
+
 /** Load every per-secret rotation file from ROTATIONS_DIR. */
 async function loadRotations(): Promise<{ entry: RotationEntry; fileBasename: string }[]> {
   const glob = new Glob("*.md");
-  const required: (keyof RotationEntry)[] = [
-    "title", "lastRotated", "periodDays", "provider", "issuerUrl", "usedBy", "scope",
-  ];
   const entries: { entry: RotationEntry; fileBasename: string }[] = [];
   for await (const rel of glob.scan({ cwd: ROTATIONS_DIR })) {
     const fileBasename = basename(rel);
     const path = resolve(ROTATIONS_DIR, rel);
     const text = await Bun.file(path).text();
     const fm = parseFrontMatter(text, path);
-    for (const key of required) {
-      if (!(key in fm)) {
-        throw new SystemExit(`${path}: front matter missing \`${key}\``);
-      }
-    }
-    const title = String(fm.title);
-    const lastStr = String(fm.lastRotated);
-    if (!isIsoDate(lastStr)) {
-      throw new SystemExit(
-        `${path}: \`lastRotated\` is not a valid ISO-8601 date (${JSON.stringify(lastStr)})`,
-      );
-    }
-    const periodDays = Number(fm.periodDays);
-    if (!Number.isInteger(periodDays)) {
-      throw new SystemExit(
-        `${path}: \`periodDays\` is not an integer (${JSON.stringify(fm.periodDays)})`,
-      );
-    }
-    // A zero or negative period would compute a due date on or
-    // before lastRotated, so every run would treat the secret as
-    // overdue and the reminder workflow would never go quiet.
-    // Reject the value at load time with a clear pointer to the
-    // bad file rather than silently spamming issues.
-    if (periodDays <= 0) {
-      throw new SystemExit(
-        `${path}: \`periodDays\` must be a positive integer (got ${periodDays})`,
-      );
-    }
-    entries.push({
-      entry: {
-        title,
-        lastRotated: lastStr,
-        periodDays,
-        provider: String(fm.provider),
-        issuerUrl: String(fm.issuerUrl),
-        usedBy: String(fm.usedBy),
-        scope: String(fm.scope),
-      },
-      fileBasename,
-    });
+    entries.push({ entry: validateRotationEntry(fm, path), fileBasename });
   }
   // Sort for deterministic iteration order regardless of FS ordering.
   entries.sort((a, b) => a.entry.title.localeCompare(b.entry.title));
@@ -303,12 +309,17 @@ async function main(): Promise<number> {
   return 0;
 }
 
-try {
-  process.exit(await main());
-} catch (err) {
-  if (err instanceof SystemExit) {
-    process.stderr.write(`${err.message}\n`);
-    process.exit(1);
+// Gate the auto-run on `import.meta.main` so test files that
+// import this module for its pure exports do not also fire the
+// shell-out paths in `main()` as a side effect of the import.
+if (import.meta.main) {
+  try {
+    process.exit(await main());
+  } catch (err) {
+    if (err instanceof SystemExit) {
+      process.stderr.write(`${err.message}\n`);
+      process.exit(1);
+    }
+    throw err;
   }
-  throw err;
 }

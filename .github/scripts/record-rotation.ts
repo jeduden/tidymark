@@ -33,9 +33,9 @@ import { parse as yamlParse } from "yaml";
 const REPO_ROOT = resolve(import.meta.dir, "..", "..");
 const ROTATIONS_DIR = resolve(REPO_ROOT, "docs/development/secret-rotations");
 
-class SystemExit extends Error {}
+export class SystemExit extends Error {}
 
-interface SplitFrontMatter {
+export interface SplitFrontMatter {
   /** The literal "---\n" opener. */
   opening: string;
   /** The YAML between the two "---\n" fences, fences NOT included. */
@@ -44,7 +44,7 @@ interface SplitFrontMatter {
   closingPlusBody: string;
 }
 
-function splitFrontMatter(text: string, path: string): SplitFrontMatter {
+export function splitFrontMatter(text: string, path: string): SplitFrontMatter {
   if (!text.startsWith("---\n")) {
     throw new SystemExit(`${path}: no front matter`);
   }
@@ -77,7 +77,7 @@ function splitFrontMatter(text: string, path: string): SplitFrontMatter {
  * intact because the match stops at the first whitespace or `#`
  * after the value.
  */
-function updateLastRotated(yamlBlock: string, date: string, path: string): string {
+export function updateLastRotated(yamlBlock: string, date: string, path: string): string {
   // Group 1: optional leading indent + the `lastRotated:` key +
   // its trailing spaces. Match continues with the value, which
   // is dropped wholesale:
@@ -101,7 +101,7 @@ function updateLastRotated(yamlBlock: string, date: string, path: string): strin
   return rewritten;
 }
 
-function isIsoDate(s: string): boolean {
+export function isIsoDate(s: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const parsed = new Date(`${s}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return false;
@@ -174,12 +174,17 @@ async function main(argv: string[]): Promise<number> {
   return 0;
 }
 
-try {
-  process.exit(await main(Bun.argv));
-} catch (err) {
-  if (err instanceof SystemExit) {
-    process.stderr.write(`${err.message}\n`);
-    process.exit(1);
+// Gate the auto-run on `import.meta.main` so test files that
+// import this module for its pure exports do not also fire
+// `main()` (which touches the filesystem) on import.
+if (import.meta.main) {
+  try {
+    process.exit(await main(Bun.argv));
+  } catch (err) {
+    if (err instanceof SystemExit) {
+      process.stderr.write(`${err.message}\n`);
+      process.exit(1);
+    }
+    throw err;
   }
-  throw err;
 }

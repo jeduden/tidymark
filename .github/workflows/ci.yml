@@ -194,6 +194,47 @@ jobs:
       # (150 ms / 1k lines, 500 ms / 5k lines).
       - run: go test -run=^$ -bench=. -benchtime=20x ./internal/lsp/...
 
+  scripts:
+    # Tests + coverage for the bun-executed TypeScript under
+    # .github/scripts/ (secret-rotation reminder, record-rotation).
+    # These scripts run inside privileged workflows (issues:write,
+    # contents:write), so the pure-function logic that gates which
+    # issues open and which file lines get rewritten is exercised
+    # here in CI rather than only at workflow-dispatch time.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun
+      - name: Install script dependencies
+        working-directory: .github/scripts
+        # `--frozen-lockfile` enforces bun.lock; `--ignore-scripts`
+        # neutralizes lifecycle hooks from transitive deps (the
+        # shai-hulud / TanStack-class threat).
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: TypeScript typecheck
+        working-directory: .github/scripts
+        # `bun test` tolerates type errors; run tsc separately so
+        # a TS regression fails CI before it ships in a workflow.
+        run: bunx tsc --noEmit
+      - name: Run script unit tests with coverage
+        working-directory: .github/scripts
+        # `text` keeps the human-readable summary in the job log;
+        # `lcov` writes coverage/lcov.info for the codecov upload.
+        run: bun test --coverage --coverage-reporter=text --coverage-reporter=lcov
+      - name: Upload script coverage to Codecov
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+        with:
+          use_oidc: true
+          files: .github/scripts/coverage/lcov.info
+          flags: scripts
+          fail_ci_if_error: false
+
   vscode-extension:
     runs-on: ubuntu-latest
     permissions:
