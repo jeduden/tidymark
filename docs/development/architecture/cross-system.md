@@ -17,17 +17,19 @@ release on their own schedule.
 
 ## The boundaries
 
-| Boundary                  | Owner in repo                   | Consumers                        |
-|---------------------------|---------------------------------|----------------------------------|
-| LSP wire protocol         | `internal/lsp`                  | VS Code extension, other editors |
-| CLI flags + exit codes    | `cmd/mdsmith`                   | shell scripts, CI, git hooks     |
-| `.mdsmith.yml` schema     | `internal/config`               | every project using mdsmith      |
-| Generated section markers | `internal/archetype/gensection` | every project's Markdown files   |
-| Plugin manifest           | `.claude-plugin/`               | Claude Code marketplace          |
-| npm package shim          | `npm/mdsmith/`                  | Node users                       |
-| PyPI wheel shim           | `python/`                       | Python users                     |
-| asdf / mise plugin        | external repos                  | language-tool users              |
-| VS Code `contributes`     | `editors/vscode/package.json`   | the extension host               |
+| Boundary                   | Owner in repo                                    | Consumers                        |
+|----------------------------|--------------------------------------------------|----------------------------------|
+| LSP wire protocol          | `internal/lsp`                                   | VS Code extension, other editors |
+| CLI flags + exit codes     | `cmd/mdsmith`                                    | shell scripts, CI, git hooks     |
+| `.mdsmith.yml` schema      | `internal/config`                                | every project using mdsmith      |
+| Generated section markers  | `internal/archetype/gensection`                  | every project's Markdown files   |
+| Claude plugin manifest     | `editors/claude-code/.claude-plugin/plugin.json` | Claude Code marketplace          |
+| Claude marketplace listing | `.claude-plugin/marketplace.json`                | Claude Code marketplace          |
+| Claude skill definitions   | `.claude/skills/*/SKILL.md`                      | Claude Code sessions             |
+| npm package shim           | `npm/mdsmith/`                                   | Node users                       |
+| PyPI wheel shim            | `python/`                                        | Python users                     |
+| asdf / mise plugin         | external repos                                   | language-tool users              |
+| VS Code `contributes`      | `editors/vscode/package.json`                    | the extension host               |
 
 A breaking change at any of these surfaces
 is a SemVer-major event. Treat them as
@@ -46,10 +48,14 @@ does not adapt to them.
 - **Shims (npm, PyPI)**: exec the binary
   with forwarded args. They never inspect
   Markdown or duplicate rule logic.
-- **Plugin manifest**: declares skills,
-  commands, and the binary path. The
-  plugin should not embed parsing or
-  linting logic.
+- **Plugin manifest**
+  (`editors/claude-code/.claude-plugin/plugin.json`):
+  declares the LSP server invocation only.
+  Skills live separately under
+  `.claude/skills/*/SKILL.md`; the
+  marketplace listing lives at
+  `.claude-plugin/marketplace.json`. None of
+  these embed parsing or linting logic.
 - **VS Code extension**: consumes the LSP
   server and the binary. It does not
   implement any rule.

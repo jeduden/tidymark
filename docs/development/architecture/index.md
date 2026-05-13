@@ -16,7 +16,10 @@ The Go linter lives in `cmd/` and `internal/`.
 The VS Code extension lives in
 `editors/vscode/`. The distribution shims
 live in `npm/` and `python/`. The Claude
-plugin lives in `.claude-plugin/`. Each layer
+plugin manifest lives in
+`editors/claude-code/.claude-plugin/`; the
+marketplace listing lives at
+`.claude-plugin/marketplace.json`. Each layer
 depends on stable contracts. Drift is
 expensive to unwind later.
 
@@ -94,10 +97,14 @@ cmd/mdsmith              internal/lsp
                                   globpath,
                                   yamlutil,
                                   log,
+                                  fieldinterp,
                                   placeholders}
-                        (pure helpers; no
-                         cross-deps among
-                         siblings)
+                        (helpers; deps among
+                         siblings are
+                         allowed, cycles are
+                         not — e.g.
+                         placeholders →
+                         fieldinterp)
 ```
 
 Plus the rule plugins. Each rule has a Go
