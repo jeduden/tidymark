@@ -1,13 +1,35 @@
 coverage:
   status:
     project:
+      # The strict (threshold: 0%) gate applies only to the
+      # established flags. A new flag starts with no baseline so
+      # leaving it under `default` would flip project status red
+      # on the introduction commit even though net coverage rose.
       default:
         target: auto
         threshold: 0%
+        flags:
+          - go
+          - typescript
+      # The `scripts` flag is informational until a baseline
+      # accumulates on `main`. Flip `informational` off (or drop
+      # this stanza so `default` picks it up) once the rolling
+      # coverage stabilizes.
+      scripts:
+        flags:
+          - scripts
+        informational: true
     patch:
       default:
         target: auto
         threshold: 0%
+        flags:
+          - go
+          - typescript
+      scripts:
+        flags:
+          - scripts
+        informational: true
     # Per-file gate: fail the status check if any
     # file's coverage decreased vs the base commit.
     changes:
