@@ -725,9 +725,12 @@ func (s *Server) appendRefDefDestEditsForHeading(
 		}
 		body, fmOffset := bodyAndFMOffset(source)
 		fileLines := splitLines(source)
-		for _, m := range index.RefDefRegexpMatches(body) {
+		// Route through validRefDefMatches so `[label]:` lines
+		// goldmark refused (code blocks, paragraph continuations)
+		// don't get rewritten as if they were real defs.
+		for _, m := range validRefDefMatches(body) {
 			edit, ok := refDefDestEditForMatch(
-				body, fileLines, fmOffset, m,
+				body, fileLines, fmOffset, m.matchIdx,
 				rel, headingFile, oldSlug, newSlug,
 			)
 			if !ok {
@@ -1245,38 +1248,25 @@ type validRefDefMatch struct {
 	matchIdx  []int  // refDefRegexpMatches indices for further use
 }
 
-// validRefDefMatches returns the regex matches that goldmark also
-// recognized as reference definitions. Lines inside fenced or
-// indented code blocks and inside processing-instruction bodies
-// are excluded — `[label]: url`-shaped text in those contexts is
-// content, not a def, even if a real def with the same label
-// appears elsewhere in the file.
+// validRefDefMatches returns the ref-def regex matches that
+// fall outside any AST node. Real reference definitions
+// never appear in the AST (they're consumed into the parser
+// context), so the inverse — "regex hit on a line goldmark
+// didn't tuck into a block" — is the set of real defs. This
+// drops paragraph-continuation lookalikes, code-block
+// content, and PI bodies in one pass without needing a
+// label-keyed wanted set.
 func validRefDefMatches(body []byte) []validRefDefMatch {
-	ctx := parser.NewContext()
-	root := lint.NewParser().Parse(text.NewReader(body), parser.WithContext(ctx))
-	wanted := map[string]bool{}
-	for _, ref := range ctx.References() {
-		// Normalize via util.ToLinkReference so the lookup
-		// matches the same form the regex-side normalizer
-		// produces. Goldmark's ref.Label() is the raw bytes,
-		// not the lowercased + whitespace-collapsed form.
-		wanted[string(util.ToLinkReference(ref.Label()))] = true
-	}
-	if len(wanted) == 0 {
-		return nil
-	}
-	codeLines := contentBlockLines(root, body)
+	root := lint.NewParser().Parse(text.NewReader(body), parser.WithContext(parser.NewContext()))
+	consumed := contentBlockLines(root, body)
 	var out []validRefDefMatch
 	for _, m := range index.RefDefRegexpMatches(body) {
 		bodyLine := lineOfBodyOffset(body, m[2])
-		if codeLines[bodyLine] {
+		if consumed[bodyLine] {
 			continue
 		}
 		raw := body[m[2]:m[3]]
 		norm := normalizedLabel(raw)
-		if !wanted[norm] {
-			continue
-		}
 		out = append(out, validRefDefMatch{
 			bodyLine:  bodyLine,
 			rawLabel:  string(raw),
@@ -1287,27 +1277,42 @@ func validRefDefMatches(body []byte) []validRefDefMatch {
 	return out
 }
 
-// contentBlockLines returns the set of body-line numbers that fall
-// inside a fenced code block, an indented code block, or a
-// processing-instruction body. The rename surface uses this to
-// drop ref-def regex matches that goldmark would parse as content
-// rather than as references.
+// contentBlockLines returns the set of body-line numbers that
+// goldmark consumed into any AST node. Real reference
+// definitions never appear in the AST — they live in
+// parser.Context.References — so any line covered by an AST
+// node is by definition not a def. Walking every node
+// (paragraphs, code blocks, headings, list items, blockquotes,
+// HTML blocks, PIs) means the rename surface doesn't need to
+// enumerate block types; it just trusts the AST.
+//
+// The root *ast.Document is skipped: its Lines() span the
+// whole buffer, which would mask every line and break the
+// "real def" detection entirely.
 func contentBlockLines(root ast.Node, body []byte) map[int]bool {
 	out := map[int]bool{}
-	mark := func(n ast.Node) {
-		ls := n.Lines()
-		for i := 0; i < ls.Len(); i++ {
-			seg := ls.At(i)
-			out[lineOfBodyOffset(body, seg.Start)] = true
-		}
-	}
 	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
+		// Only block-level nodes have Lines(); calling it on
+		// inline nodes panics. Skip the Document root too —
+		// its Lines() span the whole buffer and would mask
+		// every line — and LinkReferenceDefinition because
+		// real defs ARE the lines we want regex hits to
+		// survive on. Including them would defeat the
+		// detection.
+		if n.Type() != ast.TypeBlock {
+			return ast.WalkContinue, nil
+		}
 		switch n.(type) {
-		case *ast.FencedCodeBlock, *ast.CodeBlock, *lint.ProcessingInstruction:
-			mark(n)
+		case *ast.Document, *ast.LinkReferenceDefinition:
+			return ast.WalkContinue, nil
+		}
+		ls := n.Lines()
+		for i := 0; i < ls.Len(); i++ {
+			seg := ls.At(i)
+			out[lineOfBodyOffset(body, seg.Start)] = true
 		}
 		return ast.WalkContinue, nil
 	})

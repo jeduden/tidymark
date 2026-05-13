@@ -973,6 +973,57 @@ func TestLabelBoundsInBodyEmptyText(t *testing.T) {
 	assert.False(t, ok)
 }
 
+// TestRenameHeadingSkipsRefDefInCodeBlock verifies that a
+// `[label]: …#oldSlug` line inside a fenced code block is not
+// rewritten when the heading is renamed. Without routing
+// through validRefDefMatches the helper would treat any
+// regex-matching line as a real def and corrupt code samples.
+func TestRenameHeadingSkipsRefDefInCodeBlock(t *testing.T) {
+	t.Parallel()
+	srcA := "# Alpha\n\n## Setup\n\nbody\n"
+	srcB := "# Beta\n\nExample:\n\n```\n[setup]: ./a.md#setup\n```\n\n[real]: ./a.md#setup\n"
+	h, _, rootURI := rootedHarness(t, map[string]string{"a.md": srcA, "b.md": srcB})
+	uriA := rootURI + "/a.md"
+	uriB := rootURI + "/b.md"
+	for _, d := range []struct{ uri, src string }{{uriA, srcA}, {uriB, srcB}} {
+		h.notify("textDocument/didOpen", didOpenTextDocumentParams{
+			TextDocument: textDocumentItem{URI: d.uri, LanguageID: "markdown", Version: 1, Text: d.src},
+		})
+		_ = h.awaitNotification("textDocument/publishDiagnostics", 5*time.Second)
+	}
+	raw, errResp := h.request("textDocument/rename", renameParams{
+		TextDocument: textDocumentIdentifier{URI: uriA},
+		Position:     Position{Line: 2, Character: 4},
+		NewName:      "Configuration",
+	})
+	require.Nil(t, errResp)
+	var edit workspaceEdit
+	require.NoError(t, json.Unmarshal(raw, &edit))
+	require.Contains(t, edit.Changes, uriB)
+	// Only the real `[real]: ./a.md#setup` def rewrites. The
+	// fake one inside the fenced code block stays put.
+	require.Len(t, edit.Changes[uriB], 1)
+	// The fence opens on b.md line 5 (1-based) → LSP line 4;
+	// the fake def is on line 6 → LSP line 5. No edit should
+	// land there.
+	assert.NotEqual(t, 5, edit.Changes[uriB][0].Range.Start.Line)
+}
+
+// TestValidRefDefMatchesExcludesParagraphContinuation covers
+// the parser-rejection path where a `[docs]: url`-shaped line
+// appears as paragraph content (continuation, not a def) AND
+// a real `[docs]: url` def appears later in the file. The
+// label-only filter from before would accept both regex hits;
+// the AST paragraph-line filter drops the continuation.
+func TestValidRefDefMatchesExcludesParagraphContinuation(t *testing.T) {
+	t.Parallel()
+	body := []byte("para line\n[docs]: bogus\n\n[docs]: https://real\n")
+	matches := validRefDefMatches(body)
+	require.Len(t, matches, 1)
+	// The surviving match is the real def on body-line 4.
+	assert.Equal(t, 4, matches[0].bodyLine)
+}
+
 // TestRenameHeadingRewritesRefDefDestinations verifies the
 // ref-def-destination companion pass. A `[setup]: ./a.md#setup`
 // def in b.md isn't recorded as an edge in the index (refs are
