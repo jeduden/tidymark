@@ -730,7 +730,12 @@ func (s *Server) runLintIfCurrent(uri string, p *pendingLint) {
 	// Fold the shutdown re-check into the live decision so the
 	// callback never publishes during teardown — even if shutdown
 	// flips after the fast-path above but before we get the lock.
-	live := !s.shutdown.Load() && s.pending[uri] == p
+	// The explicit `ok` makes the check robust against a caller
+	// that ever passes a nil p: without `ok`, a missing map entry
+	// (nil) would compare equal to a nil p, leading to a spurious
+	// runLint on a deleted URI.
+	cur, ok := s.pending[uri]
+	live := ok && cur == p && !s.shutdown.Load()
 	if live {
 		delete(s.pending, uri)
 	}
