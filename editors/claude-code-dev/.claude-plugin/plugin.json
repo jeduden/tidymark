@@ -15,7 +15,13 @@
     },
     "typescript": {
       "command": "npx",
-      "args": ["-y", "typescript-language-server", "--stdio"],
+      "args": [
+        "-y",
+        "-p", "typescript-language-server",
+        "-p", "typescript",
+        "typescript-language-server",
+        "--stdio"
+      ],
       "extensionToLanguage": {
         ".ts": "typescript",
         ".tsx": "typescriptreact",
