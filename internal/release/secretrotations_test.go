@@ -898,3 +898,38 @@ func TestValidateRotationEntryRejectsQuoteInTitle(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "double-quote")
 }
+
+// TestLoadRotationsSkipsNonMarkdown covers the continue branch
+// of LoadRotations when the directory holds a non-.md file
+// alongside the valid per-secret files.
+func TestLoadRotationsSkipsNonMarkdown(t *testing.T) {
+	root := fakeRotationsDir(t, map[string]string{
+		"v.md": "---\ntitle: V\nlastRotated: \"2026-05-12\"\nperiodDays: 30\n" +
+			"provider: P\nissuerUrl: u\nusedBy: r\nscope: s\n---\n",
+		"README.txt": "not a per-secret file\n",
+	})
+	got, err := LoadRotations(filepath.Join(root, RotationsDirName))
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "V", got[0].Entry.Title)
+}
+
+// TestFindEntrySkipsNonMarkdown covers the continue branch of
+// FindEntry when the directory holds a non-.md file alongside
+// the valid per-secret files.
+func TestFindEntrySkipsNonMarkdown(t *testing.T) {
+	root := fakeRotationsDir(t, map[string]string{
+		"v.md":       "---\ntitle: V\nlastRotated: \"2026-05-12\"\nperiodDays: 30\n---\n",
+		"README.txt": "not a per-secret file\n",
+	})
+	res, err := FindEntry(filepath.Join(root, RotationsDirName), "V")
+	require.NoError(t, err)
+	assert.Contains(t, res.Path, "v.md")
+}
+
+// TestFindEntryPropagatesReadDirError mirrors the LoadRotations
+// missing-dir test for FindEntry.
+func TestFindEntryPropagatesReadDirError(t *testing.T) {
+	_, err := FindEntry(filepath.Join(t.TempDir(), "missing"), "V")
+	require.Error(t, err)
+}
