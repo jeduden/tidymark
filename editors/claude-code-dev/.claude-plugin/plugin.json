@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "mdsmith-dev-lsp",
+  "description": "Code intelligence for mdsmith contributors: gopls for Go (cmd/, internal/), typescript-language-server for the VS Code extension (editors/vscode/). Pair with the published mdsmith-lsp plugin to also get Markdown intelligence.",
+  "homepage": "https://github.com/jeduden/mdsmith",
+  "repository": "https://github.com/jeduden/mdsmith",
+  "license": "MIT",
+  "keywords": ["development", "lsp", "go", "typescript"],
+  "lspServers": {
+    "gopls": {
+      "command": "gopls",
+      "extensionToLanguage": {
+        ".go": "go"
+      }
+    },
+    "typescript": {
+      "command": "npx",
+      "args": ["-y", "typescript-language-server", "--stdio"],
+      "extensionToLanguage": {
+        ".ts": "typescript",
+        ".tsx": "typescriptreact",
+        ".js": "javascript",
+        ".jsx": "javascriptreact"
+      }
+    }
+  }
+}
