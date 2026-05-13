@@ -210,16 +210,25 @@ func runCheckSecretRotations(root string, args []string) int {
 		fmt.Fprintf(os.Stderr, "mdsmith-release: %v\n", err)
 		return 1
 	}
+	printCheckResult(os.Stdout, res)
+	return 0
+}
+
+// printCheckResult writes the human-readable summary of a
+// CheckSecretRotations run to out. Extracted from
+// runCheckSecretRotations so the three formatting branches
+// (some opened, some skipped, neither → "no secrets due") are
+// unit-testable without a fake `gh` binary.
+func printCheckResult(out io.Writer, res release.CheckSecretRotationsResult) {
 	if len(res.Opened) > 0 {
-		fmt.Printf("opened secret-rotation reminders for: %v\n", res.Opened)
+		_, _ = fmt.Fprintf(out, "opened secret-rotation reminders for: %v\n", res.Opened)
 	}
 	if len(res.Skipped) > 0 {
-		fmt.Printf("existing open reminders (skipped): %v\n", res.Skipped)
+		_, _ = fmt.Fprintf(out, "existing open reminders (skipped): %v\n", res.Skipped)
 	}
 	if len(res.Opened) == 0 && len(res.Skipped) == 0 {
-		fmt.Println("no secrets due for rotation")
+		_, _ = fmt.Fprintln(out, "no secrets due for rotation")
 	}
-	return 0
 }
 
 func runRecordRotation(root string, args []string) int {

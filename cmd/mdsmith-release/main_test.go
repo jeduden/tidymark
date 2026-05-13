@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/jeduden/mdsmith/internal/release"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -341,4 +343,50 @@ func TestRunCheckSecretRotationsRejectsUnknownFlag(t *testing.T) {
 // reportFlagParseErr branch of runRecordRotation.
 func TestRunRecordRotationRejectsUnknownFlag(t *testing.T) {
 	assert.Equal(t, 2, run([]string{"record-rotation", "--bogus", "T", "2026-05-12"}))
+}
+
+// TestPrintCheckResult verifies the three formatting branches
+// of the human-readable summary.
+func TestPrintCheckResult(t *testing.T) {
+	cases := []struct {
+		name string
+		res  release.CheckSecretRotationsResult
+		want []string
+	}{
+		{
+			name: "opened only",
+			res:  release.CheckSecretRotationsResult{Opened: []string{"A", "B"}},
+			want: []string{"opened secret-rotation reminders for: [A B]"},
+		},
+		{
+			name: "skipped only",
+			res:  release.CheckSecretRotationsResult{Skipped: []string{"C"}},
+			want: []string{"existing open reminders (skipped): [C]"},
+		},
+		{
+			name: "opened and skipped together",
+			res: release.CheckSecretRotationsResult{
+				Opened:  []string{"A"},
+				Skipped: []string{"B"},
+			},
+			want: []string{
+				"opened secret-rotation reminders for: [A]",
+				"existing open reminders (skipped): [B]",
+			},
+		},
+		{
+			name: "neither",
+			res:  release.CheckSecretRotationsResult{},
+			want: []string{"no secrets due for rotation"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			printCheckResult(&buf, tc.res)
+			for _, line := range tc.want {
+				assert.Contains(t, buf.String(), line)
+			}
+		})
+	}
 }
