@@ -54,6 +54,33 @@ func TestCrossRefs_SkipBlockquote(t *testing.T) {
 	assert.Empty(t, diags, "blockquoted Step 99 should be skipped")
 }
 
+func TestAcronyms_SkipsAcronymsInHeadingLines(t *testing.T) {
+	// "## OIDC configuration" must not consume the first-use slot;
+	// the body that immediately follows with a parenthesised
+	// expansion should satisfy the rule, both in document-wide and
+	// scoped modes.
+	src := `# Doc
+
+## OIDC configuration
+
+OIDC (OpenID Connect) is set up here.
+`
+	f := newDocFile(t, "doc.md", src)
+
+	// Document-wide.
+	sch := &Schema{Source: "test", RootLevel: 2,
+		Acronyms: &AcronymRule{},
+	}
+	diags := ValidateAcronyms(f, sch, makeDiagForTest)
+	assert.Empty(t, diags, "heading line must not flag OIDC as first use")
+
+	// Scoped.
+	sch.Sections = []Scope{{Heading: "OIDC configuration", Required: true}}
+	sch.Acronyms.Scope = []string{"OIDC configuration"}
+	diags = ValidateAcronyms(f, sch, makeDiagForTest)
+	assert.Empty(t, diags, "scoped pass also excludes the heading line")
+}
+
 func TestAcronyms_FirstUseFlagged(t *testing.T) {
 	src := "# Doc\n\nOIDC handles login.\n"
 	f := newDocFile(t, "doc.md", src)

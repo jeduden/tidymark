@@ -23,6 +23,12 @@ var acronymToken = regexp.MustCompile(`\b[A-Z][A-Z0-9]{1,5}\b`)
 // must be re-introduced when it first appears inside "Expected" —
 // the rule treats the two scope passes independently so each named
 // scope reads as self-contained.
+//
+// Heading lines are excluded from the scan in both modes: prose
+// rules apply to body text, and a section heading like
+// "## OIDC configuration" should not be flagged as the first use
+// of OIDC when the body that follows immediately spells out the
+// expansion.
 func ValidateAcronyms(
 	f *lint.File, sch *Schema, mkDiag MakeDiag,
 ) []lint.Diagnostic {
@@ -32,12 +38,26 @@ func ValidateAcronyms(
 	a := sch.Acronyms
 	known := buildKnownSet(a.KnownSafe)
 
+	headingLines := documentHeadingLines(f)
 	ranges := acronymRanges(f, sch, a.Scope)
 	var diags []lint.Diagnostic
 	for _, rng := range ranges {
-		diags = append(diags, checkAcronymsInRange(f, rng, known, mkDiag)...)
+		diags = append(diags, checkAcronymsInRange(f, rng, known, headingLines, mkDiag)...)
 	}
 	return diags
+}
+
+// documentHeadingLines returns the set of 1-based line numbers
+// occupied by Markdown headings in f. Used to skip heading lines
+// during acronym scans so a "## OIDC configuration" heading does
+// not consume the "first use" slot before the body's
+// parenthesised expansion.
+func documentHeadingLines(f *lint.File) map[int]bool {
+	out := map[int]bool{}
+	for _, h := range ExtractDocHeadings(f) {
+		out[h.Line] = true
+	}
+	return out
 }
 
 func buildKnownSet(list []string) map[string]bool {
@@ -154,11 +174,15 @@ func nextSectionLine(heads []DocHeading, idx, level, parentEnd int) int {
 }
 
 func checkAcronymsInRange(
-	f *lint.File, rng lineRange, known map[string]bool, mkDiag MakeDiag,
+	f *lint.File, rng lineRange, known map[string]bool,
+	headingLines map[int]bool, mkDiag MakeDiag,
 ) []lint.Diagnostic {
 	seen := map[string]bool{}
 	var diags []lint.Diagnostic
 	for ln := rng.Start; ln < rng.End && ln-1 < len(f.Lines); ln++ {
+		if headingLines[ln] {
+			continue
+		}
 		raw := string(f.Lines[ln-1])
 		matches := acronymToken.FindAllStringIndex(raw, -1)
 		for _, m := range matches {
