@@ -55,6 +55,8 @@ func TestFlavorStringUnknownIsEmpty(t *testing.T) {
 func TestFlavorIsValid(t *testing.T) {
 	var zero Flavor
 	assert.False(t, zero.IsValid(), "zero value is invalid")
+	assert.False(t, Flavor(999).IsValid(),
+		"out-of-range integer cast to Flavor is invalid")
 	assert.True(t, FlavorCommonMark.IsValid())
 	assert.True(t, FlavorAny.IsValid())
 }

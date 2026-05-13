@@ -45,8 +45,12 @@ const (
 )
 
 // IsValid reports whether f names a recognised flavor. The zero
-// value is reserved for "unparsed/unset" and returns false.
-func (f Flavor) IsValid() bool { return f != flavorInvalid }
+// value (reserved for "unparsed/unset") and any out-of-range integer
+// cast to Flavor both return false. Implemented in terms of String
+// so the two stay in lock-step: every recognised flavor has a name,
+// and adding a new constant only requires updating the switch in
+// String.
+func (f Flavor) IsValid() bool { return f.String() != "" }
 
 // String returns the canonical lowercase name of the flavor.
 func (f Flavor) String() string {
