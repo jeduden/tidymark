@@ -271,7 +271,7 @@ func readFrontMatter(cfg *config.Config, path string, maxBytes int64) ([]string,
 	}
 	fields, err := lint.ParseFrontMatterFields(prefix)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parsing front matter in %q: %w", path, err)
+		return nil, nil, fmt.Errorf("parsing front matter: %w", err)
 	}
 	return kinds, fields, nil
 }
