@@ -60,11 +60,11 @@ per-leaf provenance. `kinds list` lists every
 declared kind. Surface the relevant block back to
 the user verbatim.
 
-Exit 1 means lint-style issues; exit 2 indicates a
-runtime or configuration error (malformed
-kind-assignment, missing config, etc.). Surface
-stderr in both cases so the user sees the parse
-error or rule context.
+`kinds` exits 0 on success and 2 on a runtime or
+configuration error (unknown kind, unreadable
+file, malformed `.mdsmith.yml`, etc.); it does
+not use exit 1. On exit 2 surface stderr so the
+user sees the parse or load error.
 
 ## Notes
 
