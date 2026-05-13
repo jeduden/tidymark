@@ -297,3 +297,35 @@ func TestRunCheckSecretRotationsErrorsOnMissingDir(t *testing.T) {
 
 	assert.Equal(t, 1, run([]string{"check-secret-rotations"}))
 }
+
+// TestRunCheckSecretRotationsHappyPath dispatches through `run`
+// with a per-secret file whose lastRotated is the workflow's
+// `today` value (so no entries are due). The subcommand prints
+// the "no secrets due for rotation" line and returns 0,
+// covering runCheckSecretRotations' default success branches
+// without needing a real `gh` binary on the runner.
+func TestRunCheckSecretRotationsHappyPath(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "docs", "development", "secret-rotations")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	// Make periodDays large enough that the entry is not due no
+	// matter what real-clock day the test runs. 4000 days ~ 11
+	// years from any lastRotated within the last decade.
+	body := "---\n" +
+		"title: VSCE_PAT\n" +
+		"lastRotated: \"2026-05-12\"\n" +
+		"periodDays: 4000\n" +
+		"provider: Azure\n" +
+		"issuerUrl: https://x\n" +
+		"usedBy: r\n" +
+		"scope: s\n" +
+		"---\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "v.md"), []byte(body), 0o644))
+
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	require.NoError(t, os.Chdir(root))
+
+	assert.Equal(t, 0, run([]string{"check-secret-rotations"}))
+}

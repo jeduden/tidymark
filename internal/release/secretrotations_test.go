@@ -409,13 +409,16 @@ func TestLoadRotationsRejectsBadPeriodDays(t *testing.T) {
 }
 
 // recordingGH returns a GHRunner that records each invocation
-// into the provided slice and returns the queued output (or
-// empty bytes / nil error if the queue is empty for that call).
-// `responses` maps the first arg of the call (e.g. "issue") to
-// the canned stdout for that call.
+// into the provided slice. `responses` maps the first arg of
+// the call (e.g. "issue") to the canned stdout for that call.
+// `errs` maps the first two args joined by a space (e.g.
+// "issue list", "label create") to an error to return for that
+// specific call — used to exercise per-call failure branches.
+// `err` is a blanket error that fires on every call.
 type recordingGH struct {
 	calls     [][]string
 	responses map[string][]byte
+	errs      map[string]error
 	err       error
 }
 
@@ -423,6 +426,11 @@ func (r *recordingGH) Run(args []string) ([]byte, error) {
 	r.calls = append(r.calls, args)
 	if r.err != nil {
 		return nil, r.err
+	}
+	if r.errs != nil && len(args) >= 2 {
+		if e, ok := r.errs[args[0]+" "+args[1]]; ok {
+			return nil, e
+		}
 	}
 	if r.responses != nil && len(args) > 0 {
 		if out, ok := r.responses[args[0]]; ok {
@@ -646,4 +654,73 @@ func TestFindEntryNonStringTitle(t *testing.T) {
 	_, err := FindEntry(filepath.Join(root, RotationsDirName), "42")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "`title` is not a string")
+}
+
+func TestLoadRotationsPropagatesFrontMatterError(t *testing.T) {
+	root := fakeRotationsDir(t, map[string]string{
+		"bad.md": "no front matter at all\n",
+	})
+	_, err := LoadRotations(filepath.Join(root, RotationsDirName))
+	require.Error(t, err)
+}
+
+func TestLoadRotationsPropagatesEntryValidationError(t *testing.T) {
+	root := fakeRotationsDir(t, map[string]string{
+		// Required keys all present but periodDays is zero,
+		// which validateRotationEntry rejects.
+		"bad.md": "---\ntitle: X\nlastRotated: \"2026-05-12\"\nperiodDays: 0\n" +
+			"provider: P\nissuerUrl: u\nusedBy: r\nscope: s\n---\n",
+	})
+	_, err := LoadRotations(filepath.Join(root, RotationsDirName))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "positive")
+}
+
+// TestCheckSecretRotationsSurfacesLabelCreateFailure exercises
+// the ensureLabel error branch: `issue list` succeeds, but
+// `label create` fails — CheckSecretRotations must propagate.
+func TestCheckSecretRotationsSurfacesLabelCreateFailure(t *testing.T) {
+	root := fakeRotationsDir(t, map[string]string{
+		"v.md": "---\ntitle: VSCE_PAT\nlastRotated: \"2026-04-01\"\nperiodDays: 30\n" +
+			"provider: Azure\nissuerUrl: https://x\nusedBy: r\nscope: s\n---\n",
+	})
+	gh := &recordingGH{
+		responses: map[string][]byte{"issue": []byte("[]")},
+		errs:      map[string]error{"label create": errors.New("label boom")},
+	}
+	now := time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC)
+	_, err := CheckSecretRotations(root, CheckRotationsOptions{
+		Now: now, GH: gh.Run, Env: MapEnviron{},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gh label create")
+}
+
+// TestCheckSecretRotationsSurfacesIssueCreateFailure exercises
+// the createIssue error branch.
+func TestCheckSecretRotationsSurfacesIssueCreateFailure(t *testing.T) {
+	root := fakeRotationsDir(t, map[string]string{
+		"v.md": "---\ntitle: VSCE_PAT\nlastRotated: \"2026-04-01\"\nperiodDays: 30\n" +
+			"provider: Azure\nissuerUrl: https://x\nusedBy: r\nscope: s\n---\n",
+	})
+	gh := &recordingGH{
+		responses: map[string][]byte{"issue": []byte("[]")},
+		errs:      map[string]error{"issue create": errors.New("create boom")},
+	}
+	now := time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC)
+	_, err := CheckSecretRotations(root, CheckRotationsOptions{
+		Now: now, GH: gh.Run, Env: MapEnviron{},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "gh issue create")
+}
+
+// TestExistingOpenIssueRejectsBadJSON covers the JSON parse
+// error branch in existingOpenIssue when `gh issue list`
+// returns malformed output.
+func TestExistingOpenIssueRejectsBadJSON(t *testing.T) {
+	gh := &recordingGH{responses: map[string][]byte{"issue": []byte("not json")}}
+	_, err := existingOpenIssue(gh.Run, "Rotate VSCE_PAT (lastRotated 2026-04-01)")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parsing JSON")
 }
