@@ -1221,7 +1221,7 @@ func runLintIfCurrentFixture(t *testing.T) (*Server, *safeBuffer) {
 func TestRunLintIfCurrentRunsWhenLive(t *testing.T) {
 	t.Parallel()
 	s, buf := runLintIfCurrentFixture(t)
-	timer := time.AfterFunc(time.Hour, func() {})
+	timer := time.NewTimer(time.Hour)
 	t.Cleanup(func() { timer.Stop() })
 	s.pendingMu.Lock()
 	s.pending["file:///x.md"] = timer
@@ -1244,9 +1244,9 @@ func TestRunLintIfCurrentRunsWhenLive(t *testing.T) {
 func TestRunLintIfCurrentSkipsWhenReplaced(t *testing.T) {
 	t.Parallel()
 	s, buf := runLintIfCurrentFixture(t)
-	stale := time.AfterFunc(time.Hour, func() {})
+	stale := time.NewTimer(time.Hour)
 	t.Cleanup(func() { stale.Stop() })
-	current := time.AfterFunc(time.Hour, func() {})
+	current := time.NewTimer(time.Hour)
 	t.Cleanup(func() { current.Stop() })
 	s.pendingMu.Lock()
 	s.pending["file:///x.md"] = current
@@ -1270,7 +1270,7 @@ func TestRunLintIfCurrentSkipsWhenReplaced(t *testing.T) {
 func TestRunLintIfCurrentShortCircuitsOnShutdown(t *testing.T) {
 	t.Parallel()
 	s, buf := runLintIfCurrentFixture(t)
-	timer := time.AfterFunc(time.Hour, func() {})
+	timer := time.NewTimer(time.Hour)
 	t.Cleanup(func() { timer.Stop() })
 	s.pendingMu.Lock()
 	s.pending["file:///x.md"] = timer
