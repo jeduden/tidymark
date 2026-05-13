@@ -956,6 +956,8 @@ func TestApplySettings_PathPatternsRejectsBadShape(t *testing.T) {
 		{"missing kind", []any{map[string]any{"pattern": "plan/*.md"}}},
 		{"empty kind", []any{map[string]any{"kind": "", "pattern": "x"}}},
 		{"empty pattern", []any{map[string]any{"kind": "x", "pattern": ""}}},
+		{"malformed glob",
+			[]any{map[string]any{"kind": "x", "pattern": "[unclosed"}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

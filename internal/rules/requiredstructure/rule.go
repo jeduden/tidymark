@@ -218,6 +218,15 @@ func parsePathPatterns(v any) ([]PathPattern, error) {
 			return nil, fmt.Errorf(
 				"path-patterns[%d].pattern must be a non-empty string, got %T", i, patV)
 		}
+		// Validate the pattern as a doublestar glob at config time
+		// so an unmatched bracket or other syntax error surfaces as
+		// a config error instead of an MDS020 diagnostic on every
+		// file assigned to the kind.
+		if !doublestar.ValidatePattern(filepath.ToSlash(pat)) {
+			return nil, fmt.Errorf(
+				"path-patterns[%d].pattern %q is not a valid doublestar glob",
+				i, pat)
+		}
 		out = append(out, PathPattern{Kind: kind, Pattern: pat})
 	}
 	return out, nil
