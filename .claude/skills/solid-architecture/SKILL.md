@@ -22,7 +22,8 @@ allowed-tools: >-
   Bash(git fetch:*), Bash(git log:*),
   Bash(git diff:*), Bash(git branch:*),
   Bash(mdsmith:*),
-  Bash(go run ./cmd/mdsmith:*)
+  Bash(go run ./cmd/mdsmith:*),
+  LSP
 ---
 
 # SOLID and clean architecture for mdsmith
