@@ -57,9 +57,10 @@ across files.
 
 **📋 Self-maintaining sections.**
 On `mdsmith fix`, `<?toc?>` rebuilds a heading
-table-of-contents, `<?catalog?>` builds a table from the
-front matter of files matching a glob, and `<?include?>`
-splices in another file. `merge-driver install` registers a Git
+table-of-contents, `<?catalog?>` generates an
+index — list, table, or any row template — from the front
+matter of files matching a glob, and `<?include?>` splices
+in another file. `merge-driver install` registers a Git
 driver that auto-resolves merge conflicts inside those
 blocks.
 
