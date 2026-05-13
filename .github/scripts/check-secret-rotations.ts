@@ -79,15 +79,22 @@ function parseFrontMatter(text: string, path: string): Record<string, unknown> {
 
 type DueState = "ok" | "due" | "overdue";
 
-function dueState(today: Date, lastRotated: Date, periodDays: number): { status: DueState; days: number } {
+/** A signed days-until-due. Positive while the rotation is still
+ * in the future, zero on the due date, negative once past due.
+ * Callers format the value differently per status: "due in N
+ * days" / "due today" / "OVERDUE by N days" (negate). */
+interface DueResult {
+  status: DueState;
+  daysUntilDue: number;
+}
+
+function dueState(today: Date, lastRotated: Date, periodDays: number): DueResult {
   const dueOn = new Date(lastRotated);
   dueOn.setUTCDate(dueOn.getUTCDate() + periodDays);
-  // daysBetween(dueOn, today) is positive when dueOn is still in
-  // the future, zero on the due date, negative once past due.
-  const days = daysBetween(dueOn, today);
-  if (days < 0) return { status: "overdue", days };
-  if (days <= REMINDER_WINDOW_DAYS) return { status: "due", days };
-  return { status: "ok", days };
+  const daysUntilDue = daysBetween(dueOn, today);
+  if (daysUntilDue < 0) return { status: "overdue", daysUntilDue };
+  if (daysUntilDue <= REMINDER_WINDOW_DAYS) return { status: "due", daysUntilDue };
+  return { status: "ok", daysUntilDue };
 }
 
 /** Return the absolute GitHub URL of this repository. */
@@ -130,14 +137,16 @@ async function ensureLabel(): Promise<void> {
   labelEnsured = true;
 }
 
-function issueBody(entry: RotationEntry, fileBasename: string, status: DueState, days: number): string {
+function issueBody(entry: RotationEntry, fileBasename: string, due: DueResult): string {
   let headline: string;
-  if (status === "overdue") {
-    headline = `\`${entry.title}\` is OVERDUE by ${-days} days.`;
-  } else if (days === 0) {
+  if (due.status === "overdue") {
+    // daysUntilDue is negative once past due; negate for the
+    // English "OVERDUE by N days" reading.
+    headline = `\`${entry.title}\` is OVERDUE by ${-due.daysUntilDue} days.`;
+  } else if (due.daysUntilDue === 0) {
     headline = `\`${entry.title}\` is due today.`;
   } else {
-    headline = `\`${entry.title}\` is due in ${days} days.`;
+    headline = `\`${entry.title}\` is due in ${due.daysUntilDue} days.`;
   }
   const fileUrl = `${repoUrl()}/blob/main/docs/development/secret-rotations/${fileBasename}`;
   const reminderUrl = `${repoUrl()}/blob/main/.github/workflows/secret-rotation-reminder.yml`;
@@ -238,15 +247,15 @@ async function main(): Promise<number> {
 
   for (const { entry, fileBasename } of rotations) {
     const lastRotated = new Date(`${entry.lastRotated}T00:00:00Z`);
-    const { status, days } = dueState(today, lastRotated, entry.periodDays);
-    if (status === "ok") continue;
+    const due = dueState(today, lastRotated, entry.periodDays);
+    if (due.status === "ok") continue;
     const title = `Rotate ${entry.title} (lastRotated ${entry.lastRotated})`;
     if (await existingOpenIssue(title) !== null) {
       skipped.push(entry.title);
       continue;
     }
     await ensureLabel();
-    const body = issueBody(entry, fileBasename, status, days);
+    const body = issueBody(entry, fileBasename, due);
     await $`gh issue create \
       --title ${title} \
       --body ${body} \

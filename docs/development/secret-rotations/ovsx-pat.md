@@ -18,7 +18,7 @@ Sign in to
 (authentication goes through GitHub OAuth) and
 generate a token scoped to the `jeduden` namespace.
 Open VSX does not force expiry, so the only deadline
-is the local cadence in `period-days`.
+is the local cadence in `periodDays`.
 
 Store the value as the `OVSX_PAT` secret on the
 `release` GitHub environment.
