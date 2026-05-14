@@ -2,10 +2,108 @@ package astutil
 
 import (
 	"bytes"
+	"sort"
+	"strings"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/yuin/goldmark/ast"
 )
+
+// SectionHeading is a heading discovered by CollectSectionHeadings,
+// carrying the level and source line needed to compute a section's
+// body range.
+type SectionHeading struct {
+	Level int
+	Line  int
+}
+
+// SectionParagraph is a non-table paragraph discovered by
+// CollectSectionParagraphs, carrying its 1-based source line and the
+// plain text used for section-wide body matches.
+type SectionParagraph struct {
+	Line int
+	Text string
+}
+
+// CollectSectionHeadings returns every heading in the document
+// ordered by source line. Used by content rules (MDS057, MDS058)
+// that need to walk heading-bounded sections.
+func CollectSectionHeadings(f *lint.File) []SectionHeading {
+	var out []SectionHeading
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		h, ok := n.(*ast.Heading)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		out = append(out, SectionHeading{
+			Level: h.Level,
+			Line:  HeadingLine(h, f),
+		})
+		return ast.WalkSkipChildren, nil
+	})
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Line < out[j].Line
+	})
+	return out
+}
+
+// CollectSectionParagraphs returns every non-table paragraph with its
+// 1-based source line and plain text. Goldmark parses pipe-delimited
+// tables as paragraphs when the table extension is absent; those are
+// filtered so cell text does not pollute section bodies.
+func CollectSectionParagraphs(f *lint.File) []SectionParagraph {
+	var out []SectionParagraph
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		p, ok := n.(*ast.Paragraph)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		if IsTable(p, f) {
+			return ast.WalkContinue, nil
+		}
+		out = append(out, SectionParagraph{
+			Line: ParagraphLine(p, f),
+			Text: mdtext.ExtractPlainText(p, f.Source),
+		})
+		return ast.WalkContinue, nil
+	})
+	return out
+}
+
+// SectionEnd returns the exclusive end line of the section starting
+// at headings[i]. The section ends at the first heading at the same
+// or shallower level after headings[i], or at totalLines+1 when no
+// such heading exists. Nested sub-sections stay inside.
+func SectionEnd(headings []SectionHeading, i, totalLines int) int {
+	for j := i + 1; j < len(headings); j++ {
+		if headings[j].Level <= headings[i].Level {
+			return headings[j].Line
+		}
+	}
+	return totalLines + 1
+}
+
+// SectionBody concatenates paragraph plain text for paragraphs whose
+// start line falls in [start, end). Joins with a space so adjacent
+// paragraphs do not appear glued together to a substring/regex
+// matcher.
+func SectionBody(paragraphs []SectionParagraph, start, end int) string {
+	var parts []string
+	for _, p := range paragraphs {
+		if p.Line < start || p.Line >= end {
+			continue
+		}
+		parts = append(parts, p.Text)
+	}
+	return strings.Join(parts, " ")
+}
 
 // HeadingLine returns the 1-based source line of a heading node.
 // Setext headings expose their line via Lines(); ATX headings are found

@@ -10,6 +10,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/jeduden/mdsmith/internal/rules/astutil"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -17,11 +18,14 @@ func init() {
 	rule.Register(&Rule{})
 }
 
-// Rule enforces per-section line-count limits.
+// Rule enforces per-section line, word, and paragraph counts.
 //
-// Section length is the count of lines from the heading line up to (but not
-// including) the next heading line of any level, or the end of file. Nested
-// subsections are therefore measured separately from their parent.
+// Section span is the lines from the heading line up to (but not including)
+// the next heading line of any level, or the end of file. Nested
+// subsections are measured separately from their parent. Word counts come
+// from the plain text of paragraph nodes inside the section; paragraph
+// counts include only paragraphs in that range (sub-section paragraphs
+// belong to the sub-section).
 type Rule struct {
 	// Max is the default per-section line limit. Zero means no global limit.
 	Max int
@@ -30,6 +34,12 @@ type Rule struct {
 	// PerHeading overrides Max and PerLevel when the heading text matches.
 	// The first pattern that matches wins.
 	PerHeading []HeadingPattern
+	// MaxWords caps the word count of a section's prose. Zero disables.
+	MaxWords int
+	// MinWords sets a lower bound on a section's word count. Zero disables.
+	MinWords int
+	// MaxParagraphs caps the number of paragraphs in a section. Zero disables.
+	MaxParagraphs int
 }
 
 // HeadingPattern is a regex pattern matched against heading text with an
@@ -67,21 +77,49 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 		totalLines--
 	}
 
+	paragraphs := collectParagraphs(f)
+
 	var diags []lint.Diagnostic
 	for i, h := range headings {
 		end := totalLines
 		if i+1 < len(headings) {
 			end = headings[i+1].line - 1
 		}
-		length := end - h.line + 1
-		max := r.resolveMax(h)
-		if max <= 0 {
-			continue
-		}
-		if length <= max {
-			continue
-		}
+		diags = append(diags, r.checkLineLimit(f, h, end)...)
+		diags = append(diags, r.checkWordAndParagraphLimits(f, h, end, paragraphs)...)
+	}
+	return diags
+}
 
+func (r *Rule) checkLineLimit(f *lint.File, h heading, end int) []lint.Diagnostic {
+	length := end - h.line + 1
+	max := r.resolveMax(h)
+	if max <= 0 || length <= max {
+		return nil
+	}
+	return []lint.Diagnostic{{
+		File:     f.Path,
+		Line:     h.line,
+		Column:   1,
+		RuleID:   r.ID(),
+		RuleName: r.Name(),
+		Severity: lint.Warning,
+		Message: fmt.Sprintf(
+			"section %q too long (%d > %d)",
+			h.label(), length, max,
+		),
+	}}
+}
+
+func (r *Rule) checkWordAndParagraphLimits(
+	f *lint.File, h heading, end int, paragraphs []paragraph,
+) []lint.Diagnostic {
+	if r.MaxWords <= 0 && r.MinWords <= 0 && r.MaxParagraphs <= 0 {
+		return nil
+	}
+	words, paraCount := countSection(paragraphs, h.line, end)
+	var diags []lint.Diagnostic
+	if r.MaxWords > 0 && words > r.MaxWords {
 		diags = append(diags, lint.Diagnostic{
 			File:     f.Path,
 			Line:     h.line,
@@ -90,8 +128,36 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 			RuleName: r.Name(),
 			Severity: lint.Warning,
 			Message: fmt.Sprintf(
-				"section %q too long (%d > %d)",
-				h.label(), length, max,
+				"section %q has too many words (%d > %d)",
+				h.label(), words, r.MaxWords,
+			),
+		})
+	}
+	if r.MinWords > 0 && words < r.MinWords {
+		diags = append(diags, lint.Diagnostic{
+			File:     f.Path,
+			Line:     h.line,
+			Column:   1,
+			RuleID:   r.ID(),
+			RuleName: r.Name(),
+			Severity: lint.Warning,
+			Message: fmt.Sprintf(
+				"section %q has too few words (%d < %d)",
+				h.label(), words, r.MinWords,
+			),
+		})
+	}
+	if r.MaxParagraphs > 0 && paraCount > r.MaxParagraphs {
+		diags = append(diags, lint.Diagnostic{
+			File:     f.Path,
+			Line:     h.line,
+			Column:   1,
+			RuleID:   r.ID(),
+			RuleName: r.Name(),
+			Severity: lint.Warning,
+			Message: fmt.Sprintf(
+				"section %q has too many paragraphs (%d > %d)",
+				h.label(), paraCount, r.MaxParagraphs,
 			),
 		})
 	}
@@ -127,6 +193,24 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return err
 			}
 			r.PerHeading = patterns
+		case "max-words":
+			n, err := parseNonNegInt(v, "max-words")
+			if err != nil {
+				return err
+			}
+			r.MaxWords = n
+		case "min-words":
+			n, err := parseNonNegInt(v, "min-words")
+			if err != nil {
+				return err
+			}
+			r.MinWords = n
+		case "max-paragraphs":
+			n, err := parseNonNegInt(v, "max-paragraphs")
+			if err != nil {
+				return err
+			}
+			r.MaxParagraphs = n
 		default:
 			return fmt.Errorf(
 				"max-section-length: unknown setting %q", k,
@@ -141,9 +225,12 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 // PerHeading, not just Max.
 func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
-		"max":         0,
-		"per-level":   map[string]any{},
-		"per-heading": []any{},
+		"max":            0,
+		"per-level":      map[string]any{},
+		"per-heading":    []any{},
+		"max-words":      0,
+		"min-words":      0,
+		"max-paragraphs": 0,
 	}
 }
 
@@ -169,6 +256,11 @@ func (h heading) label() string {
 	return strings.Repeat("#", h.level) + " " + h.text
 }
 
+type paragraph struct {
+	line  int
+	words int
+}
+
 func collectHeadings(f *lint.File) []heading {
 	var out []heading
 	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -190,6 +282,46 @@ func collectHeadings(f *lint.File) []heading {
 		return out[i].line < out[j].line
 	})
 	return out
+}
+
+// collectParagraphs returns every paragraph in the document with its
+// 1-based start line and word count. Tables (which goldmark parses as
+// paragraphs when the table extension is absent) are skipped — their
+// pipe-delimited rows are not prose.
+func collectParagraphs(f *lint.File) []paragraph {
+	var out []paragraph
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		p, ok := n.(*ast.Paragraph)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		if astutil.IsTable(p, f) {
+			return ast.WalkContinue, nil
+		}
+		text := mdtext.ExtractPlainText(p, f.Source)
+		out = append(out, paragraph{
+			line:  astutil.ParagraphLine(p, f),
+			words: mdtext.CountWords(text),
+		})
+		return ast.WalkContinue, nil
+	})
+	return out
+}
+
+// countSection sums words and paragraphs for paragraphs whose start
+// line falls within [start, end].
+func countSection(paragraphs []paragraph, start, end int) (words, count int) {
+	for _, p := range paragraphs {
+		if p.line < start || p.line > end {
+			continue
+		}
+		words += p.words
+		count++
+	}
+	return words, count
 }
 
 func headingLine(h *ast.Heading, f *lint.File) int {
@@ -277,6 +409,21 @@ func parsePerHeading(v any) ([]HeadingPattern, error) {
 		settings = append(settings, patternSetting{Pattern: pattern, Max: max})
 	}
 	return compilePatterns(settings)
+}
+
+func parseNonNegInt(v any, key string) (int, error) {
+	n, ok := toInt(v)
+	if !ok {
+		return 0, fmt.Errorf(
+			"max-section-length: %s must be an integer, got %T", key, v,
+		)
+	}
+	if n < 0 {
+		return 0, fmt.Errorf(
+			"max-section-length: %s must be non-negative, got %d", key, n,
+		)
+	}
+	return n, nil
 }
 
 type patternSetting struct {

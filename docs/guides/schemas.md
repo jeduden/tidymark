@@ -220,6 +220,60 @@ not exist or supplies settings the rule rejects, the
 override surfaces as an MDS020 diagnostic at the
 scope's heading line.
 
+### Content constraints
+
+Five rules ship per-scope prose constraints. Each is
+default-disabled and reuses the standard `rules:`
+surface — there is no separate schema vocabulary for
+"max words" or "forbidden text". Set them globally
+under top-level `rules:` for document-wide
+enforcement, or under a scope's `rules:` block for
+section-scoped enforcement.
+
+| Rule                                                                                                  | Setting                                        | Effect                                                                |
+|-------------------------------------------------------------------------------------------------------|------------------------------------------------|-----------------------------------------------------------------------|
+| [MDS036 max-section-length](../../internal/rules/MDS036-max-section-length/README.md)                 | `max-words`, `min-words`, `max-paragraphs`     | Cap word counts and paragraph counts in addition to today's line cap. |
+| [MDS055 forbidden-paragraph-starts](../../internal/rules/MDS055-forbidden-paragraph-starts/README.md) | `starts: [str, ...]`                           | Flag paragraphs that begin with any listed prefix.                    |
+| [MDS056 forbidden-text](../../internal/rules/MDS056-forbidden-text/README.md)                         | `contains: [str, ...]`                         | Flag paragraphs whose text contains any listed substring.             |
+| [MDS057 required-text-patterns](../../internal/rules/MDS057-required-text-patterns/README.md)         | `patterns: [{pattern, message, skip-indices}]` | Flag a section whose body does not match every configured regex.      |
+| [MDS058 required-mentions](../../internal/rules/MDS058-required-mentions/README.md)                   | `mentions: [str, ...]`                         | Flag a section that does not contain every listed substring.          |
+
+Document-wide example:
+
+```yaml
+rules:
+  required-mentions:
+    mentions: ["scope: production"]
+  forbidden-text:
+    contains: ["should", "may", "might"]
+```
+
+Per-section example, scoped to a `Diagnosis` section:
+
+```yaml
+kinds:
+  runbook:
+    schema:
+      sections:
+        - heading: "Diagnosis"
+          rules:
+            forbidden-text:
+              contains: ["should", "may"]
+            required-mentions:
+              mentions: ["forward reference"]
+```
+
+MDS057 and MDS058 anchor diagnostics at the section's
+heading line. MDS055 and MDS056 anchor at the
+offending paragraph's line. In both cases the
+per-scope filter keeps only diagnostics inside the
+section's range, so the same rule code works for
+document-wide and per-section enforcement.
+
+`skip-indices:` on MDS057 parses but currently does
+nothing; it activates when section-content `children:`
+ships in a later plan.
+
 ### Cross-references, acronyms, and index
 
 Three top-level schema blocks add document-wide

@@ -54,7 +54,7 @@ row: "| [{id}]({filename}) | `{name}` | {status} | {description} |"
 | [MDS033](MDS033-directory-structure/README.md)                | `directory-structure`                | ready     | Markdown files must exist only in explicitly allowed directories.                                                             |
 | [MDS034](MDS034-markdown-flavor/README.md)                    | `markdown-flavor`                    | ready     | Flags Markdown syntax that the declared target flavor does not render.                                                        |
 | [MDS035](MDS035-toc-directive/README.md)                      | `toc-directive`                      | ready     | Flag renderer-specific TOC directives that render as literal text on CommonMark and goldmark.                                 |
-| [MDS036](MDS036-max-section-length/README.md)                 | `max-section-length`                 | ready     | Section length must not exceed per-level or per-heading limits.                                                               |
+| [MDS036](MDS036-max-section-length/README.md)                 | `max-section-length`                 | ready     | Section length must not exceed per-level, per-heading, word, or paragraph limits.                                             |
 | [MDS037](MDS037-duplicated-content/README.md)                 | `duplicated-content`                 | ready     | Paragraphs should not repeat verbatim across Markdown files.                                                                  |
 | [MDS038](MDS038-toc/README.md)                                | `toc`                                | ready     | Keep toc generated heading lists in sync with document headings.                                                              |
 | [MDS039](MDS039-build/README.md)                              | `build`                              | ready     | Validate `<?build?>` directive parameters and keep the section body in sync with the recipe's rendered `body-template`.       |
@@ -73,6 +73,10 @@ row: "| [{id}]({filename}) | `{name}` | {status} | {description} |"
 | [MDS052](MDS052-no-space-in-code-spans/README.md)             | `no-space-in-code-spans`             | ready     | Inline code spans with leading or trailing whitespace inside the backticks are almost always typos; flag them.                |
 | [MDS053](MDS053-no-unused-link-definitions/README.md)         | `no-unused-link-definitions`         | ready     | Every `[label]: url` definition must be consumed by at least one reference-style link or image; duplicate labels are flagged. |
 | [MDS054](MDS054-no-undefined-reference-labels/README.md)      | `no-undefined-reference-labels`      | ready     | Reference-style links and images must have a matching link reference definition in the same file.                             |
+| [MDS055](MDS055-forbidden-paragraph-starts/README.md)         | `forbidden-paragraph-starts`         | ready     | Paragraphs must not begin with any configured prefix.                                                                         |
+| [MDS056](MDS056-forbidden-text/README.md)                     | `forbidden-text`                     | ready     | Paragraphs must not contain any configured substring.                                                                         |
+| [MDS057](MDS057-required-text-patterns/README.md)             | `required-text-patterns`             | ready     | Heading-bounded sections must match every configured regex.                                                                   |
+| [MDS058](MDS058-required-mentions/README.md)                  | `required-mentions`                  | ready     | Heading-bounded sections must contain every configured substring.                                                             |
 <?/catalog?>
 
 ## Directive rules

@@ -31,6 +31,8 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodelanguage"          // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/fencedcodestyle"             // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/firstlineheading"            // registers rule
+	_ "github.com/jeduden/mdsmith/internal/rules/forbiddenparagraphstarts"    // registers rule
+	_ "github.com/jeduden/mdsmith/internal/rules/forbiddentext"               // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/githooksync"                 // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/headingincrement"            // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/headingstyle"                // registers rule
@@ -61,7 +63,9 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/paragraphstructure"          // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/propernames"                 // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/recipesafety"                // registers rule
+	_ "github.com/jeduden/mdsmith/internal/rules/requiredmentions"            // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/requiredstructure"           // registers rule
+	_ "github.com/jeduden/mdsmith/internal/rules/requiredtextpatterns"        // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/singleh1"                    // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/singletrailingnewline"       // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/tableformat"                 // registers rule

@@ -1,7 +1,7 @@
 ---
 id: 142
 title: Content rules for prose constraints
-status: "🔲"
+status: "✅"
 model: sonnet
 depends-on: [146]
 summary: >-
@@ -138,69 +138,76 @@ helper. No new tokenization code.
 
 ## Tasks
 
-1. Extend MDS036 max-section-length
+1. ✅ Extend MDS036 max-section-length
    ([README](../internal/rules/MDS036-max-section-length/README.md))
    with `max-words:`, `min-words:`, and
    `max-paragraphs:` settings. The existing
    `max:` (lines) keeps its current
    behavior.
-2. Add `MDS055 forbidden-paragraph-starts`.
+2. ✅ Add `MDS055 forbidden-paragraph-starts`.
    One paragraph walk per scope. Default
    disabled.
-3. Add `MDS056 forbidden-text`. One text walk
+3. ✅ Add `MDS056 forbidden-text`. One text walk
    per scope. Default disabled.
-4. Add `MDS057 required-text-patterns`.
-   Compile regexes at config-load time. Apply
-   `skip-indices:` only when the rule runs
-   from a scope override.
-5. Add `MDS058 required-mentions`. Substring
+4. ✅ Add `MDS057 required-text-patterns`.
+   Compile regexes at config-load time.
+   `skip-indices:` parses today but is a
+   no-op; it activates once the
+   `children:` schema feature ships.
+5. ✅ Add `MDS058 required-mentions`. Substring
    match on the scope's text.
-6. Verify each new rule composes with plan
-   146's per-scope override mechanism. Add a
-   fixture that runs the rule globally on
-   one document and per-section on another.
-7. Document the rule pack in the new
-   `docs/guides/schemas.md` (introduced by
-   plan 146) under "Content constraints".
-   Each rule also gets its standard
+6. ✅ Verify each new rule composes with plan
+   146's per-scope override mechanism.
+   `TestCheck_InlineSchema_PerScopeForbiddenText`
+   and `TestCheck_InlineSchema_PerScopeRequiredMentions`
+   in `internal/rules/requiredstructure/`
+   cover document-vs-section behavior.
+7. ✅ Documented the rule pack in
+   `docs/guides/schemas.md` under "Content
+   constraints". Each rule also has its
+   standard
    `internal/rules/<id>-<name>/README.md`.
-8. Add good and bad fixtures per rule under
-   `internal/rules/MDS055-…/`,
+8. ✅ Added good and bad fixtures per rule
+   under `internal/rules/MDS055-…/`,
    `internal/rules/MDS056-…/`,
    `internal/rules/MDS057-…/`,
-   `internal/rules/MDS058-…/`.
+   `internal/rules/MDS058-…/`. MDS036
+   gained `good/max-words.md`,
+   `good/min-words.md`,
+   `good/max-paragraphs.md`, and matching
+   `bad/` fixtures.
 
 ## Acceptance Criteria
 
-- [ ] MDS036 with `max-words: 50` flags a
+- [x] MDS036 with `max-words: 50` flags a
       section above 50 words and passes one
       below.
-- [ ] MDS036 with `min-words: 10` flags a
+- [x] MDS036 with `min-words: 10` flags a
       section below 10 words.
-- [ ] MDS036 with `max-paragraphs: 3` flags
+- [x] MDS036 with `max-paragraphs: 3` flags
       a section with four paragraphs.
-- [ ] MDS055 flags a paragraph starting with
+- [x] MDS055 flags a paragraph starting with
       a configured string and passes other
       paragraphs.
-- [ ] MDS056 flags a scope whose body
+- [x] MDS056 flags a scope whose body
       contains a configured string.
-- [ ] MDS057 flags a scope whose body does
-      not match the configured regex;
-      `skip-indices:` exempts named child
-      indices when the rule runs from a
-      scope override.
-- [ ] MDS058 flags a scope that does not
+- [x] MDS057 flags a scope whose body does
+      not match the configured regex.
+      `skip-indices:` parses today but is a
+      no-op; enforcement waits on the
+      `children:` schema feature.
+- [x] MDS058 flags a scope that does not
       mention every configured string.
-- [ ] Each new rule applies document-wide
+- [x] Each new rule applies document-wide
       when configured under top-level
       `rules:`.
-- [ ] Each new rule applies per-section when
+- [x] Each new rule applies per-section when
       configured under a schema scope's
       `rules:` block (plan 146).
-- [ ] All new rules are default-disabled.
-- [ ] Each new rule has a README under
+- [x] All new rules are default-disabled.
+- [x] Each new rule has a README under
       `internal/rules/<id>-<name>/` and a
       good/bad fixture set.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues.

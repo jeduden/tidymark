@@ -13,7 +13,11 @@ import (
 	// rule override fixtures rely on these rules being resolvable
 	// via rule.ByName at run time.
 	_ "github.com/jeduden/mdsmith/internal/rules/blanklinearoundfencedcode"
+	_ "github.com/jeduden/mdsmith/internal/rules/forbiddenparagraphstarts"
+	_ "github.com/jeduden/mdsmith/internal/rules/forbiddentext"
 	_ "github.com/jeduden/mdsmith/internal/rules/linelength"
+	_ "github.com/jeduden/mdsmith/internal/rules/requiredmentions"
+	_ "github.com/jeduden/mdsmith/internal/rules/requiredtextpatterns"
 )
 
 // inlineSchema is a test helper that mirrors how the config merge
@@ -704,4 +708,80 @@ func TestCheck_InlineSchema_PerScopeRuleOverride(t *testing.T) {
 	// (line 7 of the source has the offending content).
 	assert.GreaterOrEqual(t, lineLength[0].Line, 7,
 		"diagnostic should land inside the Strict scope (line %d)", lineLength[0].Line)
+}
+
+// TestCheck_InlineSchema_PerScopeForbiddenText covers plan 142
+// acceptance: a per-section `rules:` block on MDS056 applies only to
+// the named section, leaving the rest of the document untouched. Same
+// prose ("should") appears in two sections; only the Strict section
+// fires.
+func TestCheck_InlineSchema_PerScopeForbiddenText(t *testing.T) {
+	r := &Rule{InlineSchema: inlineSchema(t, map[string]any{
+		"sections": []any{
+			map[string]any{"heading": "Loose"},
+			map[string]any{
+				"heading": "Strict",
+				"rules": map[string]any{
+					"forbidden-text": map[string]any{
+						"contains": []any{"should"},
+					},
+				},
+			},
+		},
+	})}
+	src := "# Doc\n\n" +
+		"## Loose\n\n" +
+		"This should not fire here.\n\n" +
+		"## Strict\n\n" +
+		"This should fire only here.\n"
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	var forbidden []lint.Diagnostic
+	for _, d := range diags {
+		if d.RuleID == "MDS056" {
+			forbidden = append(forbidden, d)
+		}
+	}
+	require.Len(t, forbidden, 1,
+		"expected one forbidden-text diagnostic from the Strict scope override")
+	assert.GreaterOrEqual(t, forbidden[0].Line, 7,
+		"diagnostic should land inside the Strict scope (line %d)", forbidden[0].Line)
+}
+
+// TestCheck_InlineSchema_PerScopeRequiredMentions covers plan 142
+// acceptance: a per-section `rules:` block on MDS058 fires only when
+// the named section lacks the mention. The Strict section requires
+// "rollback"; the Loose section's body has no such requirement.
+func TestCheck_InlineSchema_PerScopeRequiredMentions(t *testing.T) {
+	r := &Rule{InlineSchema: inlineSchema(t, map[string]any{
+		"sections": []any{
+			map[string]any{"heading": "Loose"},
+			map[string]any{
+				"heading": "Strict",
+				"rules": map[string]any{
+					"required-mentions": map[string]any{
+						"mentions": []any{"rollback"},
+					},
+				},
+			},
+		},
+	})}
+	// Strict body lacks "rollback".
+	src := "# Doc\n\n" +
+		"## Loose\n\n" +
+		"Loose prose with no mentions required.\n\n" +
+		"## Strict\n\n" +
+		"Strict prose without the keyword.\n"
+	f := newTestFile(t, "doc.md", src)
+	diags := r.Check(f)
+	var mentions []lint.Diagnostic
+	for _, d := range diags {
+		if d.RuleID == "MDS058" {
+			mentions = append(mentions, d)
+		}
+	}
+	require.Len(t, mentions, 1,
+		"expected one required-mentions diagnostic from the Strict scope override")
+	// The diagnostic anchors at the Strict heading line (line 7).
+	assert.Equal(t, 7, mentions[0].Line)
 }

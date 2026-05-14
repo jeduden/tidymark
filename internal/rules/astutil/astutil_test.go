@@ -346,3 +346,73 @@ func TestHeadingText_AndExtractText_NoChildren(t *testing.T) {
 	ExtractText(emptyLink, nil, &buf)
 	assert.Equal(t, "", buf.String())
 }
+
+// --- CollectSectionHeadings ---
+
+func TestCollectSectionHeadings_OrdersByLine(t *testing.T) {
+	src := []byte("# H1\n\n## H2\n\n### H3\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	got := CollectSectionHeadings(f)
+	require.Len(t, got, 3)
+	assert.Equal(t, 1, got[0].Level)
+	assert.Equal(t, 1, got[0].Line)
+	assert.Equal(t, 2, got[1].Level)
+	assert.Equal(t, 3, got[1].Line)
+	assert.Equal(t, 3, got[2].Level)
+	assert.Equal(t, 5, got[2].Line)
+}
+
+func TestCollectSectionHeadings_NoHeadings(t *testing.T) {
+	f, err := lint.NewFile("test.md", []byte("just text\n"))
+	require.NoError(t, err)
+	assert.Empty(t, CollectSectionHeadings(f))
+}
+
+// --- CollectSectionParagraphs ---
+
+func TestCollectSectionParagraphs_SkipsTables(t *testing.T) {
+	src := []byte("# H1\n\nfirst.\n\n| a |\n| - |\n| b |\n\nsecond.\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	got := CollectSectionParagraphs(f)
+	require.Len(t, got, 2)
+	assert.Equal(t, "first.", got[0].Text)
+	assert.Equal(t, "second.", got[1].Text)
+}
+
+// --- SectionEnd ---
+
+func TestSectionEnd_StopsAtSameOrShallowerLevel(t *testing.T) {
+	heads := []SectionHeading{
+		{Level: 1, Line: 1},
+		{Level: 2, Line: 5},  // nested — does not end H1
+		{Level: 3, Line: 10}, // nested — does not end H1
+		{Level: 1, Line: 20}, // ends H1
+	}
+	assert.Equal(t, 20, SectionEnd(heads, 0, 100))
+	// H2 at index 1 ends at the next heading of <=2: index 3 (H1).
+	assert.Equal(t, 20, SectionEnd(heads, 1, 100))
+}
+
+func TestSectionEnd_RunsToEOFWhenNoFollowingHeading(t *testing.T) {
+	heads := []SectionHeading{{Level: 1, Line: 1}}
+	assert.Equal(t, 51, SectionEnd(heads, 0, 50))
+}
+
+// --- SectionBody ---
+
+func TestSectionBody_JoinsWithSpace(t *testing.T) {
+	paras := []SectionParagraph{
+		{Line: 3, Text: "alpha"},
+		{Line: 5, Text: "beta"},
+		{Line: 50, Text: "gamma"},
+	}
+	got := SectionBody(paras, 2, 10)
+	assert.Equal(t, "alpha beta", got)
+}
+
+func TestSectionBody_EmptyWhenNoParagraphsInRange(t *testing.T) {
+	paras := []SectionParagraph{{Line: 100, Text: "out"}}
+	assert.Equal(t, "", SectionBody(paras, 1, 10))
+}
