@@ -15,9 +15,9 @@ import (
 
 // allowedRuleHelpers names the sibling helper packages a rule may
 // import. Helpers answer a single shared question (fence position,
-// table formatting, ast walks, settings parsing) and own no rule.
-// Every other directory under internal/rules/ is a rule package and
-// must not be imported by another rule. See
+// table formatting, ast walks, settings parsing) and own no rule
+// logic. Every other directory under internal/rules/ is a rule
+// package and must not be imported by another rule. See
 // docs/development/architecture/index.md.
 var allowedRuleHelpers = map[string]struct{}{
 	"astutil":  {},
