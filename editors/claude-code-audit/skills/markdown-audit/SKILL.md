@@ -122,12 +122,23 @@ start for deeper heuristics and false positives.
 
 For each `<?directive?>` fix, read the rule's
 `pattern/bad/` and `pattern/good/` folders. They
-hold the canonical before/after pair:
+hold the canonical before/after pair. The list
+below is generated from every rule whose front
+matter declares `nature: directive`, so it stays
+in sync with the rule catalog automatically:
 
-- `internal/rules/MDS019-catalog/pattern/{bad,good}/`
-- `internal/rules/MDS021-include/pattern/{bad,good}/`
-- `internal/rules/MDS038-toc/pattern/{bad,good}/`
-- `internal/rules/MDS039-build/pattern/{bad,good}/`
+<?catalog
+source-dir: ".claude/skills/markdown-audit"
+glob: "../../../internal/rules/MDS*/README.md"
+where: 'nature: "directive"'
+sort: id
+row: "- `internal/rules/{id}-{name}/pattern/` ({name})"
+?>
+- `internal/rules/MDS019-catalog/pattern/` (catalog)
+- `internal/rules/MDS021-include/pattern/` (include)
+- `internal/rules/MDS038-toc/pattern/` (toc)
+- `internal/rules/MDS039-build/pattern/` (build)
+<?/catalog?>
 
 Do not paraphrase directive syntax from memory.
 The integration test
