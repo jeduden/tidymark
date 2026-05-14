@@ -35,20 +35,11 @@ jobs:
           # needs branch-protection bypass.
           persist-credentials: false
 
+      - uses: ./.github/actions/setup-mdsmith-pinned-version
       - name: Install mdsmith merge driver and pre-merge-commit hook
-        env:
-          MDSMITH_VERSION: v0.15.0
-          MDSMITH_SHA256: e91115916132c668620bb605bd162c05343aad26c3ed2c25e58c86a8506af191
         run: |
-          # Install to a stable path that will persist for the hook to use
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL "https://github.com/jeduden/mdsmith/releases/download/${MDSMITH_VERSION}/mdsmith-linux-amd64" \
-            -o "$HOME/.local/bin/mdsmith"
-          echo "${MDSMITH_SHA256}  $HOME/.local/bin/mdsmith" | sha256sum -c
-          chmod +x "$HOME/.local/bin/mdsmith"
-          "$HOME/.local/bin/mdsmith" merge-driver install
-          "$HOME/.local/bin/mdsmith" pre-merge-commit install
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          mdsmith merge-driver install
+          mdsmith pre-merge-commit install
 
       - uses: jeduden/merge-queue-action@389ad414544a693f6c98e0dfdca349007b64d0df #v0.7.8
         with:
