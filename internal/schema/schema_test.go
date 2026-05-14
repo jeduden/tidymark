@@ -11,6 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// diagsMessages flattens diags' messages so a failing test assertion
+// can show every reported diagnostic without expanding the struct.
+func diagsMessages(diags []lint.Diagnostic) []string {
+	out := make([]string, len(diags))
+	for i, d := range diags {
+		out[i] = d.Message
+	}
+	return out
+}
+
 // makeDiagForTest is the diagnostic constructor the tests use; it
 // matches MDS020's shape so message formats are exercised the same
 // way the real rule emits them.
@@ -677,6 +687,573 @@ func TestValidate_Content_PreambleLabelAndLine(t *testing.T) {
 		"preamble diagnostic must label the parent as preamble")
 	assert.NotContains(t, preamble.Message, "## ",
 		"preamble diagnostic must not render an empty heading")
+}
+
+// ---- ParseInline content: error paths ----
+
+func TestParseInline_ContentNotAList(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": "not-a-list",
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "content must be a list")
+}
+
+func TestParseInline_ContentEntryNotAMapping(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{"string-not-map"},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "content entry must be a mapping")
+}
+
+func TestParseInline_ContentMissingKind(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{"lang": "yaml"}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must set a `kind:` key")
+}
+
+func TestParseInline_ContentKindNotAString(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{"kind": 42}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "kind must be a string")
+}
+
+func TestParseInline_ContentUnknownField(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "code-block", "bogus": 1,
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown content key "bogus"`)
+}
+
+func TestParseInline_ContentLangWrongType(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "code-block", "lang": 42,
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lang must be a string")
+}
+
+func TestParseInline_ContentColumnsWrongKind(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "paragraph", "columns": []any{"A"},
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only valid on `kind: table`")
+}
+
+func TestParseInline_ContentColumnsNotAList(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "table", "columns": "A,B",
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a list")
+}
+
+func TestParseInline_ContentOrderedWrongKind(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "paragraph", "ordered": true,
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only valid on `kind: list`")
+}
+
+func TestParseInline_ContentOrderedWrongType(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "list", "ordered": "yes",
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ordered must be a boolean")
+}
+
+func TestParseInline_ContentItemBoundWrongKind(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "paragraph", "min-items": 2,
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only valid on `kind: list`")
+}
+
+func TestParseInline_ContentItemBoundNegative(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "list", "min-items": -1,
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be non-negative")
+}
+
+func TestParseInline_ContentItemBoundFloat(t *testing.T) {
+	// goyaml may decode integers as float64 — accept whole floats,
+	// reject non-integer floats with a clear message.
+	sch, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "list", "min-items": float64(3),
+			}},
+		}},
+	}, "kind x")
+	require.NoError(t, err)
+	require.Len(t, sch.Sections[0].Content, 1)
+	assert.Equal(t, 3, sch.Sections[0].Content[0].MinItems)
+
+	_, err = ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "list", "min-items": 2.5,
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a non-negative integer")
+}
+
+func TestParseInline_ContentItemBoundInt64Negative(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "list", "min-items": int64(-2),
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be non-negative")
+}
+
+func TestParseInline_ContentItemBoundWrongType(t *testing.T) {
+	_, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "list", "min-items": "two",
+			}},
+		}},
+	}, "kind x")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be an integer")
+}
+
+func TestParseInline_ContentItemBoundInt64Accepted(t *testing.T) {
+	sch, err := ParseInline(map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Examples",
+			"content": []any{map[string]any{
+				"kind": "list", "max-items": int64(7),
+			}},
+		}},
+	}, "kind x")
+	require.NoError(t, err)
+	assert.Equal(t, 7, sch.Sections[0].Content[0].MaxItems)
+}
+
+// ---- Validate content: edge-case branches ----
+
+func TestValidate_Content_NestedSectionRecurses(t *testing.T) {
+	// A scope whose nested child carries a `content:` entry exercises
+	// walkContentScopes' recursion branch and the deeper-level
+	// content match.
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Parent",
+			"sections": []any{map[string]any{
+				"heading": "Child",
+				"content": []any{
+					map[string]any{"kind": "code-block", "lang": "go"},
+				},
+			}},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Parent\n\n### Child\n\nNo code block here.\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message,
+		`missing required content "code-block lang=go" inside ### Child`)
+}
+
+func TestValidate_Content_WildcardSiblingSkipped(t *testing.T) {
+	// A slot scope sibling to a content-bearing scope must be skipped
+	// by walkContentScopes without panicking — exercises the
+	// sc.Wildcard branch.
+	raw := map[string]any{
+		"sections": []any{
+			map[string]any{"heading": map[string]any{"unlisted": true}},
+			map[string]any{
+				"heading": "Body",
+				"content": []any{map[string]any{"kind": "paragraph"}},
+			},
+		},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md", "# T\n\n## Body\n\nA paragraph.\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	assert.Empty(t, diags)
+}
+
+func TestValidate_Content_HeadingLevelMismatchFallback(t *testing.T) {
+	// Schema lists `## Body` (H2 at root) but doc emits `### Body`.
+	// findContentMatchingHead's level-mismatch fallback must still
+	// pair the scope so its content runs.
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"content": []any{
+				map[string]any{"kind": "code-block", "lang": "yaml"},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n### Body\n\nNo code block.\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	// Heading-tree diagnostics first, then the content miss.
+	var contentMiss bool
+	for _, d := range diags {
+		if strings.Contains(d.Message, "missing required content") {
+			contentMiss = true
+		}
+	}
+	assert.True(t, contentMiss,
+		"level-mismatch fallback should still run content check")
+}
+
+func TestValidate_Content_TableEmptyHeaderTolerated(t *testing.T) {
+	// A table entry with no `columns:` constraint accepts any header.
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"content": []any{map[string]any{"kind": "table"}},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Body\n\n| A | B |\n|---|---|\n| x | y |\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	assert.Empty(t, diags)
+}
+
+func TestValidate_Content_ListMaxItems(t *testing.T) {
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Steps",
+			"content": []any{
+				map[string]any{"kind": "list", "max-items": 1},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Steps\n\n- one\n- two\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message,
+		"list has 2 items, required at most 1")
+}
+
+func TestValidate_Content_ParagraphMatches(t *testing.T) {
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Notes",
+			"content": []any{map[string]any{"kind": "paragraph"}},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Notes\n\nA paragraph.\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	assert.Empty(t, diags)
+}
+
+func TestValidate_Content_OptionalEntryDeferToLater(t *testing.T) {
+	// An optional entry sees a later listed entry's match first. It
+	// must NOT pre-claim the node out-of-order — the outer loop
+	// should advance to the matching entry on its own iteration.
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"content": []any{
+				map[string]any{"kind": "code-block", "required": false},
+				map[string]any{"kind": "table"},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Body\n\n| A | B |\n|---|---|\n| x | y |\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	// The optional code-block is absent, the table matches its slot.
+	// No diagnostic should fire.
+	assert.Empty(t, diags)
+}
+
+func TestValidate_Content_DescribeListWithBounds(t *testing.T) {
+	// describeEntry should render every list constraint that fires.
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"content": []any{
+				map[string]any{"kind": "list",
+					"ordered": true, "min-items": 2, "max-items": 5},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Body\n\nNo list.\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message,
+		"list ordered=true min-items=2 max-items=5")
+}
+
+// describeNodeCase pins one expected describeNode rendering to the
+// document body that should produce it. Used as a table for
+// TestValidate_Content_DescribeNodeKinds.
+type describeNodeCase struct {
+	name string
+	body string
+	want string
+}
+
+var describeNodeCases = []describeNodeCase{
+	{
+		name: "code-block-no-lang",
+		body: "Hello.\n\n```\nx\n```\n",
+		want: `unexpected content "code-block"`,
+	},
+	{
+		name: "code-block-with-lang",
+		body: "Hello.\n\n```go\nfoo()\n```\n",
+		want: `unexpected content "code-block lang=go"`,
+	},
+	{
+		name: "table",
+		body: "Hello.\n\n| A | B |\n|---|---|\n| x | y |\n",
+		want: `unexpected content "table"`,
+	},
+	{
+		name: "list-ordered",
+		body: "Hello.\n\n1. one\n2. two\n",
+		want: `unexpected content "list ordered=true"`,
+	},
+	{
+		name: "list-unordered",
+		body: "Hello.\n\n- a\n- b\n",
+		want: `unexpected content "list ordered=false"`,
+	},
+}
+
+// TestValidate_Content_DescribeNodeKinds exercises describeNode for
+// every node kind — the closed-scope "unexpected content" message
+// embeds describeNode's output for the offending block.
+func TestValidate_Content_DescribeNodeKinds(t *testing.T) {
+	for _, tc := range describeNodeCases {
+		t.Run(tc.name, func(t *testing.T) {
+			runDescribeNodeCase(t, tc)
+		})
+	}
+}
+
+func runDescribeNodeCase(t *testing.T, tc describeNodeCase) {
+	t.Helper()
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"closed":  true,
+			"content": []any{map[string]any{"kind": "paragraph"}},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md", "# T\n\n## Body\n\n"+tc.body)
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	var found bool
+	for _, d := range diags {
+		if strings.Contains(d.Message, tc.want) {
+			found = true
+		}
+	}
+	assert.True(t, found,
+		"want diagnostic containing %q, got %v",
+		tc.want, diagsMessages(diags))
+}
+
+// TestValidate_Content_TableHeaderWithCodeSpan regresses a Copilot
+// review on PR #285: inline code spans (and other non-Text inline
+// nodes) inside table header cells used to drop their text content,
+// causing false column-mismatch diagnostics even when the rendered
+// header matched. mdtext.ExtractPlainText preserves the labels.
+func TestValidate_Content_TableHeaderWithCodeSpan(t *testing.T) {
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Settings",
+			"content": []any{
+				map[string]any{"kind": "table",
+					"columns": []any{"Setting", "Default"}},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	// The header cells use code spans around the labels. The walker
+	// must still extract `Setting` and `Default` and treat the table
+	// as matching.
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Settings\n\n"+
+			"| `Setting` | `Default` |\n"+
+			"|-----------|-----------|\n"+
+			"| timeout   | 30s       |\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	assert.Empty(t, diags,
+		"code-span table headers must round-trip through plain-text extraction")
+}
+
+func TestValidate_Content_FindLaterEntrySkipsUnlistedSlot(t *testing.T) {
+	// findLaterEntry must skip unlisted slots when searching for an
+	// out-of-order match. Place an unlisted slot between two listed
+	// entries; a doc node matching the later listed entry should be
+	// claimed as out-of-order, not absorbed by the slot.
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"content": []any{
+				map[string]any{"kind": "code-block", "lang": "yaml"},
+				map[string]any{"kind": "unlisted"},
+				map[string]any{"kind": "table"},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Body\n\n"+
+			"| A | B |\n|---|---|\n| x | y |\n\n"+
+			"```yaml\nfoo: bar\n```\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	var ooo bool
+	for _, d := range diags {
+		if strings.Contains(d.Message, "out of order") {
+			ooo = true
+		}
+	}
+	assert.True(t, ooo,
+		"unlisted slot must not shadow later listed entries for out-of-order detection")
+}
+
+func TestValidate_Content_PreambleAtEndOfDocument(t *testing.T) {
+	// firstContentHeadingLine returns parentEnd when no heading
+	// follows the preamble in its window — exercise that path with a
+	// doc that has no subsequent H2 sections.
+	raw := map[string]any{
+		"sections": []any{
+			map[string]any{
+				"heading":  nil,
+				"required": true,
+				"content": []any{
+					map[string]any{"kind": "code-block", "lang": "yaml"},
+				},
+			},
+		},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\nPreamble prose only — no following H2.\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message, "missing required content")
+}
+
+func TestValidate_Content_DescribeUnlistedEntry(t *testing.T) {
+	// describeEntry covers `unlisted` indirectly via diagnostic
+	// shaping; this confirms a closed scope with a slot still
+	// renders properly.
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"closed":  true,
+			"content": []any{
+				map[string]any{"kind": "unlisted"},
+				map[string]any{"kind": "code-block"},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	doc := newDocFile(t, "doc.md",
+		"# T\n\n## Body\n\nA paragraph then nothing else.\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message,
+		`missing required content "code-block" inside ## Body`)
 }
 
 // TestValidate_Content_TolerateDirectivesInOpenScope regresses a

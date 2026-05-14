@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -132,9 +133,11 @@ type contentBlock struct {
 // segment, and finally to a descendant scan for empty containers.
 func blockLine(f *lint.File, n ast.Node) int {
 	if fcb, ok := n.(*ast.FencedCodeBlock); ok && fcb.Info != nil {
-		// The info-string segment sits on the opening fence line; back
-		// off one column for the fence backticks and the conversion
-		// resolves to the fence itself.
+		// The info-string segment sits on the opening fence line, so
+		// converting its byte offset to a 1-based line resolves to
+		// the fence itself rather than the first content line goldmark
+		// stores in Lines(). Only the line matters here; the column
+		// is discarded.
 		return f.LineOfOffset(fcb.Info.Segment.Start)
 	}
 	if n.Lines().Len() > 0 {
@@ -500,16 +503,17 @@ func shapeDiags(
 	return nil
 }
 
+// codeBlockShapeDiags is only invoked after nodeMatchesKind has
+// confirmed b.node is *ast.FencedCodeBlock; the direct type
+// assertion would panic on a programming error, which is preferable
+// to a silent no-op.
 func codeBlockShapeDiags(
 	f *lint.File, entry ContentEntry, b contentBlock, mkDiag MakeDiag,
 ) []lint.Diagnostic {
 	if entry.Lang == "" {
 		return nil
 	}
-	fcb, ok := b.node.(*ast.FencedCodeBlock)
-	if !ok {
-		return nil
-	}
+	fcb := b.node.(*ast.FencedCodeBlock)
 	lang := string(fcb.Language(f.Source))
 	if lang == entry.Lang {
 		return nil
@@ -519,16 +523,15 @@ func codeBlockShapeDiags(
 			lang, entry.Lang))}
 }
 
+// tableShapeDiags relies on nodeMatchesKind to have confirmed the
+// table type, mirroring codeBlockShapeDiags' contract.
 func tableShapeDiags(
 	f *lint.File, entry ContentEntry, b contentBlock, mkDiag MakeDiag,
 ) []lint.Diagnostic {
 	if len(entry.Columns) == 0 {
 		return nil
 	}
-	tbl, ok := b.node.(*extast.Table)
-	if !ok {
-		return nil
-	}
+	tbl := b.node.(*extast.Table)
 	cols := tableHeaderColumns(tbl, f.Source)
 	if stringSlicesEqual(cols, entry.Columns) {
 		return nil
@@ -538,13 +541,12 @@ func tableShapeDiags(
 			cols, entry.Columns))}
 }
 
+// listShapeDiags relies on nodeMatchesKind to have confirmed the
+// list type, mirroring codeBlockShapeDiags' contract.
 func listShapeDiags(
 	f *lint.File, entry ContentEntry, b contentBlock, mkDiag MakeDiag,
 ) []lint.Diagnostic {
-	lst, ok := b.node.(*ast.List)
-	if !ok {
-		return nil
-	}
+	lst := b.node.(*ast.List)
 	var diags []lint.Diagnostic
 	if entry.OrderedSet && lst.IsOrdered() != entry.Ordered {
 		diags = append(diags, mkDiag(f.Path, b.line,
@@ -579,8 +581,10 @@ func listItemCount(l *ast.List) int {
 
 // tableHeaderColumns extracts the text content of the first row of
 // tbl — typically a *extast.TableHeader holding *extast.TableCell
-// children. Cells are returned in source order with their inline text
-// concatenated.
+// children. Cell labels are extracted via mdtext.ExtractPlainText so
+// inline code spans, smart-quote/autolink *ast.String nodes, and
+// other inline extensions round-trip through the header text the
+// same way they do everywhere else in the engine.
 func tableHeaderColumns(tbl *extast.Table, source []byte) []string {
 	header := tbl.FirstChild()
 	if header == nil {
@@ -591,26 +595,9 @@ func tableHeaderColumns(tbl *extast.Table, source []byte) []string {
 		if _, ok := c.(*extast.TableCell); !ok {
 			continue
 		}
-		cells = append(cells, strings.TrimSpace(inlineText(c, source)))
+		cells = append(cells, strings.TrimSpace(mdtext.ExtractPlainText(c, source)))
 	}
 	return cells
-}
-
-// inlineText concatenates the visible text of n's inline descendants.
-// Used to extract a table header cell's label without rendering
-// emphasis or code-span markup.
-func inlineText(n ast.Node, source []byte) string {
-	var b strings.Builder
-	_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		if t, ok := c.(*ast.Text); ok {
-			b.Write(t.Segment.Value(source))
-		}
-		return ast.WalkContinue, nil
-	})
-	return b.String()
 }
 
 // stringSlicesEqual reports whether a and b have identical length
