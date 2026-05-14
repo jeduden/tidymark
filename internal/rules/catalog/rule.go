@@ -379,27 +379,38 @@ func resolveAgainstProjectRoot(
 // no relation can be computed (e.g. an absolute file path with no
 // configured RootDir, or a file outside the configured root).
 //
+// The Runner passes file paths through verbatim from the command line,
+// so a relative f.Path may be CWD-relative rather than root-relative
+// (e.g. running `mdsmith check index.md` from a subdirectory). When
+// RootDir is set, the file path is absolutized first so both absolute
+// and any flavor of relative input land on the same root-relative
+// string. Without RootDir, the path is assumed to already be
+// root-relative.
+//
 // Returns "" for the project root itself.
 func projectRelFileDir(f *lint.File) (string, bool) {
-	cleaned := path.Clean(filepath.ToSlash(filepath.Dir(f.Path)))
-	if cleaned == "." {
-		return "", true
-	}
-	if !filepath.IsAbs(cleaned) {
+	if f.RootDir == "" {
+		cleaned := path.Clean(filepath.ToSlash(filepath.Dir(f.Path)))
+		if cleaned == "." {
+			return "", true
+		}
+		if filepath.IsAbs(cleaned) {
+			return "", false
+		}
 		return cleaned, true
 	}
-	if f.RootDir == "" {
-		return "", false
-	}
-	// filepath.Abs can fail if Getwd errors; filepath.Rel returns an
-	// error for paths on different volumes (Windows) or for mismatched
-	// abs/rel pairs. Treating those as "cannot relate to root" keeps
-	// the safety check honest instead of returning a bogus path.
 	rootAbs, err := filepath.Abs(f.RootDir)
 	if err != nil {
 		return "", false
 	}
-	rel, err := filepath.Rel(rootAbs, filepath.Dir(f.Path))
+	fileAbs := f.Path
+	if !filepath.IsAbs(fileAbs) {
+		fileAbs, err = filepath.Abs(fileAbs)
+		if err != nil {
+			return "", false
+		}
+	}
+	rel, err := filepath.Rel(rootAbs, filepath.Dir(fileAbs))
 	if err != nil {
 		return "", false
 	}

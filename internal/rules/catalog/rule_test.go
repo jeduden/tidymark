@@ -2865,6 +2865,29 @@ func TestProjectRelFileDir_AbsoluteFileAtRoot(t *testing.T) {
 	assert.Equal(t, "", got, "file directly at project root resolves to empty rel dir")
 }
 
+func TestProjectRelFileDir_CWDRelativePathWithRootDir(t *testing.T) {
+	// Real CLI run from a subdirectory: f.Path is CWD-relative but
+	// RootDir is absolute. projectRelFileDir must absolutize f.Path
+	// against the current CWD before relating it to RootDir, so the
+	// returned directory is project-root-relative regardless of how
+	// the path was supplied on the command line.
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "docs"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "docs", "index.md"),
+		[]byte("# Index\n"), 0o644))
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	require.NoError(t, os.Chdir(filepath.Join(dir, "docs")))
+
+	f := &lint.File{Path: "index.md", RootDir: dir}
+	got, ok := projectRelFileDir(f)
+	require.True(t, ok)
+	assert.Equal(t, "docs", got)
+}
+
 func TestDisplayPath_RelErrorReturnsMatchUnchanged(t *testing.T) {
 	// filepath.Rel returns an error when one path is absolute and the
 	// other relative. Forcing that combination exercises the err branch.
@@ -2923,6 +2946,42 @@ glob: "../sibling/*.md"
 `
 	absPath := filepath.Join(dir, "home", "index.md")
 	f, err := lint.NewFile(absPath, []byte(src))
+	require.NoError(t, err)
+	f.SetRootDir(dir)
+	f.FS = f.RootFS
+
+	r := &Rule{}
+	result := string(r.Fix(f))
+	assert.Contains(t, result, "../sibling/api.md")
+}
+
+func TestCatalog_DotDotGlobCWDRelativePathFromSubdir(t *testing.T) {
+	// Common CLI invocation style: `mdsmith check index.md` run from
+	// a subdirectory under the project root. f.Path is "index.md"
+	// (CWD-relative), but RootDir/RootFS point at the configured
+	// project root. The catalog rule should still resolve "../sibling"
+	// patterns correctly via projectRelFileDir's absolutize-first path.
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "home"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sibling"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "sibling", "api.md"),
+		[]byte("# API\n"), 0o644))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "home", "index.md"),
+		[]byte("placeholder"), 0o644))
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	require.NoError(t, os.Chdir(filepath.Join(dir, "home")))
+
+	src := `<?catalog
+glob: "../sibling/*.md"
+?>
+<?/catalog?>
+`
+	f, err := lint.NewFile("index.md", []byte(src))
 	require.NoError(t, err)
 	f.SetRootDir(dir)
 	f.FS = f.RootFS

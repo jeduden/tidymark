@@ -303,12 +303,21 @@ func attachFixtureFS(f *lint.File, dir string, r rule.Rule) {
 // fixture. For rules whose Check inspects git state (currently
 // MDS048), it returns a path inside a fresh non-repo tempdir so the
 // fixture cannot fail based on the contributor's local git config or
-// installed hooks. For all other rules it returns the basename so
-// existing tests are unaffected.
+// installed hooks. For rules that resolve paths against the project
+// root (currently MDS019), it returns the fixture's absolute path so
+// projectRelFileDir-style logic computes the same root-relative
+// directory it would for a real `mdsmith check <abs-path>` invocation.
+// For all other rules it returns the basename so existing tests are
+// unaffected.
 func fixtureFilePath(t *testing.T, r rule.Rule, filePath string) string {
 	t.Helper()
 	if r != nil && r.ID() == "MDS048" {
 		return filepath.Join(t.TempDir(), filepath.Base(filePath))
+	}
+	if r != nil && r.ID() == "MDS019" {
+		abs, err := filepath.Abs(filePath)
+		require.NoError(t, err)
+		return abs
 	}
 	return filepath.Base(filePath)
 }
