@@ -1,2 +1,5 @@
 {{- $on := eq (.Get "on" | default "false") "true" -}}
-<span class="chip{{ if $on }} is-on{{ end }}">{{ .Inner | markdownify }}</span>
+{{- /* Render the body as inline Markdown so the inner content
+       does not wrap in a block-level <p>, which would be
+       invalid markup inside this <span>. */ -}}
+<span class="chip{{ if $on }} is-on{{ end }}">{{ .Page.RenderString (dict "display" "inline") .Inner }}</span>

@@ -4,5 +4,8 @@
 <div class="diag is-{{ $status }}">
   {{- with $loc }}<span class="term-key">{{ . }}</span> {{ end -}}
   {{- with $rule }}<span class="term-{{ $status }}">{{ . }}</span> {{ end -}}
-  <span class="term-fg">{{ .Inner | markdownify }}</span>
+  {{- /* Render the body as inline Markdown so the inner content
+         does not wrap in a block-level <p>, which would be
+         invalid markup inside this <span>. */ -}}
+  <span class="term-fg">{{ .Page.RenderString (dict "display" "inline") .Inner }}</span>
 </div>
