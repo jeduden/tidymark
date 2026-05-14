@@ -1,7 +1,7 @@
 <header class="topnav">
   <div class="topnav-inner">
     <a class="topnav-brand" href="{{ "/" | relURL }}">
-      <img src="{{ "img/logo-mark.svg" | relURL }}" width="22" height="22" alt="">
+      <img src="{{ "img/logo-mark.svg" | relURL }}" width="22" height="22" alt="" aria-hidden="true">
       mdsmith
     </a>
     {{- /* Active-state prefixes pass through relURL so they
@@ -21,7 +21,7 @@
     <div class="topnav-right">
       <span class="topnav-version">v{{ .Site.Params.version }}</span>
       <a class="topnav-gh" href="https://github.com/{{ .Site.Params.githubRepo }}" rel="noopener">
-        <i data-lucide="github" width="14" height="14"></i>
+        <i data-lucide="github" width="14" height="14" aria-hidden="true"></i>
         GitHub
       </a>
     </div>
