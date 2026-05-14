@@ -19,8 +19,8 @@ or the LSP `source.fixAll.mdsmith` action.
 ## Steps
 
 1. Identify the Markdown file(s) under review. For
-   a PR, use `gh pr diff --name-only` to list
-   changed `*.md` paths.
+   a PR, list changed Markdown paths with
+   `gh pr diff --name-only | grep -E '\.(md|markdown)$'`.
 2. Run `mdsmith check --format json -- <files>`
    to get structured diagnostics. Group by rule ID.
 3. Run `mdsmith metrics rank -- <files>` for

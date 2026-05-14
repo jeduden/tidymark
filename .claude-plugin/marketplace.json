@@ -5,7 +5,7 @@
     "name": "Jan-Eric Duden",
     "url": "https://github.com/jeduden"
   },
-  "description": "Markdown linter for Claude Code via LSP",
+  "description": "Markdown linting and authoring tools for Claude Code (LSP, skills, reviewer agent, post-edit hook)",
   "plugins": [
     {
       "name": "mdsmith-lsp",

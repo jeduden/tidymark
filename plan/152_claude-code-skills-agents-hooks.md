@@ -171,7 +171,7 @@ single file that was just edited.
         "hooks": [
           {
             "type": "command",
-            "command": "F=$(jq -r '.tool_input.file_path // empty'); case \"$F\" in *.md|*.markdown) mdsmith fix -- \"$F\"; r=$?; [ $r -le 1 ] && exit 0 || exit $r;; esac"
+            "command": "F=$(jq -r '.tool_input.file_path // empty') || { echo 'mdsmith-tools hook: jq failed reading tool input' >&2; exit 1; }; case \"$F\" in *.md|*.markdown) mdsmith fix -- \"$F\"; r=$?; [ $r -le 1 ] && exit 0 || exit $r;; esac"
           }
         ]
       }
@@ -180,11 +180,11 @@ single file that was just edited.
 }
 ```
 
-`jq` extracts the file path; `case` filters to
-Markdown; `--` stops it being parsed as a flag.
-Exit 1 (issues remain after fixing) is squashed
-to 0 to avoid spurious hook failures; exit 2
-propagates.
+`jq` extracts the file path; the `||` guard exits
+1 with a stderr line when jq is missing or stdin
+JSON is malformed. `case` filters to Markdown.
+Exit 1 from `mdsmith fix` (issues remain) is
+squashed to 0; exit 2 propagates.
 
 The hook is opt-in via the plugin's enable/disable
 toggle. Users who prefer to run `fix` manually
