@@ -74,3 +74,27 @@ row: "| [{id}]({filename}) | `{name}` | {status} | {description} |"
 | [MDS053](MDS053-no-unused-link-definitions/README.md)         | `no-unused-link-definitions`         | ready     | Every `[label]: url` definition must be consumed by at least one reference-style link or image; duplicate labels are flagged. |
 | [MDS054](MDS054-no-undefined-reference-labels/README.md)      | `no-undefined-reference-labels`      | ready     | Reference-style links and images must have a matching link reference definition in the same file.                             |
 <?/catalog?>
+
+## Directive rules
+
+Rules whose `nature: directive` front matter
+marks them as `<?...?>` directive
+implementations. Filtered from the same source as
+the table above.
+
+<?catalog
+glob: "MDS*/README.md"
+where: 'nature: "directive"'
+sort: id
+header: |
+  | Rule | Name | Description |
+  |------|------|-------------|
+row: "| [{id}]({filename}) | `{name}` | {description} |"
+?>
+| Rule                               | Name      | Description                                                                                                             |
+|------------------------------------|-----------|-------------------------------------------------------------------------------------------------------------------------|
+| [MDS019](MDS019-catalog/README.md) | `catalog` | Catalog content must reflect selected front matter fields from files matching its glob.                                 |
+| [MDS021](MDS021-include/README.md) | `include` | Include section content must match the referenced file.                                                                 |
+| [MDS038](MDS038-toc/README.md)     | `toc`     | Keep toc generated heading lists in sync with document headings.                                                        |
+| [MDS039](MDS039-build/README.md)   | `build`   | Validate `<?build?>` directive parameters and keep the section body in sync with the recipe's rendered `body-template`. |
+<?/catalog?>
