@@ -3,6 +3,7 @@ id: MDS020
 name: required-structure
 status: ready
 description: Document structure and front matter must match its schema.
+nature: structure
 ---
 # MDS020: required-structure
 
@@ -30,14 +31,12 @@ config loader rejects a kind that sets both — see
 [file kinds](../../../docs/guides/file-kinds.md).
 
 Schema front matter may embed a CUE schema that
-validates document front matter:
-
-```yaml
-id: '=~"^MDS[0-9]{3}$"'
-name: 'string & != ""'
-status: '"ready" | "not-ready"'
-description: 'string & != ""'
-```
+validates document front matter. The rule-readme
+schema at [internal/rules/proto.md](../proto.md)
+requires `id`, `name`, `status`, `description`, and
+`nature` (one of `directive`, `generator`,
+`content`, `style`, `structure`). See the proto
+file's leading comment for the vocabulary.
 
 ### Require directive
 

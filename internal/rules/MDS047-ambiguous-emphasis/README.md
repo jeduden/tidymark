@@ -3,6 +3,7 @@ id: MDS047
 name: ambiguous-emphasis
 status: ready
 description: Forbid emphasis sequences whose meaning a human cannot predict at a glance.
+nature: style
 ---
 # MDS047: ambiguous-emphasis
 

@@ -5,6 +5,7 @@ status: ready
 description: >-
   Every `[label]: url` definition must be consumed by at least one
   reference-style link or image; duplicate labels are flagged.
+nature: structure
 ---
 # MDS053: no-unused-link-definitions
 

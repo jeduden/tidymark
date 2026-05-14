@@ -5,6 +5,7 @@ status: ready
 description: >-
   Flags Markdown syntax that the declared target
   flavor does not render.
+nature: structure
 ---
 # MDS034: markdown-flavor
 

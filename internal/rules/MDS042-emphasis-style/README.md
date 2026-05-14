@@ -6,6 +6,7 @@ description: >-
   Enforces a single delimiter character for bold
   and italic emphasis, and optionally forbids
   cross-delimiter nesting.
+nature: style
 ---
 # MDS042: emphasis-style
 

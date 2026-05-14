@@ -3,6 +3,7 @@ id: MDS017
 name: no-trailing-punctuation-in-heading
 status: ready
 description: Headings should not end with punctuation.
+nature: content
 ---
 # MDS017: no-trailing-punctuation-in-heading
 

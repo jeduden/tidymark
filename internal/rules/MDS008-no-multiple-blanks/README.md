@@ -3,6 +3,7 @@ id: MDS008
 name: no-multiple-blanks
 status: ready
 description: No more than one consecutive blank line.
+nature: style
 ---
 # MDS008: no-multiple-blanks
 

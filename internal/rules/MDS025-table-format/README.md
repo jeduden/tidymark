@@ -3,6 +3,7 @@ id: MDS025
 name: table-format
 status: ready
 description: Tables must have consistent column widths and padding.
+nature: style
 ---
 # MDS025: table-format
 

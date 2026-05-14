@@ -5,6 +5,7 @@ status: ready
 description: >-
   Raw HTML tags in Markdown are not allowed; use a
   Markdown construct or an mdsmith directive instead.
+nature: content
 ---
 # MDS041: no-inline-html
 

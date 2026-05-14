@@ -3,6 +3,7 @@ id: MDS038
 name: toc
 status: ready
 description: Keep toc generated heading lists in sync with document headings.
+nature: directive
 ---
 # MDS038: toc
 

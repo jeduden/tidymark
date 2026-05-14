@@ -3,6 +3,7 @@ id: MDS021
 name: include
 status: ready
 description: Include section content must match the referenced file.
+nature: directive
 ---
 # MDS021: include
 

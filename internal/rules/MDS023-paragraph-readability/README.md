@@ -3,6 +3,7 @@ id: MDS023
 name: paragraph-readability
 status: ready
 description: Paragraph readability index must not exceed a threshold.
+nature: content
 ---
 # MDS023: paragraph-readability
 

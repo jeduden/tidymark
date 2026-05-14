@@ -3,6 +3,7 @@ id: MDS002
 name: heading-style
 status: ready
 description: Heading style must be consistent.
+nature: style
 ---
 # MDS002: heading-style
 

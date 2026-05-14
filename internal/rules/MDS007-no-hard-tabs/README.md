@@ -3,6 +3,7 @@ id: MDS007
 name: no-hard-tabs
 status: ready
 description: No tab characters. Use spaces instead.
+nature: style
 ---
 # MDS007: no-hard-tabs
 

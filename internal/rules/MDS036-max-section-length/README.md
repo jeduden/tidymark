@@ -3,6 +3,7 @@ id: MDS036
 name: max-section-length
 status: ready
 description: Section length must not exceed per-level or per-heading limits.
+nature: content
 ---
 # MDS036: max-section-length
 

@@ -3,6 +3,7 @@ id: MDS016
 name: list-indent
 status: ready
 description: List items must use consistent indentation.
+nature: style
 ---
 # MDS016: list-indent
 

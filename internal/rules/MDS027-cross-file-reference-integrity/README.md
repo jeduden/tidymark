@@ -3,6 +3,7 @@ id: MDS027
 name: cross-file-reference-integrity
 status: ready
 description: Links to local files and heading anchors must resolve.
+nature: structure
 ---
 # MDS027: cross-file-reference-integrity
 

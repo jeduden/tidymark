@@ -3,6 +3,7 @@ id: MDS015
 name: blank-line-around-fenced-code
 status: ready
 description: Fenced code blocks must have a blank line before and after.
+nature: style
 ---
 # MDS015: blank-line-around-fenced-code
 

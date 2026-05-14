@@ -3,15 +3,29 @@ id: '=~"^MDS[0-9]{3}$"'
 name: 'string & != ""'
 status: '"ready" | "not-ready"'
 description: 'string & != ""'
+nature: '"directive" | "generator" | "content" | "style" | "structure"'
 ---
 # {id}: {name}
 
 <!-- Rule README template. Copy this file, replace placeholders,
      delete sections and comments that don't apply.
      Front matter is required. The catalog directive reads
-     id, name, status, description to generate the rules table.
+     id, name, status, description, nature to generate the rules
+     table and filtered listings.
      Repeat the description verbatim. Use prescriptive voice,
-     present tense: "Headings must ..." not "Checks that ...". -->
+     present tense: "Headings must ..." not "Checks that ...".
+     The `nature` key labels the rule's kind. Exactly one of:
+       - "directive"  -- implements gensection.Directive
+         (MDS019 catalog, MDS021 include, MDS038 toc, MDS039 build).
+       - "generator"  -- fixed by introducing or updating a
+         generated section authored elsewhere (MDS035 toc-directive).
+       - "content"    -- readability, structure, or length checks
+         on prose, lists, tables.
+       - "style"      -- whitespace, capitalisation, fence/list
+         marker choices, blank-line placement.
+       - "structure"  -- schema, heading, kind, and cross-file
+         structural checks (required structure, single H1, link
+         integrity, directory layout). -->
 
 {description}
 

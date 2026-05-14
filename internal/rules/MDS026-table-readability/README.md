@@ -3,6 +3,7 @@ id: MDS026
 name: table-readability
 status: ready
 description: Tables must stay within readability complexity limits.
+nature: content
 ---
 # MDS026: table-readability
 

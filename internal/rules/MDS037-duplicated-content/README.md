@@ -3,6 +3,7 @@ id: MDS037
 name: duplicated-content
 status: ready
 description: Paragraphs should not repeat verbatim across Markdown files.
+nature: content
 ---
 # MDS037: duplicated-content
 

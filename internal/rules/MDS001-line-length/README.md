@@ -3,6 +3,7 @@ id: MDS001
 name: line-length
 status: ready
 description: Line exceeds maximum length.
+nature: content
 ---
 # MDS001: line-length
 

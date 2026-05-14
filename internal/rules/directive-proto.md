@@ -3,6 +3,7 @@ id: '=~"^MDS[0-9]{3}$"'
 name: 'string & != ""'
 status: '"ready" | "not-ready"'
 description: 'string & != ""'
+nature: '"directive"'
 ---
 # {id}: {name}
 
@@ -11,7 +12,9 @@ description: 'string & != ""'
      section that demonstrates the user-authored
      anti-pattern this directive fixes.
      The catalog directive reads id, name, status,
-     description to generate the rules table. -->
+     description, nature to generate the rules table and
+     filtered listings. Every file using this template
+     must declare `nature: directive`. -->
 
 {description}
 
