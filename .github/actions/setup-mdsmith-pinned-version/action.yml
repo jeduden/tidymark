@@ -1,15 +1,15 @@
-name: Setup mdsmith merge tooling
+name: Setup pinned mdsmith binary
 description: >-
-  Install the fixed mdsmith binary used for merge-driver and pre-merge-commit
-  tooling. Single source of truth for CI and merge-queue workflows.
+  Install the pinned mdsmith release binary used as the compatibility baseline
+  across CI and merge-queue workflows.
 
 runs:
   using: composite
   steps:
     - shell: bash
       env:
-        # Pinned to the merge tooling version we guarantee in CI and merge queue.
-        # Bump here only when intentionally updating that compatibility baseline.
+        # Pinned compatibility baseline for mdsmith release checks and merge tooling.
+        # Bump here only when intentionally updating that baseline.
         MDSMITH_VERSION: v0.15.0
         MDSMITH_SHA256: e91115916132c668620bb605bd162c05343aad26c3ed2c25e58c86a8506af191
       run: |
@@ -19,6 +19,4 @@ runs:
           -o "$HOME/.local/bin/mdsmith"
         echo "${MDSMITH_SHA256}  $HOME/.local/bin/mdsmith" | sha256sum -c
         chmod +x "$HOME/.local/bin/mdsmith"
-        "$HOME/.local/bin/mdsmith" merge-driver install
-        "$HOME/.local/bin/mdsmith" pre-merge-commit install
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"

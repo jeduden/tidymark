@@ -35,7 +35,11 @@ jobs:
           # needs branch-protection bypass.
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-mdsmith-merge-tooling
+      - uses: ./.github/actions/setup-mdsmith-pinned-version
+      - name: Install mdsmith merge driver and pre-merge-commit hook
+        run: |
+          mdsmith merge-driver install
+          mdsmith pre-merge-commit install
 
       - uses: jeduden/merge-queue-action@389ad414544a693f6c98e0dfdca349007b64d0df #v0.7.8
         with:

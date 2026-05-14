@@ -175,15 +175,14 @@ jobs:
       - run: go build -o mdsmith ./cmd/mdsmith
       - run: ./mdsmith check .
 
-  merge-driver-fixed-version:
+  mdsmith-fixed-version:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-mdsmith-merge-tooling
-      - name: Fail if fixed-version merge tooling rewrites tracked files
-        run: git --no-pager diff --exit-code
+      - uses: ./.github/actions/setup-mdsmith-pinned-version
+      - run: mdsmith check .
 
   demo:
     uses: ./.github/workflows/record-demo.yml
