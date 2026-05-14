@@ -1,0 +1,4 @@
+# Bad fixtures that mdsmith fix cannot auto-correct.
+# Validation-only diagnostics that need a config or
+# parameter edit by hand.
+dotdot.md

@@ -201,15 +201,16 @@ Outdated content
 The bad pattern is a section duplicated across
 two files. The good pattern is one canonical
 source plus `<?include?>` references. The
-markdown-audit skill reads these folders as the
-canonical before/after pair.
+canonical source files live in
+[pattern/bad/](pattern/bad/) and
+[pattern/good/](pattern/good/); the snippets
+below mirror those files for quick reference.
+The markdown-audit skill reads the folders
+directly.
 
 ### Without the directive
 
-<?include
-file: pattern/bad/README.md
-wrap: markdown
-?>
+`README.md`:
 
 ```markdown
 # Project
@@ -220,12 +221,7 @@ Run `make build` to compile the project. The
 binary lands in `dist/`.
 ```
 
-<?/include?>
-
-<?include
-file: pattern/bad/INSTALL.md
-wrap: markdown
-?>
+`INSTALL.md`:
 
 ```markdown
 # Install
@@ -236,14 +232,16 @@ Run `make build` to compile the project. The
 binary lands in `dist/`.
 ```
 
-<?/include?>
-
 ### With the directive
 
-<?include
-file: pattern/good/README.md
-wrap: markdown
-?>
+`snippets/build.md`:
+
+```markdown
+Run `make build` to compile the project. The
+binary lands in `dist/`.
+```
+
+`README.md`:
 
 ```markdown
 # Project
@@ -258,19 +256,7 @@ binary lands in `dist/`.
 <?/include?>
 ```
 
-<?/include?>
-
-<?include
-file: pattern/good/snippets/build.md
-wrap: markdown
-?>
-
-```markdown
-Run `make build` to compile the project. The
-binary lands in `dist/`.
-```
-
-<?/include?>
+`INSTALL.md` follows the same shape.
 
 ## Meta-Information
 

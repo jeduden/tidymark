@@ -144,16 +144,14 @@ MDS039 reports:
 The bad pattern is a hand-maintained snippet
 describing where a generated artifact lives. The
 good pattern is the same content produced by a
-`<?build?>` directive. The markdown-audit skill
-reads these folders as the canonical before/after
-pair.
+`<?build?>` directive. The canonical source
+files live in [pattern/bad/](pattern/bad/) and
+[pattern/good/](pattern/good/); the snippets
+below mirror those files for quick reference.
+The markdown-audit skill reads the folders
+directly.
 
 ### Without the directive
-
-<?include
-file: pattern/bad/demo.md
-wrap: markdown
-?>
 
 ````markdown
 # Demo
@@ -167,17 +165,10 @@ vhs demo.tape
 
 Embedded inline:
 
-![demo](pattern/bad/demo.gif)
+![demo](demo.gif)
 ````
 
-<?/include?>
-
 ### With the directive
-
-<?include
-file: pattern/good/demo.md
-wrap: markdown
-?>
 
 ```markdown
 # Demo
@@ -187,11 +178,9 @@ recipe: vhs
 source: demo.tape
 output: demo.gif
 ?>
-![demo](pattern/good/demo.gif)
+![demo](demo.gif)
 <?/build?>
 ```
-
-<?/include?>
 
 ## Meta-Information
 

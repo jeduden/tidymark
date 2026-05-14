@@ -260,45 +260,35 @@ pairs, line endings, template errors).
 The bad pattern is a hand-maintained list of
 links to sibling files. The good pattern is the
 same content rewritten as a `<?catalog?>`
-directive. The markdown-audit skill reads these
-folders as the canonical before/after pair.
+directive. The canonical source files live in
+[pattern/bad/](pattern/bad/) and
+[pattern/good/](pattern/good/); the snippets
+below mirror those files for quick reference.
+The markdown-audit skill reads the folders
+directly.
 
 ### Without the directive
-
-<?include
-file: pattern/bad/index.md
-wrap: markdown
-?>
 
 ```markdown
 # Project Index
 
-- [Alpha](pattern/bad/data/alpha.md)
-- [Beta](pattern/bad/data/beta.md)
+- [Alpha](data/alpha.md)
+- [Beta](data/beta.md)
 ```
 
-<?/include?>
-
 ### With the directive
-
-<?include
-file: pattern/good/index.md
-wrap: markdown
-?>
 
 ```markdown
 # Project Index
 
 <?catalog
 glob: "data/*.md"
-row: "- [{title}](pattern/good/{filename})"
+row: "- [{title}]({filename})"
 ?>
-- [Alpha](pattern/good/data/alpha.md)
-- [Beta](pattern/good/data/beta.md)
+- [Alpha](data/alpha.md)
+- [Beta](data/beta.md)
 <?/catalog?>
 ```
-
-<?/include?>
 
 ## Meta-Information
 
