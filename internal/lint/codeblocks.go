@@ -58,7 +58,7 @@ func addFencedCodeBlockLines(f *File, fcb *ast.FencedCodeBlock, set map[int]bool
 	// the first content line. The opening fence is always the line before
 	// the first content line (or, when there are no content lines, we find
 	// it via the Info segment).
-	openLine := findFencedOpenLine(f, fcb)
+	openLine := FindFencedOpenLine(f, fcb)
 	if openLine > 0 {
 		set[openLine] = true
 	}
@@ -89,8 +89,17 @@ func addFencedCodeBlockLines(f *File, fcb *ast.FencedCodeBlock, set map[int]bool
 	}
 }
 
-// findFencedOpenLine returns the 1-based line number of the opening fence.
-func findFencedOpenLine(f *File, fcb *ast.FencedCodeBlock) int {
+// FindFencedOpenLine returns the 1-based line number of the opening
+// fence. Returns 0 when the block has neither an info string nor any
+// content lines — the truly-empty fenced shape that goldmark exposes
+// no source position for. Callers must NOT clamp 0 to 1 for section-
+// range filtering or diagnostic anchoring: clamping would mis-locate
+// the block at the top of the document and silently move any
+// diagnostic to a line that has nothing to do with the source. The
+// preferred fallback is sibling-derived inference — see
+// internal/schema.topLevelBlocks for an implementation that walks
+// adjacent blocks to recover a sensible position.
+func FindFencedOpenLine(f *File, fcb *ast.FencedCodeBlock) int {
 	// If the code block has an info string, walk backwards from it to find
 	// the start of the line.
 	if fcb.Info != nil {
