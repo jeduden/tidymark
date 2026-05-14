@@ -1,0 +1,26 @@
+{{ define "main" }}
+  <div class="docs-grid">
+    <aside class="docs-side">
+      {{ partial "docs-sidebar.html" . }}
+    </aside>
+    <article class="docs-main">
+      <nav class="docs-breadcrumb">
+        <a href="{{ "/" | relURL }}">mdsmith</a>
+        <span class="sep">/</span>
+        <span>{{ .Title }}</span>
+      </nav>
+      <div class="docs-prose">
+        <h1>{{ .Title }}</h1>
+        {{ with .Params.summary }}<p class="lead">{{ . }}</p>{{ end }}
+        {{ .Content }}
+        {{ with .Pages }}
+          <ul>
+          {{ range . }}
+            <li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Params.summary }} — {{ . }}{{ end }}</li>
+          {{ end }}
+          </ul>
+        {{ end }}
+      </div>
+    </article>
+  </div>
+{{ end }}

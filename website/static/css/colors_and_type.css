@@ -1,0 +1,325 @@
+/* =============================================================
+   mdsmith — Colors & Type
+   "Forge meets terminal" — warm metal accents on cool steel.
+   Sourced from the mdsmith Claude Design export; font url
+   adjusted from "fonts/..." to "../fonts/..." for the
+   website/static/css/ + website/static/fonts/ layout.
+   ============================================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap");
+
+@font-face {
+  font-family: "0xProto";
+  src: url("../fonts/0xProtoNerdFont-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ----- Forge ----- */
+  --forge-50:  #FDF3EA;
+  --forge-100: #FAE2CB;
+  --forge-200: #F4C58F;
+  --forge-300: #ECA152;
+  --forge-400: #E58233;
+  --forge-500: #D9651D;
+  --forge-600: #B84F12;
+  --forge-700: #8F3C0F;
+  --forge-800: #5E280C;
+  --forge-900: #341606;
+
+  /* ----- Steel ----- */
+  --steel-50:  #F5F6F7;
+  --steel-100: #EAECEF;
+  --steel-200: #D6DAE0;
+  --steel-300: #B4BBC4;
+  --steel-400: #8A93A0;
+  --steel-500: #5C6773;
+  --steel-600: #3F4A57;
+  --steel-700: #2A323D;
+  --steel-800: #1A1F26;
+  --steel-900: #0F1419;
+  --steel-950: #070A0D;
+
+  /* ----- Canvas ----- */
+  --canvas:        #FAF7F2;
+  --canvas-sunken: #F2EEE6;
+  --canvas-raised: #FFFFFF;
+
+  /* ----- Diagnostic semantic ----- */
+  --ok-500:    #2A8E5A;
+  --ok-100:    #DDF0E5;
+  --warn-500:  #C77A0C;
+  --warn-100:  #FCEFD2;
+  --err-500:   #C3372C;
+  --err-100:   #F8DAD6;
+  --info-500:  #2563A8;
+  --info-100:  #D9E6F5;
+
+  /* ----- Terminal palette ----- */
+  --term-bg:        var(--steel-900);
+  --term-fg:        #E6E1D6;
+  --term-fg-dim:    #8A93A0;
+  --term-caret:     var(--forge-400);
+  --term-ok:        #5DC58C;
+  --term-err:       #FF6B5C;
+  --term-warn:      var(--forge-300);
+  --term-string:    #F4B860;
+  --term-key:       #79C7E8;
+  --term-punct:     #8A93A0;
+
+  /* ----- Semantic tokens ----- */
+  --bg:            var(--canvas);
+  --bg-sunken:     var(--canvas-sunken);
+  --bg-raised:     var(--canvas-raised);
+  --bg-inverse:    var(--steel-900);
+  --fg:            var(--steel-900);
+  --fg-muted:      var(--steel-600);
+  --fg-subtle:     var(--steel-500);
+  --fg-inverse:    var(--canvas);
+  --accent:        var(--forge-500);
+  --accent-hover:  var(--forge-600);
+  --accent-soft:   var(--forge-50);
+  --accent-fg:     #FFFFFF;
+  --border:        var(--steel-200);
+  --border-strong: var(--steel-300);
+  --border-subtle: var(--steel-100);
+  --link:          var(--forge-600);
+  --link-hover:    var(--forge-700);
+  --link-visited:  var(--forge-700);
+  --code-bg:       var(--steel-50);
+  --code-fg:       var(--steel-800);
+  --code-border:   var(--steel-200);
+
+  /* ----- Type families ----- */
+  --font-sans:    "IBM Plex Sans", system-ui, -apple-system, "Segoe UI",
+                  Helvetica, Arial, sans-serif;
+  --font-serif:   "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-mono:    "0xProto", "JetBrains Mono", ui-monospace, "SF Mono", Menlo,
+                  Consolas, "DejaVu Sans Mono", monospace;
+
+  /* ----- Type scale ----- */
+  --t-xs:    12px;
+  --t-sm:    13px;
+  --t-base:  15px;
+  --t-md:    17px;
+  --t-lg:    20px;
+  --t-xl:    24px;
+  --t-2xl:   30px;
+  --t-3xl:   38px;
+  --t-4xl:   48px;
+  --t-5xl:   60px;
+  --t-6xl:   76px;
+
+  --lh-tight:  1.15;
+  --lh-snug:   1.3;
+  --lh-normal: 1.55;
+  --lh-prose:  1.65;
+
+  --tracking-tight:  -0.02em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.02em;
+  --tracking-caps:    0.08em;
+
+  /* ----- Spacing / radii / shadows / motion ----- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+  --space-9:  96px;
+
+  --radius-xs:  2px;
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  10px;
+  --radius-xl:  16px;
+  --radius-pill: 999px;
+
+  --shadow-xs: 0 1px 0 0 rgba(15, 20, 25, 0.04);
+  --shadow-sm: 0 1px 2px rgba(15, 20, 25, 0.06),
+               0 1px 0 rgba(15, 20, 25, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(15, 20, 25, 0.10),
+               0 2px 4px -1px rgba(15, 20, 25, 0.06);
+  --shadow-lg: 0 18px 40px -8px rgba(15, 20, 25, 0.18),
+               0 6px 12px -4px rgba(15, 20, 25, 0.08);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --shadow-focus: 0 0 0 3px rgba(217, 101, 29, 0.30);
+
+  --ease-out:    cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:    120ms;
+  --dur-base:    200ms;
+  --dur-slow:    360ms;
+}
+
+/* ===== Element styles ===== */
+
+html, body {
+  font-family: var(--font-sans);
+  font-size: var(--t-base);
+  line-height: var(--lh-prose);
+  color: var(--fg);
+  background: var(--bg);
+  font-feature-settings: "ss01", "ss02", "cv05", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, .h1 {
+  font-family: var(--font-sans);
+  font-size: var(--t-4xl);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+  margin: 0 0 var(--space-4);
+}
+h2, .h2 {
+  font-family: var(--font-sans);
+  font-size: var(--t-2xl);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg);
+  margin: var(--space-7) 0 var(--space-3);
+}
+h3, .h3 {
+  font-family: var(--font-sans);
+  font-size: var(--t-xl);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  color: var(--fg);
+  margin: var(--space-5) 0 var(--space-2);
+}
+h4, .h4 {
+  font-family: var(--font-sans);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  color: var(--fg);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.display {
+  font-family: var(--font-sans);
+  font-size: var(--t-6xl);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+.display em, .display .accent-italic {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--forge-500);
+}
+
+p, .p {
+  font-family: var(--font-sans);
+  font-size: var(--t-base);
+  line-height: var(--lh-prose);
+  color: var(--fg);
+  margin: 0 0 var(--space-4);
+  text-wrap: pretty;
+}
+.lead {
+  font-size: var(--t-lg);
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+code, .code-inline {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--code-border);
+}
+pre {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: 1.55;
+  background: var(--steel-900);
+  color: var(--term-fg);
+  padding: var(--space-5) var(--space-5);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+}
+pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1.5px;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+::selection {
+  background: var(--forge-200);
+  color: var(--forge-900);
+}
+
+table {
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--t-sm);
+  width: 100%;
+}
+th {
+  font-weight: 600;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--fg);
+}
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--fg-muted);
+  vertical-align: top;
+}
+
+.diagnostic {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  background: var(--steel-900);
+  color: var(--term-fg);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--err-500);
+}
+.diagnostic.is-ok   { border-left-color: var(--ok-500); }
+.diagnostic.is-warn { border-left-color: var(--warn-500); }
+
+.mono   { font-family: var(--font-mono); }
+.serif  { font-family: var(--font-serif); }
+.muted  { color: var(--fg-muted); }
+.subtle { color: var(--fg-subtle); }

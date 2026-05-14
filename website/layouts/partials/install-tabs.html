@@ -1,0 +1,17 @@
+<div class="install" data-tabs>
+  <div class="install-tabs" role="tablist">
+    {{ range $i, $t := site.Data.homepage.install }}
+      <button class="install-tab{{ if eq $i 0 }} is-active{{ end }}" type="button" data-tab="{{ $t.id }}">{{ $t.label }}</button>
+    {{ end }}
+  </div>
+  {{ range $i, $t := site.Data.homepage.install }}
+    <div class="install-body" data-panel="{{ $t.id }}"{{ if ne $i 0 }} hidden{{ end }}>
+      <div class="install-cmd">
+        <span class="prompt">{{ default "$" $t.prompt }}</span>
+        <span class="cmd">{{ $t.cmd }}</span>
+        {{ with $t.args }}<span class="arg">{{ . }}</span>{{ end }}
+      </div>
+      <button class="install-copy" type="button" data-copy="{{ trim (printf "%s %s" $t.cmd (default "" $t.args)) " " }}">copy</button>
+    </div>
+  {{ end }}
+</div>

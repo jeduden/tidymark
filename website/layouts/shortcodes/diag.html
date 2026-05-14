@@ -1,0 +1,8 @@
+{{- $status := .Get "status" | default "err" -}}
+{{- $rule := .Get "rule" -}}
+{{- $loc := .Get "loc" -}}
+<div class="diag is-{{ $status }}">
+  {{- with $loc }}<span class="term-key">{{ . }}</span> {{ end -}}
+  {{- with $rule }}<span class="term-{{ $status }}">{{ . }}</span> {{ end -}}
+  <span class="term-fg">{{ .Inner | markdownify }}</span>
+</div>

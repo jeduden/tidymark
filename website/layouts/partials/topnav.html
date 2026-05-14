@@ -1,0 +1,24 @@
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="topnav-brand" href="{{ "/" | relURL }}">
+      <img src="{{ "img/logo-mark.svg" | relURL }}" width="22" height="22" alt="">
+      mdsmith
+    </a>
+    <nav class="topnav-links">
+      <a class="topnav-link{{ if hasPrefix .RelPermalink "/docs" }} is-active{{ end }}" href="{{ "/docs/" | relURL }}">Docs</a>
+      <a class="topnav-link{{ if hasPrefix .RelPermalink "/rules" }} is-active{{ end }}" href="{{ "/docs/reference/" | relURL }}">Reference</a>
+      <a class="topnav-link{{ if hasPrefix .RelPermalink "/compare" }} is-active{{ end }}" href="{{ "/compare/" | relURL }}">Compare</a>
+      <a class="topnav-link" href="{{ "/docs/guides/install/" | relURL }}">Install</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="topnav-version">{{ .Site.Params.version }}</span>
+      <button class="topnav-kbd" type="button" aria-label="Open search">
+        <span>⌘</span><span>K</span>
+      </button>
+      <a class="topnav-gh" href="https://github.com/{{ .Site.Params.githubRepo }}" rel="noopener">
+        <i data-lucide="github" width="14" height="14"></i>
+        GitHub
+      </a>
+    </div>
+  </div>
+</header>

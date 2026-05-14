@@ -1,0 +1,2 @@
+{{- $status := .Get "status" | default "stable" -}}
+<span class="pill is-{{ $status }}"><span class="dot"></span>{{ .Inner | markdownify }}</span>

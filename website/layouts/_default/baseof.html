@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="{{ site.Language.Lang | default "en" }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .IsHome }}{{ .Site.Title }} — {{ .Site.Params.description }}{{ else }}{{ .Title }} · {{ .Site.Title }}{{ end }}</title>
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
+  <link rel="icon" type="image/svg+xml" href="{{ "img/logo-mark.svg" | relURL }}">
+  <link rel="stylesheet" href="{{ "css/colors_and_type.css" | relURL }}">
+  <link rel="stylesheet" href="{{ "css/app.css" | relURL }}">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+</head>
+<body>
+  <div class="app">
+    {{ partial "topnav.html" . }}
+    <main>
+      {{ block "main" . }}{{ end }}
+    </main>
+    {{ partial "footer.html" . }}
+  </div>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.lucide) window.lucide.createIcons();
+      const nav = document.querySelector(".topnav");
+      if (nav) {
+        const onScroll = () => nav.classList.toggle("is-scrolled", window.scrollY > 4);
+        document.addEventListener("scroll", onScroll, { passive: true });
+        onScroll();
+      }
+      document.querySelectorAll("[data-copy]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const text = btn.getAttribute("data-copy");
+          try {
+            await navigator.clipboard.writeText(text);
+            btn.classList.add("is-copied");
+            const original = btn.textContent;
+            btn.textContent = "copied";
+            setTimeout(() => { btn.classList.remove("is-copied"); btn.textContent = original; }, 1400);
+          } catch (e) { /* clipboard unavailable */ }
+        });
+      });
+      document.querySelectorAll("[data-tabs]").forEach(group => {
+        const tabs = group.querySelectorAll("[data-tab]");
+        const panels = group.querySelectorAll("[data-panel]");
+        tabs.forEach(tab => tab.addEventListener("click", () => {
+          const key = tab.getAttribute("data-tab");
+          tabs.forEach(t => t.classList.toggle("is-active", t === tab));
+          panels.forEach(p => p.hidden = p.getAttribute("data-panel") !== key);
+        }));
+      });
+    });
+  </script>
+</body>
+</html>

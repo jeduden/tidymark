@@ -1,0 +1,2 @@
+{{- $on := eq (.Get "on" | default "false") "true" -}}
+<span class="chip{{ if $on }} is-on{{ end }}">{{ .Inner | markdownify }}</span>

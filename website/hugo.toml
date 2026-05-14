@@ -1,0 +1,49 @@
+baseURL = "https://mdsmith.dev/"
+locale = "en-us"
+title = "mdsmith"
+enableRobotsTXT = true
+enableGitInfo = false
+
+# Treat the site directory and the sibling docs/ tree as content sources.
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+  # docs/ from the repo root is synced into content/docs/ by
+  # scripts/sync-docs.sh (Hugo shortcode patterns escaped, mdsmith
+  # directives expanded). The mount used to point straight at
+  # ../docs but Hugo parses shortcodes before markdown, so literal
+  # {{< ... >}} in docs/background/markdown-linters.md broke the
+  # build. content/docs/ is .gitignore'd.
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "data"
+    target = "data"
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+
+[markup]
+  [markup.goldmark.renderer]
+    unsafe = true  # allow raw HTML and the <?directive?> markers in source markdown
+  [markup.tableOfContents]
+    startLevel = 2
+    endLevel = 4
+  [markup.highlight]
+    noClasses = false
+    style = "github"
+
+[params]
+  description = "A fast, auto-fixing Markdown linter and formatter for docs, READMEs, and AI-generated content."
+  githubRepo = "jeduden/mdsmith"
+  version = "v0.x"
+
+[outputs]
+  home = ["HTML"]
+  section = ["HTML"]
+  page = ["HTML"]

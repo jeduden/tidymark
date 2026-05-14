@@ -1,0 +1,4 @@
+{{- $lang := .Type | default "text" -}}
+<div class="codeblock" data-lang="{{ $lang }}">
+  {{ highlight .Inner $lang "" }}
+</div>
