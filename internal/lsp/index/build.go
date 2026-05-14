@@ -66,11 +66,12 @@ func buildFileEntry(filePath string, source []byte) *FileEntry {
 	// custom AST node. The parser context carries the reference
 	// definitions; collectLinkRefDefs reads from it directly.
 	// Pull a parser out of the pool — building one is expensive
-	// compared to a single parse.
+	// compared to a single parse. defer Put so a panic inside
+	// Parse (or anywhere below) doesn't leak the instance.
 	p := parserPool.Get().(parser.Parser)
+	defer parserPool.Put(p)
 	ctx := parser.NewContext()
 	root := p.Parse(text.NewReader(body), parser.WithContext(ctx))
-	parserPool.Put(p)
 	lines := bytes.Split(body, []byte("\n"))
 
 	// Wrap the parsed body in a *lint.File so the linkgraph
