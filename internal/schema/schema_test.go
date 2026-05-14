@@ -3,6 +3,7 @@ package schema
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/lint"
@@ -635,4 +636,77 @@ func TestValidate_Content_OpenScopeTolerates(t *testing.T) {
 		"# T\n\n## Examples\n\n```\nx\n```\n\nTrailing.\n")
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	assert.Empty(t, diags)
+}
+
+// TestValidate_Content_PreambleLabelAndLine regresses a Copilot
+// review on PR #285: a preamble scope (`heading: null`) carrying a
+// `content:` entry must anchor a missing-required diagnostic at
+// line 1 (not line 0) and label the parent as "preamble" rather
+// than rendering an empty heading like "## ".
+func TestValidate_Content_PreambleLabelAndLine(t *testing.T) {
+	raw := map[string]any{
+		"sections": []any{
+			map[string]any{
+				"heading": nil,
+				"content": []any{
+					map[string]any{"kind": "code-block", "lang": "yaml"},
+				},
+			},
+			map[string]any{"heading": "Body"},
+		},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	// Doc has no preamble code block; we expect one missing-required
+	// diagnostic anchored at line 1, naming "preamble" — not "## ".
+	doc := newDocFile(t, "doc.md",
+		"# T\n\nPreamble prose without the required code block.\n\n## Body\n\nx\n")
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	require.NotEmpty(t, diags)
+	var preamble *lint.Diagnostic
+	for i, d := range diags {
+		if strings.Contains(d.Message, "missing required content") {
+			preamble = &diags[i]
+			break
+		}
+	}
+	require.NotNil(t, preamble, "expected a missing-required content diagnostic")
+	assert.GreaterOrEqual(t, preamble.Line, 1,
+		"preamble diagnostic must not anchor at line 0")
+	assert.Contains(t, preamble.Message, "inside preamble",
+		"preamble diagnostic must label the parent as preamble")
+	assert.NotContains(t, preamble.Message, "## ",
+		"preamble diagnostic must not render an empty heading")
+}
+
+// TestValidate_Content_TolerateDirectivesInOpenScope regresses a
+// Copilot review on PR #285: the content walker re-parses the
+// document with the GFM table extension, and that parser must also
+// register the PI block parser so `<?include?>`/`<?catalog?>`
+// directives appear as ProcessingInstruction nodes — not as HTML
+// blocks the walker might misclassify in a closed scope.
+func TestValidate_Content_TolerateDirectivesInOpenScope(t *testing.T) {
+	raw := map[string]any{
+		"sections": []any{map[string]any{
+			"heading": "Body",
+			"content": []any{
+				map[string]any{"kind": "code-block"},
+			},
+		}},
+	}
+	sch, err := ParseInline(raw, "kind x")
+	require.NoError(t, err)
+	// Directives surround the required code block. Under the open
+	// scope they must not flag — the regression is that the table-
+	// enabled parser would have parsed `<?include?>` as an HTML
+	// block, leaving the walker to treat it as some other AST kind.
+	src := "# T\n\n## Body\n\n" +
+		"<?catalog\nsource-dir: \".\"\nglob: [\"*.md\"]\n?>\n" +
+		"- generated\n" +
+		"<?/catalog?>\n\n" +
+		"```\nx\n```\n"
+	doc := newDocFile(t, "doc.md", src)
+	diags := Validate(doc, sch, nil, false, makeDiagForTest)
+	assert.Empty(t, diags,
+		"directives must not be misclassified as unexpected content")
 }

@@ -83,10 +83,19 @@ var (
 
 // parseWithTableExt re-parses source with a CommonMark + Table parser
 // so the content walker can recognise GFM tables as *extast.Table
-// rather than fallback paragraphs.
+// rather than fallback paragraphs. The PI block parser is registered
+// alongside the table extension so `<?include?>`, `<?catalog?>`, and
+// other directives parse as ProcessingInstruction blocks — the same
+// shape lint.NewParser produces — instead of HTML blocks that would
+// shadow surrounding content and confuse the walker's match loop.
 func parseWithTableExt(source []byte) ast.Node {
 	contentParserOnce.Do(func() {
-		gm := goldmark.New(goldmark.WithExtensions(extension.Table))
+		gm := goldmark.New(
+			goldmark.WithExtensions(extension.Table),
+			goldmark.WithParserOptions(
+				parser.WithBlockParsers(lint.PIBlockParserPrioritized()),
+			),
+		)
 		contentParser = gm.Parser()
 	})
 	return contentParser.Parse(text.NewReader(source))
@@ -165,7 +174,13 @@ func walkContentScopes(
 		}
 		if sc.Preamble {
 			end := firstContentHeadingLine(heads, expectedLevel, parentStart, parentEnd)
-			runContent(f, sc, parentStart-1, expectedLevel, parentStart, end, blocks, mkDiag, diags)
+			// Anchor preamble diagnostics at parentStart (line 1 for
+			// the root preamble) rather than parentStart-1: a line-0
+			// diagnostic has no source location and confuses editor
+			// jump-to-line. The validator labels the parent with
+			// "preamble" instead of formatHeading so an empty
+			// sc.Heading does not render as a bare `## `.
+			runContent(f, sc, parentStart, expectedLevel, parentStart, end, blocks, mkDiag, diags)
 			continue
 		}
 		matched := findContentMatchingHead(sc, heads, expectedLevel, parentStart, parentEnd, claimed)
@@ -390,7 +405,7 @@ func (w *contentWalker) matchEntry(
 				w.f.Path, n.line,
 				fmt.Sprintf("unexpected content %q inside %s (expected %q)",
 					describeNode(w.f, n.node),
-					formatHeading(w.sectionLevel, w.sc.Heading),
+					scopeLabel(w.sc, w.sectionLevel),
 					describeEntry(entry))))
 		}
 		w.nodeIdx++
@@ -400,7 +415,7 @@ func (w *contentWalker) matchEntry(
 			w.f.Path, w.sectionLine,
 			fmt.Sprintf("missing required content %q inside %s",
 				describeEntry(entry),
-				formatHeading(w.sectionLevel, w.sc.Heading))))
+				scopeLabel(w.sc, w.sectionLevel))))
 	}
 }
 
@@ -438,7 +453,7 @@ func (w *contentWalker) flushTrailing(diags *[]lint.Diagnostic) {
 			w.f.Path, n.line,
 			fmt.Sprintf("unexpected content %q inside %s",
 				describeNode(w.f, n.node),
-				formatHeading(w.sectionLevel, w.sc.Heading))))
+				scopeLabel(w.sc, w.sectionLevel))))
 		w.nodeIdx++
 	}
 }
@@ -611,6 +626,18 @@ func stringSlicesEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// scopeLabel renders the parent scope as the short string used in
+// content diagnostics — `## Heading` for listed scopes, `preamble`
+// for `heading: null`. The preamble case is the reason this helper
+// exists: formatHeading would render an empty heading text as a
+// bare `## ` and bury the user in confusion.
+func scopeLabel(sc Scope, level int) string {
+	if sc.Preamble {
+		return "preamble"
+	}
+	return formatHeading(level, sc.Heading)
 }
 
 // describeEntry renders a content entry as the short string used in
