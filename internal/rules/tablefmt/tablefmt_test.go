@@ -161,6 +161,16 @@ func TestFindTables_TwoTables(t *testing.T) {
 	require.Len(t, tables, 2, "expected 2 tables, got %d", len(tables))
 }
 
+func TestFindTables_FirstLineInCodeBlock_Skipped(t *testing.T) {
+	// codeLines[1] = true means the very first line sits inside a code
+	// block. findTables must skip it before attempting to parse a table
+	// there.
+	src := "| a | b |\n|---|---|\n| 1 | 2 |\n"
+	lines := splitLines(src)
+	tables := findTables(lines, map[int]bool{1: true})
+	assert.Empty(t, tables, "no tables should be parsed when the header line is inside code")
+}
+
 func TestFindTables_SingleColumn(t *testing.T) {
 	src := "| a |\n|---|\n| 1 |\n"
 	lines := splitLines(src)
@@ -493,6 +503,27 @@ func TestFormatLines_RewritesTables(t *testing.T) {
 	assert.Contains(t, string(result), "| a   | b      |")
 }
 
+func TestFormatLines_AlreadyFormattedTableAmongOthers(t *testing.T) {
+	// Two tables: the first is already canonical, the second is not.
+	// The reverse-iteration loop visits the second first (rewriting it)
+	// and then the first (hitting the tableEqual `continue` branch).
+	src := []byte("" +
+		"| a   | b   |\n" +
+		"|-----|-----|\n" +
+		"| foo | bar |\n" +
+		"\n" +
+		"| x | y |\n" +
+		"|---|---|\n" +
+		"| 1 | 2 |\n")
+	lines := splitLines(string(src))
+	result := FormatLines(src, lines, nil, 1)
+	// First (canonical) table is preserved byte-for-byte.
+	assert.Contains(t, string(result), "| a   | b   |")
+	assert.Contains(t, string(result), "| foo | bar |")
+	// Second table is rewritten.
+	assert.Contains(t, string(result), "| x   | y   |")
+}
+
 func TestFormatLines_NegativePadDefaultsTo1(t *testing.T) {
 	src := []byte("| a | b |\n|---|---|\n| 1 | 2 |\n")
 	lines := splitLines(string(src))
@@ -508,6 +539,21 @@ func TestWriteSeparatorRow_ExtendsAlignments(t *testing.T) {
 	src := "| a | b | c |\n|---|---|\n| 1 | 2 | 3 |\n"
 	out := FormatString(src, 1)
 	assert.Contains(t, out, "| a   | b   | c   |")
+}
+
+// --- writeSeparatorRow: each alignment indicator ---
+
+func TestWriteSeparatorRow_AlignmentIndicators(t *testing.T) {
+	// Each alignment marker exercises a different switch arm in
+	// writeSeparatorRow: alignLeft (`:---`), alignCenter (`:---:`), and
+	// alignRight (`---:`). FormatString reflows the table so the
+	// resulting separator carries the markers at the canonical widths.
+	src := "| Left | Center | Right |\n" +
+		"|:---|:---:|---:|\n" +
+		"| a | b | c |\n"
+	out := FormatString(src, 1)
+	assert.Contains(t, out, "|:-----|:------:|------:|",
+		"expected separator preserves all three alignment markers; got:\n%s", out)
 }
 
 // --- Helper functions ---

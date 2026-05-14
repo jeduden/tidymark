@@ -257,7 +257,38 @@ func TestLastByteOfNodeStop_NoLines(t *testing.T) {
 	assert.Equal(t, 0, result)
 }
 
-// --- OpenLineRange: previous sibling branch ---
+// --- OpenLineRange: synthetic block with no fence in source ---
+
+func TestOpenLineRange_NoFenceFound_ReturnsEndSentinel(t *testing.T) {
+	// Synthetic FencedCodeBlock with Info=nil, no Lines, and no parent
+	// (so PreviousSibling is nil and searchStart starts at 0). The src
+	// contains no fence characters anywhere, so the scan loop exhausts
+	// the source and returns the (len(src), len(src)) sentinel.
+	//
+	// Two src shapes exercise the two loop-exit branches: trailing
+	// newline lets the for-condition fail naturally; no trailing
+	// newline forces the `lineEnd >= len(src)` break.
+	for _, src := range [][]byte{
+		[]byte("paragraph line one\nparagraph line two\n"),
+		[]byte("paragraph with no trailing newline"),
+	} {
+		fcb := ast.NewFencedCodeBlock(nil)
+		start, end := OpenLineRange(src, fcb)
+		assert.Equal(t, len(src), start, "expected sentinel start at len(src)")
+		assert.Equal(t, len(src), end, "expected sentinel end at len(src)")
+	}
+}
+
+// --- OpenLineRange: synthetic block, scan terminates on empty source ---
+
+func TestOpenLineRange_EmptySource(t *testing.T) {
+	// pos == len(src) means the loop body never runs. The function
+	// falls through to the sentinel return.
+	fcb := ast.NewFencedCodeBlock(nil)
+	start, end := OpenLineRange(nil, fcb)
+	assert.Equal(t, 0, start)
+	assert.Equal(t, 0, end)
+}
 
 func TestOpenLineRange_EmptyBlockWithPreviousSibling(t *testing.T) {
 	// Empty tilde code block after a paragraph: PreviousSibling() is non-nil.
