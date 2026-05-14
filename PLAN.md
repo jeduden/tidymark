@@ -85,4 +85,5 @@ footer: |
 | 154 | 🔲     | sonnet | [arch-fix: extract cross-rule helpers](plan/154_arch-fix-rule-helper-extraction.md)                                       |
 | 155 | ✅     | sonnet | [arch-fix: relocate convention types out of markdownflavor](plan/155_arch-fix-convention-config-ownership.md)             |
 | 156 | 🔲     | opus   | [Composable required-structure schemas across multiple kinds](plan/156_kind-schema-composition.md)                        |
+| 157 | 🔳     | sonnet | [Catalog filter by front matter property](plan/157_catalog-where-filter.md)                                               |
 <?/catalog?>
