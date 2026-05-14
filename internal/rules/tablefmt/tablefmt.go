@@ -30,38 +30,7 @@ func FormatString(s string, pad int) string {
 	if len(tables) == 0 {
 		return s
 	}
-
-	pad = normalizePad(pad)
-	result := make([]byte, len(source))
-	copy(result, source)
-
-	for i := len(tables) - 1; i >= 0; i-- {
-		tbl := tables[i]
-		formatted := formatTable(tbl, pad)
-		if tableEqual(tbl, formatted) {
-			continue
-		}
-
-		var replacement bytes.Buffer
-		for j, line := range formatted.rawLines {
-			replacement.Write(line)
-			if j < len(formatted.rawLines)-1 {
-				replacement.WriteByte('\n')
-			}
-		}
-
-		var original bytes.Buffer
-		for j, line := range tbl.rawLines {
-			original.Write(line)
-			if j < len(tbl.rawLines)-1 {
-				original.WriteByte('\n')
-			}
-		}
-
-		result = bytes.Replace(result, original.Bytes(), replacement.Bytes(), 1)
-	}
-
-	return string(result)
+	return string(rebuildWithFormattedTables(lines, tables, normalizePad(pad)))
 }
 
 // Violations returns the formatting violations found in lines. codeLines
@@ -90,45 +59,37 @@ func Violations(lines [][]byte, codeLines map[int]bool, pad int) []Violation {
 // splitting source on newlines (i.e. f.Lines from internal/lint).
 func FormatLines(source []byte, lines [][]byte, codeLines map[int]bool, pad int) []byte {
 	tables := findTables(lines, codeLines)
-	pad = normalizePad(pad)
-
 	if len(tables) == 0 {
-		result := make([]byte, len(source))
-		copy(result, source)
-		return result
+		out := make([]byte, len(source))
+		copy(out, source)
+		return out
 	}
+	return rebuildWithFormattedTables(lines, tables, normalizePad(pad))
+}
 
-	// Apply replacements in reverse order to preserve offsets.
-	result := make([]byte, len(source))
-	copy(result, source)
+// rebuildWithFormattedTables returns the source bytes implied by lines,
+// with each non-conforming table replaced by its canonical layout.
+//
+// Splice by line index (not bytes.Replace) so identical tables earlier
+// in the file — including table-shaped text inside skipped code blocks
+// — do not get rewritten in place of the parsed target. formatTable
+// preserves row count, so each replacement is one-line-per-line.
+func rebuildWithFormattedTables(lines [][]byte, tables []table, pad int) []byte {
+	work := make([][]byte, len(lines))
+	copy(work, lines)
 
-	for i := len(tables) - 1; i >= 0; i-- {
-		tbl := tables[i]
+	for _, tbl := range tables {
 		formatted := formatTable(tbl, pad)
 		if tableEqual(tbl, formatted) {
 			continue
 		}
-
-		var replacement bytes.Buffer
-		for j, line := range formatted.rawLines {
-			replacement.Write(line)
-			if j < len(formatted.rawLines)-1 {
-				replacement.WriteByte('\n')
-			}
+		start := tbl.startLine - 1 // 0-based
+		for j, newLine := range formatted.rawLines {
+			work[start+j] = newLine
 		}
-
-		var original bytes.Buffer
-		for j, line := range tbl.rawLines {
-			original.Write(line)
-			if j < len(tbl.rawLines)-1 {
-				original.WriteByte('\n')
-			}
-		}
-
-		result = bytes.Replace(result, original.Bytes(), replacement.Bytes(), 1)
 	}
 
-	return result
+	return bytes.Join(work, []byte("\n"))
 }
 
 func normalizePad(pad int) int {

@@ -451,6 +451,56 @@ func TestFormatString_Blockquote(t *testing.T) {
 	}
 }
 
+// --- Regression: byte-identical tables are each rewritten ---
+
+func TestFormatString_IdenticalTablesBothRewritten(t *testing.T) {
+	// Two byte-identical, mis-formatted tables. A naïve bytes.Replace
+	// pass would find both occurrences with the first call and replace
+	// only one; the second would remain unformatted. Line-index
+	// rewriting must visit each parsed table individually.
+	src := "| a | b |\n" +
+		"|---|---|\n" +
+		"| foo | barbaz |\n" +
+		"\n" +
+		"| a | b |\n" +
+		"|---|---|\n" +
+		"| foo | barbaz |\n"
+	out := FormatString(src, 1)
+	canonical := strings.Count(out, "| a   | b      |")
+	assert.Equal(t, 2, canonical, "both header rows must be reformatted; got:\n%s", out)
+}
+
+// --- Regression: table-shaped text inside a skipped code block is left alone ---
+
+func TestFormatLines_TableInsideSkippedCodeBlock_NotRewritten(t *testing.T) {
+	// A table-shaped block sits inside a fenced code block (lines 2-4
+	// are marked as code via codeLines). An identical real table
+	// follows the fence (lines 7-9). The fenced text must stay byte-
+	// for-byte; the real table downstream must be reformatted.
+	src := []byte("" +
+		"```\n" + // 1
+		"| a | b |\n" + // 2 (code)
+		"|---|---|\n" + // 3 (code)
+		"| foo | barbaz |\n" + // 4 (code)
+		"```\n" + // 5
+		"\n" + // 6
+		"| a | b |\n" + // 7
+		"|---|---|\n" + // 8
+		"| foo | barbaz |\n") // 9
+	lines := splitLines(string(src))
+	codeLines := map[int]bool{2: true, 3: true, 4: true}
+
+	out := FormatLines(src, lines, codeLines, 1)
+	outStr := string(out)
+
+	// Inside the fence: the original mis-formatted rows must survive.
+	assert.Contains(t, outStr, "```\n| a | b |\n|---|---|\n| foo | barbaz |\n```",
+		"fenced contents must not be reformatted; got:\n%s", outStr)
+	// Downstream: the real table must be reformatted exactly once.
+	assert.Equal(t, 1, strings.Count(outStr, "| a   | b      |"),
+		"real table should be reformatted to canonical width; got:\n%s", outStr)
+}
+
 // --- Violations ---
 
 func TestViolations_FormattedTable_None(t *testing.T) {
