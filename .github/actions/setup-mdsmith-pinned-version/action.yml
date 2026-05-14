@@ -12,7 +12,10 @@ runs:
         # Bump here only when intentionally updating that baseline.
         MDSMITH_VERSION: v0.15.0
         MDSMITH_SHA256: e91115916132c668620bb605bd162c05343aad26c3ed2c25e58c86a8506af191
-      run: |
+      # The binary is downloaded over HTTPS and SHA256-verified above
+      # before $HOME/.local/bin is appended to PATH, so the github-env
+      # write is safe to ignore.
+      run: | # zizmor: ignore[github-env]
         set -euo pipefail
         mkdir -p "$HOME/.local/bin"
         curl -fsSL "https://github.com/jeduden/mdsmith/releases/download/${MDSMITH_VERSION}/mdsmith-linux-amd64" \

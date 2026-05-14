@@ -134,12 +134,10 @@ where: 'nature: "directive"'
 sort: id
 row: "- `internal/rules/{id}-{name}/pattern/` ({name})"
 ?>
-
 - `internal/rules/MDS019-catalog/pattern/` (catalog)
 - `internal/rules/MDS021-include/pattern/` (include)
 - `internal/rules/MDS038-toc/pattern/` (toc)
 - `internal/rules/MDS039-build/pattern/` (build)
-
 <?/catalog?>
 
 Do not paraphrase directive syntax from memory.
