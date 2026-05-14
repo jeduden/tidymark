@@ -284,16 +284,18 @@ func runGoodFolderFile(
 
 // attachFixtureFS scopes a fixture's lint.File to a directory on disk.
 // For rules that resolve cross-tree paths against a project root
-// (currently MDS019 catalog) it also pins RootFS to the same FS so the
-// rule can resolve ".." segments instead of erroring out. For all
-// other rules, RootFS is left nil to preserve their existing fixture
-// semantics — notably MDS020, whose schema reader switches resolution
-// strategy based on whether RootFS is set.
+// (currently MDS019 catalog) it also pins RootFS and RootDir to the
+// same directory so the rule can resolve ".." segments and anchor
+// gitignore lookups the way it does in a real workspace. For all
+// other rules, RootFS/RootDir are left nil to preserve their existing
+// fixture semantics — notably MDS020, whose schema reader switches
+// resolution strategy based on whether RootFS is set.
 func attachFixtureFS(f *lint.File, dir string, r rule.Rule) {
 	fsys := os.DirFS(dir)
 	f.FS = fsys
 	if r != nil && r.ID() == "MDS019" {
 		f.RootFS = fsys
+		f.RootDir = dir
 	}
 }
 

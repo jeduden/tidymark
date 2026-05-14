@@ -26,7 +26,7 @@ import (
 // path is also slash-separated and relative to the project root; it is
 // "" for the root itself.
 //
-// Callers use this to check that "..": segments in a path stay within the
+// Callers use this to check that ".." segments in a path stay within the
 // project root before resolving the path against a project-rooted fs.FS.
 func ResolveAgainstRoot(baseDir, p2 string) (resolved string, escapes bool) {
 	if baseDir == "" {
