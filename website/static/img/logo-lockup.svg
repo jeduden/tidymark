@@ -1,11 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" width="360" height="80" role="img" aria-label="mdsmith">
-  <g fill="none" stroke="#D9651D" stroke-width="4">
-    <path d="M4 24 L10 20 L74 20 L74 34 L4 34 Z"></path>
-    <path d="M6 48 L74 48 L74 60 L70 64 L10 64 L6 60 Z"></path>
-    <rect x="22" y="8" width="8" height="68"></rect>
-    <rect x="50" y="8" width="8" height="68"></rect>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" role="img" aria-label="mdsmith">
+  <title>mdsmith</title>
+  <g fill="currentColor">
+    <path d="M8.5 12.5l13 13 2-2-13-13z" transform="translate(0 -3)"/>
+    <rect x="3.5" y="4" width="11" height="6" rx="1.2"/>
   </g>
-  <text x="100" y="52" font-family="&#39;IBM Plex Sans&#39;, system-ui, sans-serif" font-weight="700" font-size="34" letter-spacing="-0.03em" fill="#0F1419">md</text>
-  <text x="137" y="52" font-family="&#39;IBM Plex Sans&#39;, system-ui, sans-serif" font-weight="400" font-size="30" letter-spacing="-0.01em" fill="#5C6773">smith</text>
+  <g font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" fill="currentColor">
+    <text x="34" y="22" font-weight="700" letter-spacing="-0.5">md</text>
+    <text x="64" y="22" font-weight="400" letter-spacing="-0.3" opacity="0.65">smith</text>
+  </g>
 </svg>
