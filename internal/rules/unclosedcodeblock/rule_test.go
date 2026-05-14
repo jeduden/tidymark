@@ -6,6 +6,8 @@ import (
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 func TestID(t *testing.T) {
@@ -148,4 +150,72 @@ func TestCheck_FilePath(t *testing.T) {
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
 	assert.Equal(t, "docs/readme.md", diags[0].File)
+}
+
+// --- Defensive guards on hasClosingFence ---
+//
+// Real goldmark output never produces a FencedCodeBlock without a
+// matching `` ``` `` or `~~~` marker, but hasClosingFence keeps
+// defensive guards anyway. The tests below append synthetic
+// FencedCodeBlocks so the guards fire.
+
+func TestHasClosingFence_OpenStartPastSource(t *testing.T) {
+	// Synthetic FCB with Info=nil and no Lines in an empty document:
+	// OpenLineRange falls through to the (len(src), len(src)) sentinel,
+	// so hasClosingFence returns true (treated as "closed") and Check
+	// emits no diagnostics for that block.
+	f, err := lint.NewFile("test.md", []byte(""))
+	require.NoError(t, err)
+	fcb := ast.NewFencedCodeBlock(nil)
+	f.AST.AppendChild(f.AST, fcb)
+	r := &Rule{}
+	assert.Empty(t, r.Check(f))
+}
+
+func TestHasClosingFence_NonFenceFirstChar(t *testing.T) {
+	// Info points at a non-fence line so OpenLineRange returns a valid
+	// range but CharAt reads a non-fence byte and returns 0.
+	src := []byte("hello\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	info := ast.NewText()
+	info.Segment = text.NewSegment(0, 5)
+	fcb := ast.NewFencedCodeBlock(info)
+	f.AST.AppendChild(f.AST, fcb)
+	r := &Rule{}
+	assert.Empty(t, r.Check(f))
+}
+
+func TestHasClosingFence_ClosingLineEmpty(t *testing.T) {
+	// Synthetic fcb whose content's last segment stops at a newline.
+	// CloseLineRange then returns (closeStart, closeStart) — a
+	// zero-width line in the middle of the source. hasClosingFence
+	// must hit the `closeStart == closeEnd` guard and report the
+	// block as unclosed.
+	//
+	// Source layout (byte offsets in parens):
+	//   ```\n      (0..3)
+	//   hello\n    (4..9, with \n at 9)
+	//   \n         (10)
+	//
+	// The synthetic fcb owns "hello\n" as its only content line.
+	src := []byte("```\nhello\n\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+
+	fcb := ast.NewFencedCodeBlock(nil)
+	segs := text.NewSegments()
+	segs.Append(text.NewSegment(4, 10)) // covers "hello\n"
+	fcb.SetLines(segs)
+	f.AST.AppendChild(f.AST, fcb)
+
+	r := &Rule{}
+	diags := r.Check(f)
+	// Two diagnostics: one from the real `` ``` `` fcb that goldmark
+	// also parses (and is genuinely unclosed) and one from the
+	// synthetic fcb that exercises the `closeStart == closeEnd` guard.
+	require.NotEmpty(t, diags)
+	for _, d := range diags {
+		assert.Equal(t, "unclosed fenced code block", d.Message)
+	}
 }
