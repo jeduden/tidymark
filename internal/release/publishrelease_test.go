@@ -161,6 +161,21 @@ func TestPublishReleasePatchUnexpectedStatusErrors(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected GitHub API status 422")
+	// A PATCH (publish) failure must not be mislabeled "lookup".
+	assert.Contains(t, err.Error(), "publish ")
+	assert.NotContains(t, err.Error(), "lookup ")
+}
+
+func TestLookupReleaseRefRequestBuildError(t *testing.T) {
+	// A control character in the URL makes http.NewRequest fail,
+	// exercising newGitHubRequest's error path via the GET caller.
+	_, _, err := lookupReleaseRef(&http.Client{}, "http://\x7f", "jeduden/mdsmith", "v1", "t")
+	require.Error(t, err)
+}
+
+func TestPatchReleaseDraftFalseRequestBuildError(t *testing.T) {
+	err := patchReleaseDraftFalse(&http.Client{}, "http://\x7f", "jeduden/mdsmith", 42, "t")
+	require.Error(t, err)
 }
 
 func TestPublishReleaseUsesDefaultAPIBase(t *testing.T) {

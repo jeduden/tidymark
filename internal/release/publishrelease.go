@@ -1,7 +1,6 @@
 package release
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -108,11 +107,10 @@ type releaseRef struct {
 
 func lookupReleaseRef(client *http.Client, apiBase, repository, tag, token string) (releaseRef, bool, error) {
 	u := apiBase + "/repos/" + repository + "/releases/tags/" + url.PathEscape(tag)
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	req, err := newGitHubRequest(http.MethodGet, u, nil, token)
 	if err != nil {
 		return releaseRef{}, false, err
 	}
-	setGitHubHeaders(req, token)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -130,22 +128,16 @@ func lookupReleaseRef(client *http.Client, apiBase, repository, tag, token strin
 	case http.StatusNotFound:
 		return releaseRef{}, false, nil
 	default:
-		return releaseRef{}, false, unexpectedStatus(u, resp)
+		return releaseRef{}, false, unexpectedStatus("lookup", u, resp)
 	}
 }
 
 func patchReleaseDraftFalse(client *http.Client, apiBase, repository string, id int64, token string) error {
 	u := fmt.Sprintf("%s/repos/%s/releases/%d", apiBase, repository, id)
-	body, err := json.Marshal(map[string]bool{"draft": false})
+	req, err := newGitHubRequest(http.MethodPatch, u, strings.NewReader(`{"draft":false}`), token)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPatch, u, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	setGitHubHeaders(req, token)
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -154,23 +146,32 @@ func patchReleaseDraftFalse(client *http.Client, apiBase, repository string, id 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return unexpectedStatus(u, resp)
+		return unexpectedStatus("publish", u, resp)
 	}
 	return nil
 }
 
-func setGitHubHeaders(req *http.Request, token string) {
+func newGitHubRequest(method, u string, body io.Reader, token string) (*http.Request, error) {
+	req, err := http.NewRequest(method, u, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
 }
 
-func unexpectedStatus(u string, resp *http.Response) error {
+func unexpectedStatus(op, u string, resp *http.Response) error {
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if err != nil {
 		return err
 	}
 	return &releaseLookupError{
+		Op:         op,
 		URL:        u,
 		StatusCode: resp.StatusCode,
 		Body:       string(body),
