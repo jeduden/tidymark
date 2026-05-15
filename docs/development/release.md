@@ -65,6 +65,21 @@ job that holds a credential is also gated by
 `if: github.repository == 'jeduden/mdsmith'` and
 runs in the `release` GitHub environment.
 
+`pages-deploy` builds [mdsmith.dev](https://mdsmith.dev/)
+from `website/` and deploys it to GitHub Pages. The job
+runs independently of the publish chain, so a flaky
+registry publish does not block the docs deploy. It
+sits in the `github-pages` environment, GitHub's
+built-in Pages protection boundary, not the `release`
+environment. It gates on the `build` job, so a tag that
+fails to compile never deploys docs.
+
+The build step calls `mdsmith-release build-website
+--no-fix ./docs ./website/content/docs`. That snapshots
+the source-of-truth `docs/` tree into the Hugo content
+tree. `--no-fix` is used because `docs/` is already
+lint-clean on main; CI must not mutate it.
+
 ## OIDC Trusted Publishing
 
 npm and PyPI accept the workflow's GitHub OIDC token

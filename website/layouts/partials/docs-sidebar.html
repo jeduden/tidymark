@@ -1,0 +1,15 @@
+{{ $current := .RelPermalink }}
+{{ $docs := .Site.GetPage "/docs" }}
+{{ with $docs }}
+  {{ range .Sections.ByWeight }}
+    <div class="docs-side-group">
+      <h4 class="docs-side-title">{{ .Title }}</h4>
+      {{ range .Pages.ByWeight }}
+        <a class="docs-side-link{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
+      {{ end }}
+      {{ range .Sections.ByWeight }}
+        <a class="docs-side-link{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
+      {{ end }}
+    </div>
+  {{ end }}
+{{ end }}

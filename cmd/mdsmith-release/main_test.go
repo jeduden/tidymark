@@ -58,6 +58,7 @@ func TestRunRejectsBadArity(t *testing.T) {
 		{"build-npm with one arg", []string{"build-npm", "art"}},
 		{"build-wheels without args", []string{"build-wheels"}},
 		{"build-wheels with one arg", []string{"build-wheels", "art"}},
+		{"build-website with three positionals", []string{"build-website", "a", "b", "c"}},
 	}
 	for _, c := range cases {
 		assert.Equal(t, 2, run(c.args), c.name)
@@ -94,7 +95,7 @@ func TestReportFlagParseErrNilReturnsContinue(t *testing.T) {
 // of reportFlagParseErr per subcommand. pflag prints the Usage
 // itself, so the dispatcher just needs to surface exit code 0.
 func TestSubcommandHelpExitsZero(t *testing.T) {
-	for _, sub := range []string{"stamp", "check", "build-npm", "build-wheels"} {
+	for _, sub := range []string{"stamp", "check", "build-npm", "build-wheels", "sync-docs", "build-website"} {
 		assert.Equal(t, 0, run([]string{sub, "--help"}), "%s --help", sub)
 	}
 }
@@ -102,7 +103,7 @@ func TestSubcommandHelpExitsZero(t *testing.T) {
 // TestSubcommandRejectsUnknownFlag exercises the non-help, non-nil
 // branch of reportFlagParseErr.
 func TestSubcommandRejectsUnknownFlag(t *testing.T) {
-	for _, sub := range []string{"stamp", "check", "build-npm", "build-wheels"} {
+	for _, sub := range []string{"stamp", "check", "build-npm", "build-wheels", "sync-docs", "build-website"} {
 		assert.Equal(t, 2, run([]string{sub, "--bogus"}), "%s --bogus", sub)
 	}
 }
@@ -179,6 +180,34 @@ func TestRunBuildNpmReportsError(t *testing.T) {
 	assert.Equal(t, 1, run([]string{"build-npm", "missing-artifacts", "dist"}))
 }
 
+// TestRunBuildWebsiteEndToEnd dispatches through `run
+// build-website --no-fix` so the subcommand wiring (flag
+// parse, positional defaulting, reportError) is exercised
+// without shelling out to `go run ./cmd/mdsmith` (the fix
+// pass is skipped). It also confirms the explicit src/dst
+// positionals override the defaults.
+func TestRunBuildWebsiteEndToEnd(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "docs")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "top.md"), []byte("top body\n"), 0o644))
+	dst := filepath.Join(root, "out")
+
+	assert.Equal(t, 0, run([]string{"build-website", "--no-fix", src, dst}))
+	got, err := os.ReadFile(filepath.Join(dst, "top.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "top body\n", string(got))
+}
+
+// TestRunBuildWebsiteReportsError drives the reportError
+// non-nil branch: src==dst trips the SyncDocs overlap guard,
+// so runBuildWebsite must surface exit code 1.
+func TestRunBuildWebsiteReportsError(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "x.md"), []byte("x\n"), 0o644))
+	assert.Equal(t, 1, run([]string{"build-website", "--no-fix", dir, dir}))
+}
+
 // TestRunBuildWheelsReportsError dispatches through run
 // build-wheels for the fast-fail "python source missing" path so
 // runBuildWheels gets full coverage without needing python.
@@ -195,6 +224,44 @@ func TestRunBuildWheelsReportsError(t *testing.T) {
 	// python-source check passes; missing artifacts trips the
 	// per-build stat check instead.
 	assert.Equal(t, 1, run([]string{"build-wheels", "missing-artifacts", "wheels"}))
+}
+
+// TestRunSyncDocsHappyPath dispatches through `run sync-docs` so
+// the subcommand wiring (FlagSet parse, NArg() validation,
+// reportError translation, default-toolkit handoff) gets
+// exercised end-to-end against a small staged docs tree.
+func TestRunSyncDocsHappyPath(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "out")
+	require.NoError(t, os.WriteFile(filepath.Join(src, "intro.md"), []byte("intro body\n"), 0o644))
+
+	assert.Equal(t, 0, run([]string{"sync-docs", src, dst}))
+
+	body, err := os.ReadFile(filepath.Join(dst, "intro.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "intro body\n", string(body))
+}
+
+// TestRunSyncDocsBadArity covers the `fs.NArg() != 2` branch for
+// both under- and over-supply of positional args. Each case
+// exits with the usage-error code (2) without touching the FS.
+func TestRunSyncDocsBadArity(t *testing.T) {
+	for _, argv := range [][]string{
+		{"sync-docs"},
+		{"sync-docs", "only-one"},
+		{"sync-docs", "a", "b", "c"},
+	} {
+		assert.Equal(t, 2, run(argv), "%v", argv)
+	}
+}
+
+// TestRunSyncDocsReportsErrorAsExitOne covers the reportError
+// branch when the underlying release.SyncDocs call fails (here,
+// missing source dir).
+func TestRunSyncDocsReportsErrorAsExitOne(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "does-not-exist")
+	dst := t.TempDir()
+	assert.Equal(t, 1, run([]string{"sync-docs", src, dst}))
 }
 
 // writeFixture mirrors internal/release/version_test.go's
@@ -223,6 +290,11 @@ func writeFixture(t *testing.T, root string) {
 		"python/pyproject.toml": `[project]
 name = "mdsmith"
 version = "0.0.0-dev"
+`,
+		"website/hugo.toml": `baseURL = "https://mdsmith.dev/"
+title = "mdsmith"
+[params]
+  version = "0.0.0-dev"
 `,
 	}
 	for rel, body := range files {

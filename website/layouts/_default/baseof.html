@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="{{ site.Language.Lang | default "en" }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .IsHome }}{{ .Site.Title }} — {{ .Site.Params.description }}{{ else }}{{ .Title }} · {{ .Site.Title }}{{ end }}</title>
+  {{- /* Per-page meta description priority: explicit Description
+         (set via Hugo's .Description), then the `summary` front
+         matter field that the website-page kind schema requires,
+         then `description` if a page sets one, falling back to
+         the site-wide description. Without the summary branch
+         every page would inherit the site-level description
+         because the kind schema standardizes on `summary`. */ -}}
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else with .Params.summary }}{{ . }}{{ else with .Params.description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
+  <link rel="icon" type="image/svg+xml" href="{{ "img/logo-mark.svg" | relURL }}">
+  <link rel="stylesheet" href="{{ "css/colors_and_type.css" | relURL }}">
+  <link rel="stylesheet" href="{{ "css/app.css" | relURL }}">
+  <script src="{{ "js/lucide.min.js" | relURL }}" defer></script>
+</head>
+<body>
+  <div class="app">
+    {{ partial "topnav.html" . }}
+    <main>
+      {{ block "main" . }}{{ end }}
+    </main>
+    {{ partial "footer.html" . }}
+  </div>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.lucide) window.lucide.createIcons();
+      const nav = document.querySelector(".topnav");
+      if (nav) {
+        const onScroll = () => nav.classList.toggle("is-scrolled", window.scrollY > 4);
+        document.addEventListener("scroll", onScroll, { passive: true });
+        onScroll();
+      }
+      document.querySelectorAll("[data-copy]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const text = btn.getAttribute("data-copy");
+          try {
+            await navigator.clipboard.writeText(text);
+            // Capture the label once and clear any pending
+            // restore so a rapid second click can't snapshot
+            // the transient "copied" text as the original.
+            if (btn.dataset.label === undefined) btn.dataset.label = btn.textContent;
+            if (btn._copyTimer) clearTimeout(btn._copyTimer);
+            btn.classList.add("is-copied");
+            btn.textContent = "copied";
+            btn._copyTimer = setTimeout(() => {
+              btn.classList.remove("is-copied");
+              btn.textContent = btn.dataset.label;
+              btn._copyTimer = null;
+            }, 1400);
+          } catch (e) { /* clipboard unavailable */ }
+        });
+      });
+      document.querySelectorAll("[data-tabs]").forEach(group => {
+        const tabs = group.querySelectorAll("[data-tab]");
+        const panels = group.querySelectorAll("[data-panel]");
+        const activate = key => {
+          tabs.forEach(t => {
+            const on = t.getAttribute("data-tab") === key;
+            t.classList.toggle("is-active", on);
+            t.setAttribute("aria-selected", on ? "true" : "false");
+            t.setAttribute("tabindex", on ? "0" : "-1");
+          });
+          panels.forEach(p => p.hidden = p.getAttribute("data-panel") !== key);
+        };
+        tabs.forEach((tab, idx) => {
+          tab.addEventListener("click", () => activate(tab.getAttribute("data-tab")));
+          tab.addEventListener("keydown", e => {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            e.preventDefault();
+            const dir = e.key === "ArrowRight" ? 1 : -1;
+            const next = tabs[(idx + dir + tabs.length) % tabs.length];
+            activate(next.getAttribute("data-tab"));
+            next.focus();
+          });
+        });
+      });
+    });
+  </script>
+</body>
+</html>

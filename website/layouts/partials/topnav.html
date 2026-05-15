@@ -1,0 +1,33 @@
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="topnav-brand" href="{{ "/" | relURL }}">
+      <img src="{{ "img/logo-mark.svg" | relURL }}" width="22" height="22" alt="" aria-hidden="true">
+      mdsmith
+    </a>
+    {{- /* Active-state prefixes pass through relURL so they
+           respect --baseURL. Direct comparisons against literal
+           "/docs" would never match when the site is served from
+           a subpath (e.g. <user>.github.io/<repo>/), because
+           .RelPermalink includes the subpath. */ -}}
+    {{- $docsPrefix := relURL "/docs/" -}}
+    {{- $refPrefix := relURL "/docs/reference/" -}}
+    {{- /* Compare points at the canonical comparison doc that
+           sync-docs publishes — there is no hand-authored
+           /compare/ page. Its path is excluded from the Docs
+           active-state so only one nav item lights up. */ -}}
+    {{- $cmpPrefix := relURL "/docs/background/markdown-linters/" -}}
+    <nav class="topnav-links">
+      <a class="topnav-link{{ if and (hasPrefix .RelPermalink $docsPrefix) (not (hasPrefix .RelPermalink $refPrefix)) (not (hasPrefix .RelPermalink $cmpPrefix)) }} is-active{{ end }}" href="{{ "/docs/" | relURL }}">Docs</a>
+      <a class="topnav-link{{ if hasPrefix .RelPermalink $refPrefix }} is-active{{ end }}" href="{{ "/docs/reference/" | relURL }}">Reference</a>
+      <a class="topnav-link{{ if hasPrefix .RelPermalink $cmpPrefix }} is-active{{ end }}" href="{{ "/docs/background/markdown-linters/" | relURL }}">Compare</a>
+      <a class="topnav-link" href="{{ "/docs/guides/install/" | relURL }}">Install</a>
+    </nav>
+    <div class="topnav-right">
+      <span class="topnav-version">v{{ .Site.Params.version }}</span>
+      <a class="topnav-gh" href="https://github.com/{{ .Site.Params.githubRepo }}" rel="noopener">
+        <i data-lucide="github" width="14" height="14" aria-hidden="true"></i>
+        GitHub
+      </a>
+    </div>
+  </div>
+</header>

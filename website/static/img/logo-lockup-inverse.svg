@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" role="img" aria-label="mdsmith">
+  <title>mdsmith</title>
+  <g fill="#B4BBC4">
+    <path d="M4 24 L10 20 L74 20 L74 34 L4 34 Z"/>
+    <path d="M6 48 L74 48 L74 60 L70 64 L10 64 L6 60 Z"/>
+    <rect x="22" y="8" width="8" height="68"/>
+    <rect x="50" y="8" width="8" height="68"/>
+  </g>
+  <g transform="rotate(55 40 40)">
+    <path fill="#E58233" stroke="#FAF7F2" stroke-width="2.5" stroke-linejoin="round"
+          d="M 28 13 L 52 13 L 58 18 L 58 25 L 52 30 L 45 30 L 45 64 Q 45 67 42 67 L 38 67 Q 35 67 35 64 L 35 30 L 28 30 L 22 25 L 22 18 Z"/>
+  </g>
+  <text x="100" y="52" font-family="'IBM Plex Sans', system-ui, sans-serif" font-size="34" letter-spacing="-0.03em">
+    <tspan font-weight="700" fill="#FAF7F2">md</tspan><tspan dx="4" font-weight="400" font-size="30" fill="#B4BBC4">smith</tspan>
+  </text>
+</svg>

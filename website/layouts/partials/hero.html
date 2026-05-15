@@ -1,0 +1,33 @@
+{{ with site.Data.homepage.hero }}
+<section class="hero">
+  <div class="container hero-inner">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-eyebrow">
+          <span class="dot"></span>
+          {{ .eyebrow }}
+        </div>
+        <h1>{{ .headline_pre }}<em>{{ .headline_em }}</em>{{ .headline_post }}</h1>
+        <p class="hero-lead">{{ .lead }}</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary btn-lg" href="{{ "/docs/guides/install/" | relURL }}">
+            <i data-lucide="download" width="16" height="16" aria-hidden="true"></i>
+            Install mdsmith
+          </a>
+          <a class="btn btn-secondary btn-lg" href="{{ "/docs/" | relURL }}">
+            <i data-lucide="book-open" width="16" height="16" aria-hidden="true"></i>
+            Read the docs
+          </a>
+          <a class="btn btn-ghost btn-lg btn-mono" href="https://github.com/{{ $.Site.Params.githubRepo }}" rel="noopener">
+            <i data-lucide="github" width="16" height="16" aria-hidden="true"></i>
+            jeduden/mdsmith
+          </a>
+        </div>
+      </div>
+      <div>
+        {{ partial "terminal-mock.html" $ }}
+      </div>
+    </div>
+  </div>
+</section>
+{{ end }}

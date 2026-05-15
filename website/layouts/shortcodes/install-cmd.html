@@ -1,0 +1,11 @@
+{{- $prompt := .Get "prompt" | default "$" -}}
+{{- $cmd := .Get "cmd" -}}
+{{- $args := .Get "args" | default "" -}}
+<div class="install-body">
+  <div class="install-cmd">
+    <span class="prompt">{{ $prompt }}</span>
+    <span class="cmd">{{ $cmd }}</span>
+    <span class="arg">{{ $args }}</span>
+  </div>
+  <button class="install-copy" type="button" data-copy="{{ trim (printf "%s %s" $cmd $args) " " }}">copy</button>
+</div>

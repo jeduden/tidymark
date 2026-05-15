@@ -11,6 +11,8 @@
 //	mdsmith-release check
 //	mdsmith-release build-npm <artifacts-dir> <out-dir>
 //	mdsmith-release build-wheels <artifacts-dir> <out-dir>
+//	mdsmith-release sync-docs <src-dir> <dst-dir>
+//	mdsmith-release build-website [--no-fix] [src-dir] [dst-dir]
 //	mdsmith-release check-secret-rotations
 //	mdsmith-release record-rotation <ENTRY_TITLE> <YYYY-MM-DD>
 //
@@ -37,6 +39,9 @@ Commands:
   check                           Verify tracked manifests are at the dev sentinel.
   build-npm <artifacts> <out>     Build npm platform sub-packages.
   build-wheels <artifacts> <out>  Build platform-tagged Python wheels.
+  sync-docs <src> <dst>           Snapshot docs/ into a Hugo content tree.
+  build-website [--no-fix] [src] [dst]
+                                  mdsmith fix (unless --no-fix) + sync-docs.
   check-secret-rotations          Open GitHub issues for secrets due for rotation.
   record-rotation <title> <date>  Update lastRotated in a per-secret rotation file.
 `
@@ -68,6 +73,10 @@ func run(args []string) int {
 		return runBuildNpm(root, rest)
 	case "build-wheels":
 		return runBuildWheels(root, rest)
+	case "sync-docs":
+		return runSyncDocs(root, rest)
+	case "build-website":
+		return runBuildWebsite(root, rest)
 	case "check-secret-rotations":
 		return runCheckSecretRotations(root, rest)
 	case "record-rotation":
@@ -161,6 +170,69 @@ func runBuildWheels(root string, args []string) int {
 		return 2
 	}
 	return reportError(release.BuildWheels(root, fs.Arg(0), fs.Arg(1)))
+}
+
+func runSyncDocs(_ string, args []string) int {
+	fs := flag.NewFlagSet("sync-docs", flag.ContinueOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: mdsmith-release sync-docs <src-dir> <dst-dir>\n\n"+
+			"Snapshot <src-dir> into <dst-dir> for a Hugo build,\n"+
+			"applying the transforms the rendered site needs:\n"+
+			"  - drop proto.md schema templates\n"+
+			"  - rename index.md to _index.md\n"+
+			"  - skip non-markdown, non-image files\n"+
+			"  - escape {{< ... >}} and {{%% ... %%}} patterns so\n"+
+			"    Hugo renders them verbatim instead of resolving\n"+
+			"    them as shortcodes\n"+
+			"  - promote the first body H1 to front-matter\n"+
+			"    title: and remove it from the body\n"+
+			"  - strip mdsmith <?...?> directive markers (kept\n"+
+			"    when shown inside code fences or inline code)\n\n"+
+			"<dst-dir> is removed before the copy. Idempotent.\n")
+	}
+	if err := fs.Parse(args); err != nil {
+		if code := reportFlagParseErr(err, os.Stderr, "mdsmith-release: sync-docs"); code >= 0 {
+			return code
+		}
+	}
+	if fs.NArg() != 2 {
+		fs.Usage()
+		return 2
+	}
+	return reportError(release.SyncDocs(fs.Arg(0), fs.Arg(1)))
+}
+
+func runBuildWebsite(_ string, args []string) int {
+	fs := flag.NewFlagSet("build-website", flag.ContinueOnError)
+	noFix := fs.Bool("no-fix", false,
+		"skip the `mdsmith fix` pass and only snapshot the source tree")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: mdsmith-release build-website [--no-fix] [src-dir] [dst-dir]\n\n"+
+			"Prepare the Hugo content tree in one step:\n"+
+			"  1. unless --no-fix, run `mdsmith fix <src-dir>` so every\n"+
+			"     <?catalog?>/<?include?> body is current\n"+
+			"  2. snapshot <src-dir> into <dst-dir> (see sync-docs)\n\n"+
+			"src-dir defaults to ./docs, dst-dir to\n"+
+			"./website/content/docs. Run from the repo root.\n")
+	}
+	if err := fs.Parse(args); err != nil {
+		if code := reportFlagParseErr(err, os.Stderr, "mdsmith-release: build-website"); code >= 0 {
+			return code
+		}
+	}
+	if fs.NArg() > 2 {
+		fs.Usage()
+		return 2
+	}
+	src := "./docs"
+	dst := "./website/content/docs"
+	if fs.NArg() >= 1 {
+		src = fs.Arg(0)
+	}
+	if fs.NArg() == 2 {
+		dst = fs.Arg(1)
+	}
+	return reportError(release.BuildWebsite(src, dst, !*noFix))
 }
 
 // reportFlagParseErr mirrors the helper in cmd/mdsmith/main.go:

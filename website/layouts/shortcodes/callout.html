@@ -1,0 +1,5 @@
+{{- $label := .Get "label" | default "Note" -}}
+<div class="callout">
+  <span class="label">{{ $label }}</span>
+  {{ .Inner | markdownify }}
+</div>

@@ -1,0 +1,20 @@
+{{ define "main" }}
+  {{ partial "hero.html" . }}
+  {{ partial "logos-strip.html" . }}
+  <section class="section">
+    <div class="container">
+      <div class="section-eyebrow">Why mdsmith</div>
+      <h2 class="section-title">Six things it does that nothing else does together.</h2>
+      <p class="section-lead">Copy lifted directly from the source README — no new claims.</p>
+      {{ partial "feature-grid.html" . }}
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <div class="section-eyebrow">Install</div>
+      <h2 class="section-title">Five channels. Same binary.</h2>
+      <p class="section-lead">Pick the package manager that fits your toolchain. The install guide covers every alternative.</p>
+      {{ partial "install-tabs.html" . }}
+    </div>
+  </section>
+{{ end }}

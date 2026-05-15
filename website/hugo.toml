@@ -1,0 +1,67 @@
+baseURL = "https://mdsmith.dev/"
+locale = "en-us"
+title = "mdsmith"
+enableRobotsTXT = true
+enableGitInfo = false
+
+# Treat the site directory as the content source. The sibling
+# docs/ tree lives in the repo root but is NOT mounted directly:
+# Hugo parses shortcodes before markdown, so literal {{< ... >}}
+# patterns in files like docs/background/markdown-linters.md
+# would break the build. Instead, `mdsmith-release
+# build-website` (run locally and by the pages-deploy workflow
+# in CI) snapshots docs/ into content/docs/, escaping the
+# literal shortcode patterns, dropping proto.md schema
+# templates, and renaming index.md to _index.md.
+# content/docs/ is .gitignore'd.
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "data"
+    target = "data"
+
+[markup]
+  [markup.goldmark.renderer]
+    # Synced docs carry no raw HTML: sync-docs strips <?…?>
+    # directive markers and the content uses Markdown code
+    # spans (not literal <code>/<…> tags), so goldmark's
+    # default raw-HTML filtering loses nothing. Keep false —
+    # raw HTML in any doc would silently vanish, flagging the
+    # author to fix the source rather than ship unsanitized
+    # markup to mdsmith.dev.
+    unsafe = false
+  [markup.tableOfContents]
+    startLevel = 2
+    endLevel = 4
+  [markup.highlight]
+    # Emit inline styles rather than CSS classes — the site does
+    # not ship a Chroma stylesheet under static/css/, so the
+    # class-only form would render code blocks unstyled. Switch
+    # to noClasses = false (and vendor `chroma-<style>.css`) only
+    # when we want overridable token classes.
+    noClasses = true
+    style = "github"
+
+[params]
+  description = "A fast, auto-fixing Markdown linter and formatter for docs, READMEs, and AI-generated content."
+  githubRepo = "jeduden/mdsmith"
+  # `version` is tracked by mdsmith-release stamp (see
+  # internal/release/version.go — TrackedManifests). Between
+  # releases the value is the dev sentinel "0.0.0-dev"; the
+  # pages-deploy workflow rewrites it to the cleaned tag (no
+  # leading "v") before running `hugo --minify`. Templates that
+  # display this should prefix "v" in the rendered markup.
+  version = "0.0.0-dev"
+
+[outputs]
+  home = ["HTML"]
+  section = ["HTML"]
+  page = ["HTML"]
