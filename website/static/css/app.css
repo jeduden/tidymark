@@ -237,12 +237,16 @@ main {
   position: relative;
   transition: background var(--dur-base), box-shadow var(--dur-base);
 }
-.feature-card:hover {
+.feature-card:hover,
+.feature-card:focus-visible {
   background: var(--canvas);
   text-decoration: none;
   box-shadow: inset 3px 0 0 var(--forge-500);
 }
-.feature-card h3, .feature-card:hover h3 { color: var(--fg); }
+.feature-card:focus-visible { outline: 2px solid var(--forge-500); outline-offset: -2px; }
+.feature-card h3,
+.feature-card:hover h3,
+.feature-card:focus-visible h3 { color: var(--fg); }
 .feature-card p { color: var(--fg-muted); }
 .feature-more {
   margin-top: auto;
@@ -254,7 +258,8 @@ main {
   transform: translateX(-4px);
   transition: opacity var(--dur-base), transform var(--dur-base);
 }
-.feature-card:hover .feature-more { opacity: 1; transform: translateX(0); }
+.feature-card:hover .feature-more,
+.feature-card:focus-visible .feature-more { opacity: 1; transform: translateX(0); }
 .feature-rules { margin-top: 2px; }
 .feature-card .icon {
   width: 32px; height: 32px;

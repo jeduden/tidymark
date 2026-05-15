@@ -284,7 +284,7 @@ func (t *Toolkit) synthesizeSectionIndex(dir, name string, siblings map[string]s
 	default:
 		return fmt.Errorf("stat %s: %w", idxPath, err)
 	}
-	title := strings.ReplaceAll(humanizeDirName(name), `"`, `\"`)
+	title := escapeYAMLDoubleQuoted(humanizeDirName(name))
 	stub := []byte("---\ntitle: \"" + title + "\"\n---\n")
 	if err := t.fs.WriteFile(idxPath, stub, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", idxPath, err)
@@ -505,6 +505,17 @@ func headingSpan(src []byte, h *ast.Heading) (int, int) {
 // `title:` ensured. An existing title is kept untouched;
 // otherwise the promoted title is appended, or becomes the
 // sole key when the source carried no front matter.
+// escapeYAMLDoubleQuoted escapes a string for emission inside a
+// YAML double-quoted scalar. Backslash is escaped first so the
+// escapes added for the quote are not themselves re-escaped;
+// shared by the title-lift (mergeFMTitle) and the synthesized
+// section index so both produce valid front matter for a
+// directory name containing `\` or `"`.
+func escapeYAMLDoubleQuoted(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return strings.ReplaceAll(s, `"`, `\"`)
+}
+
 func mergeFMTitle(fmBlock string, hasFM bool, title string) string {
 	if hasFM {
 		for _, ln := range strings.Split(fmBlock, "\n") {
@@ -513,9 +524,7 @@ func mergeFMTitle(fmBlock string, hasFM bool, title string) string {
 			}
 		}
 	}
-	esc := strings.ReplaceAll(title, `\`, `\\`)
-	esc = strings.ReplaceAll(esc, `"`, `\"`)
-	titleLine := "title: \"" + esc + "\""
+	titleLine := "title: \"" + escapeYAMLDoubleQuoted(title) + "\""
 	if strings.TrimSpace(fmBlock) == "" {
 		return titleLine
 	}

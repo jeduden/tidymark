@@ -402,6 +402,23 @@ func TestHumanizeDirName(t *testing.T) {
 	assert.Equal(t, "Éclair", humanizeDirName("éclair"))
 }
 
+// TestSyncDocs_SynthesizedTitleEscaping pins that a directory
+// name containing YAML metacharacters (`"` and `\`) is escaped
+// in the synthesized _index.md front matter — backslash first,
+// matching mergeFMTitle — so the output is valid YAML.
+func TestSyncDocs_SynthesizedTitleEscaping(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	dirName := `we"ird\name`
+	writeFile(t, filepath.Join(src, dirName, "page.md"), "# Page\n\nbody\n")
+
+	require.NoError(t, SyncDocs(src, dst))
+
+	got, err := os.ReadFile(filepath.Join(dst, dirName, "_index.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(got), `title: "We\"ird\\name"`)
+}
+
 // TestIsUnder_HandlesFilesystemRoot is the regression for the
 // RemoveAll("/") hazard: the old HasPrefix(child, parent+sep)
 // test built "//" for a root parent, so isUnder("/a/b", "/")
