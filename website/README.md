@@ -24,9 +24,9 @@ the website cannot drift out of sync with the binary.
 | `layouts/shortcodes/`          | `callout`, `diag`, `pill`, `chip`, `install-cmd`.                           |
 | `layouts/_default/_markup/`    | Goldmark render hooks (headings, code blocks).                              |
 | `static/css/`                  | `colors_and_type.css` (tokens) + `app.css` (component styles).              |
-| `static/fonts/`                | 0xProto Nerd Font TTF.                                                      |
+| `static/fonts/`                | Self-hosted WOFF2: 0xProto (mono) + IBM Plex Sans/Serif.                    |
 | `static/img/`                  | Logo SVGs.                                                                  |
-| `data/`                        | Reserved for generated data (rules catalog, etc.).                          |
+| `data/`                        | Hugo data files (`homepage.yaml` drives the homepage).                      |
 
 ## Develop
 

@@ -21,10 +21,11 @@ func (t *Toolkit) BuildWebsite(srcDir, dstDir string, runFix bool) error {
 			return fmt.Errorf("mdsmith fix %s: %w", srcDir, err)
 		}
 	}
-	if err := t.SyncDocs(srcDir, dstDir); err != nil {
-		return fmt.Errorf("sync %s -> %s: %w", srcDir, dstDir, err)
-	}
-	return nil
+	// SyncDocs already contextualizes every failure path
+	// (same-path guard, source not found, wipe/mkdir dst,
+	// sync src -> dst), so it is returned unwrapped to keep
+	// messages from doubling up.
+	return t.SyncDocs(srcDir, dstDir)
 }
 
 // BuildWebsite delegates to a default-OS Toolkit (see Stamp).
