@@ -7,7 +7,7 @@ depends-on: [149, 156]
 summary: >-
   Derive a default data tree from the hierarchical
   schema and add an `extract` subcommand that emits a
-  kind-conformant file as JSON/YAML/Lua/msgpack.
+  kind-conformant file as JSON/YAML/msgpack.
 ---
 # Schema-driven data extraction (mdsmith extract)
 
@@ -15,9 +15,9 @@ summary: >-
 
 Let a kind's schema double as an extraction contract.
 Once `mdsmith check` confirms a file conforms, `mdsmith
-extract <kind> --format json|yaml|lua|msgpack <file>`
-emits a data tree. Its shape is derived from the schema
-hierarchy itself — no annotations required.
+extract <kind> --format json|yaml|msgpack <file>` emits a
+data tree. Its shape is derived from the schema hierarchy
+itself — no annotations required.
 
 ## Why a default binding layer first
 
@@ -35,25 +35,35 @@ and we keep it cheap by design: every key flows through
 one `keyFor(node)` seam (task 3), so the override plan is
 a focused change there plus parsing `bind:`. Until then,
 renaming or restructuring is the job of a downstream tool
-(`jq`, `yq`, a Lua script) over the standard-format
-output.
+(`jq`, `yq`) over the standard-format output.
 
 ## Default projection rules
 
 The projection walks the composed schema in lockstep with
 the validated match and mirrors the hierarchy:
 
-- **Front matter** → top-level `frontmatter` object,
-  passed through from the existing decode.
+- **Root shape.** The root object holds a `frontmatter`
+  object (the decoded front matter, unchanged) *and* the
+  projected sections beside it at the same level. Front
+  matter stays grouped so it never collides with a
+  section slug.
 - **Literal-heading scope** (`## Goal`) → object keyed by
   the slugified heading (`goal`), reusing the existing
   anchor slugifier. Its value holds child scopes and
   content, recursively.
 - **Repeating scope** (`## {id}`, `repeats: true`) → an
-  array keyed by the slug of the heading's literal stem
-  (or, if none, the placeholder name). Each element is an
-  object whose fields are the captured placeholders plus
-  the element's own child scopes and content.
+  array keyed by the slug of the heading's literal stem,
+  or the placeholder name if the heading is only a
+  placeholder. Each element is an object that **always
+  retains every captured placeholder as a `name: value`
+  field** (both the placeholder name and its value
+  survive), plus the element's own child scopes and
+  content.
+- **Preamble** (content before the first heading, when
+  the schema declares a preamble scope) → projected under
+  a `preamble` key. Wildcard slots and unlisted/closed
+  headings are skipped: the output is a faithful
+  projection of the *declared* schema only.
 - **`code-block`** → string under `code` (raw body);
   multiple blocks get `code`, `code-2`, …
 - **`list`** → array of item strings under `items`.
@@ -113,14 +123,18 @@ partial data.
    []lint.Diagnostic)`. `sch` is the composed schema; `m`
    is the tree from task 1 — no re-matching.
 3. **Default scope projection.** Walk the scope tree and
-   build the nested object/array structure per the rules
-   above. Route every key through one `keyFor(node)`
-   function — the single seam a future custom-binding plan
-   overrides. Reuse the existing anchor slugifier. Unit-
-   test literal, nested, and optional-omitted scopes.
+   build the nested structure per the rules above:
+   `frontmatter` plus sections at the root, literal scopes
+   keyed by slug, preamble under `preamble`, wildcard /
+   unlisted skipped. Route every key through one
+   `keyFor(node)` function — the single seam a future
+   custom-binding plan overrides. Reuse the existing
+   anchor slugifier. Unit-test literal, nested, preamble,
+   and optional-omitted scopes.
 4. **Repeating scopes and placeholders.** Project
-   `repeats: true` scopes as arrays; record each captured
-   `{field}` into the element object, reusing
+   `repeats: true` scopes as arrays; each element retains
+   every captured `{field}` as a `name: value` field,
+   reusing
    [fieldinterp](../internal/fieldinterp/fieldinterp.go).
 5. **Default content projection.** Project `code-block`,
    `list`, `table`, and `paragraph` entries (plan 149)
@@ -131,8 +145,8 @@ partial data.
    merged tree, and that a real shape divergence is
    reported as a collision, not silently dropped.
 7. **Format encoders.** Add `internal/extract/encode`
-   with json (stdlib), yaml (existing dep), msgpack, and
-   lua (table literal) encoders behind a `Format` enum.
+   with json (stdlib), yaml (existing dep), and msgpack
+   encoders behind a `Format` enum. (Lua is deferred.)
 8. **`extract` subcommand.** Register `extract` in
    [main.go](../cmd/mdsmith/main.go); signature `mdsmith
    extract <kind> --format <fmt> <file>`. Reuse the
@@ -154,19 +168,24 @@ partial data.
 
 - [ ] `mdsmith extract <kind> --format json <file>` on a
       conformant file emits a tree whose nesting mirrors
-      the schema hierarchy, with front matter under
-      `frontmatter` — no schema annotations required.
+      the schema hierarchy — no schema annotations
+      required.
+- [ ] The root holds a `frontmatter` object and the
+      projected sections beside it at the same level.
 - [ ] Literal headings key by slug; repeating sections
-      become arrays; captured placeholders and child
-      scopes/content appear as element fields.
+      become arrays; each element retains every captured
+      placeholder as a `name: value` field plus its child
+      scopes/content.
+- [ ] Preamble is projected under `preamble`; wildcard
+      and unlisted/closed headings are skipped.
 - [ ] Code-block, list, table, and paragraph entries
       project under their default keys; sibling key
       collisions are reported as schema diagnostics.
 - [ ] A file resolving to multiple kinds yields a merged
       tree; a genuine shape divergence is reported, not
       silently dropped.
-- [ ] `yaml`, `lua`, and `msgpack` produce equivalent
-      data; golden fixtures cover all four formats.
+- [ ] `json`, `yaml`, and `msgpack` produce equivalent
+      data; golden fixtures cover all three formats.
 - [ ] A non-conformant file makes `extract` exit non-zero
       and print the same diagnostics as `mdsmith check`.
 - [ ] An unknown kind, or a kind not assigned to the
@@ -175,15 +194,25 @@ partial data.
 - [ ] `go tool golangci-lint run` reports no issues
 - [ ] `mdsmith check .` passes
 
-## Open questions
+## Decisions
 
-- Repeating-scope array key: slug of the literal stem vs.
-  the placeholder name. Plan assumes literal stem, else
-  placeholder name.
-- Custom bindings (rename/restructure) ship in [plan
+- **Repeating-scope key.** Array key is the slug of the
+  heading's literal stem, or the placeholder name when
+  the heading is only a placeholder. Each element always
+  retains every captured placeholder as a `name: value`
+  field, so both the name and the value survive.
+- **Front matter placement.** The root holds a
+  `frontmatter` object and the projected sections beside
+  it at the same level. Grouping front matter avoids
+  collisions with section slugs.
+- **Non-listed nodes.** Preamble is projected under
+  `preamble`; wildcard slots and unlisted/closed headings
+  are skipped.
+- **Lua deferred.** Ship json, yaml, and msgpack. A Lua
+  encoder can be added later behind the same `Format`
+  enum.
+- **Custom bindings** ship in [plan
   164](164_custom-binding-overrides.md), layered on the
   `keyFor` seam; out of scope here.
-- Lua output: bare `return { … }` table to start, not a
-  named module.
-- Exposing extraction over the LSP or a `query`-style
-  selector is out of scope here.
+- **LSP / `query`-style selector** for extraction is out
+  of scope here.
