@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -101,35 +100,85 @@ func PublishRelease(opts PublishReleaseOptions) error {
 }
 
 type releaseRef struct {
-	ID    int64 `json:"id"`
-	Draft bool  `json:"draft"`
+	ID      int64  `json:"id"`
+	Draft   bool   `json:"draft"`
+	TagName string `json:"tag_name"`
 }
 
+// lookupReleaseRef finds the release whose tag_name matches tag by
+// walking the list-releases endpoint. The by-tag endpoint
+// (GET /releases/tags/{tag}) deliberately omits draft releases, and
+// the `release` job creates the release as a draft so its assets stay
+// mutable until the final publish — so the draft is only reachable
+// through the list endpoint. Pagination is followed via the Link
+// header because drafts are not guaranteed to land on the first page.
 func lookupReleaseRef(client *http.Client, apiBase, repository, tag, token string) (releaseRef, bool, error) {
-	u := apiBase + "/repos/" + repository + "/releases/tags/" + url.PathEscape(tag)
+	next := apiBase + "/repos/" + repository + "/releases?per_page=100"
+	for next != "" {
+		rel, found, link, err := lookupReleasePage(client, next, tag, token)
+		if err != nil {
+			return releaseRef{}, false, err
+		}
+		if found {
+			return rel, true, nil
+		}
+		next = link
+	}
+	return releaseRef{}, false, nil
+}
+
+func lookupReleasePage(client *http.Client, u, tag, token string) (releaseRef, bool, string, error) {
 	req, err := newGitHubRequest(http.MethodGet, u, nil, token)
 	if err != nil {
-		return releaseRef{}, false, err
+		return releaseRef{}, false, "", err
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return releaseRef{}, false, err
+		return releaseRef{}, false, "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var rel releaseRef
-		if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-			return releaseRef{}, false, fmt.Errorf("parse %s: %w", u, err)
-		}
-		return rel, true, nil
-	case http.StatusNotFound:
-		return releaseRef{}, false, nil
-	default:
-		return releaseRef{}, false, unexpectedStatus("lookup", u, resp)
+	if resp.StatusCode != http.StatusOK {
+		return releaseRef{}, false, "", unexpectedStatus("lookup", u, resp)
 	}
+
+	var rels []releaseRef
+	if err := json.NewDecoder(resp.Body).Decode(&rels); err != nil {
+		return releaseRef{}, false, "", fmt.Errorf("parse %s: %w", u, err)
+	}
+	for _, rel := range rels {
+		if rel.TagName == tag {
+			return rel, true, "", nil
+		}
+	}
+	return releaseRef{}, false, nextPageURL(resp.Header.Get("Link")), nil
+}
+
+// nextPageURL extracts the rel="next" target from a GitHub Link
+// header, or "" when there is no further page.
+func nextPageURL(link string) string {
+	for _, part := range strings.Split(link, ",") {
+		segs := strings.Split(part, ";")
+		if len(segs) < 2 {
+			continue
+		}
+		isNext := false
+		for _, attr := range segs[1:] {
+			if strings.TrimSpace(attr) == `rel="next"` {
+				isNext = true
+				break
+			}
+		}
+		if !isNext {
+			continue
+		}
+		u := strings.TrimSpace(segs[0])
+		u = strings.TrimPrefix(u, "<")
+		u = strings.TrimSuffix(u, ">")
+		return u
+	}
+	return ""
 }
 
 func patchReleaseDraftFalse(client *http.Client, apiBase, repository string, id int64, token string) error {

@@ -16,7 +16,7 @@ func TestRunPublishReleaseFlipsDraft(t *testing.T) {
 			_, _ = w.Write([]byte(`{"id":42,"draft":false}`))
 			return
 		}
-		_, _ = w.Write([]byte(`{"id":42,"draft":true}`))
+		_, _ = w.Write([]byte(`[{"id":42,"draft":true,"tag_name":"v1.2.3"}]`))
 	}))
 	t.Cleanup(srv.Close)
 

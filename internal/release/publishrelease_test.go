@@ -36,13 +36,15 @@ func TestPublishReleaseFlipsDraftToPublished(t *testing.T) {
 		defer mu.Unlock()
 		authHdr = append(authHdr, r.Header.Get("Authorization"))
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/repos/jeduden/mdsmith/releases/tags/v1.2.3":
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/jeduden/mdsmith/releases":
 			gets++
 			if gets == 1 {
-				http.NotFound(w, r)
+				// The draft has not materialized yet: the list
+				// endpoint returns other releases but not this tag.
+				_, _ = fmt.Fprint(w, `[{"id":7,"draft":false,"tag_name":"v1.2.2"}]`)
 				return
 			}
-			_, _ = fmt.Fprint(w, `{"id":42,"draft":true}`)
+			_, _ = fmt.Fprint(w, `[{"id":42,"draft":true,"tag_name":"v1.2.3"}]`)
 		case r.Method == http.MethodPatch && r.URL.Path == "/repos/jeduden/mdsmith/releases/42":
 			patched = true
 			patchID = r.URL.Path
@@ -76,12 +78,55 @@ func TestPublishReleaseFlipsDraftToPublished(t *testing.T) {
 	}
 }
 
+func TestPublishReleaseFollowsPaginationToFindDraft(t *testing.T) {
+	var patched bool
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		isList := r.Method == http.MethodGet && r.URL.Path == "/repos/jeduden/mdsmith/releases"
+		page := r.URL.Query().Get("page")
+		switch {
+		case isList && page == "":
+			w.Header().Set("Link",
+				`<`+srv.URL+`/repos/jeduden/mdsmith/releases?page=2>; rel="next", `+
+					`<`+srv.URL+`/repos/jeduden/mdsmith/releases?page=2>; rel="last"`)
+			_, _ = fmt.Fprint(w, `[{"id":1,"draft":false,"tag_name":"v1.2.2"}]`)
+		case isList && page == "2":
+			_, _ = fmt.Fprint(w, `[{"id":99,"draft":true,"tag_name":"v1.2.3"}]`)
+		case r.Method == http.MethodPatch && r.URL.Path == "/repos/jeduden/mdsmith/releases/99":
+			patched = true
+			_, _ = fmt.Fprint(w, `{"id":99,"draft":false}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.String())
+			http.Error(w, "unexpected", http.StatusTeapot)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	err := PublishRelease(PublishReleaseOptions{
+		Repository: "jeduden/mdsmith",
+		Tag:        "v1.2.3",
+		Token:      "t",
+		APIBaseURL: srv.URL,
+	})
+	require.NoError(t, err)
+	assert.True(t, patched)
+}
+
+func TestNextPageURL(t *testing.T) {
+	hdr := `<https://api.github.com/repositories/1/releases?page=2>; rel="next", ` +
+		`<https://api.github.com/repositories/1/releases?page=9>; rel="last"`
+	assert.Equal(t, "https://api.github.com/repositories/1/releases?page=2", nextPageURL(hdr))
+
+	assert.Equal(t, "", nextPageURL(""))
+	assert.Equal(t, "", nextPageURL(`<https://x/p?page=9>; rel="last"`))
+}
+
 func TestPublishReleaseAlreadyPublishedIsNoOp(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("already-published release must not be patched, got %s", r.Method)
 		}
-		_, _ = fmt.Fprint(w, `{"id":7,"draft":false}`)
+		_, _ = fmt.Fprint(w, `[{"id":7,"draft":false,"tag_name":"v1.2.3"}]`)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -96,9 +141,10 @@ func TestPublishReleaseAlreadyPublishedIsNoOp(t *testing.T) {
 
 func TestPublishReleaseMissingAfterRetriesErrors(t *testing.T) {
 	var calls, sleeps int
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls++
-		http.NotFound(w, r)
+		// The draft for v9.9.9 never appears in the list.
+		_, _ = fmt.Fprint(w, `[{"id":1,"draft":false,"tag_name":"v9.9.8"}]`)
 	}))
 	t.Cleanup(srv.Close)
 
@@ -151,7 +197,7 @@ func TestPublishReleaseLookupUnexpectedStatusErrors(t *testing.T) {
 func TestPublishReleasePatchUnexpectedStatusErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			_, _ = fmt.Fprint(w, `{"id":3,"draft":true}`)
+			_, _ = fmt.Fprint(w, `[{"id":3,"draft":true,"tag_name":"v1.2.3"}]`)
 			return
 		}
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -200,7 +246,7 @@ func TestPublishReleaseUsesDefaultAPIBase(t *testing.T) {
 		gotURL = r.URL.String()
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`{"id":1,"draft":false}`)),
+			Body:       io.NopCloser(strings.NewReader(`[{"id":1,"draft":false,"tag_name":"v1.2.3"}]`)),
 			Header:     make(http.Header),
 		}, nil
 	})}
@@ -211,7 +257,7 @@ func TestPublishReleaseUsesDefaultAPIBase(t *testing.T) {
 		Client:     client,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "https://api.github.com/repos/jeduden/mdsmith/releases/tags/v1.2.3", gotURL)
+	assert.Equal(t, "https://api.github.com/repos/jeduden/mdsmith/releases?per_page=100", gotURL)
 }
 
 func TestPublishReleaseClientDoError(t *testing.T) {
@@ -237,7 +283,7 @@ func TestPublishReleasePatchTransportError(t *testing.T) {
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`{"id":5,"draft":true}`)),
+			Body:       io.NopCloser(strings.NewReader(`[{"id":5,"draft":true,"tag_name":"v1.2.3"}]`)),
 			Header:     make(http.Header),
 		}, nil
 	})}
