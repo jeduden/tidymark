@@ -1,0 +1,13 @@
+<div class="install-list">
+  {{ range site.Data.homepage.install }}
+    <div class="install-row">
+      <span class="install-label">{{ .label }}</span>
+      <code class="install-cmd">
+        <span class="prompt">{{ default "$" .prompt }}</span>
+        <span class="cmd">{{ .cmd }}</span>
+        {{ with .args }}<span class="arg">{{ . }}</span>{{ end }}
+      </code>
+      <button class="install-copy" type="button" data-copy="{{ trim (printf "%s %s" .cmd (default "" .args)) " " }}">copy</button>
+    </div>
+  {{ end }}
+</div>

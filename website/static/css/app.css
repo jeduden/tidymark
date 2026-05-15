@@ -84,8 +84,10 @@ main {
 }
 .topnav-link:hover { color: var(--fg); background: var(--steel-100); text-decoration: none; }
 .topnav-link.is-active { color: var(--fg); }
-.topnav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.topnav-brand img { display: block; }
+.topnav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .topnav-version { font-family: var(--font-mono); font-size: 12px; color: var(--fg-subtle); }
+.topnav-version:hover { color: var(--accent); text-decoration: none; }
 .topnav-kbd {
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -231,9 +233,29 @@ main {
   background: var(--bg-raised);
   padding: 28px 24px;
   display: flex; flex-direction: column; gap: 10px;
-  transition: background var(--dur-base);
+  color: var(--fg);
+  position: relative;
+  transition: background var(--dur-base), box-shadow var(--dur-base);
 }
-.feature-card:hover { background: var(--canvas); }
+.feature-card:hover {
+  background: var(--canvas);
+  text-decoration: none;
+  box-shadow: inset 3px 0 0 var(--forge-500);
+}
+.feature-card h3, .feature-card:hover h3 { color: var(--fg); }
+.feature-card p { color: var(--fg-muted); }
+.feature-more {
+  margin-top: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--forge-600);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity var(--dur-base), transform var(--dur-base);
+}
+.feature-card:hover .feature-more { opacity: 1; transform: translateX(0); }
+.feature-rules { margin-top: 2px; }
 .feature-card .icon {
   width: 32px; height: 32px;
   border-radius: 6px;
@@ -255,39 +277,45 @@ main {
 
 /* ========== INSTALL TABS ========== */
 
-.install {
+/* Stacked, always-visible channel list (replaces the old tabs:
+   every channel is visible so a reader finds theirs without
+   clicking). */
+.install-list {
   background: var(--steel-900);
-  color: var(--canvas);
+  border: 1px solid var(--steel-800);
   border-radius: var(--radius-md);
   overflow: hidden;
-  border: 1px solid var(--steel-800);
 }
-.install-tabs {
-  display: flex;
-  background: var(--steel-950);
-  padding: 0 8px;
+.install-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--steel-800);
 }
-.install-tab {
-  padding: 10px 14px;
+.install-row:last-child { border-bottom: 0; }
+.install-row:hover { background: var(--steel-950); }
+.install-label {
+  flex: 0 0 90px;
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--steel-400);
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  transition: color var(--dur-fast), border-color var(--dur-fast);
-}
-.install-tab:hover { color: var(--canvas); }
-.install-tab.is-active {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--forge-400);
-  border-bottom-color: var(--forge-400);
+}
+.install-row .install-cmd {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow-x: auto;
 }
 .install-body {
   padding: 18px 20px;
   font-family: var(--font-mono);
   font-size: 13.5px;
   line-height: 1.5;
+  background: var(--steel-900);
+  border: 1px solid var(--steel-800);
+  border-radius: var(--radius-md);
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .install-cmd { color: var(--term-fg); }
@@ -600,6 +628,8 @@ main {
 }
 .logos-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.05em; color: var(--fg-subtle); text-transform: uppercase; }
 .logos-item { font-family: var(--font-sans); font-size: 18px; font-weight: 600; color: var(--steel-700); letter-spacing: -0.01em; }
+.logos-item:hover { color: var(--accent); text-decoration: none; }
+.logos-strip:hover { filter: none; opacity: 1; }
 
 /* ========== FOOTER ========== */
 
@@ -629,6 +659,112 @@ main {
 .footer-col a:hover { color: var(--fg); }
 .footer-tagline { font-size: 14px; color: var(--fg-muted); line-height: 1.6; max-width: 320px; margin: 14px 0 0; }
 .footer-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--fg-subtle); font-family: var(--font-mono); }
+
+/* ========== HERO DEMO ========== */
+
+.hero-demo {
+  margin: 0;
+  background: var(--steel-900);
+  border: 1px solid var(--steel-800);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+.hero-demo-bar {
+  height: 32px;
+  background: var(--steel-950);
+  display: flex; align-items: center; padding: 0 12px;
+  gap: 6px;
+  border-bottom: 1px solid var(--steel-800);
+}
+.hero-demo-bar .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--steel-700); }
+.hero-demo-bar .dot.r { background: #FF6B5C; }
+.hero-demo-bar .dot.y { background: var(--forge-400); }
+.hero-demo-bar .dot.g { background: var(--term-ok); }
+.hero-demo-title {
+  margin-left: auto; margin-right: auto;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--term-fg-dim);
+}
+.hero-demo-img { display: block; width: 100%; height: auto; }
+
+/* ========== CODE BLOCKS ========== */
+/* The codeblock render hook wraps Chroma output in .codeblock.
+   Chroma (noClasses) writes its own background-color inline on
+   the <pre>; pin it to the site's steel-900 panel so the dark
+   github-dark token colors keep full contrast and the panel
+   shade matches every other code surface. */
+.codeblock { margin: 16px 0; }
+.codeblock pre,
+.docs-prose .codeblock pre,
+.codeblock .highlight pre {
+  background: var(--steel-900) !important;
+  color: var(--term-fg);
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--steel-800);
+  overflow-x: auto;
+  margin: 0;
+}
+.codeblock pre code { background: none; border: 0; padding: 0; color: inherit; }
+
+/* ========== DOCS INDEX ========== */
+
+.docs-index {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: 24px 0;
+}
+.docs-index-group { background: var(--bg-raised); padding: 20px 22px; }
+.docs-index-group h2 {
+  font-size: 15px; font-weight: 600; margin: 0 0 6px;
+  border: 0; padding: 0;
+  font-family: var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--fg-subtle);
+}
+.docs-index-group h2 a { color: var(--fg-subtle); }
+.docs-index-group h2 a:hover { color: var(--accent); }
+.docs-index-summary { font-size: 13px; color: var(--fg-muted); margin: 0 0 10px; }
+.docs-index-list { list-style: none; margin: 0; padding: 0; }
+.docs-index-list li { font-size: 14px; line-height: 1.5; margin: 0 0 7px; color: var(--steel-800); }
+.docs-index-list a { font-weight: 500; }
+.docs-index-desc { color: var(--fg-subtle); font-weight: 400; }
+.docs-index-flat { margin-top: 16px; }
+
+.docs-side-home {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg-subtle);
+  padding: 4px 8px 4px 0;
+  margin-bottom: 14px;
+}
+.docs-side-home:hover, .docs-side-home.is-active { color: var(--accent); text-decoration: none; }
+a.docs-side-title {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  margin: 0 0 8px;
+  padding: 0 8px;
+}
+a.docs-side-title:hover, a.docs-side-title.is-active { color: var(--accent); text-decoration: none; }
+.docs-side-sub {
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--steel-600);
+}
+.docs-side-nested { padding-left: 18px; font-size: 13px; color: var(--steel-500); }
 
 /* ========== UTIL ========== */
 .muted { color: var(--fg-muted); }

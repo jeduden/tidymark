@@ -19,13 +19,27 @@
             Read the docs
           </a>
           <a class="btn btn-ghost btn-lg btn-mono" href="https://github.com/{{ $.Site.Params.githubRepo }}" rel="noopener">
-            <i data-lucide="github" width="16" height="16" aria-hidden="true"></i>
-            jeduden/mdsmith
+            {{ partial "github-mark.html" (dict "size" 16) }}
+            {{ $.Site.Params.githubRepo }}
           </a>
         </div>
       </div>
       <div>
-        {{ partial "terminal-mock.html" $ }}
+        <figure class="hero-demo">
+          <div class="hero-demo-bar">
+            <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+            <span class="hero-demo-title">mdsmith — check &amp; fix</span>
+          </div>
+          {{- /* The GIF is recorded from demo.tape and published
+                 to the orphan `assets` branch by demo.yml on push
+                 to main (same source the README embeds). It is not
+                 part of the Hugo build, so it loads from the raw
+                 GitHub URL rather than a local static asset. */ -}}
+          <img class="hero-demo-img"
+               src="https://raw.githubusercontent.com/{{ $.Site.Params.githubRepo }}/assets/assets/demo.gif"
+               width="960" height="540" loading="lazy"
+               alt="Terminal recording: mdsmith check flags issues, then mdsmith fix auto-resolves them.">
+        </figure>
       </div>
     </div>
   </div>

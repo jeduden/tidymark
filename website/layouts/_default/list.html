@@ -6,6 +6,12 @@
     <article class="docs-main">
       <nav class="docs-breadcrumb">
         <a href="{{ "/" | relURL }}">mdsmith</a>
+        {{ range .Ancestors.Reverse }}
+          {{ if not .IsHome }}
+            <span class="sep">/</span>
+            <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+          {{ end }}
+        {{ end }}
         <span class="sep">/</span>
         <span>{{ .Title }}</span>
       </nav>
@@ -13,11 +19,36 @@
         <h1>{{ .Title }}</h1>
         {{ with .Params.summary }}<p class="lead">{{ . }}</p>{{ end }}
         {{ .Content }}
-        {{ with .Pages }}
-          <ul>
-          {{ range . }}
-            <li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Params.summary }} — {{ . }}{{ end }}</li>
-          {{ end }}
+
+        {{- /* Section index: list child subsections as grouped
+               cards (each with its pages) plus any direct pages.
+               Replaces the old flat <ul> that ignored
+               subsections, which is why /docs/ looked
+               unstructured and Background never showed. */ -}}
+        {{ with .Sections.ByWeight }}
+          <div class="docs-index">
+            {{ range . }}
+              <section class="docs-index-group">
+                <h2><a href="{{ .RelPermalink }}">{{ .Title }}</a></h2>
+                {{ with .Params.summary }}<p class="docs-index-summary">{{ . }}</p>{{ end }}
+                <ul class="docs-index-list">
+                  {{ range .Pages.ByWeight }}
+                    <li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Params.summary }} <span class="docs-index-desc">— {{ . }}</span>{{ end }}</li>
+                  {{ end }}
+                  {{ range .Sections.ByWeight }}
+                    <li><a href="{{ .RelPermalink }}">{{ .Title }}</a> <span class="docs-index-desc">— more pages</span></li>
+                  {{ end }}
+                </ul>
+              </section>
+            {{ end }}
+          </div>
+        {{ end }}
+
+        {{ with .Pages.ByWeight }}
+          <ul class="docs-index-list docs-index-flat">
+            {{ range . }}
+              <li><a href="{{ .RelPermalink }}">{{ .Title }}</a>{{ with .Params.summary }} <span class="docs-index-desc">— {{ . }}</span>{{ end }}</li>
+            {{ end }}
           </ul>
         {{ end }}
       </div>

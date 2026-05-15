@@ -54,30 +54,6 @@
           } catch (e) { /* clipboard unavailable */ }
         });
       });
-      document.querySelectorAll("[data-tabs]").forEach(group => {
-        const tabs = group.querySelectorAll("[data-tab]");
-        const panels = group.querySelectorAll("[data-panel]");
-        const activate = key => {
-          tabs.forEach(t => {
-            const on = t.getAttribute("data-tab") === key;
-            t.classList.toggle("is-active", on);
-            t.setAttribute("aria-selected", on ? "true" : "false");
-            t.setAttribute("tabindex", on ? "0" : "-1");
-          });
-          panels.forEach(p => p.hidden = p.getAttribute("data-panel") !== key);
-        };
-        tabs.forEach((tab, idx) => {
-          tab.addEventListener("click", () => activate(tab.getAttribute("data-tab")));
-          tab.addEventListener("keydown", e => {
-            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-            e.preventDefault();
-            const dir = e.key === "ArrowRight" ? 1 : -1;
-            const next = tabs[(idx + dir + tabs.length) % tabs.length];
-            activate(next.getAttribute("data-tab"));
-            next.focus();
-          });
-        });
-      });
     });
   </script>
 </body>

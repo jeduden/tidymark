@@ -48,7 +48,14 @@ enableGitInfo = false
     # to noClasses = false (and vendor `chroma-<style>.css`) only
     # when we want overridable token classes.
     noClasses = true
-    style = "github"
+    # Dark style: every code surface on the site renders on the
+    # steel-900 panel (see `pre` / `.codeblock pre` in CSS). The
+    # old light "github" style emitted near-black token colors on
+    # that dark panel — illegible (the "white/grey on grey" bug).
+    # github-dark's light token colors sit on the dark panel with
+    # full contrast; CSS pins the panel background so Chroma's own
+    # background does not introduce a second, mismatched shade.
+    style = "github-dark"
 
 [params]
   description = "A fast, auto-fixing Markdown linter and formatter for docs, READMEs, and AI-generated content."
