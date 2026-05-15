@@ -25,21 +25,24 @@ Plan 163 routes every key through one `keyFor(node)`
 function. This plan only changes that function and adds
 parsing. The walk, encoders, and CLI are untouched.
 
-- **`keyFor(node)`** returns `node.Bind` when set, else
-  the default slug.
-- A node with `bind: ""` (explicit empty) is hoisted:
-  its children merge into the parent instead of nesting.
+- **`keyFor(node)`** returns the bind value when present,
+  else the default slug. `Bind` is a `*string` so an
+  unset key and an explicit empty one are distinct.
+- A node with `bind: ""` (present, empty) is hoisted: its
+  children merge into the parent instead of nesting.
 - Composition rule: two kinds binding one composed node
   to different names is a compose-time error, reusing the
   collision diagnostic from plan 163.
 
 ## Tasks
 
-1. **Parse `bind:`.** Add `Bind string` to `Scope` and
-   `ContentEntry`; parse in `parse_inline.go` and
-   `parse_file.go`. Unit-test round-trip.
-2. **Override `keyFor`.** Return the bind name when set;
-   implement hoist for `bind: ""`.
+1. **Parse `bind:`.** Add `Bind *string` to `Scope` and
+   `ContentEntry` (nil = unset, non-nil = present, so
+   `bind: ""` is distinguishable); parse in
+   `parse_inline.go` and `parse_file.go`. Unit-test
+   round-trip including unset vs. explicit-empty.
+2. **Override `keyFor`.** Return the bind value when
+   present; implement hoist for `bind: ""`.
 3. **Validate binds.** Reject duplicate sibling binds and
    unreachable binds via the schema diagnostic path.
 4. **Compose binds.** Extend `schema.Compose()` so merged
