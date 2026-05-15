@@ -177,3 +177,21 @@ func unexpectedStatus(op, u string, resp *http.Response) error {
 		Body:       string(body),
 	}
 }
+
+type releaseLookupError struct {
+	// Op labels the failing operation in the error message, e.g.
+	// "lookup" for the by-tag GET or "publish" for the draft PATCH.
+	Op         string
+	URL        string
+	StatusCode int
+	Body       string
+}
+
+func (e *releaseLookupError) Error() string {
+	msg := fmt.Sprintf("%s %s: unexpected GitHub API status %d", e.Op, e.URL, e.StatusCode)
+	body := strings.TrimSpace(e.Body)
+	if body == "" {
+		return msg
+	}
+	return msg + ": " + body
+}

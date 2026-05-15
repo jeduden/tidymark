@@ -16,6 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 func TestPublishReleaseFlipsDraftToPublished(t *testing.T) {
 	var (
 		mu      sync.Mutex
@@ -176,6 +182,16 @@ func TestLookupReleaseRefRequestBuildError(t *testing.T) {
 func TestPatchReleaseDraftFalseRequestBuildError(t *testing.T) {
 	err := patchReleaseDraftFalse(&http.Client{}, "http://\x7f", "jeduden/mdsmith", 42, "t")
 	require.Error(t, err)
+}
+
+func TestReleaseLookupErrorMessage(t *testing.T) {
+	// Empty body returns just the status line (the `body == ""`
+	// branch); a non-empty body appends it.
+	bare := &releaseLookupError{Op: "publish", URL: "u", StatusCode: 422}
+	assert.Equal(t, "publish u: unexpected GitHub API status 422", bare.Error())
+
+	withBody := &releaseLookupError{Op: "lookup", URL: "u", StatusCode: 500, Body: "  boom  "}
+	assert.Equal(t, "lookup u: unexpected GitHub API status 500: boom", withBody.Error())
 }
 
 func TestPublishReleaseUsesDefaultAPIBase(t *testing.T) {
