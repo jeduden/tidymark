@@ -4,7 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ if .IsHome }}{{ .Site.Title }} — {{ .Site.Params.description }}{{ else }}{{ .Title }} · {{ .Site.Title }}{{ end }}</title>
-  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
+  {{- /* Per-page meta description priority: explicit Description
+         (set via Hugo's .Description), then the `summary` front
+         matter field that the website-page kind schema requires,
+         then `description` if a page sets one, falling back to
+         the site-wide description. Without the summary branch
+         every page would inherit the site-level description
+         because the kind schema standardizes on `summary`. */ -}}
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else with .Params.summary }}{{ . }}{{ else with .Params.description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   <link rel="icon" type="image/svg+xml" href="{{ "img/logo-mark.svg" | relURL }}">
   <link rel="stylesheet" href="{{ "css/colors_and_type.css" | relURL }}">
   <link rel="stylesheet" href="{{ "css/app.css" | relURL }}">

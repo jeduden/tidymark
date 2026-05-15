@@ -76,13 +76,15 @@ func (t *Toolkit) SyncDocs(srcDir, dstDir string) error {
 		return fmt.Errorf("stat %s: %w", srcDir, err)
 	}
 	if err := t.fs.RemoveAll(dstDir); err != nil {
-		return err
+		return fmt.Errorf("wipe dst %s: %w", dstDir, err)
 	}
 	if err := t.fs.MkdirAll(dstDir, 0o755); err != nil {
-		return err
+		return fmt.Errorf("mkdir dst %s: %w", dstDir, err)
 	}
-	_, err := t.syncDocsDir(srcDir, dstDir)
-	return err
+	if _, err := t.syncDocsDir(srcDir, dstDir); err != nil {
+		return fmt.Errorf("sync %s -> %s: %w", srcDir, dstDir, err)
+	}
+	return nil
 }
 
 // checkSyncDocsPaths refuses src/dst combinations that would
@@ -134,7 +136,7 @@ func SyncDocs(srcDir, dstDir string) error {
 func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 	entries, err := t.fs.ReadDir(src)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("read dir %s: %w", src, err)
 	}
 	wrote := false
 	for _, e := range entries {
@@ -142,7 +144,7 @@ func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 		if e.IsDir() {
 			childDst := filepath.Join(dst, e.Name())
 			if err := t.fs.MkdirAll(childDst, 0o755); err != nil {
-				return wrote, err
+				return wrote, fmt.Errorf("mkdir %s: %w", childDst, err)
 			}
 			childWrote, err := t.syncDocsDir(srcPath, childDst)
 			if err != nil {
@@ -167,19 +169,20 @@ func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 		}
 		data, err := t.fs.ReadFile(srcPath)
 		if err != nil {
-			return wrote, err
+			return wrote, fmt.Errorf("read %s: %w", srcPath, err)
 		}
 		if ext == ".md" {
 			data = escapeHugoShortcodes(data)
 		}
-		if err := t.fs.WriteFile(filepath.Join(dst, dstName), data, 0o644); err != nil {
-			return wrote, err
+		dstPath := filepath.Join(dst, dstName)
+		if err := t.fs.WriteFile(dstPath, data, 0o644); err != nil {
+			return wrote, fmt.Errorf("write %s: %w", dstPath, err)
 		}
 		wrote = true
 	}
 	if !wrote {
 		if err := t.fs.RemoveAll(dst); err != nil {
-			return wrote, err
+			return wrote, fmt.Errorf("prune empty dst %s: %w", dst, err)
 		}
 	}
 	return wrote, nil
