@@ -122,7 +122,15 @@ overrides:
         level: 1
       cross-file-reference-integrity: true
       catalog: false
-  - glob: ["docs/development/index.md"]
+  # Synced website/content/docs/ mirror — gitignored, so the
+  # recursive `mdsmith check .` walk skips it, but pointing
+  # mdsmith at one of these files directly should still apply
+  # the same overrides as the source docs/ tree. Each docs/**
+  # override below carries the matching website/content/docs/**
+  # glob in the same entry so the kinds + rules stay in lockstep
+  # without a second config to drift.
+  - glob: ["docs/development/index.md",
+           "website/content/docs/development/_index.md"]
     rules:
       first-line-heading: false
       heading-increment: false
@@ -161,7 +169,8 @@ overrides:
     rules:
       list-indent:
         spaces: 4
-  - glob: ["docs/background/**/*.md"]
+  - glob: ["docs/background/**/*.md",
+           "website/content/docs/background/**/*.md"]
     rules:
       line-length:
         stern: true
@@ -173,13 +182,15 @@ overrides:
         tokens-per-word: 1.33
         tokenizer: builtin
         encoding: cl100k_base
-  - glob: ["docs/development/pr-fixup-workflow.md"]
+  - glob: ["docs/development/pr-fixup-workflow.md",
+           "website/content/docs/development/pr-fixup-workflow.md"]
     rules:
       first-line-heading: false
       heading-increment: false
       max-file-length:
         max: 330
-  - glob: ["docs/guides/**/*.md"]
+  - glob: ["docs/guides/**/*.md",
+           "website/content/docs/guides/**/*.md"]
     rules:
       line-length:
         max: 600
@@ -201,7 +212,8 @@ overrides:
       paragraph-structure:
         max-sentences: 12
         max-words-per-sentence: 120
-  - glob: ["docs/security/*.md", "!docs/security/proto.md"]
+  - glob: ["docs/security/*.md", "!docs/security/proto.md",
+           "website/content/docs/security/*.md"]
     rules:
       line-length:
         max: 600
@@ -242,7 +254,8 @@ overrides:
         tokens-per-word: 1.33
         tokenizer: builtin
         encoding: cl100k_base
-  - glob: ["docs/research/**"]
+  - glob: ["docs/research/**",
+           "website/content/docs/research/**"]
     rules:
       first-line-heading: false
       heading-increment: false
@@ -458,17 +471,28 @@ kind-assignment:
   - glob: [".claude/skills/proto.md", ".claude/skills/*/SKILL.md",
             "editors/claude-code-audit/skills/*/SKILL.md"]
     kinds: [skill]
-  - glob: ["docs/security/*.md"]
+  # Each docs/**-targeting assignment also matches the synced
+  # website/content/docs/** parallel path so an explicit lint
+  # against a synced file resolves to the same kind as the
+  # source. The recursive walk still skips these because the
+  # output directory is gitignored.
+  - glob: ["docs/security/*.md",
+           "website/content/docs/security/*.md"]
     kinds: [security-note]
-  - glob: ["docs/development/secret-rotations/*.md"]
+  - glob: ["docs/development/secret-rotations/*.md",
+           "website/content/docs/development/secret-rotations/*.md"]
     kinds: [secret-rotation]
-  - glob: ["docs/reference/cli/*.md"]
+  - glob: ["docs/reference/cli/*.md",
+           "website/content/docs/reference/cli/*.md"]
     kinds: [cli-command]
-  - glob: ["docs/development/release-channels/*.md"]
+  - glob: ["docs/development/release-channels/*.md",
+           "website/content/docs/development/release-channels/*.md"]
     kinds: [release-channel]
-  - glob: ["docs/development/architecture/*.md"]
+  - glob: ["docs/development/architecture/*.md",
+           "website/content/docs/development/architecture/*.md"]
     kinds: [architecture-doc]
-  - glob: ["docs/development/architecture-audit.md"]
+  - glob: ["docs/development/architecture-audit.md",
+           "website/content/docs/development/architecture-audit.md"]
     kinds: [audit-log]
   - glob: ["website/content/*.md"]
     kinds: [website-page]
