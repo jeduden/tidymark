@@ -12,38 +12,38 @@ import (
 func TestSyncDocs_CopiesMarkdownPreservingTree(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()
-	writeFile(t, filepath.Join(src, "top.md"), "# top\n")
-	writeFile(t, filepath.Join(src, "guides", "install.md"), "# install\n")
+	writeFile(t, filepath.Join(src, "top.md"), "top body\n")
+	writeFile(t, filepath.Join(src, "guides", "install.md"), "install body\n")
 
 	require.NoError(t, SyncDocs(src, filepath.Join(dst, "out")))
 
-	assertFile(t, filepath.Join(dst, "out", "top.md"), "# top\n")
-	assertFile(t, filepath.Join(dst, "out", "guides", "install.md"), "# install\n")
+	assertFile(t, filepath.Join(dst, "out", "top.md"), "top body\n")
+	assertFile(t, filepath.Join(dst, "out", "guides", "install.md"), "install body\n")
 }
 
 func TestSyncDocs_DropsProtoMd(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()
 	writeFile(t, filepath.Join(src, "proto.md"), "schema\n")
-	writeFile(t, filepath.Join(src, "real.md"), "# real\n")
+	writeFile(t, filepath.Join(src, "real.md"), "real body\n")
 
 	require.NoError(t, SyncDocs(src, dst))
 
 	_, err := os.Stat(filepath.Join(dst, "proto.md"))
 	assert.True(t, os.IsNotExist(err), "proto.md should not be copied")
-	assertFile(t, filepath.Join(dst, "real.md"), "# real\n")
+	assertFile(t, filepath.Join(dst, "real.md"), "real body\n")
 }
 
 func TestSyncDocs_RenamesIndexMdToUnderscoreIndex(t *testing.T) {
 	src := t.TempDir()
 	dst := t.TempDir()
-	writeFile(t, filepath.Join(src, "index.md"), "# root\n")
-	writeFile(t, filepath.Join(src, "guides", "index.md"), "# guides\n")
+	writeFile(t, filepath.Join(src, "index.md"), "root body\n")
+	writeFile(t, filepath.Join(src, "guides", "index.md"), "guides body\n")
 
 	require.NoError(t, SyncDocs(src, dst))
 
-	assertFile(t, filepath.Join(dst, "_index.md"), "# root\n")
-	assertFile(t, filepath.Join(dst, "guides", "_index.md"), "# guides\n")
+	assertFile(t, filepath.Join(dst, "_index.md"), "root body\n")
+	assertFile(t, filepath.Join(dst, "guides", "_index.md"), "guides body\n")
 	_, err := os.Stat(filepath.Join(dst, "index.md"))
 	assert.True(t, os.IsNotExist(err))
 }
@@ -335,19 +335,68 @@ func TestIsUnder_HandlesFilesystemRoot(t *testing.T) {
 func TestSyncDocs_SkipsSymlinks(t *testing.T) {
 	src := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "secret.md")
-	writeFile(t, outside, "# leaked\n")
-	writeFile(t, filepath.Join(src, "real.md"), "# real\n")
+	writeFile(t, outside, "leaked body\n")
+	writeFile(t, filepath.Join(src, "real.md"), "real body\n")
 	require.NoError(t, os.Symlink(outside, filepath.Join(src, "link.md")))
 	require.NoError(t, os.Symlink(t.TempDir(), filepath.Join(src, "linkdir")))
 	dst := filepath.Join(t.TempDir(), "out")
 
 	require.NoError(t, SyncDocs(src, dst))
 
-	assertFile(t, filepath.Join(dst, "real.md"), "# real\n")
+	assertFile(t, filepath.Join(dst, "real.md"), "real body\n")
 	_, err := os.Lstat(filepath.Join(dst, "link.md"))
 	assert.True(t, os.IsNotExist(err), "symlinked file must not be copied")
 	_, err = os.Lstat(filepath.Join(dst, "linkdir"))
 	assert.True(t, os.IsNotExist(err), "symlinked dir must not be copied")
+}
+
+func TestLiftDocTitle(t *testing.T) {
+	cases := []struct {
+		name, in, want string
+	}{
+		{
+			"summary-only front matter, body H1 promoted and stripped",
+			"---\nsummary: CLI commands.\n---\n# CLI Reference\n\nbody\n",
+			"---\nsummary: CLI commands.\ntitle: \"CLI Reference\"\n---\nbody\n",
+		},
+		{
+			"existing title kept, duplicate body H1 still stripped",
+			"---\ntitle: Architecture principles\nsummary: s\n---\n# Architecture principles\n\nbody\n",
+			"---\ntitle: Architecture principles\nsummary: s\n---\nbody\n",
+		},
+		{
+			"backticks stripped from promoted title",
+			"---\nsummary: s\n---\n# The `mdsmith` CLI\n\nbody\n",
+			"---\nsummary: s\ntitle: \"The mdsmith CLI\"\n---\nbody\n",
+		},
+		{
+			"double quotes in title are escaped",
+			"---\nsummary: s\n---\n# The \"smith\" tool\n\nbody\n",
+			"---\nsummary: s\ntitle: \"The \\\"smith\\\" tool\"\n---\nbody\n",
+		},
+		{
+			"no front matter + body H1 synthesizes front matter (research/ scratch notes)",
+			"# Collection Policy\n\n## Licensing\nrules\n",
+			"---\ntitle: \"Collection Policy\"\n---\n## Licensing\nrules\n",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, string(liftDocTitle([]byte(c.in))))
+		})
+	}
+
+	// Unchanged: the first body line is not an H1, so there is
+	// no title to lift (prose-first _index.md, unstructured
+	// scratch notes, level-2-first files).
+	for _, in := range []string{
+		"---\ntitle: Development\nsummary: s\n---\nBuild reference, no body H1.\n",
+		"---\nsummary: s\n---\njust prose, no leading heading\n",
+		"---\nsummary: s\n---\n## only a level-2 heading\n",
+		"plain notes, no front matter, no heading\n",
+	} {
+		assert.Equal(t, in, string(liftDocTitle([]byte(in))), "must be unchanged: %q", in)
+	}
 }
 
 func writeFile(t *testing.T, path, content string) {

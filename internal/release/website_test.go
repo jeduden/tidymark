@@ -12,7 +12,7 @@ import (
 func TestBuildWebsite_RunsFixThenSync(t *testing.T) {
 	src := t.TempDir()
 	dst := filepath.Join(t.TempDir(), "out")
-	writeFile(t, filepath.Join(src, "top.md"), "# top\n")
+	writeFile(t, filepath.Join(src, "top.md"), "top body\n")
 	rec := &recordingRunner{}
 
 	require.NoError(t, NewWithDeps(osFS{}, rec).BuildWebsite(src, dst, true))
@@ -20,24 +20,24 @@ func TestBuildWebsite_RunsFixThenSync(t *testing.T) {
 	require.Len(t, rec.calls, 1)
 	assert.Equal(t, "go", rec.calls[0].name)
 	assert.Equal(t, []string{"run", "./cmd/mdsmith", "fix", src}, rec.calls[0].args)
-	assertFile(t, filepath.Join(dst, "top.md"), "# top\n")
+	assertFile(t, filepath.Join(dst, "top.md"), "top body\n")
 }
 
 func TestBuildWebsite_NoFixSkipsRunner(t *testing.T) {
 	src := t.TempDir()
 	dst := filepath.Join(t.TempDir(), "out")
-	writeFile(t, filepath.Join(src, "top.md"), "# top\n")
+	writeFile(t, filepath.Join(src, "top.md"), "top body\n")
 	rec := &recordingRunner{}
 
 	require.NoError(t, NewWithDeps(osFS{}, rec).BuildWebsite(src, dst, false))
 
 	assert.Empty(t, rec.calls, "no-fix must not invoke the runner")
-	assertFile(t, filepath.Join(dst, "top.md"), "# top\n")
+	assertFile(t, filepath.Join(dst, "top.md"), "top body\n")
 }
 
 func TestBuildWebsite_FixFailureWraps(t *testing.T) {
 	src := t.TempDir()
-	writeFile(t, filepath.Join(src, "top.md"), "# top\n")
+	writeFile(t, filepath.Join(src, "top.md"), "top body\n")
 
 	err := NewWithDeps(osFS{}, &fakeRunner{failOnCall: 1}).
 		BuildWebsite(src, filepath.Join(t.TempDir(), "out"), true)

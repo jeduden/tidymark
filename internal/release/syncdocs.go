@@ -190,7 +190,7 @@ func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 			return wrote, fmt.Errorf("read %s: %w", srcPath, err)
 		}
 		if ext == ".md" {
-			data = escapeHugoShortcodes(data)
+			data = transformMarkdown(data)
 		}
 		dstPath := filepath.Join(dst, dstName)
 		if err := t.fs.WriteFile(dstPath, data, 0o644); err != nil {
@@ -204,6 +204,103 @@ func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 		}
 	}
 	return wrote, nil
+}
+
+// transformMarkdown applies the docs/-tree → Hugo content
+// reconciliations to one markdown file: lift the body H1
+// into a front-matter title, then escape literal shortcode
+// patterns so documentation about Hugo renders verbatim.
+func transformMarkdown(b []byte) []byte {
+	return escapeHugoShortcodes(liftDocTitle(b))
+}
+
+// docTitleH1 matches an ATX level-1 heading line: a single
+// leading '#', whitespace, the title text, and an optional
+// closing run of '#'. Deeper headings ('##') do not match
+// because the character after '#' must be whitespace.
+var docTitleH1 = regexp.MustCompile(`^#[ \t]+(.+?)[ \t]*#*[ \t]*$`)
+
+// docTitleBacktick strips inline-code backticks so a heading
+// like "# The `mdsmith` CLI" yields a clean front-matter
+// title for <title>/breadcrumb/sidebar use.
+var docTitleBacktick = regexp.MustCompile("`+")
+
+// liftDocTitle reconciles the two title conventions at the
+// sync boundary. mdsmith docs carry the page title as the
+// first body H1 (the first-line-heading rule enforces it)
+// and keep only `summary` in front matter; Hugo themes
+// expect the title in front-matter `title:` with no body
+// H1. Left unreconciled, every synced page renders two H1s
+// (the template's {{ .Title }} plus the body's) and pages
+// without an explicit `title:` show Hugo's filename guess
+// in the breadcrumb, <title>, and sidebar.
+//
+// When the first body line is an ATX H1, the heading text
+// is promoted to a front-matter `title:` and the heading
+// line plus one trailing blank are removed from the body.
+// An existing `title:` is left untouched; a file with no
+// front-matter block at all gets one synthesized (research/
+// scratch notes carry a body H1 but no front matter, and
+// would otherwise render an empty template `{{ .Title }}`
+// H1 above the body's). Files whose first body line is not
+// an H1 are returned unchanged.
+func liftDocTitle(b []byte) []byte {
+	s := string(b)
+	fmBlock, body, hasFM := "", s, false
+	if strings.HasPrefix(s, "---\n") {
+		after := s[len("---\n"):]
+		idx := strings.Index(after, "\n---\n")
+		if idx < 0 {
+			return b
+		}
+		fmBlock, body, hasFM = after[:idx], after[idx+len("\n---\n"):], true
+	}
+
+	lines := strings.Split(body, "\n")
+	h := 0
+	for h < len(lines) && strings.TrimSpace(lines[h]) == "" {
+		h++
+	}
+	if h == len(lines) {
+		return b
+	}
+	m := docTitleH1.FindStringSubmatch(lines[h])
+	if m == nil {
+		return b
+	}
+	title := strings.TrimSpace(docTitleBacktick.ReplaceAllString(m[1], ""))
+	if title == "" {
+		return b
+	}
+
+	kept := append([]string{}, lines[:h]...)
+	tail := lines[h+1:]
+	if len(tail) > 0 && strings.TrimSpace(tail[0]) == "" {
+		tail = tail[1:]
+	}
+	newBody := strings.Join(append(kept, tail...), "\n")
+
+	hasTitle := false
+	if hasFM {
+		for _, ln := range strings.Split(fmBlock, "\n") {
+			if strings.HasPrefix(ln, "title:") {
+				hasTitle = true
+				break
+			}
+		}
+	}
+	newFM := fmBlock
+	if !hasTitle {
+		esc := strings.ReplaceAll(title, `\`, `\\`)
+		esc = strings.ReplaceAll(esc, `"`, `\"`)
+		titleLine := "title: \"" + esc + "\""
+		if strings.TrimSpace(fmBlock) == "" {
+			newFM = titleLine
+		} else {
+			newFM = strings.TrimRight(fmBlock, "\n") + "\n" + titleLine
+		}
+	}
+	return []byte("---\n" + newFM + "\n---\n" + newBody)
 }
 
 // escapeHugoShortcodes rewrites every shortcode-shaped pattern in

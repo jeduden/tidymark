@@ -190,13 +190,13 @@ func TestRunBuildWebsiteEndToEnd(t *testing.T) {
 	root := t.TempDir()
 	src := filepath.Join(root, "docs")
 	require.NoError(t, os.MkdirAll(src, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "top.md"), []byte("# top\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "top.md"), []byte("top body\n"), 0o644))
 	dst := filepath.Join(root, "out")
 
 	assert.Equal(t, 0, run([]string{"build-website", "--no-fix", src, dst}))
 	got, err := os.ReadFile(filepath.Join(dst, "top.md"))
 	require.NoError(t, err)
-	assert.Equal(t, "# top\n", string(got))
+	assert.Equal(t, "top body\n", string(got))
 }
 
 // TestRunBuildWebsiteReportsError drives the reportError
@@ -233,13 +233,13 @@ func TestRunBuildWheelsReportsError(t *testing.T) {
 func TestRunSyncDocsHappyPath(t *testing.T) {
 	src := t.TempDir()
 	dst := filepath.Join(t.TempDir(), "out")
-	require.NoError(t, os.WriteFile(filepath.Join(src, "intro.md"), []byte("# intro\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "intro.md"), []byte("intro body\n"), 0o644))
 
 	assert.Equal(t, 0, run([]string{"sync-docs", src, dst}))
 
 	body, err := os.ReadFile(filepath.Join(dst, "intro.md"))
 	require.NoError(t, err)
-	assert.Equal(t, "# intro\n", string(body))
+	assert.Equal(t, "intro body\n", string(body))
 }
 
 // TestRunSyncDocsBadArity covers the `fs.NArg() != 2` branch for
