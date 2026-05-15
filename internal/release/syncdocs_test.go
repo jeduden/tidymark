@@ -330,6 +330,23 @@ func TestIsUnder_HandlesFilesystemRoot(t *testing.T) {
 		"parent is not under its own child")
 	assert.False(t, isUnder(sep+"tmp"+sep+"foobar", sep+"tmp"+sep+"foo"),
 		"sibling sharing a name prefix is not nested")
+	// filepath.Rel errors when one side is absolute and the
+	// other relative; isUnder must treat that as "not under".
+	assert.False(t, isUnder("relative/path", sep+"abs"),
+		"a Rel() error means not-under, never a false positive")
+}
+
+// TestBuildWebsitePackageDelegator covers the package-level
+// BuildWebsite wrapper (the New()-backed entry the CLI calls),
+// distinct from the Toolkit method the dependency-injected
+// tests exercise.
+func TestBuildWebsitePackageDelegator(t *testing.T) {
+	src := t.TempDir()
+	writeFile(t, filepath.Join(src, "x.md"), "plain body, no heading\n")
+	dst := filepath.Join(t.TempDir(), "out")
+
+	require.NoError(t, BuildWebsite(src, dst, false))
+	assertFile(t, filepath.Join(dst, "x.md"), "plain body, no heading\n")
 }
 
 func TestSyncDocs_SkipsSymlinks(t *testing.T) {
@@ -379,21 +396,46 @@ func TestLiftDocTitle(t *testing.T) {
 			"# Collection Policy\n\n## Licensing\nrules\n",
 			"---\ntitle: \"Collection Policy\"\n---\n## Licensing\nrules\n",
 		},
+		{
+			"setext H1: heading text + === underline both removed",
+			"---\nsummary: s\n---\nCLI Reference\n=============\n\nbody\n",
+			"---\nsummary: s\ntitle: \"CLI Reference\"\n---\nbody\n",
+		},
+		{
+			"inline markup in heading flattened to plain title",
+			"---\nsummary: s\n---\n# The [mdsmith](/x) *fast* linter\n\nbody\n",
+			"---\nsummary: s\ntitle: \"The mdsmith fast linter\"\n---\nbody\n",
+		},
+		{
+			"setext underline at EOF (no trailing newline)",
+			"---\nsummary: s\n---\nCLI Reference\n===",
+			"---\nsummary: s\ntitle: \"CLI Reference\"\n---\n",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			assert.Equal(t, c.want, string(liftDocTitle([]byte(c.in))))
 		})
 	}
+}
 
-	// Unchanged: the first body line is not an H1, so there is
-	// no title to lift (prose-first _index.md, unstructured
-	// scratch notes, level-2-first files).
+// TestLiftDocTitle_LeavesUnchanged pins the cases goldmark
+// classifies as "first block is not a liftable H1": prose-
+// first pages, level-2-first files, a '#' that is really
+// fenced-code content (the old line-prefix regex wrongly
+// lifted this), an empty ATX heading, a heading whose inline
+// content flattens to nothing, and a front-matter fence that
+// never closes.
+func TestLiftDocTitle_LeavesUnchanged(t *testing.T) {
 	for _, in := range []string{
 		"---\ntitle: Development\nsummary: s\n---\nBuild reference, no body H1.\n",
 		"---\nsummary: s\n---\njust prose, no leading heading\n",
 		"---\nsummary: s\n---\n## only a level-2 heading\n",
 		"plain notes, no front matter, no heading\n",
+		"---\nsummary: s\n---\n```\n# not a heading, this is code\n```\n",
+		"---\nsummary: s\n---\n#\n\nempty heading\n",
+		"---\nsummary: s\n---\n# <!-- only an html comment, no text -->\n\nbody\n",
+		"---\nsummary: s\nno closing fence so leave the file alone\n",
 	} {
 		assert.Equal(t, in, string(liftDocTitle([]byte(in))), "must be unchanged: %q", in)
 	}

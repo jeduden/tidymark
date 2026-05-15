@@ -2,8 +2,6 @@
 title: "Compare"
 summary: "How mdsmith compares to markdownlint, Vale, Prettier, and remark-lint across formatting, structural, cross-file, and AI-content rules."
 ---
-# How mdsmith compares to other Markdown linters
-
 mdsmith overlaps with general-purpose Markdown linters and prose linters,
 but covers a different combination of concerns: formatting, structure, *and*
 cross-file integrity, plus guardrails specific to AI-generated content. The

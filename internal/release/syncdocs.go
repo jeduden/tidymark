@@ -8,6 +8,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/text"
 )
 
 // hugoShortcodeAngle matches Hugo's angle-bracket shortcode form
@@ -214,16 +218,25 @@ func transformMarkdown(b []byte) []byte {
 	return escapeHugoShortcodes(liftDocTitle(b))
 }
 
-// docTitleH1 matches an ATX level-1 heading line: a single
-// leading '#', whitespace, the title text, and an optional
-// closing run of '#'. Deeper headings ('##') do not match
-// because the character after '#' must be whitespace.
-var docTitleH1 = regexp.MustCompile(`^#[ \t]+(.+?)[ \t]*#*[ \t]*$`)
-
-// docTitleBacktick strips inline-code backticks so a heading
+// headingText flattens a heading node's inline children to
+// plain text. Code spans contribute their code without the
+// backticks, and emphasis/links/strong recurse, so a heading
 // like "# The `mdsmith` CLI" yields a clean front-matter
 // title for <title>/breadcrumb/sidebar use.
-var docTitleBacktick = regexp.MustCompile("`+")
+func headingText(n ast.Node, src []byte) string {
+	var sb strings.Builder
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if tn, ok := c.(*ast.Text); ok {
+			sb.Write(tn.Segment.Value(src))
+			continue
+		}
+		// Emphasis/strong/link/code-span recurse; their leaf
+		// Text nodes carry the visible characters (a code span's
+		// child Text is the code without backticks).
+		sb.WriteString(headingText(c, src))
+	}
+	return sb.String()
+}
 
 // liftDocTitle reconciles the two title conventions at the
 // sync boundary. mdsmith docs carry the page title as the
@@ -235,15 +248,20 @@ var docTitleBacktick = regexp.MustCompile("`+")
 // without an explicit `title:` show Hugo's filename guess
 // in the breadcrumb, <title>, and sidebar.
 //
-// When the first body line is an ATX H1, the heading text
-// is promoted to a front-matter `title:` and the heading
-// line plus one trailing blank are removed from the body.
-// An existing `title:` is left untouched; a file with no
-// front-matter block at all gets one synthesized (research/
-// scratch notes carry a body H1 but no front matter, and
-// would otherwise render an empty template `{{ .Title }}`
-// H1 above the body's). Files whose first body line is not
-// an H1 are returned unchanged.
+// The body is parsed with goldmark so the "first block is a
+// level-1 heading" test is a real CommonMark decision: a '#'
+// inside a fenced code block, an HTML comment ahead of the
+// heading, or a setext underline are all classified
+// correctly instead of by line-prefix guessing. When the
+// first block is an H1 its text is promoted to a
+// front-matter `title:` and the heading's source span (plus
+// one trailing blank line) is spliced out of the body. An
+// existing `title:` is left untouched; a file with no
+// front-matter block gets one synthesized (research/ scratch
+// notes carry a body H1 but no front matter, and would
+// otherwise render an empty template `{{ .Title }}` H1 above
+// the body's). Anything whose first block is not an H1 is
+// returned unchanged.
 func liftDocTitle(b []byte) []byte {
 	s := string(b)
 	fmBlock, body, hasFM := "", s, false
@@ -256,51 +274,72 @@ func liftDocTitle(b []byte) []byte {
 		fmBlock, body, hasFM = after[:idx], after[idx+len("\n---\n"):], true
 	}
 
-	lines := strings.Split(body, "\n")
-	h := 0
-	for h < len(lines) && strings.TrimSpace(lines[h]) == "" {
-		h++
-	}
-	if h == len(lines) {
+	src := []byte(body)
+	h, ok := goldmark.New().Parser().Parse(text.NewReader(src)).FirstChild().(*ast.Heading)
+	if !ok || h.Level != 1 || h.Lines().Len() == 0 {
 		return b
 	}
-	m := docTitleH1.FindStringSubmatch(lines[h])
-	if m == nil {
-		return b
-	}
-	title := strings.TrimSpace(docTitleBacktick.ReplaceAllString(m[1], ""))
+	title := strings.TrimSpace(headingText(h, src))
 	if title == "" {
 		return b
 	}
 
-	kept := append([]string{}, lines[:h]...)
-	tail := lines[h+1:]
-	if len(tail) > 0 && strings.TrimSpace(tail[0]) == "" {
-		tail = tail[1:]
-	}
-	newBody := strings.Join(append(kept, tail...), "\n")
+	delStart, delEnd := headingSpan(src, h)
+	newBody := string(src[:delStart]) + string(src[delEnd:])
+	return []byte("---\n" + mergeFMTitle(fmBlock, hasFM, title) + "\n---\n" + newBody)
+}
 
-	hasTitle := false
+// headingSpan returns the byte range in src covering the
+// heading's physical line(s) — including a setext underline
+// and one trailing blank line — so the splice removes the
+// whole heading, not just goldmark's text segment.
+func headingSpan(src []byte, h *ast.Heading) (int, int) {
+	segStart := h.Lines().At(0).Start
+	segStop := h.Lines().At(h.Lines().Len() - 1).Stop
+	start := bytes.LastIndexByte(src[:segStart], '\n') + 1
+	end := len(src)
+	if nl := bytes.IndexByte(src[segStop:], '\n'); nl >= 0 {
+		end = segStop + nl + 1
+	}
+	// Setext H1 (text line then an "===" underline): the
+	// heading line does not start with '#', so the following
+	// underline line is part of the heading and must go too.
+	if src[start] != '#' && end < len(src) {
+		if nl := bytes.IndexByte(src[end:], '\n'); nl >= 0 {
+			end += nl + 1
+		} else {
+			end = len(src)
+		}
+	}
+	// Drop one blank line left behind so the body does not
+	// start with whitespace.
+	if rest := src[end:]; len(rest) > 0 {
+		if nl := bytes.IndexByte(rest, '\n'); nl >= 0 && strings.TrimSpace(string(rest[:nl])) == "" {
+			end += nl + 1
+		}
+	}
+	return start, end
+}
+
+// mergeFMTitle returns the front-matter inner text with a
+// `title:` ensured. An existing title is kept untouched;
+// otherwise the promoted title is appended, or becomes the
+// sole key when the source carried no front matter.
+func mergeFMTitle(fmBlock string, hasFM bool, title string) string {
 	if hasFM {
 		for _, ln := range strings.Split(fmBlock, "\n") {
 			if strings.HasPrefix(ln, "title:") {
-				hasTitle = true
-				break
+				return fmBlock
 			}
 		}
 	}
-	newFM := fmBlock
-	if !hasTitle {
-		esc := strings.ReplaceAll(title, `\`, `\\`)
-		esc = strings.ReplaceAll(esc, `"`, `\"`)
-		titleLine := "title: \"" + esc + "\""
-		if strings.TrimSpace(fmBlock) == "" {
-			newFM = titleLine
-		} else {
-			newFM = strings.TrimRight(fmBlock, "\n") + "\n" + titleLine
-		}
+	esc := strings.ReplaceAll(title, `\`, `\\`)
+	esc = strings.ReplaceAll(esc, `"`, `\"`)
+	titleLine := "title: \"" + esc + "\""
+	if strings.TrimSpace(fmBlock) == "" {
+		return titleLine
 	}
-	return []byte("---\n" + newFM + "\n---\n" + newBody)
+	return strings.TrimRight(fmBlock, "\n") + "\n" + titleLine
 }
 
 // escapeHugoShortcodes rewrites every shortcode-shaped pattern in
