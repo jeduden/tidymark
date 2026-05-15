@@ -30,7 +30,14 @@ enableGitInfo = false
 
 [markup]
   [markup.goldmark.renderer]
-    unsafe = true  # allow raw HTML and the <?directive?> markers in source markdown
+    # Synced docs carry no raw HTML: sync-docs strips <?…?>
+    # directive markers and the content uses Markdown code
+    # spans (not literal <code>/<…> tags), so goldmark's
+    # default raw-HTML filtering loses nothing. Keep false —
+    # raw HTML in any doc would silently vanish, flagging the
+    # author to fix the source rather than ship unsanitized
+    # markup to mdsmith.dev.
+    unsafe = false
   [markup.tableOfContents]
     startLevel = 2
     endLevel = 4

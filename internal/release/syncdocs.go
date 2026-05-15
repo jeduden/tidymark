@@ -219,8 +219,9 @@ func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 }
 
 // transformMarkdown applies the docs/-tree → Hugo content
-// reconciliations to one markdown file: lift the body H1
-// into a front-matter title, then escape literal shortcode
+// reconciliations to one markdown file, in pipeline order:
+// lift the body H1 into a front-matter title, strip mdsmith
+// <?…?> directive markers, then escape literal shortcode
 // patterns so documentation about Hugo renders verbatim.
 func transformMarkdown(b []byte) []byte {
 	return escapeHugoShortcodes(stripDirectiveMarkers(liftDocTitle(b)))
@@ -252,9 +253,10 @@ func splitDocFrontMatter(s string) (fm, body string, hasFM, ok bool) {
 // source syntax with no meaning to Hugo and must not surface
 // on the published site; the generated body between a pair
 // is ordinary Markdown that renders on its own. Removing the
-// markers also shrinks the raw-HTML surface goldmark sees
-// (relevant to the separate markup.goldmark.renderer.unsafe
-// decision — currently true by intent in hugo.toml), but the
+// markers also clears the last raw-HTML out of synced
+// content, which is what lets hugo.toml keep
+// markup.goldmark.renderer.unsafe = false (raw HTML in a doc
+// then vanishes loudly instead of shipping unsanitized); the
 // strip is correct regardless of that setting. Only the
 // marker's own physical lines are removed (surrounding blank
 // lines stay, so block separation is preserved).

@@ -114,8 +114,8 @@ renderer emits a paragraph of literal pipes
 instead of an HTML table. MDS034 still flags it
 because the renderer does not render the syntax
 as the named feature. The diagnostic uses the
-wording "<flavor> does not interpret <feature>
-as a feature" to make this explicit.
+wording "`<flavor>` does not interpret
+`<feature>` as a feature" to make this explicit.
 
 Bare URLs are the cleanest case where flavor and
 rule overlap legitimately.
