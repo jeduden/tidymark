@@ -3,7 +3,11 @@ coverage:
     project:
       default:
         target: auto
-        threshold: 0%
+        # Tolerate tiny dips from deleting well-covered
+        # code (the project average drifts toward the
+        # mean). patch stays at 0%, so undertested new
+        # code still fails.
+        threshold: 0.2%
     patch:
       default:
         target: auto
