@@ -1,6 +1,7 @@
 package requiredstructure
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -327,19 +328,21 @@ func (r *Rule) checkFileSchema(f *lint.File) []lint.Diagnostic {
 	diags = append(diags, fmDiags...)
 
 	// Check filename pattern.
-	diags = append(diags, checkFilenamePattern(f, sch)...)
+	diags = append(diags, checkFilenamePattern(f, sch, r.Schema)...)
 
 	// Check structure: required headings present and in order.
-	diags = append(diags, checkStructure(f, sch, docHeadings)...)
+	diags = append(diags, checkStructure(f, sch, docHeadings, r.Schema)...)
 
 	// Validate document front matter against schema-embedded CUE constraints,
 	// unless the cue-frontmatter placeholder token is configured (which marks
 	// the front-matter values as CUE expressions rather than concrete data).
 	if !placeholders.HasCUEFrontmatter(r.Placeholders) {
-		if err := validateFrontMatterCUE(sch.Config.FrontMatterCUE, docFMRaw); err != nil {
-			diags = append(diags, makeDiag(f.Path, 1,
-				fmt.Sprintf("front matter does not satisfy schema CUE constraints: %v", err)))
+		fmSch := &schema.Schema{
+			Frontmatter:      sch.Config.Frontmatter,
+			FrontmatterLines: sch.Config.FrontmatterLines,
+			Source:           r.Schema,
 		}
+		diags = append(diags, schema.ValidateFrontmatterDiags(f, fmSch, docFMRaw, makeDiag)...)
 	}
 
 	// Check frontmatter-body sync using raw map for nested access.
@@ -401,6 +404,19 @@ var (
 type schemaConfig struct {
 	FrontMatterCUE  string
 	FilenamePattern string // glob pattern the document basename must match
+
+	// Frontmatter carries the per-key constraint expression
+	// strings. Populated alongside FrontMatterCUE so the
+	// SchemaDiagnostic emitter can render one diagnostic per CUE
+	// error path with the source expression available for
+	// "expected" extraction.
+	Frontmatter map[string]string
+
+	// FrontmatterLines records the 1-based line number of each
+	// front-matter key in the schema source, when known. The
+	// yaml.Node based parser populates this; the legacy
+	// yaml.Unmarshal path leaves it empty.
+	FrontmatterLines map[string]int
 }
 
 // schemaHeading represents a required heading from the schema.
@@ -436,13 +452,21 @@ func parseSchemaFrontMatter(prefix []byte) (schemaConfig, error) {
 		return cfg, nil
 	}
 	yamlBytes := extractYAML(prefix)
-	derivedSchema, err := deriveFrontMatterCUE(yamlBytes)
+	derivedSchema, perKey, err := deriveFrontMatterCUE(yamlBytes)
 	if err != nil {
 		return cfg, err
 	}
 	cfg.FrontMatterCUE = derivedSchema
+	cfg.Frontmatter = perKey
 	if err := validateCUESchemaSyntax(cfg.FrontMatterCUE); err != nil {
 		return cfg, err
+	}
+	// Capture per-key source lines. The YAML body sits after the
+	// opening "---\n" fence in the schema file, so line numbers
+	// from yaml.Node are off by 1 relative to the schema source.
+	node, nodeErr := yamlutil.UnmarshalNodeSafe(yamlBytes)
+	if nodeErr == nil {
+		cfg.FrontmatterLines = yamlutil.TopLevelMappingLines(&node, 1)
 	}
 	return cfg, nil
 }
@@ -494,20 +518,28 @@ func extractRequireDirective(f *lint.File) (string, error) {
 	return filenamePattern, nil
 }
 
-func deriveFrontMatterCUE(yamlBytes []byte) (string, error) {
+func deriveFrontMatterCUE(yamlBytes []byte) (string, map[string]string, error) {
 	var raw map[string]any
 	if err := yamlutil.UnmarshalSafe(yamlBytes, &raw); err != nil {
-		return "", fmt.Errorf("parsing schema frontmatter: %w", err)
+		return "", nil, fmt.Errorf("parsing schema frontmatter: %w", err)
 	}
 	if len(raw) == 0 {
-		return "", nil
+		return "", nil, nil
 	}
 
 	expr, err := cueExprForMap(raw)
 	if err != nil {
-		return "", fmt.Errorf("parsing schema frontmatter constraints: %w", err)
+		return "", nil, fmt.Errorf("parsing schema frontmatter constraints: %w", err)
 	}
-	return "close(" + expr + ")", nil
+	perKey := make(map[string]string, len(raw))
+	for k, v := range raw {
+		ke, err := cueExprForValue(v)
+		if err != nil {
+			continue
+		}
+		perKey[k] = ke
+	}
+	return "close(" + expr + ")", perKey, nil
 }
 
 func cueExprForMap(m map[string]any) (string, error) {
@@ -898,26 +930,48 @@ func checkStructure(
 	f *lint.File,
 	sch *parsedSchema,
 	docHeadings []docHeading,
+	schemaSource string,
 ) []lint.Diagnostic {
-	var diags []lint.Diagnostic
+	ref := buildSchemaRefForLegacy(schemaSource)
+	requiredByText := buildRequiredByTextLegacy(sch.Headings)
 
-	// Map each literal required heading text to its schema indices,
-	// so that a doc heading seen at the "wrong" position can be
-	// recognized as an out-of-order required section rather than
-	// double-counted as both "unexpected" and "missing".
-	// Wildcard, `?` and field-interpolated headings are excluded
-	// because their match depends on context.
-	requiredByText := map[string][]int{}
-	for i, req := range sch.Headings {
+	diags, docIdx, allowExtra := walkRequiredHeadings(
+		f, sch, docHeadings, requiredByText, ref,
+	)
+	if !allowExtra {
+		diags = append(diags, flagTrailingExtras(f, docHeadings, docIdx, ref)...)
+	}
+	return diags
+}
+
+// buildRequiredByTextLegacy maps each literal required heading text
+// to its schema indices, so a doc heading seen at the "wrong"
+// position can be recognized as an out-of-order required section
+// rather than double-counted as both "unexpected" and "missing".
+// Wildcard, `?`, and field-interpolated headings are excluded
+// because their match depends on context.
+func buildRequiredByTextLegacy(headings []schemaHeading) map[string][]int {
+	out := map[string][]int{}
+	for i, req := range headings {
 		if isSectionWildcard(req) || req.Text == "?" {
 			continue
 		}
 		if fieldinterp.ContainsField(req.Text) {
 			continue
 		}
-		requiredByText[req.Text] = append(requiredByText[req.Text], i)
+		out[req.Text] = append(out[req.Text], i)
 	}
+	return out
+}
 
+// walkRequiredHeadings iterates the schema's heading list, matching
+// each required entry against the document and emitting
+// missing/unexpected/out-of-order diagnostics as it goes.
+func walkRequiredHeadings(
+	f *lint.File, sch *parsedSchema, docHeadings []docHeading,
+	requiredByText map[string][]int, ref string,
+) ([]lint.Diagnostic, int, bool) {
+	var diags []lint.Diagnostic
 	claimed := make(map[int]bool)
 	docIdx := 0
 	allowExtra := false
@@ -929,9 +983,9 @@ func checkStructure(
 		if claimed[schIdx] {
 			continue
 		}
-
 		reqDiags, newIdx, found := matchRequired(
-			f, sch, docHeadings, docIdx, schIdx, requiredByText, claimed, allowExtra,
+			f, sch, docHeadings, docIdx, schIdx,
+			requiredByText, claimed, allowExtra, ref,
 		)
 		diags = append(diags, reqDiags...)
 		docIdx = newIdx
@@ -939,25 +993,55 @@ func checkStructure(
 			allowExtra = false
 		}
 		if !found && !claimed[schIdx] {
-			diags = append(diags, makeDiag(f.Path, 1,
-				fmt.Sprintf("missing required section %q",
-					formatHeading(req.Level, req.Text))))
+			diags = append(diags, missingSectionDiagLegacy(f, req, ref))
 		}
 	}
+	return diags, docIdx, allowExtra
+}
 
-	// Check remaining doc headings for extra sections when no wildcard
-	// allows trailing extras.
-	if !allowExtra {
-		for docIdx < len(docHeadings) {
-			dh := docHeadings[docIdx]
-			diags = append(diags, makeDiag(f.Path, dh.Line,
-				fmt.Sprintf("unexpected section %q",
-					formatHeading(dh.Level, dh.Text))))
-			docIdx++
+// flagTrailingExtras emits one diagnostic per leftover document
+// heading when no wildcard allows trailing extras.
+func flagTrailingExtras(
+	f *lint.File, docHeadings []docHeading, docIdx int, ref string,
+) []lint.Diagnostic {
+	var diags []lint.Diagnostic
+	for docIdx < len(docHeadings) {
+		dh := docHeadings[docIdx]
+		d := schema.SchemaDiagnostic{
+			Field:     formatHeading(dh.Level, dh.Text),
+			Actual:    "<present>",
+			Expected:  "not declared in schema",
+			SchemaRef: ref,
 		}
+		diags = append(diags, makeDiag(f.Path, dh.Line, d.Format()))
+		docIdx++
 	}
-
 	return diags
+}
+
+// missingSectionDiagLegacy builds the SchemaDiagnostic for a
+// required heading that the document lacks.
+func missingSectionDiagLegacy(
+	f *lint.File, req schemaHeading, ref string,
+) lint.Diagnostic {
+	d := schema.SchemaDiagnostic{
+		Field:     formatHeading(req.Level, req.Text),
+		Actual:    "<missing>",
+		Expected:  "section to be present",
+		SchemaRef: ref,
+	}
+	return makeDiag(f.Path, 1, d.Format())
+}
+
+// buildSchemaRefForLegacy returns the schema reference string
+// used by SchemaDiagnostic in the file-schema (proto.md) code
+// path. An empty source falls back to the generic "schema"
+// label so every diagnostic still carries a reference suffix.
+func buildSchemaRefForLegacy(source string) string {
+	if source == "" {
+		return "schema"
+	}
+	return source
 }
 
 // matchRequired advances docIdx to find a doc heading matching req.
@@ -973,6 +1057,7 @@ func matchRequired(
 	requiredByText map[string][]int,
 	claimed map[int]bool,
 	allowExtra bool,
+	schemaRef string,
 ) ([]lint.Diagnostic, int, bool) {
 	var diags []lint.Diagnostic
 	req := sch.Headings[schIdx]
@@ -980,29 +1065,37 @@ func matchRequired(
 		dh := docHeadings[docIdx]
 		if matchesSchema(req, dh) {
 			if dh.Level != req.Level {
-				diags = append(diags, levelMismatchDiag(f, dh, req))
+				diags = append(diags, levelMismatchDiag(f, dh, req, schemaRef))
 			}
 			claimed[schIdx] = true
 			return diags, docIdx + 1, true
 		}
 		if ooIdx := nextUnclaimed(requiredByText[dh.Text], claimed, schIdx+1); ooIdx >= 0 {
 			other := sch.Headings[ooIdx]
-			diags = append(diags, makeDiag(f.Path, dh.Line,
-				fmt.Sprintf("section %q out of order: expected after %q",
-					formatHeading(dh.Level, dh.Text),
-					formatHeading(req.Level, req.Text))))
+			ooDiag := schema.SchemaDiagnostic{
+				Field:     formatHeading(dh.Level, dh.Text),
+				Actual:    "<out of order>",
+				Expected:  "in declared order",
+				Hint:      fmt.Sprintf("expected after %q", formatHeading(req.Level, req.Text)),
+				SchemaRef: schemaRef,
+			}
+			diags = append(diags, makeDiag(f.Path, dh.Line, ooDiag.Format()))
 			if dh.Level != other.Level {
-				diags = append(diags, levelMismatchDiag(f, dh, other))
+				diags = append(diags, levelMismatchDiag(f, dh, other, schemaRef))
 			}
 			claimed[ooIdx] = true
 			docIdx++
 			continue
 		}
 		if !allowExtra {
-			diags = append(diags, makeDiag(f.Path, dh.Line,
-				fmt.Sprintf("unexpected section %q (expected %q)",
-					formatHeading(dh.Level, dh.Text),
-					formatHeading(req.Level, req.Text))))
+			unexpDiag := schema.SchemaDiagnostic{
+				Field:     formatHeading(dh.Level, dh.Text),
+				Actual:    "<present>",
+				Expected:  "not declared in schema",
+				Hint:      fmt.Sprintf("expected %q here instead", formatHeading(req.Level, req.Text)),
+				SchemaRef: schemaRef,
+			}
+			diags = append(diags, makeDiag(f.Path, dh.Line, unexpDiag.Format()))
 		}
 		docIdx++
 	}
@@ -1012,11 +1105,15 @@ func matchRequired(
 // levelMismatchDiag builds a heading level-mismatch diagnostic that
 // names the offending heading so readers can locate it quickly.
 func levelMismatchDiag(
-	f *lint.File, dh docHeading, req schemaHeading,
+	f *lint.File, dh docHeading, req schemaHeading, schemaRef string,
 ) lint.Diagnostic {
-	return makeDiag(f.Path, dh.Line,
-		fmt.Sprintf("heading level mismatch for %q: expected h%d, got h%d",
-			dh.Text, req.Level, dh.Level))
+	d := schema.SchemaDiagnostic{
+		Field:     dh.Text,
+		Actual:    fmt.Sprintf("h%d", dh.Level),
+		Expected:  fmt.Sprintf("h%d", req.Level),
+		SchemaRef: schemaRef,
+	}
+	return makeDiag(f.Path, dh.Line, d.Format())
 }
 
 // nextUnclaimed returns the first index in candidates that is >= minIdx
@@ -1276,18 +1373,22 @@ func readDocFrontMatterRaw(f *lint.File) (map[string]any, []lint.Diagnostic) {
 }
 
 // extractYAML extracts the YAML content between --- delimiters.
+// The closing fence is removed via TrimSuffix on the canonical
+// `---\n` (or bare `---` for blocks that omit the trailing
+// newline) rather than a strings.Index scan, so a YAML block
+// scalar value (e.g. `notes: |\n  ---\n`) that legitimately
+// contains the same sequence inside its body cannot truncate
+// the YAML early. A block that carries no recognisable fence at
+// all returns nil so the caller short-circuits on bad input.
 func extractYAML(fmBlock []byte) []byte {
-	s := string(fmBlock)
-	s = strings.TrimPrefix(s, "---\n")
-	idx := strings.Index(s, "---\n")
-	if idx < 0 {
-		// Try without trailing newline.
-		idx = strings.Index(s, "---")
-		if idx < 0 {
-			return nil
-		}
+	body := bytes.TrimPrefix(fmBlock, []byte("---\n"))
+	switch {
+	case bytes.HasSuffix(body, []byte("---\n")):
+		return body[:len(body)-len("---\n")]
+	case bytes.HasSuffix(body, []byte("---")):
+		return body[:len(body)-len("---")]
 	}
-	return []byte(s[:idx])
+	return nil
 }
 
 // findRequireDirectiveLine returns the 1-based line number of the first
@@ -1345,9 +1446,17 @@ func (r *Rule) checkPathPatterns(f *lint.File) []lint.Diagnostic {
 		if err == nil && ok {
 			continue
 		}
-		diags = append(diags, makeDiag(f.Path, 1, fmt.Sprintf(
-			"filename: got %q, expected\n  glob %s\nschema: kinds[%s] / path-pattern",
-			rel, pp.Pattern, pp.Kind)))
+		// path-pattern checks the workspace-relative path (which may
+		// include directories), so the field label is "path" rather
+		// than "filename". The latter is reserved for basename-only
+		// checks emitted by validateFilename / checkFilenamePattern.
+		d := schema.SchemaDiagnostic{
+			Field:     "path",
+			Actual:    fmt.Sprintf("%q", rel),
+			Expected:  fmt.Sprintf("path matching glob %s", pp.Pattern),
+			SchemaRef: fmt.Sprintf("kinds[%s] / path-pattern", pp.Kind),
+		}
+		diags = append(diags, makeDiag(f.Path, 1, d.Format()))
 	}
 	return diags
 }
@@ -1378,7 +1487,7 @@ func workspaceRelPath(f *lint.File) string {
 // checkFilenamePattern checks that the document basename matches the
 // schema's filename glob pattern (if configured).
 func checkFilenamePattern(
-	f *lint.File, sch *parsedSchema,
+	f *lint.File, sch *parsedSchema, schemaSource string,
 ) []lint.Diagnostic {
 	pattern := sch.Config.FilenamePattern
 	if pattern == "" {
@@ -1387,15 +1496,29 @@ func checkFilenamePattern(
 	base := filepath.Base(f.Path)
 	matched, err := filepath.Match(pattern, base)
 	if err != nil {
-		return []lint.Diagnostic{makeDiag(f.Path, 1,
-			fmt.Sprintf("invalid filename pattern %q: %v",
-				pattern, err))}
+		// Malformed glob in the schema. Surface it via the same
+		// SchemaDiagnostic shape so the message carries the
+		// schema reference and the user can jump to the
+		// offending pattern.
+		d := schema.SchemaDiagnostic{
+			Field:     "filename pattern",
+			Actual:    fmt.Sprintf("%q", pattern),
+			Expected:  "valid glob",
+			Hint:      err.Error(),
+			SchemaRef: buildSchemaRefForLegacy(schemaSource),
+		}
+		return []lint.Diagnostic{makeDiag(f.Path, 1, d.Format())}
 	}
 	if !matched {
-		return []lint.Diagnostic{makeDiag(f.Path, 1,
-			fmt.Sprintf(
-				"filename %q does not match required pattern %q",
-				base, pattern))}
+		// `glob` keeps the wording aligned with schema.validateFilename
+		// and the path-pattern diagnostic; see the rationale there.
+		d := schema.SchemaDiagnostic{
+			Field:     "filename",
+			Actual:    fmt.Sprintf("%q", base),
+			Expected:  fmt.Sprintf("filename matching glob %s", pattern),
+			SchemaRef: buildSchemaRefForLegacy(schemaSource),
+		}
+		return []lint.Diagnostic{makeDiag(f.Path, 1, d.Format())}
 	}
 	return nil
 }

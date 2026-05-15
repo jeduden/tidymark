@@ -172,7 +172,8 @@ func TestValidate_MissingSection(t *testing.T) {
 	doc := newDocFile(t, "doc.md", "# My Plan\n\n## Goal\n\nGoal text.\n")
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Equal(t, `missing required section "## Tasks"`, diags[0].Message)
+	assert.Contains(t, diags[0].Message,
+		`## Tasks: got <missing>, expected section to be present`)
 }
 
 func TestValidate_ExtraSectionFlagged(t *testing.T) {
@@ -184,7 +185,8 @@ func TestValidate_ExtraSectionFlagged(t *testing.T) {
 		"# My Plan\n\n## Extra\n\nx\n\n## Goal\n\ny\n\n## Tasks\n\nz\n")
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message, `unexpected section "## Extra"`)
+	assert.Contains(t, diags[0].Message,
+		`## Extra: got <present>, expected not declared in schema`)
 }
 
 func TestValidate_OutOfOrder(t *testing.T) {
@@ -196,9 +198,9 @@ func TestValidate_OutOfOrder(t *testing.T) {
 		"# My Plan\n\n## Tasks\n\nx\n\n## Goal\n\ny\n")
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Equal(t,
-		`section "## Tasks" out of order: expected after "## Goal"`,
-		diags[0].Message)
+	assert.Contains(t, diags[0].Message,
+		`## Tasks: got <out of order>, expected in declared order`)
+	assert.Contains(t, diags[0].Message, `expected after "## Goal"`)
 }
 
 func TestValidate_WildcardH1LevelMismatch(t *testing.T) {
@@ -209,9 +211,7 @@ func TestValidate_WildcardH1LevelMismatch(t *testing.T) {
 	doc := newDocFile(t, "doc.md", "## Title\n")
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Equal(t,
-		`heading level mismatch for "Title": expected h1, got h2`,
-		diags[0].Message)
+	assert.Contains(t, diags[0].Message, `Title: got h2, expected h1`)
 }
 
 func TestValidate_FilenameMismatch(t *testing.T) {
@@ -224,7 +224,7 @@ func TestValidate_FilenameMismatch(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message,
-		`filename "filename-mismatch.md" does not match required pattern "[0-9]*_*.md"`)
+		`filename: got "filename-mismatch.md", expected filename matching glob [0-9]*_*.md`)
 }
 
 // ---- Validate (inline schemas) ----
@@ -259,7 +259,8 @@ func TestValidate_Inline_ClosedRejectsUnlisted(t *testing.T) {
 		"# Title\n\n## Overview\n\nx\n\n## Notes\n\ny\n\n## Decision\n\nz\n")
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message, `unexpected section "## Notes"`)
+	assert.Contains(t, diags[0].Message,
+		`## Notes: got <present>, expected not declared in schema`)
 }
 
 func TestValidate_Inline_WildcardSlotTolerates(t *testing.T) {
@@ -335,7 +336,8 @@ func TestValidate_Inline_FrontmatterCUE(t *testing.T) {
 	// Document FM has the wrong shape.
 	diags := Validate(doc, sch, map[string]any{"id": "BAD"}, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message, "front matter does not satisfy schema")
+	assert.Contains(t, diags[0].Message, `id: got "BAD"`)
+	assert.Contains(t, diags[0].Message, `string matching ^RFC-[0-9]{4}$`)
 }
 
 // ---- ParseInline (content:) ----

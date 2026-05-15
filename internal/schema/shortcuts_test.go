@@ -200,8 +200,8 @@ func TestValidate_Inline_ShortcutAcceptsAndRejects(t *testing.T) {
 	diags = Validate(doc, sch,
 		map[string]any{"created": "2024-5-1"}, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message,
-		"front matter does not satisfy schema")
+	assert.Contains(t, diags[0].Message, `created: got "2024-5-1"`)
+	assert.Contains(t, diags[0].Message, "string matching")
 }
 
 // TestValidate_File_ShortcutWorksOffline covers the
@@ -237,8 +237,8 @@ func TestValidate_File_ShortcutWorksOffline(t *testing.T) {
 		"homepage": "ftp://example.com",
 	}, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message,
-		"front matter does not satisfy schema")
+	assert.Contains(t, diags[0].Message, `homepage: got "ftp://example.com"`)
+	assert.Contains(t, diags[0].Message, "string matching")
 }
 
 // TestShortcutRegistry_MatchesEmbeddedCUE is the

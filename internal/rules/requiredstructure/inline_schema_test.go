@@ -79,7 +79,7 @@ func TestCheck_InlineSchema_MissingSection(t *testing.T) {
 	})}
 	f := newTestFile(t, "doc.md", "# My Plan\n\n## Goal\n\nGoal text.\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `missing required section "## Tasks"`)
+	expectDiagMsg(t, diags, `## Tasks: got <missing>, expected section to be present`)
 }
 
 func TestCheck_InlineSchema_ParityWithFileSchema(t *testing.T) {
@@ -102,7 +102,17 @@ func TestCheck_InlineSchema_ParityWithFileSchema(t *testing.T) {
 	inlineDiags := rInline.Check(fInline)
 	require.Len(t, fileDiags, 1)
 	require.Len(t, inlineDiags, 1)
-	assert.Equal(t, fileDiags[0].Message, inlineDiags[0].Message)
+	// The two paths emit identical violation bodies (field /
+	// actual / expected); only the trailing schema-reference
+	// line differs because one points at a file path and the
+	// other at the kind label.
+	firstLine := func(s string) string {
+		if i := strings.Index(s, "\n"); i >= 0 {
+			return s[:i]
+		}
+		return s
+	}
+	assert.Equal(t, firstLine(fileDiags[0].Message), firstLine(inlineDiags[0].Message))
 }
 
 func TestCheck_InlineSchema_OpenByDefault(t *testing.T) {
@@ -132,7 +142,7 @@ func TestCheck_InlineSchema_ClosedFlagsUnlisted(t *testing.T) {
 		"# Runbook\n\n## Symptoms\n\nx\n\n## Notes\n\ny\n\n## Diagnosis\n\nz\n")
 	diags := r.Check(f)
 	require.NotEmpty(t, diags)
-	expectDiagMsg(t, diags, `unexpected section "## Notes"`)
+	expectDiagMsg(t, diags, `## Notes: got <present>, expected not declared in schema`)
 }
 
 func TestCheck_InlineSchema_WildcardSlot(t *testing.T) {
@@ -215,8 +225,8 @@ func TestCheck_InlineSchema_LevelMismatch(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, our)
-	expectDiagMsg(t, our, "heading level mismatch")
-	expectDiagMsg(t, our, "expected h3, got h2")
+	expectDiagMsg(t, our, "Step: got h2")
+	expectDiagMsg(t, our, "expected h3")
 }
 
 func TestCheck_InlineSchema_AliasMatches(t *testing.T) {
@@ -242,7 +252,7 @@ func TestCheck_InlineSchema_FilenamePattern(t *testing.T) {
 	f := newTestFile(t, "draft.md", "# Draft\n")
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
-	expectDiagMsg(t, diags, `filename "draft.md" does not match required pattern`)
+	expectDiagMsg(t, diags, `filename: got "draft.md"`)
 }
 
 func TestCheck_InlineSchema_FrontmatterCUE(t *testing.T) {
@@ -256,8 +266,8 @@ func TestCheck_InlineSchema_FrontmatterCUE(t *testing.T) {
 		"---\nid: NOT-AN-RFC\n---\n# Doc\n")
 	diags := r.Check(f)
 	require.NotEmpty(t, diags)
-	expectDiagMsg(t, diags,
-		"front matter does not satisfy schema CUE constraints")
+	expectDiagMsg(t, diags, `id: got "NOT-AN-RFC"`)
+	expectDiagMsg(t, diags, `string matching ^RFC-[0-9]{4}$`)
 }
 
 // TestCheck_InlineSchema_ScopeRuleDeterministicOrdering exercises

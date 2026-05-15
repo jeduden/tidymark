@@ -1,17 +1,21 @@
 package schema
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/errors"
 	"github.com/jeduden/mdsmith/internal/fieldinterp"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/yamlutil"
 	"github.com/yuin/goldmark/ast"
 )
 
@@ -94,24 +98,356 @@ func Validate(
 	diags = append(diags, validateFilename(f, sch, mkDiag)...)
 
 	if !fmIsCUE {
-		if err := ValidateFrontmatter(sch, docFM); err != nil {
-			diags = append(diags, mkDiag(f.Path, 1,
-				fmt.Sprintf(
-					"front matter does not satisfy schema CUE constraints: %v",
-					err)))
-		}
+		diags = append(diags, validateFrontmatterDiags(f, sch, docFM, mkDiag)...)
 	}
 
 	rootLevel := sch.EffectiveRootLevel()
 	heads := ExtractDocHeadings(f)
 	body := skipBelow(heads, rootLevel)
 
-	_, sd := validateScopes(f, sch.Sections, sch.Closed, body, 0, rootLevel, mkDiag)
+	_, sd := validateScopes(f, sch, sch.Sections, sch.Closed, body, 0, rootLevel, mkDiag)
 	diags = append(diags, sd...)
 
 	diags = append(diags, ValidateContent(f, sch, mkDiag)...)
 
 	return diags
+}
+
+// validateFrontmatterDiags compiles the schema's CUE expression,
+// unifies it with the document front matter, and emits one
+// diagnostic per resulting CUE error (rather than collapsing all
+// of them into a single line). Each diagnostic is a
+// SchemaDiagnostic rendered through Format(): the field that
+// failed, the value the user wrote, the constraint they
+// violated, and — when applicable — a hint.
+//
+// A schema-side compile or marshal failure surfaces as a single
+// fallback diagnostic at line 1 so users still see a signal
+// without needing to chase the underlying CUE error. The
+// formerly-flat "front matter does not satisfy schema CUE
+// constraints" message is intentionally retired; see plan 147.
+func validateFrontmatterDiags(
+	f *lint.File, sch *Schema, docFM map[string]any, mkDiag MakeDiag,
+) []lint.Diagnostic {
+	expr := sch.FrontmatterCUE()
+	if strings.TrimSpace(expr) == "" {
+		return nil
+	}
+	ctx := cuecontext.New()
+	schemaVal := ctx.CompileString(expr)
+	if err := schemaVal.Err(); err != nil {
+		return []lint.Diagnostic{mkDiag(f.Path, 1,
+			compileFailureDiag(sch, "schema", "valid schema CUE", err).Format())}
+	}
+	if docFM == nil {
+		docFM = map[string]any{}
+	}
+	data, err := json.Marshal(docFM)
+	if err != nil {
+		return []lint.Diagnostic{mkDiag(f.Path, 1,
+			compileFailureDiag(sch, "front matter", "JSON-marshalable front matter", err).Format())}
+	}
+	dataVal := ctx.CompileBytes(data)
+	if err := dataVal.Err(); err != nil {
+		return []lint.Diagnostic{mkDiag(f.Path, 1,
+			compileFailureDiag(sch, "front matter", "valid front matter", err).Format())}
+	}
+	merged := schemaVal.Unify(dataVal)
+	verr := merged.Validate(cue.Concrete(true))
+	if verr == nil {
+		return nil
+	}
+	cueErrs := errors.Errors(verr)
+	if len(cueErrs) == 0 {
+		return []lint.Diagnostic{mkDiag(f.Path, 1,
+			SchemaDiagnostic{
+				Field:     "front matter",
+				Actual:    fmt.Sprintf("%v", verr),
+				Expected:  "valid CUE",
+				SchemaRef: schemaRef(sch, ""),
+			}.Format())}
+	}
+	keyLines := docFrontmatterKeyLines(f)
+	out := make([]lint.Diagnostic, 0, len(cueErrs))
+	// A struct dedup key avoids accidental collisions when one of
+	// the components (notably the raw-CUE-expression Expected
+	// fallback and a placeholder-bearing Field) legitimately
+	// contains the same delimiter we would have used in a flat
+	// string key.
+	type dedupKey struct{ field, actual, expected string }
+	seen := make(map[dedupKey]bool, len(cueErrs))
+	for _, ce := range cueErrs {
+		d := schemaDiagFromCUEError(sch, docFM, ce)
+		key := dedupKey{field: d.Field, actual: d.Actual, expected: d.Expected}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, mkDiag(f.Path, fmDiagLine(f, ce.Path(), keyLines), d.Format()))
+	}
+	return out
+}
+
+// fmDiagLine returns the line to anchor a front-matter diagnostic
+// at, expressed in the body-line coordinate system the engine
+// uses before lint.File.AdjustDiagnostics fires. When the doc's
+// FM has a tracked source line for the offending key, the line
+// is the file-relative line of that key minus f.LineOffset; the
+// engine's AdjustDiagnostics shift then lands the diagnostic on
+// the absolute file line of the key.
+//
+// In front-matter-stripped mode (f.LineOffset > 0) the body-
+// coordinate value is non-positive for keys inside the FM block.
+// That is intentional: AdjustDiagnostics adds LineOffset back to
+// reach the absolute line, which is positive. Callers that
+// consume Diagnostic.Line without running it through the engine
+// must normalise the value first (see ValidateFrontmatterDiags
+// for the contract). In unstripped mode (LineOffset == 0) the
+// returned value already equals the absolute file line.
+//
+// When no per-key line is known the function falls back to line
+// 1 — the conventional "start of file" anchor, which the engine
+// also shifts to the first body line.
+func fmDiagLine(f *lint.File, path []string, keyLines map[string]int) int {
+	if len(path) == 0 || len(keyLines) == 0 {
+		return 1
+	}
+	line, ok := keyLines[path[0]]
+	if !ok {
+		// Top-level path may carry an optional-key suffix in the
+		// schema; the doc itself never does, so a miss here means
+		// the key was absent from the document (and therefore has
+		// no source line to point at).
+		return 1
+	}
+	return line - f.LineOffset
+}
+
+// docFrontmatterKeyLines parses the document's front matter and
+// returns the file-relative line of each top-level key. Works in
+// both front-matter-stripped mode (FM lives in f.FrontMatter) and
+// unstripped mode (FM still at the top of f.Source) so the same
+// helper serves the LSP / CLI path and the rule's unit-test
+// callers that build files via lint.NewFile directly.
+func docFrontmatterKeyLines(f *lint.File) map[string]int {
+	if fm := f.FrontMatter; len(fm) > 0 {
+		return parseFMBlockKeyLines(fm)
+	}
+	if bytes.HasPrefix(f.Source, []byte("---\n")) {
+		if fm, _ := lint.StripFrontMatter(f.Source); fm != nil {
+			return parseFMBlockKeyLines(fm)
+		}
+	}
+	return nil
+}
+
+// parseFMBlockKeyLines extracts top-level key lines from a YAML
+// front-matter block that includes its `---` delimiters. yaml.Node
+// line numbers are 1-based within the body between the fences; the
+// file-relative line is one more (the opening `---` occupies the
+// first source line).
+//
+// The closing fence is removed via TrimSuffix rather than a
+// bytes.Index scan: callers feed us a block returned by
+// lint.StripFrontMatter which always ends with `---\n`, and a
+// scan-for-first-match would truncate the body early if a YAML
+// block scalar legitimately contained the `---\n` sequence as a
+// value.
+func parseFMBlockKeyLines(fm []byte) map[string]int {
+	body := bytes.TrimPrefix(fm, []byte("---\n"))
+	body = bytes.TrimSuffix(body, []byte("---\n"))
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil
+	}
+	node, err := yamlutil.UnmarshalNodeSafe(body)
+	if err != nil {
+		return nil
+	}
+	return yamlutil.TopLevelMappingLines(&node, 1)
+}
+
+// schemaDiagFromCUEError converts one CUE-error leaf into a
+// SchemaDiagnostic. The CUE error's Path() names the offending
+// field; we look up the raw constraint expression on the schema
+// to render an "expected" string in user vocabulary, and pull
+// the actual value out of docFM so the message shows exactly
+// what the user wrote.
+func schemaDiagFromCUEError(
+	sch *Schema, docFM map[string]any, ce errors.Error,
+) SchemaDiagnostic {
+	path := ce.Path()
+	field := "front matter"
+	if len(path) > 0 {
+		field = strings.Join(path, ".")
+	}
+	d := SchemaDiagnostic{
+		Field:     field,
+		SchemaRef: schemaRef(sch, schemaKeyForPath(sch, path)),
+	}
+	actualVal, hasActual := lookupFM(docFM, path)
+	if hasActual {
+		d.Actual = formatActual(actualVal)
+	}
+	if expr := lookupConstraint(sch, path); expr != "" {
+		d.Expected = RenderExpected(expr)
+		if hasActual {
+			d.Hint = RenderHint(expr, actualVal)
+		} else {
+			// A required field that the document omitted. Show
+			// the same <missing> sentinel structure diagnostics
+			// use so every diagnostic answers the same three
+			// questions: which field, what value, what's
+			// expected.
+			d.Actual = "<missing>"
+		}
+	} else {
+		// Extra field: close() rejected a key that is not in the
+		// schema's frontmatter map. There is no per-field
+		// constraint to render, and the schema source already
+		// names the declared set; the diagnostic body says so
+		// explicitly so the reader can compare against the
+		// schema file. <extra field> is the actual-slot sentinel
+		// for the (rare) case where the key has no value to show
+		// (e.g. an empty mapping entry).
+		if !hasActual {
+			d.Actual = "<extra field>"
+		}
+		d.Expected = "not declared in schema"
+	}
+	return d
+}
+
+// schemaKeyForPath finds the Frontmatter map key (with the
+// optional "?" suffix preserved) that owns the given CUE error
+// path. The required-key form "x" and optional-key form "x?"
+// produce identical CUE paths, so we accept either when looking
+// up the constraint and the source line.
+func schemaKeyForPath(sch *Schema, path []string) string {
+	if len(path) == 0 {
+		return ""
+	}
+	first := path[0]
+	if _, ok := sch.Frontmatter[first]; ok {
+		return first
+	}
+	if _, ok := sch.Frontmatter[first+"?"]; ok {
+		return first + "?"
+	}
+	return ""
+}
+
+func lookupConstraint(sch *Schema, path []string) string {
+	if key := schemaKeyForPath(sch, path); key != "" {
+		return sch.Frontmatter[key]
+	}
+	return ""
+}
+
+// lookupFM walks docFM along path and returns the leaf value.
+// The boolean reports whether the path resolved; a present-but-
+// nil value still reports true so the diagnostic can show
+// "null" rather than "<missing>".
+//
+// path segments come from CUE's error.Path() and may be mixed
+// map keys and numeric list indices (e.g. "tags", "1" for a
+// failing element of a list-shaped field). lookupFM understands
+// both: it descends through `map[string]any` by key and through
+// `[]any` by parsing the segment as a non-negative integer.
+// Falling back to <missing> on a list-shaped path would
+// misreport "field present but a particular index failed" as
+// "field absent" — see the Copilot review comment on PR #284.
+func lookupFM(docFM map[string]any, path []string) (any, bool) {
+	if len(path) == 0 {
+		return nil, false
+	}
+	cur := any(docFM)
+	for _, p := range path {
+		switch typed := cur.(type) {
+		case map[string]any:
+			v, ok := typed[p]
+			if !ok {
+				return nil, false
+			}
+			cur = v
+		case []any:
+			idx, err := strconv.Atoi(p)
+			if err != nil || idx < 0 || idx >= len(typed) {
+				return nil, false
+			}
+			cur = typed[idx]
+		default:
+			return nil, false
+		}
+	}
+	return cur, true
+}
+
+// schemaRef builds the `schema: ...` suffix from the schema's
+// Source label and (when known) the line of the named key. An
+// unknown source falls back to a generic "schema" label so
+// every diagnostic still carries a reference field.
+func schemaRef(sch *Schema, key string) string {
+	src := sch.Source
+	if src == "" {
+		src = "schema"
+	}
+	if key != "" {
+		if line, ok := sch.FrontmatterLines[key]; ok && line > 0 {
+			return fmt.Sprintf("%s:%d", src, line)
+		}
+	}
+	return src
+}
+
+// compileFailureDiag builds a SchemaDiagnostic for the
+// early-return CUE / JSON failure paths in
+// validateFrontmatterDiags. The `Field` names what failed to
+// process ("schema", "front matter"), `expected` carries the
+// shape-specific contract (e.g. "valid schema CUE",
+// "JSON-marshalable front matter"), the `Actual` carries the
+// underlying error message, and the schema reference points the
+// reader at the source so the diagnostic stays consistent with
+// the rest of MDS020's output. Threading `expected` through the
+// helper keeps each early-return path's message accurate —
+// using a single generic phrase would have made the
+// json.Marshal failure path read as "Expected: compilable CUE"
+// even though CUE isn't involved at that step.
+func compileFailureDiag(sch *Schema, field, expected string, err error) SchemaDiagnostic {
+	return SchemaDiagnostic{
+		Field:     field,
+		Actual:    fmt.Sprintf("%v", err),
+		Expected:  expected,
+		SchemaRef: schemaRef(sch, ""),
+	}
+}
+
+// ValidateFrontmatterDiags exposes the per-error CUE-diagnostic
+// walker to callers outside the validator (notably the
+// requiredstructure rule's legacy file-schema path, which has
+// its own heading-template parser but reuses the schema
+// package's actionable front-matter diagnostics).
+//
+// Line numbers on returned diagnostics are in the engine's
+// body-coordinate system: they are the absolute file line of
+// the offending front-matter key minus f.LineOffset. In
+// front-matter-stripped mode (f.LineOffset > 0) the body-
+// coordinate value is non-positive for keys inside the FM
+// block; lint.File.AdjustDiagnostics then shifts it back into
+// the absolute file line. Callers that bypass the engine — for
+// instance unit tests inspecting the raw slice — must either
+// run the result through f.AdjustDiagnostics or normalise the
+// values themselves before treating them as 1-based positions.
+func ValidateFrontmatterDiags(
+	f *lint.File, sch *Schema, docFM map[string]any, mkDiag MakeDiag,
+) []lint.Diagnostic {
+	return validateFrontmatterDiags(f, sch, docFM, mkDiag)
+}
+
+// FormatSchemaRef builds the "source:line" suffix used by every
+// SchemaDiagnostic so callers outside the schema package emit
+// the same shape. An unknown source falls back to "schema".
+func FormatSchemaRef(sch *Schema, key string) string {
+	return schemaRef(sch, key)
 }
 
 // skipBelow returns a filtered slice that omits every heading
@@ -142,7 +478,7 @@ func skipBelow(heads []DocHeading, rootLevel int) []DocHeading {
 // tolerated. A wildcard scope ("...") always tolerates unlisted
 // headings at its position.
 func validateScopes(
-	f *lint.File, scopes []Scope, closed bool, docHeads []DocHeading,
+	f *lint.File, sch *Schema, scopes []Scope, closed bool, docHeads []DocHeading,
 	docIdx int, expectedLevel int, mkDiag MakeDiag,
 ) (int, []lint.Diagnostic) {
 	var diags []lint.Diagnostic
@@ -168,7 +504,7 @@ func validateScopes(
 			continue
 		}
 		newIdx, scDiags, found := matchScope(
-			f, scopes, i, expectedLevel, docHeads, docIdx,
+			f, sch, scopes, i, expectedLevel, docHeads, docIdx,
 			requiredByText, claimed, allowExtra, closed, mkDiag)
 		diags = append(diags, scDiags...)
 		docIdx = newIdx
@@ -176,16 +512,80 @@ func validateScopes(
 			allowExtra = false
 		} else if !claimed[i] && sc.Required && !sc.Repeats {
 			diags = append(diags, mkDiag(f.Path, 1,
-				fmt.Sprintf("missing required section %q",
-					formatHeading(expectedLevel, sc.Heading))))
+				missingSectionDiag(formatHeading(expectedLevel, sc.Heading), sch).Format()))
 		}
 	}
 
 	newIdx, leftoverDiags := handleLeftoverHeadings(
-		f, scopes, claimed, docHeads, docIdx, expectedLevel,
+		f, sch, scopes, claimed, docHeads, docIdx, expectedLevel,
 		closed, allowExtra, mkDiag)
 	diags = append(diags, leftoverDiags...)
 	return newIdx, diags
+}
+
+// missingSectionDiag builds a SchemaDiagnostic for a required
+// section that is absent from the document. The field carries
+// the heading marker form (`## Goal`) so the reader can grep for
+// the exact text; the actual is "<missing>" and the schema
+// reference points back at the schema source.
+func missingSectionDiag(heading string, sch *Schema) SchemaDiagnostic {
+	return SchemaDiagnostic{
+		Field:     heading,
+		Actual:    "<missing>",
+		Expected:  "section to be present",
+		SchemaRef: schemaRef(sch, ""),
+	}
+}
+
+// unexpectedSectionDiag builds a SchemaDiagnostic for a heading
+// that appears in the document but is not declared in the
+// schema. expected, when non-empty, names the section the
+// validator was looking for at that position; the message
+// surfaces it as a hint so the reader can decide whether they
+// added the wrong heading or omitted a different one.
+func unexpectedSectionDiag(heading, expected string, sch *Schema) SchemaDiagnostic {
+	d := SchemaDiagnostic{
+		Field:     heading,
+		Actual:    "<present>",
+		Expected:  "not declared in schema",
+		SchemaRef: schemaRef(sch, ""),
+	}
+	if expected != "" {
+		d.Hint = fmt.Sprintf("expected %q here instead", expected)
+	}
+	return d
+}
+
+// outOfOrderDiag builds a SchemaDiagnostic for a heading whose
+// text matches a declared section but appears at the wrong
+// position relative to its siblings. expectedAfter, when
+// non-empty, names the section it should follow.
+func outOfOrderDiag(heading, expectedAfter string, sch *Schema) SchemaDiagnostic {
+	d := SchemaDiagnostic{
+		Field:     heading,
+		Actual:    "<out of order>",
+		Expected:  "in declared order",
+		SchemaRef: schemaRef(sch, ""),
+	}
+	if expectedAfter != "" {
+		d.Hint = fmt.Sprintf("expected after %q", expectedAfter)
+	} else {
+		d.Hint = "expected before this position"
+	}
+	return d
+}
+
+// levelMismatchSchemaDiag builds a SchemaDiagnostic for a
+// heading whose text matches a declared section but appears at
+// the wrong heading level (e.g. `## Step` where the schema
+// declared `### Step`).
+func levelMismatchSchemaDiag(text string, expectedLevel, actualLevel int, sch *Schema) SchemaDiagnostic {
+	return SchemaDiagnostic{
+		Field:     text,
+		Actual:    fmt.Sprintf("h%d", actualLevel),
+		Expected:  fmt.Sprintf("h%d", expectedLevel),
+		SchemaRef: schemaRef(sch, ""),
+	}
 }
 
 // handleLeftoverHeadings processes doc headings that survived the
@@ -197,7 +597,7 @@ func validateScopes(
 // closed: flagged as unexpected in closed scopes, silently
 // consumed in open ones.
 func handleLeftoverHeadings(
-	f *lint.File, scopes []Scope, claimed map[int]bool,
+	f *lint.File, sch *Schema, scopes []Scope, claimed map[int]bool,
 	docHeads []DocHeading, docIdx, expectedLevel int,
 	closed, allowExtra bool, mkDiag MakeDiag,
 ) (int, []lint.Diagnostic) {
@@ -213,15 +613,14 @@ func handleLeftoverHeadings(
 		}
 		if idx := unclaimedListedScope(scopes, dh, claimed); idx >= 0 {
 			newIdx, claimDiags := claimLateScope(
-				f, scopes, idx, expectedLevel, docHeads, docIdx, claimed, mkDiag)
+				f, sch, scopes, idx, expectedLevel, docHeads, docIdx, claimed, mkDiag)
 			diags = append(diags, claimDiags...)
 			docIdx = newIdx
 			continue
 		}
 		if !allowExtra && closed {
 			diags = append(diags, mkDiag(f.Path, dh.Line,
-				fmt.Sprintf("unexpected section %q",
-					formatHeading(dh.Level, dh.Text))))
+				unexpectedSectionDiag(formatHeading(dh.Level, dh.Text), "", sch).Format()))
 		}
 		docIdx++
 	}
@@ -233,20 +632,18 @@ func handleLeftoverHeadings(
 // nested children so missing-required-section diagnostics still
 // surface beneath a late parent.
 func claimLateScope(
-	f *lint.File, scopes []Scope, idx, expectedLevel int,
+	f *lint.File, sch *Schema, scopes []Scope, idx, expectedLevel int,
 	docHeads []DocHeading, docIdx int, claimed map[int]bool,
 	mkDiag MakeDiag,
 ) (int, []lint.Diagnostic) {
 	dh := docHeads[docIdx]
 	diags := []lint.Diagnostic{mkDiag(f.Path, dh.Line,
-		fmt.Sprintf(
-			"section %q out of order: expected before this position",
-			formatHeading(dh.Level, dh.Text)))}
+		outOfOrderDiag(formatHeading(dh.Level, dh.Text), "", sch).Format())}
 	claimed[idx] = true
 	docIdx++
 	if len(scopes[idx].Sections) > 0 {
 		newIdx, childDiags := validateScopes(
-			f, scopes[idx].Sections, scopes[idx].Closed,
+			f, sch, scopes[idx].Sections, scopes[idx].Closed,
 			docHeads, docIdx, expectedLevel+1, mkDiag)
 		diags = append(diags, childDiags...)
 		docIdx = newIdx
@@ -314,7 +711,7 @@ func indexableLiteral(text string) bool {
 // subtree. Returns the new docIdx, diagnostics, and whether the
 // scope was matched.
 func matchScope(
-	f *lint.File, scopes []Scope, idx, expectedLevel int,
+	f *lint.File, sch *Schema, scopes []Scope, idx, expectedLevel int,
 	docHeads []DocHeading, docIdx int,
 	requiredByText map[string][]int, claimed map[int]bool,
 	allowExtra, closed bool, mkDiag MakeDiag,
@@ -331,12 +728,12 @@ func matchScope(
 		// "unexpected" (when the caller revisits it).
 		if dh.Level < expectedLevel {
 			if scopeMatchesHeading(sc, dh) {
-				return claimMatch(f, sc, idx, expectedLevel, docHeads, docIdx, claimed, mkDiag, diags)
+				return claimMatch(f, sch, sc, idx, expectedLevel, docHeads, docIdx, claimed, mkDiag, diags)
 			}
 			return docIdx, diags, false
 		}
 		if scopeMatchesHeading(sc, dh) {
-			return claimMatch(f, sc, idx, expectedLevel, docHeads, docIdx, claimed, mkDiag, diags)
+			return claimMatch(f, sch, sc, idx, expectedLevel, docHeads, docIdx, claimed, mkDiag, diags)
 		}
 		if ooIdx := findOutOfOrderIdx(scopes, dh, requiredByText, claimed, idx+1); ooIdx >= 0 {
 			if !sc.Required {
@@ -348,7 +745,7 @@ func matchScope(
 				return docIdx, diags, false
 			}
 			newIdx, ooDiags := claimOutOfOrder(
-				f, scopes, idx, ooIdx, expectedLevel, docHeads, docIdx, claimed, mkDiag)
+				f, sch, scopes, idx, ooIdx, expectedLevel, docHeads, docIdx, claimed, mkDiag)
 			diags = append(diags, ooDiags...)
 			docIdx = newIdx
 			continue
@@ -363,9 +760,10 @@ func matchScope(
 		}
 		if !allowExtra && closed {
 			diags = append(diags, mkDiag(f.Path, dh.Line,
-				fmt.Sprintf("unexpected section %q (expected %q)",
+				unexpectedSectionDiag(
 					formatHeading(dh.Level, dh.Text),
-					formatHeading(expectedLevel, sc.Heading))))
+					formatHeading(expectedLevel, sc.Heading),
+					sch).Format()))
 		}
 		docIdx++
 	}
@@ -373,14 +771,13 @@ func matchScope(
 }
 
 func levelDiagIfNeeded(
-	f *lint.File, dh DocHeading, expectedLevel int, mkDiag MakeDiag,
+	f *lint.File, sch *Schema, dh DocHeading, expectedLevel int, mkDiag MakeDiag,
 ) []lint.Diagnostic {
 	if dh.Level == expectedLevel {
 		return nil
 	}
 	return []lint.Diagnostic{mkDiag(f.Path, dh.Line,
-		fmt.Sprintf("heading level mismatch for %q: expected h%d, got h%d",
-			dh.Text, expectedLevel, dh.Level))}
+		levelMismatchSchemaDiag(dh.Text, expectedLevel, dh.Level, sch).Format())}
 }
 
 // claimMatch marks scopes[idx] as matched against docHeads[docIdx],
@@ -388,16 +785,16 @@ func levelDiagIfNeeded(
 // recursing into the scope's child sections. Returns the advanced
 // docIdx, combined diagnostics, and true.
 func claimMatch(
-	f *lint.File, sc Scope, idx, expectedLevel int,
+	f *lint.File, sch *Schema, sc Scope, idx, expectedLevel int,
 	docHeads []DocHeading, docIdx int, claimed map[int]bool,
 	mkDiag MakeDiag, prior []lint.Diagnostic,
 ) (int, []lint.Diagnostic, bool) {
-	diags := append(prior, levelDiagIfNeeded(f, docHeads[docIdx], expectedLevel, mkDiag)...)
+	diags := append(prior, levelDiagIfNeeded(f, sch, docHeads[docIdx], expectedLevel, mkDiag)...)
 	claimed[idx] = true
 	docIdx++
 	if len(sc.Sections) > 0 {
 		newIdx, childDiags := validateScopes(
-			f, sc.Sections, sc.Closed, docHeads, docIdx,
+			f, sch, sc.Sections, sc.Closed, docHeads, docIdx,
 			expectedLevel+1, mkDiag)
 		diags = append(diags, childDiags...)
 		docIdx = newIdx
@@ -409,7 +806,7 @@ func claimMatch(
 // (a later listed scope), emits the out-of-order diagnostic, and
 // recurses into the matched scope's child sections.
 func claimOutOfOrder(
-	f *lint.File, scopes []Scope, idx, ooIdx, expectedLevel int,
+	f *lint.File, sch *Schema, scopes []Scope, idx, ooIdx, expectedLevel int,
 	docHeads []DocHeading, docIdx int, claimed map[int]bool,
 	mkDiag MakeDiag,
 ) (int, []lint.Diagnostic) {
@@ -417,15 +814,16 @@ func claimOutOfOrder(
 	ooSc := scopes[ooIdx]
 	dh := docHeads[docIdx]
 	diags := []lint.Diagnostic{mkDiag(f.Path, dh.Line,
-		fmt.Sprintf("section %q out of order: expected after %q",
+		outOfOrderDiag(
 			formatHeading(dh.Level, dh.Text),
-			formatHeading(expectedLevel, sc.Heading)))}
-	diags = append(diags, levelDiagIfNeeded(f, dh, expectedLevel, mkDiag)...)
+			formatHeading(expectedLevel, sc.Heading),
+			sch).Format())}
+	diags = append(diags, levelDiagIfNeeded(f, sch, dh, expectedLevel, mkDiag)...)
 	claimed[ooIdx] = true
 	docIdx++
 	if len(ooSc.Sections) > 0 {
 		newIdx, childDiags := validateScopes(
-			f, ooSc.Sections, ooSc.Closed, docHeads, docIdx,
+			f, sch, ooSc.Sections, ooSc.Closed, docHeads, docIdx,
 			expectedLevel+1, mkDiag)
 		diags = append(diags, childDiags...)
 		docIdx = newIdx
@@ -582,7 +980,12 @@ func formatHeading(level int, text string) string {
 }
 
 // validateFilename checks that the document basename matches the
-// schema's filename pattern (if configured).
+// schema's filename pattern (if configured). A mismatched
+// basename surfaces as a SchemaDiagnostic so the message mirrors
+// the front-matter and path-pattern diagnostics: the "field" is
+// "filename", the "actual" is the basename the user wrote, and
+// the "expected" is the glob spelled out as a pattern-matching
+// constraint.
 func validateFilename(
 	f *lint.File, sch *Schema, mkDiag MakeDiag,
 ) []lint.Diagnostic {
@@ -593,13 +996,33 @@ func validateFilename(
 	base := filepath.Base(f.Path)
 	matched, err := filepath.Match(pattern, base)
 	if err != nil {
-		return []lint.Diagnostic{mkDiag(f.Path, 1,
-			fmt.Sprintf("invalid filename pattern %q: %v", pattern, err))}
+		// Malformed glob in the schema. Surface it via the same
+		// SchemaDiagnostic shape so the message carries a
+		// schema reference and the user can jump to the
+		// offending pattern.
+		d := SchemaDiagnostic{
+			Field:     "filename pattern",
+			Actual:    fmt.Sprintf("%q", pattern),
+			Expected:  "valid glob",
+			Hint:      err.Error(),
+			SchemaRef: schemaRef(sch, ""),
+		}
+		return []lint.Diagnostic{mkDiag(f.Path, 1, d.Format())}
 	}
 	if !matched {
-		return []lint.Diagnostic{mkDiag(f.Path, 1,
-			fmt.Sprintf("filename %q does not match required pattern %q",
-				base, pattern))}
+		// `glob` makes the constraint syntax explicit: users
+		// occasionally read `string matching <pattern>` as a regex
+		// requirement, which filepath.Match does not accept. The
+		// wording also lines up with the kind-level `path-pattern`
+		// diagnostic ("path matching glob ...") so the user
+		// vocabulary is consistent across both surfaces.
+		d := SchemaDiagnostic{
+			Field:     "filename",
+			Actual:    fmt.Sprintf("%q", base),
+			Expected:  fmt.Sprintf("filename matching glob %s", pattern),
+			SchemaRef: schemaRef(sch, ""),
+		}
+		return []lint.Diagnostic{mkDiag(f.Path, 1, d.Format())}
 	}
 	return nil
 }

@@ -10,7 +10,9 @@ settings:
 diagnostics:
   - line: 5
     column: 1
-    message: 'heading level mismatch for "Step": expected h3, got h2'
+    message: |-
+      Step: got h2, expected h3
+      schema: inline kind schema
 ---
 # Runbook
 

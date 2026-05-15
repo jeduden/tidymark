@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -108,20 +109,31 @@ func parseFileFrontmatter(prefix []byte, sch *Schema) error {
 		}
 		sch.Frontmatter[k] = expr
 	}
+	// Capture per-key source lines so MDS020 diagnostics can point
+	// the reader at the exact constraint. yaml.Node line numbers
+	// are 1-based within the stripped YAML body; the body starts
+	// on the schema file's line 2 (line 1 is the opening "---"
+	// fence), so we add 1 to translate into file-relative lines.
+	node, err := yamlutil.UnmarshalNodeSafe(body)
+	if err == nil {
+		sch.FrontmatterLines = yamlutil.TopLevelMappingLines(&node, 1)
+	}
 	return nil
 }
 
 // stripDelimiters returns the YAML body between a front-matter
 // block's "---\n" delimiters. The caller (parseFileFrontmatter)
 // receives prefix bytes produced by lint.StripFrontMatter, which
-// only matches blocks bracketed by "---\n" on both ends, so the
-// helper only has to look for that exact closing fence.
+// guarantees the block is bracketed by "---\n" on both ends.
+//
+// The closing fence is removed via TrimSuffix rather than a
+// strings.Index scan: searching for the first "---\n" anywhere
+// in the body would truncate the YAML early if a block-scalar
+// value (e.g. `notes: |`) legitimately contained the same
+// sequence on one of its indented lines.
 func stripDelimiters(fm []byte) []byte {
-	s := strings.TrimPrefix(string(fm), "---\n")
-	if idx := strings.Index(s, "---\n"); idx >= 0 {
-		return []byte(s[:idx])
-	}
-	return []byte(s)
+	s := bytes.TrimPrefix(fm, []byte("---\n"))
+	return bytes.TrimSuffix(s, []byte("---\n"))
 }
 
 // extractRequireFilename walks the schema AST for a <?require?> PI

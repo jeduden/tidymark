@@ -89,6 +89,45 @@ func Marshal(v any) ([]byte, error) {
 	return yaml.Marshal(v)
 }
 
+// TopLevelMappingLines walks the yaml.Node document produced by
+// UnmarshalNodeSafe (or a direct yaml.Unmarshal into a yaml.Node)
+// and returns a map from each top-level scalar mapping key to its
+// source line, shifted by lineOffset.
+//
+// yaml.v3 nests the user's mapping inside a single-document node;
+// the helper skips past that layer to the content of interest.
+// A nil node, missing content, or a non-mapping root all return
+// nil so callers degrade to a "no per-key line known" fallback
+// rather than panicking. Non-scalar mapping keys (YAML's
+// explicit `?` syntax with a sequence or mapping as the key)
+// are skipped silently — the remaining scalar keys still appear
+// in the returned map, which may therefore be empty if every
+// key is non-scalar.
+//
+// Two callers want this: internal/schema parses a proto.md
+// frontmatter and the requiredstructure rule parses its legacy
+// schema frontmatter. Centralising the walk here means future
+// YAML edge cases (documents, anchors, etc.) only need fixing in
+// one place — see the Copilot review on PR #284.
+func TopLevelMappingLines(doc *yaml.Node, lineOffset int) map[string]int {
+	if doc == nil || len(doc.Content) == 0 {
+		return nil
+	}
+	root := doc.Content[0]
+	if root == nil || root.Kind != yaml.MappingNode {
+		return nil
+	}
+	out := make(map[string]int, len(root.Content)/2)
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		k := root.Content[i]
+		if k.Kind != yaml.ScalarNode {
+			continue
+		}
+		out[k.Value] = k.Line + lineOffset
+	}
+	return out
+}
+
 func hasYAMLAnchorOrAlias(node *yaml.Node) bool {
 	if node.Anchor != "" || node.Kind == yaml.AliasNode {
 		return true

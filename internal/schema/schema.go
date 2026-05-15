@@ -35,6 +35,16 @@ type Schema struct {
 	// including any trailing "?" optional-field marker.
 	Frontmatter map[string]string
 
+	// FrontmatterLines maps each front-matter key to the 1-based
+	// line of its constraint in the schema source, when known. The
+	// file-based parser populates this from the proto.md
+	// frontmatter via yaml.Node line metadata; the inline parser
+	// does not (the config loader unmarshals into typed values
+	// before this code sees it). Lookup is by the same key form
+	// stored in Frontmatter (with the optional "?" suffix
+	// preserved).
+	FrontmatterLines map[string]int
+
 	// Require carries constraints that apply to the document as a
 	// whole (filename pattern, etc.).
 	Require Require

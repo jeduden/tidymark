@@ -261,7 +261,7 @@ func TestKindPathPattern_MismatchEmitsMDS020(t *testing.T) {
 	require.Len(t, result.Diagnostics, 1)
 	d := result.Diagnostics[0]
 	assert.Equal(t, "MDS020", d.RuleID)
-	assert.Contains(t, d.Message, `filename: got "plan/early-draft.md"`)
+	assert.Contains(t, d.Message, `path: got "plan/early-draft.md"`)
 	assert.Contains(t, d.Message, "kinds[plan] / path-pattern")
 }
 

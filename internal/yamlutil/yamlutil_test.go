@@ -124,3 +124,50 @@ func TestMarshal(t *testing.T) {
 		assert.Equal(t, "null\n", string(data))
 	})
 }
+
+func TestTopLevelMappingLines(t *testing.T) {
+	t.Run("maps top-level keys to source lines", func(t *testing.T) {
+		node, err := yamlutil.UnmarshalNodeSafe([]byte("id: 1\nname: foo\n"))
+		require.NoError(t, err)
+		lines := yamlutil.TopLevelMappingLines(&node, 0)
+		assert.Equal(t, map[string]int{"id": 1, "name": 2}, lines)
+	})
+
+	t.Run("applies lineOffset", func(t *testing.T) {
+		node, err := yamlutil.UnmarshalNodeSafe([]byte("id: 1\n"))
+		require.NoError(t, err)
+		// Offset of 1 covers the opening "---" delimiter when
+		// parsing a stripped front-matter body.
+		lines := yamlutil.TopLevelMappingLines(&node, 1)
+		assert.Equal(t, map[string]int{"id": 2}, lines)
+	})
+
+	t.Run("returns nil for empty document", func(t *testing.T) {
+		var node yaml.Node
+		assert.Nil(t, yamlutil.TopLevelMappingLines(&node, 0))
+	})
+
+	t.Run("returns nil for non-mapping root", func(t *testing.T) {
+		node, err := yamlutil.UnmarshalNodeSafe([]byte("- a\n- b\n"))
+		require.NoError(t, err)
+		assert.Nil(t, yamlutil.TopLevelMappingLines(&node, 0))
+	})
+
+	t.Run("skips non-scalar keys, keeps scalar siblings", func(t *testing.T) {
+		// YAML's explicit `?` syntax allows non-scalar mapping
+		// keys (a sequence or a mapping as the key). The helper
+		// silently skips them because diagnostics only reference
+		// scalar keys; remaining scalar siblings are still
+		// returned with their source line.
+		src := "" +
+			"? [a, b]\n" +
+			": list-key-value\n" +
+			"id: 1\n"
+		node, err := yamlutil.UnmarshalNodeSafe([]byte(src))
+		require.NoError(t, err)
+		lines := yamlutil.TopLevelMappingLines(&node, 0)
+		// id is on the third source line; the non-scalar key on
+		// lines 1-2 produces no entry.
+		assert.Equal(t, map[string]int{"id": 3}, lines)
+	})
+}

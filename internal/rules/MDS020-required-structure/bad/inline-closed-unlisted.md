@@ -10,7 +10,10 @@ settings:
 diagnostics:
   - line: 7
     column: 1
-    message: 'unexpected section "## Notes" (expected "## Decision")'
+    message: |-
+      ## Notes: got <present>, expected not declared in schema
+        (expected "## Decision" here instead)
+      schema: inline kind schema
 ---
 # RFC
 

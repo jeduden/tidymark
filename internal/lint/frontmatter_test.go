@@ -61,6 +61,33 @@ func TestStripFrontMatter(t *testing.T) {
 	}
 }
 
+// TestStripFrontMatter_BlockScalarFenceSequence regresses a
+// Copilot review observation: a YAML block-scalar value (e.g.
+// `notes: |`) can contain the literal `---\n` sequence inside
+// its body. The closing fence must still be matched at the
+// start of a line, not at the first `---\n` substring anywhere
+// in the YAML body.
+func TestStripFrontMatter_BlockScalarFenceSequence(t *testing.T) {
+	src := "---\n" +
+		"id: 1\n" +
+		"notes: |\n" +
+		"  ---\n" +
+		"  more text\n" +
+		"status: open\n" +
+		"---\n" +
+		"# Body\n"
+	wantPrefix := "---\n" +
+		"id: 1\n" +
+		"notes: |\n" +
+		"  ---\n" +
+		"  more text\n" +
+		"status: open\n" +
+		"---\n"
+	prefix, content := StripFrontMatter([]byte(src))
+	assert.Equal(t, wantPrefix, string(prefix))
+	assert.Equal(t, "# Body\n", string(content))
+}
+
 func TestParseFrontMatterKinds(t *testing.T) {
 	tests := []struct {
 		name  string

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/lint"
@@ -614,7 +615,8 @@ func TestValidate_OutOfOrderWithNestedSections(t *testing.T) {
 	// Expect the out-of-order diagnostic but no "missing Step A".
 	var found bool
 	for _, d := range diags {
-		if d.Message == `section "## Tasks" out of order: expected after "## Goal"` {
+		if strings.Contains(d.Message, `## Tasks: got <out of order>`) &&
+			strings.Contains(d.Message, `expected after "## Goal"`) {
 			found = true
 		}
 		assert.NotContains(t, d.Message, "Step A",
@@ -660,10 +662,10 @@ func TestValidate_ShallowLevelMismatchClaimedByText(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var levelDiag bool
 	for _, d := range diags {
-		if d.Message == `heading level mismatch for "Step": expected h3, got h2` {
+		if strings.Contains(d.Message, `Step: got h2, expected h3`) {
 			levelDiag = true
 		}
-		assert.NotContains(t, d.Message, "missing required",
+		assert.NotContains(t, d.Message, "expected section to be present",
 			"shallow-match should claim the scope, not leave it missing")
 	}
 	assert.True(t, levelDiag,
@@ -700,7 +702,8 @@ func TestValidate_InvalidFilenamePattern(t *testing.T) {
 	doc := newDocFile(t, "doc.md", "# T\n")
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message, "invalid filename pattern")
+	assert.Contains(t, diags[0].Message, "filename pattern:")
+	assert.Contains(t, diags[0].Message, "expected valid glob")
 }
 
 func TestValidateFrontmatter_HandlesNilFM(t *testing.T) {
@@ -757,6 +760,25 @@ func TestStripDelimiters_HappyPath(t *testing.T) {
 	// lint.StripFrontMatter feeds it.
 	got := stripDelimiters([]byte("---\nfoo: 1\n---\n"))
 	assert.Equal(t, "foo: 1\n", string(got))
+}
+
+// TestStripDelimiters_BlockScalarFenceSequence regresses a
+// Copilot review observation: a YAML block-scalar value can
+// contain the literal `---\n` sequence inside its body. The
+// earlier strings.Index search truncated at the first match;
+// TrimSuffix on the canonical closing fence preserves the
+// entire body.
+func TestStripDelimiters_BlockScalarFenceSequence(t *testing.T) {
+	in := []byte(
+		"---\n" +
+			"id: 1\n" +
+			"notes: |\n" +
+			"  ---\n" +
+			"  more text\n" +
+			"status: open\n" +
+			"---\n")
+	want := "id: 1\nnotes: |\n  ---\n  more text\nstatus: open\n"
+	assert.Equal(t, want, string(stripDelimiters(in)))
 }
 
 func TestParseFile_FrontmatterEmptyBody(t *testing.T) {
@@ -854,10 +876,11 @@ func TestValidate_OutOfOrderHonoursPlaceholderHeadings(t *testing.T) {
 	var oo bool
 	var missing bool
 	for _, d := range diags {
-		if d.Message == `section "## MDS001: line-length" out of order: expected after "## Goal"` {
+		if strings.Contains(d.Message, `## MDS001: line-length: got <out of order>`) &&
+			strings.Contains(d.Message, `expected after "## Goal"`) {
 			oo = true
 		}
-		if d.Message == `missing required section "## {id}: {name}"` {
+		if strings.Contains(d.Message, `## {id}: {name}: got <missing>`) {
 			missing = true
 		}
 	}
@@ -895,10 +918,11 @@ func TestValidate_LateListedScopeRecursesIntoChildren(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var oo, missing bool
 	for _, d := range diags {
-		if d.Message == `section "## B" out of order: expected before this position` {
+		if strings.Contains(d.Message, `## B: got <out of order>`) &&
+			strings.Contains(d.Message, "expected before this position") {
 			oo = true
 		}
-		if d.Message == `missing required section "### B-child"` {
+		if strings.Contains(d.Message, `### B-child: got <missing>`) {
 			missing = true
 		}
 	}
@@ -1172,12 +1196,13 @@ func TestValidate_WildcardHeadingParticipatesInOutOfOrder(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var oo bool
 	for _, d := range diags {
-		if d.Message == `section "## B" out of order: expected after "## A"` {
+		if strings.Contains(d.Message, `## B: got <out of order>`) &&
+			strings.Contains(d.Message, `expected after "## A"`) {
 			oo = true
 		}
-		assert.NotContains(t, d.Message, "missing required",
+		assert.NotContains(t, d.Message, "expected section to be present",
 			"the ? wildcard must claim B via out-of-order, not stay missing")
-		assert.NotContains(t, d.Message, "unexpected",
+		assert.NotContains(t, d.Message, "<present>",
 			"B should not surface as unexpected when ? can claim it")
 	}
 	assert.True(t, oo,
@@ -1206,10 +1231,11 @@ func TestValidate_PlaceholderAliasParticipatesInOutOfOrder(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var oo bool
 	for _, d := range diags {
-		if d.Message == `section "## alice: admin" out of order: expected after "## A"` {
+		if strings.Contains(d.Message, `## alice: admin: got <out of order>`) &&
+			strings.Contains(d.Message, `expected after "## A"`) {
 			oo = true
 		}
-		assert.NotContains(t, d.Message, "missing required",
+		assert.NotContains(t, d.Message, "expected section to be present",
 			"placeholder alias must claim the heading, not leave Profile missing")
 	}
 	assert.True(t, oo,
@@ -1276,7 +1302,8 @@ func TestValidate_OpenScopeFlagsLateListedScope(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var found bool
 	for _, d := range diags {
-		if d.Message == `section "## B" out of order: expected before this position` {
+		if strings.Contains(d.Message, `## B: got <out of order>`) &&
+			strings.Contains(d.Message, "expected before this position") {
 			found = true
 		}
 	}
@@ -1323,7 +1350,8 @@ func TestValidate_RequiredScopeStillFlagsOutOfOrder(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var ooFound bool
 	for _, d := range diags {
-		if d.Message == `section "## B" out of order: expected after "## A"` {
+		if strings.Contains(d.Message, `## B: got <out of order>`) &&
+			strings.Contains(d.Message, `expected after "## A"`) {
 			ooFound = true
 		}
 	}
@@ -1347,7 +1375,8 @@ func TestValidate_ClosedTrailingExtra(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var trailing bool
 	for _, d := range diags {
-		if d.Message == `unexpected section "## Trailing"` {
+		if strings.Contains(d.Message, `## Trailing: got <present>`) &&
+			strings.Contains(d.Message, "not declared in schema") {
 			trailing = true
 		}
 	}
@@ -1384,7 +1413,7 @@ func TestValidate_ShallowNonMatchEndsScopeList(t *testing.T) {
 	diags := Validate(doc, sch, nil, false, makeDiagForTest)
 	var missing bool
 	for _, d := range diags {
-		if d.Message == `missing required section "### Child"` {
+		if strings.Contains(d.Message, `### Child: got <missing>`) {
 			missing = true
 		}
 	}

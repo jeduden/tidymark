@@ -298,7 +298,7 @@ func TestCheck_MissingHeading(t *testing.T) {
 	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md", "# My Rule\n\n## Examples\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `missing required section "## Settings"`)
+	expectDiagMsg(t, diags, `## Settings: got <missing>, expected section to be present`)
 }
 
 func TestCheck_ExtraSectionForbidden(t *testing.T) {
@@ -307,7 +307,7 @@ func TestCheck_ExtraSectionForbidden(t *testing.T) {
 	f := newTestFile(t, "doc.md",
 		"# My Plan\n\n## Prerequisites\n\n## Goal\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `unexpected section "## Prerequisites"`)
+	expectDiagMsg(t, diags, `## Prerequisites: got <present>, expected not declared in schema`)
 }
 
 func TestCheck_SectionWildcardAllowsExtras(t *testing.T) {
@@ -334,7 +334,7 @@ func TestCheck_WrongLevel(t *testing.T) {
 	f := newTestFile(t, "doc.md",
 		"# My Rule\n\n### Settings\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, "heading level mismatch")
+	expectDiagMsg(t, diags, "expected h2")
 }
 
 // Level-mismatch diagnostics must name the offending heading so
@@ -345,8 +345,8 @@ func TestCheck_WrongLevel_NamesHeading(t *testing.T) {
 	f := newTestFile(t, "doc.md",
 		"# My Rule\n\n### Settings\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `"Settings"`)
-	expectDiagMsg(t, diags, "expected h2, got h3")
+	expectDiagMsg(t, diags, "Settings:")
+	expectDiagMsg(t, diags, "got h3, expected h2")
 }
 
 // Unexpected-section diagnostics should tell the author which
@@ -357,7 +357,7 @@ func TestCheck_ExtraSection_NamesExpected(t *testing.T) {
 	f := newTestFile(t, "doc.md",
 		"# My Plan\n\n## Prerequisites\n\n## Goal\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `unexpected section "## Prerequisites"`)
+	expectDiagMsg(t, diags, `## Prerequisites: got <present>, expected not declared in schema`)
 	expectDiagMsg(t, diags, `expected "## Goal"`)
 }
 
@@ -370,7 +370,7 @@ func TestCheck_ExtraSection_TrailingNoExpected(t *testing.T) {
 	f := newTestFile(t, "doc.md",
 		"# My Plan\n\n## Goal\n\n## Trailing\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `unexpected section "## Trailing"`)
+	expectDiagMsg(t, diags, `## Trailing: got <present>, expected not declared in schema`)
 }
 
 // When a required section appears but in the wrong order, the
@@ -555,8 +555,8 @@ status: '"🔲" | "🔳" | "✅"'
 	f := newTestFile(t, "doc.md",
 		"---\nid: 40\n---\n# Any title\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags,
-		"front matter does not satisfy schema CUE constraints")
+	expectDiagMsg(t, diags, `status: `)
+	expectDiagMsg(t, diags, `expected one of: "🔲", "🔳", "✅"`)
 }
 
 func TestCheck_FrontMatterCUESchemaInvalidStatus(t *testing.T) {
@@ -570,8 +570,8 @@ status: '"🔲" | "🔳" | "✅"'
 	f := newTestFile(t, "doc.md",
 		"---\nid: 40\nstatus: in-progress\n---\n# Any title\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags,
-		"front matter does not satisfy schema CUE constraints")
+	expectDiagMsg(t, diags, `status: got "in-progress"`)
+	expectDiagMsg(t, diags, `expected one of: "🔲", "🔳", "✅"`)
 }
 
 func TestCheck_FrontMatterCUESchemaRejectsExtraFields(t *testing.T) {
@@ -585,8 +585,8 @@ status: '"🔲" | "🔳" | "✅"'
 	f := newTestFile(t, "doc.md",
 		"---\nid: 40\nstatus: \"✅\"\nextra: true\n---\n# Any title\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags,
-		"front matter does not satisfy schema CUE constraints")
+	expectDiagMsg(t, diags, `extra:`)
+	expectDiagMsg(t, diags, `not declared in schema`)
 }
 
 func TestCheck_InvalidSchemaFrontMatterCUE(t *testing.T) {
@@ -658,8 +658,8 @@ name: 'string & != ""'
 	f := newTestFile(t, "doc.md",
 		"---\nname: my-skill\nunknown: true\n---\n# My Skill\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags,
-		"front matter does not satisfy schema CUE constraints")
+	expectDiagMsg(t, diags, `unknown:`)
+	expectDiagMsg(t, diags, `not declared in schema`)
 }
 
 func TestCheck_OptionalFieldInvalidType(t *testing.T) {
@@ -673,8 +673,7 @@ name: 'string & != ""'
 	f := newTestFile(t, "doc.md",
 		"---\nname: my-skill\nuser-invocable: not-a-bool\n---\n# My Skill\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags,
-		"front matter does not satisfy schema CUE constraints")
+	expectDiagMsg(t, diags, `user-invocable`)
 }
 
 // =====================================================================
@@ -703,7 +702,7 @@ filename: "[0-9]*_*.md"
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
-		`filename "my-plan.md" does not match required pattern`)
+		`filename: got "my-plan.md", expected filename matching glob [0-9]*_*.md`)
 }
 
 func TestCheck_FilenamePatternSingleLinePI(t *testing.T) {
@@ -714,7 +713,7 @@ func TestCheck_FilenamePatternSingleLinePI(t *testing.T) {
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
-		`filename "my-plan.md" does not match required pattern`)
+		`filename: got "my-plan.md", expected filename matching glob [0-9]*_*.md`)
 }
 
 func TestCheck_FilenamePatternPIWithTrailingContent(t *testing.T) {
@@ -723,7 +722,7 @@ func TestCheck_FilenamePatternPIWithTrailingContent(t *testing.T) {
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
-		`filename "my-plan.md" does not match required pattern`)
+		`filename: got "my-plan.md", expected filename matching glob [0-9]*_*.md`)
 }
 
 func TestCheck_FilenamePatternIndentedPI(t *testing.T) {
@@ -734,7 +733,7 @@ func TestCheck_FilenamePatternIndentedPI(t *testing.T) {
 	f := newTestFile(t, "my-plan.md", "# My Plan\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
-		`filename "my-plan.md" does not match required pattern`)
+		`filename: got "my-plan.md", expected filename matching glob [0-9]*_*.md`)
 }
 
 func TestCheck_FilenamePatternNotSet(t *testing.T) {
@@ -782,8 +781,11 @@ func TestCheck_PathPattern_Mismatch(t *testing.T) {
 	}}
 	diags := r.Check(f)
 	expectDiags(t, diags, 1)
+	// path-pattern checks the workspace-relative path, so the
+	// field label is "path" (distinct from the "filename" field
+	// used for basename-only checks).
 	assert.Contains(t, diags[0].Message,
-		`filename: got "plan/early-draft.md"`)
+		`path: got "plan/early-draft.md"`)
 	assert.Contains(t, diags[0].Message,
 		`glob plan/[0-9][0-9]*_*.md`)
 	assert.Contains(t, diags[0].Message,
@@ -926,7 +928,7 @@ filename: "[0-9]*_*.md"
 	}
 	diags := r.Check(f)
 	expectDiagMsg(t, diags,
-		`filename "my-plan.md" does not match required pattern`)
+		`filename: got "my-plan.md", expected filename matching glob [0-9]*_*.md`)
 	expectDiagMsg(t, diags, "kinds[plan] / path-pattern")
 }
 
@@ -1143,7 +1145,7 @@ func TestCheck_FrontMatterAnchorRejected(t *testing.T) {
 
 func TestDeriveFrontMatterCUE_AnchorRejected(t *testing.T) {
 	yml := []byte("base: &base\n  id: 1\n")
-	_, err := deriveFrontMatterCUE(yml)
+	_, _, err := deriveFrontMatterCUE(yml)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "anchors/aliases are not permitted")
 }
@@ -1365,6 +1367,26 @@ func TestExtractYAML_UnclosedFrontMatter(t *testing.T) {
 	assert.Nil(t, got, "unclosed front matter should return nil")
 }
 
+// TestExtractYAML_BlockScalarFenceSequence regresses a Copilot
+// review observation: a YAML block-scalar value (e.g. `notes:
+// |`) can contain the literal `---\n` sequence inside its body.
+// The earlier strings.Index search would truncate at the first
+// match; TrimSuffix on the canonical closing fence keeps the
+// full body intact.
+func TestExtractYAML_BlockScalarFenceSequence(t *testing.T) {
+	input := []byte(
+		"---\n" +
+			"id: 1\n" +
+			"notes: |\n" +
+			"  ---\n" +
+			"  more text\n" +
+			"status: open\n" +
+			"---\n")
+	got := extractYAML(input)
+	want := "id: 1\nnotes: |\n  ---\n  more text\nstatus: open\n"
+	assert.Equal(t, want, string(got))
+}
+
 // =====================================================================
 // Phase 4 coverage: writeNodeText via headingText (CodeSpan branch)
 // =====================================================================
@@ -1430,7 +1452,7 @@ func TestCheck_WildcardHeadingLevelMismatch(t *testing.T) {
 	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md", "## Title\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `heading level mismatch for "Title": expected h1, got h2`)
+	expectDiagMsg(t, diags, `Title: got h2, expected h1`)
 }
 
 // Soft-wrapped body paragraph (multiple lines joined by space) must
@@ -1476,7 +1498,7 @@ func TestCheck_SyncNotFiredForMissingHeading(t *testing.T) {
 	diags := r.Check(f)
 	// Exactly one diagnostic: missing required section, no sync error.
 	require.Len(t, diags, 1)
-	expectDiagMsg(t, diags, "missing required section")
+	expectDiagMsg(t, diags, "expected section to be present")
 	for _, d := range diags {
 		assert.NotContains(t, d.Message, "sync")
 	}
@@ -1490,9 +1512,9 @@ func TestCheck_MultipleMissingSections(t *testing.T) {
 	r := &Rule{Schema: schemaPath}
 	f := newTestFile(t, "doc.md", "# Title\n")
 	diags := r.Check(f)
-	expectDiagMsg(t, diags, `missing required section "## Goal"`)
-	expectDiagMsg(t, diags, `missing required section "## Tasks"`)
-	expectDiagMsg(t, diags, `missing required section "## Acceptance Criteria"`)
+	expectDiagMsg(t, diags, `## Goal: got <missing>`)
+	expectDiagMsg(t, diags, `## Tasks: got <missing>`)
+	expectDiagMsg(t, diags, `## Acceptance Criteria: got <missing>`)
 }
 
 // A section that is both out of order AND at the wrong level must
@@ -1506,7 +1528,7 @@ func TestCheck_OutOfOrderAlsoReportsLevelMismatch(t *testing.T) {
 		"# Title\n\n## Tasks\n\n### Goal\n")
 	diags := r.Check(f)
 	expectDiagMsg(t, diags, `out of order`)
-	expectDiagMsg(t, diags, `heading level mismatch`)
+	expectDiagMsg(t, diags, `Goal: got h3, expected h2`)
 }
 
 // =====================================================================
@@ -1516,7 +1538,7 @@ func TestCheck_OutOfOrderAlsoReportsLevelMismatch(t *testing.T) {
 // deriveFrontMatterCUE: empty map → return "", nil
 func TestDeriveFrontMatterCUE_EmptyMap(t *testing.T) {
 	// "{}" unmarshals to an empty map → len(raw)==0 branch.
-	result, err := deriveFrontMatterCUE([]byte("{}\n"))
+	result, _, err := deriveFrontMatterCUE([]byte("{}\n"))
 	require.NoError(t, err)
 	assert.Equal(t, "", result)
 }
@@ -1524,7 +1546,7 @@ func TestDeriveFrontMatterCUE_EmptyMap(t *testing.T) {
 // deriveFrontMatterCUE: cueExprForMap error via null YAML value
 func TestDeriveFrontMatterCUE_NullValueError(t *testing.T) {
 	// YAML null (represented as nil in Go) is not a supported schema type.
-	_, err := deriveFrontMatterCUE([]byte("key: ~\n"))
+	_, _, err := deriveFrontMatterCUE([]byte("key: ~\n"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parsing schema frontmatter constraints")
 }
@@ -1731,7 +1753,8 @@ func TestCheck_FilenamePatternInvalidGlob(t *testing.T) {
 	f := newTestFile(t, "doc.md", "# Title\n")
 	diags := r.Check(f)
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message, "invalid filename pattern")
+	assert.Contains(t, diags[0].Message, "filename pattern:")
+	assert.Contains(t, diags[0].Message, "expected valid glob")
 }
 
 // checkSync: isSectionWildcard continue branch
@@ -1758,7 +1781,7 @@ func TestCheck_SyncHeadingNotFoundInDoc(t *testing.T) {
 	diags := r.Check(f)
 	// Should report missing required section, not panic.
 	require.Len(t, diags, 1)
-	assert.Contains(t, diags[0].Message, "missing required section")
+	assert.Contains(t, diags[0].Message, "expected section to be present")
 }
 
 // checkSyncPoint: invalid CUE path (call directly since the fieldPattern
@@ -1843,7 +1866,8 @@ status: '"🔲" | "🔳" | "✅"'
 	diags := r.Check(f)
 	var hasCUEDiag bool
 	for _, d := range diags {
-		if strings.Contains(d.Message, "CUE constraints") {
+		if strings.Contains(d.Message, "id:") &&
+			strings.Contains(d.Message, "schema:") {
 			hasCUEDiag = true
 		}
 	}
@@ -1883,4 +1907,170 @@ func TestSettingMergeMode_RequiredStructure(t *testing.T) {
 	assert.Equal(t, rule.MergeAppend, r.SettingMergeMode("placeholders"))
 	assert.Equal(t, rule.MergeReplace, r.SettingMergeMode("schema"))
 	assert.Equal(t, rule.MergeReplace, r.SettingMergeMode("unknown"))
+}
+
+// =====================================================================
+// Plan 147: actionable schema diagnostics
+// =====================================================================
+
+// TestCheck_FrontMatter_Hint covers acceptance criterion 3: a
+// short-disjunction violation with a typo close to a valid literal
+// produces a "did you mean" hint pointing at the nearest match.
+func TestCheck_FrontMatter_Hint(t *testing.T) {
+	schemaPath := writeSchema(t, `---
+status: '"draft" | "open" | "done"'
+---
+# ?
+`)
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\nstatus: draf\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, `status: got "draf"`)
+	expectDiagMsg(t, diags, `expected one of: "draft", "open", "done"`)
+	expectDiagMsg(t, diags, `did you mean "draft"?`)
+}
+
+// TestCheck_FrontMatter_IntRange covers acceptance criterion 4: a
+// numeric-range violation is rendered with the user-facing
+// `int between N and M` form, not raw CUE syntax.
+func TestCheck_FrontMatter_IntRange(t *testing.T) {
+	schemaPath := writeSchema(t, `---
+priority: 'int & >=1 & <=5'
+---
+# ?
+`)
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\npriority: 9\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, `priority: got 9`)
+	expectDiagMsg(t, diags, `expected int between 1 and 5`)
+	expectDiagMsg(t, diags, `try 5`)
+}
+
+// TestCheck_FrontMatter_Regex covers acceptance criterion 5: a
+// regex violation renders as `string matching <pattern>`, with
+// the pattern body unquoted so the user sees what to type.
+func TestCheck_FrontMatter_Regex(t *testing.T) {
+	schemaPath := writeSchema(t, `---
+id: '=~"^FOO-[0-9]{4}$"'
+---
+# ?
+`)
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\nid: BAR-0001\n---\n# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, `id: got "BAR-0001"`)
+	expectDiagMsg(t, diags, `expected string matching ^FOO-[0-9]{4}$`)
+}
+
+// TestCheck_FrontMatter_OneDiagnosticPerField covers acceptance
+// criterion 2: three failed FM constraints produce three
+// diagnostics rather than collapsing into one.
+func TestCheck_FrontMatter_OneDiagnosticPerField(t *testing.T) {
+	schemaPath := writeSchema(t, `---
+a: '"x" | "y"'
+b: 'int & >=1'
+c: '=~"^Z"'
+---
+# ?
+`)
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\na: wrong\nb: 0\nc: nope\n---\n# Any title\n")
+	diags := r.Check(f)
+	// Filter to MDS020 only (other rules don't run with the
+	// minimal schema).
+	var our []lint.Diagnostic
+	for _, d := range diags {
+		if d.RuleID == "MDS020" {
+			our = append(our, d)
+		}
+	}
+	require.Len(t, our, 3,
+		"three FM violations should produce three separate diagnostics")
+	fieldSeen := map[string]bool{}
+	for _, d := range our {
+		for _, f := range []string{"a:", "b:", "c:"} {
+			if strings.HasPrefix(d.Message, f) {
+				fieldSeen[f] = true
+			}
+		}
+	}
+	for _, f := range []string{"a:", "b:", "c:"} {
+		assert.True(t, fieldSeen[f], "expected a diagnostic for field %s", f)
+	}
+}
+
+// TestCheck_FrontMatter_SchemaRefIncludesLine covers acceptance
+// criterion 8 for file-based schemas: the trailing schema
+// reference points at the constraint's line in proto.md so users
+// jump straight to the rule they violated.
+func TestCheck_FrontMatter_SchemaRefIncludesLine(t *testing.T) {
+	schemaPath := writeSchema(t, `---
+id: 'int & >=1'
+status: '"open" | "done"'
+---
+# ?
+`)
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\nstatus: bogus\n---\n# Any title\n")
+	diags := r.Check(f)
+	// status is on line 3 of the schema (line 1 is "---",
+	// line 2 is "id:", line 3 is "status:").
+	expectDiagMsg(t, diags, "schema:")
+	expectDiagMsg(t, diags, ":3")
+}
+
+// TestCheck_FrontMatter_DiagnosticLineAtKey regresses the
+// Copilot review comment: a FM violation should anchor its
+// diagnostic at the offending key's line, not at the start of
+// the body. The rule emits a body-coord line; the file's
+// LineOffset shift (applied by lint.File.AdjustDiagnostics)
+// turns it back into the absolute file line for the key.
+func TestCheck_FrontMatter_DiagnosticLineAtKey(t *testing.T) {
+	schemaPath := writeSchema(t, `---
+status: '"open" | "done"'
+---
+# ?
+`)
+	r := &Rule{Schema: schemaPath}
+	// Build the file through NewFileFromSource so f.FrontMatter
+	// and f.LineOffset land in the same shape they do under the
+	// LSP / CLI lint path. The doc's status key sits on file
+	// line 2; we expect the diagnostic to anchor there after
+	// AdjustDiagnostics shifts the rule's body-coord output.
+	src := []byte("---\nstatus: bogus\n---\n# Any title\n")
+	f, err := lint.NewFileFromSource("doc.md", src, true)
+	require.NoError(t, err)
+	diags := r.Check(f)
+	f.AdjustDiagnostics(diags)
+	var statusLine int
+	for _, d := range diags {
+		if strings.HasPrefix(d.Message, "status:") {
+			statusLine = d.Line
+		}
+	}
+	assert.Equal(t, 2, statusLine,
+		"FM diagnostic should anchor at the offending key's file line")
+}
+
+// TestCheck_FrontMatter_MissingFieldShowsMissing regresses the
+// Copilot review comment: a required FM field absent from the
+// document should render with `<missing>` in the actual slot so
+// the diagnostic format stays consistent.
+func TestCheck_FrontMatter_MissingFieldShowsMissing(t *testing.T) {
+	schemaPath := writeSchema(t, `---
+id: 'int & >=1'
+---
+# ?
+`)
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md", "# Any title\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags, "id: got <missing>")
+	expectDiagMsg(t, diags, "expected int >= 1")
 }

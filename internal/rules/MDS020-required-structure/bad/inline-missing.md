@@ -9,7 +9,9 @@ settings:
 diagnostics:
   - line: 1
     column: 1
-    message: 'missing required section "## Tasks"'
+    message: |-
+      ## Tasks: got <missing>, expected section to be present
+      schema: inline kind schema
 ---
 # My Plan
 

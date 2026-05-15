@@ -128,12 +128,9 @@ kinds:
 
 Section keys:
 
-- `heading:` — string (literal text), `null` (the
-  preamble: content before any heading), or mapping
-  (typed match — today only `{unlisted: true}` for a
-  slot). The level for string headings comes from
-  depth in the tree (root sections are H2; nested
-  sections are H3, then H4, …).
+- `heading:` — string (literal), `null` (preamble), or
+  `{unlisted: true}` (positional slot). Level comes from
+  depth (root sections are H2).
 - `required:` — defaults to `true`. Preamble entries
   typically set `required: false`.
 - `aliases:` — alternate heading texts. Not allowed
@@ -161,34 +158,23 @@ Section keys:
   for the entry shape and the per-kind fields.
   Rejected on slot or `?` wildcard scopes.
 
-A slot entry (`heading: {unlisted: true}`) absorbs
-zero or more unlisted sections at that position.
-Surrounding listed sections still keep their order.
-Out-of-order detection still claims a heading whose
-text matches a later listed scope, so the slot only
-absorbs truly-unlisted sections.
-
-Slots are positional-only: the parser rejects
-`aliases:`, `sections:`, `rules:`, `closed:`, and
-`required:` on a slot scope. The preamble
-(`heading: null`) accepts `required:`, `closed:`,
-and `rules:` for its line range; it rejects
-`aliases:` and `sections:`.
-
-The document's H1 is reserved for the title and is
-validated by `first-line-heading`; inline schemas
-constrain H2 and below.
+A slot (`heading: {unlisted: true}`) absorbs zero or more
+unlisted sections at its position. Out-of-order detection
+still claims a heading whose text matches a later listed
+scope, so the slot only absorbs truly-unlisted sections.
+Slots reject `aliases:`, `sections:`, `rules:`, `closed:`,
+and `required:`. The preamble (`heading: null`) accepts
+`required:`, `closed:`, and `rules:` but rejects
+`aliases:` and `sections:`. H1 is owned by
+`first-line-heading`; inline schemas constrain H2 and below.
 
 ### Cross-references
 
 A `cross-references:` block names text patterns whose
-matches must resolve to a real heading in the document.
-Each entry walks the document's inline text once and
-fills numeric (`{n}`, `{1}`, `{2}`, …) or named
-captures from the regex into the `must-match:` template;
-the result is slugified and looked up in the heading
-slug set. Unresolved references produce a diagnostic at
-the match's source line.
+matches must resolve to a real heading. Each entry fills
+numeric (`{n}`, `{1}`, …) or named captures from the
+regex into `must-match:`; the result is slugified and
+looked up in the heading slug set.
 
 ```yaml
 schema:
@@ -198,21 +184,17 @@ schema:
       skip-lines-matching: "^> "
 ```
 
-`skip-lines-matching:` is a regex; raw source lines
-that match it are exempt from the resolution check.
-The intended use is blockquoted stale text and version-
-history notes that mention old step numbers.
+`skip-lines-matching:` (regex) exempts blockquoted stale
+text and version-history notes from the check.
 
 ### Acronyms
 
-An `acronyms:` block flags all-caps tokens (length
-2-6, leading letter, alphanumeric) on their first use
-inside a configured scope when they appear without a
-parenthesised expansion. `known-safe:` lists tokens
-allowed without expansion; `scope:` restricts the
-check to sections whose heading text matches one of
-the listed names. Omitting `scope:` applies the check
-document-wide. First-use state is per-scope.
+An `acronyms:` block flags all-caps tokens (length 2-6,
+leading letter, alphanumeric) on first use inside a
+configured scope when they appear without a parenthesised
+expansion. `known-safe:` lists exempt tokens; `scope:`
+restricts the check to matching sections (omit it for
+document-wide). First-use state is per-scope.
 
 ```yaml
 schema:
@@ -224,11 +206,10 @@ schema:
 ### Index side-output
 
 An `index:` block asks `mdsmith fix` to write a JSON
-side-output next to the source file. `mdsmith check`
-does not write the file (read-only contract). The
-output path is resolved relative to the document's
-directory; absolute paths and `..` traversal are
-rejected.
+side-output next to the source file. `mdsmith check` is
+read-only (no write). Output paths are resolved relative
+to the document's directory; absolute paths and `..`
+traversal are rejected.
 
 ```yaml
 schema:
@@ -242,11 +223,7 @@ schema:
 - `step-map` — `{section-slug: [child-slugs]}`
 - `cross-ref-graph` — `{ref-text: target-slug}`
 - `word-counts` — `{section-slug: int}`
-- `headings` — flat list of
-  `{level, text, slug, line}`
-
-The set is closed so downstream tooling can parse the
-file without a schema reference.
+- `headings` — flat list of `{level, text, slug, line}`
 
 ## Config
 
@@ -314,23 +291,50 @@ Describe the goal here.
 
 ## Diagnostics
 
-| Condition            | Message                                                                       |
-|----------------------|-------------------------------------------------------------------------------|
-| section missing      | missing required section "## Settings"                                        |
-| wrong level          | heading level mismatch for "Settings": expected h2, got h3                    |
-| extra section        | unexpected section "## Extra" (expected "## Settings")                        |
-| out of order         | section "## Tasks" out of order: expected after "## Goal"                     |
-| heading sync         | heading does not match frontmatter: expected "MDS001" (from id), got "MDS002" |
-| body sync            | body does not match frontmatter field "description": expected "..."           |
-| front matter schema  | front matter does not satisfy schema CUE constraints: ...                     |
-| filename mismatch    | filename "foo.md" does not match required pattern "[0-9]*_*.md"               |
-| misplaced require    | <?require?> is only recognized in schema files; this directive has no effect  |
-| schema include loop  | cyclic include: a.md -> b.md -> a.md                                          |
-| content missing      | missing required content "code-block lang=yaml" inside ## Examples            |
-| content unexpected   | unexpected content "table" inside ## Examples (expected "paragraph")          |
-| content out of order | content "table" out of order: expected after "code-block lang=yaml"           |
-| code block lang      | code block language "json" does not match required "yaml"                     |
-| table columns        | table headers [Key Value] do not match required [Setting Default]             |
+Every schema diagnostic names the field, the value, the
+constraint, and (when it can) a hint:
+
+```text
+status: got "draf", expected one of: "draft", "open", "done"
+  (did you mean "draft"?)
+schema: plan/proto.md:4
+```
+
+The trailing `schema: <ref>` line points at the source; for
+proto.md schemas it includes the constraint's line number.
+
+| Condition            | Message                                                               |
+|----------------------|-----------------------------------------------------------------------|
+| section missing      | `## Settings: got <missing>, expected section to be present`          |
+| wrong level          | `Settings: got h3, expected h2`                                       |
+| extra section        | `## Extra: got <present>, expected not declared in schema`            |
+| out of order         | `## Tasks: got <out of order>, expected in declared order`            |
+| heading sync         | `heading does not match frontmatter: expected "X" (from id), …`       |
+| body sync            | `body does not match frontmatter field "description": expected …`     |
+| front matter schema  | `status: got "draf", expected one of: "draft", "open", "done" …`      |
+| filename mismatch    | `filename: got "foo.md", expected filename matching glob [0-9]*_*.md` |
+| misplaced require    | `<?require?> is only recognized in schema files; …`                   |
+| schema include loop  | `cyclic include: a.md -> b.md -> a.md`                                |
+| content missing      | missing required content "code-block lang=yaml" inside ## Examples    |
+| content unexpected   | unexpected content "table" inside ## Examples (expected "paragraph")  |
+| content out of order | content "table" out of order: expected after "code-block lang=yaml"   |
+| code block lang      | code block language "json" does not match required "yaml"             |
+| table columns        | table headers [Key Value] do not match required [Setting Default]     |
+
+CUE constraints render in user vocabulary:
+
+| CUE shape            | Rendered as                      |
+|----------------------|----------------------------------|
+| `"a" \| "b" \| "c"`  | `one of: "a", "b", "c"`          |
+| `=~"^FOO-[0-9]{4}$"` | `string matching ^FOO-[0-9]{4}$` |
+| `int & >=1 & <=5`    | `int between 1 and 5`            |
+| `string & != ""`     | `non-empty string`               |
+| `bool`               | `true or false`                  |
+| anything else        | the raw CUE expression           |
+
+Hints fire on string disjunctions (Levenshtein ≤ 2 of a valid
+literal) and integer ranges (nearest bound when just outside).
+Other shapes get no hint.
 
 ## Meta-Information
 

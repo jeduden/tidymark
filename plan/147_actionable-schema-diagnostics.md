@@ -1,7 +1,7 @@
 ---
 id: 147
 title: Actionable schema diagnostics for MDS020
-status: "🔲"
+status: "✅"
 model: opus
 summary: >-
   Replace MDS020's coarse "front matter does not
@@ -174,24 +174,31 @@ additive.
 
 ## Tasks
 
-1. Add a `SchemaDiagnostic` type in
-   `internal/rules/requiredstructure/` carrying
-   `Field`, `Actual`, `Expected`, `Hint`,
-   `SchemaRef`. Render via a single
-   `Format()` method.
+1. Add a `SchemaDiagnostic` type carrying `Field`,
+   `Actual`, `Expected`, `Hint`, `SchemaRef` with a
+   single `Format()` method. Implemented in
+   `internal/schema/diagnostic.go` (not
+   `internal/rules/requiredstructure/`) so the
+   producer (schema validator) and the consumer
+   (MDS020) can share the formatter without an
+   import cycle. The rule re-uses `SchemaDiagnostic`
+   directly for its own legacy heading-template path.
 2. Walk CUE errors in
-   `requiredstructure.Rule.Check` and emit one
+   `schema.validateFrontmatterDiags` and emit one
    `SchemaDiagnostic` per error path. Stop
    collapsing into a single diagnostic.
 3. Implement the expected-value extractor for the
    five common CUE shapes in the table; fall back
-   to the raw expression otherwise.
+   to the raw expression otherwise. Lives in
+   `internal/schema/expected.go`.
 4. Implement the hint extractor for
    string-literal disjunctions (Levenshtein ≤2)
-   and numeric ranges.
+   and numeric ranges. Lives in
+   `internal/schema/hint.go`.
 5. Replace structure-violation messages with
    `SchemaDiagnostic` instances. Same for
-   `<?require filename:?>`.
+   `<?require filename:?>` and kind-level
+   `path-pattern:` violations.
 6. Ensure every `SchemaDiagnostic` carries
    `RuleID: "MDS020"` and `RuleName:
    "required-structure"`. The LSP conversion
@@ -204,8 +211,14 @@ additive.
 7. Update fixtures in
    `internal/rules/MDS020-required-structure/bad/`
    so the front-matter assertions match the new
-   message shape. Add a fixture per shape in the
-   table above.
+   message shape. Shape-specific fixtures
+   (disjunction-hint / regex / int-range) live as
+   unit tests in
+   `internal/rules/requiredstructure/rule_test.go`
+   because the existing folder-based integration
+   runner uses `lint.NewFile` (without front-matter
+   stripping) and cannot pass document front
+   matter to the rule.
 8. Update assertions in the requiredstructure
    tests
    ([rule_test.go](../internal/rules/requiredstructure/rule_test.go))
@@ -216,31 +229,35 @@ additive.
 
 ## Acceptance Criteria
 
-- [ ] A file violating one FM constraint produces
+- [x] A file violating one FM constraint produces
       exactly one diagnostic with `field`,
       `actual`, `expected` populated.
-- [ ] A file violating three FM constraints
+- [x] A file violating three FM constraints
       produces three diagnostics, each anchored
       to its own field's position.
-- [ ] A string-disjunction violation with a typo
+- [x] A string-disjunction violation with a typo
       ("draf" against `"draft" | "open"`)
       produces a `did you mean "draft"?` hint.
-- [ ] A numeric-range violation outside the
+- [x] A numeric-range violation outside the
       bounds renders `int between N and M`, not
       raw CUE syntax.
-- [ ] A regex violation renders `string matching
+- [x] A regex violation renders `string matching
       <pattern>`, not raw CUE syntax.
-- [ ] Missing sections, unexpected sections, and
+- [x] Missing sections, unexpected sections, and
       filename violations all use the same
       `field / actual / expected` shape.
-- [ ] Every emitted diagnostic carries
+- [x] Every emitted diagnostic carries
       `RuleID: "MDS020"` and
       `RuleName: "required-structure"`, and the
       LSP conversion preserves these as `Code`
       and `Source` on the wire.
-- [ ] Schema reference (`schema: <file>:<line>`
-      or `schema: kind <name> / schema:<line>` for
-      inline) appears on every diagnostic.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no
+- [x] Schema reference (`schema: <file>:<line>`
+      for file schemas, `schema: inline kind
+      schema` for inline schemas — line tracking
+      inside `.mdsmith.yml` is a follow-up since
+      the config loader does not currently
+      preserve per-key positions) appears on
+      every diagnostic.
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no
       issues.

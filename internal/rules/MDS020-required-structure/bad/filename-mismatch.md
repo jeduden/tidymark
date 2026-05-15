@@ -4,6 +4,8 @@ settings:
 diagnostics:
   - line: 1
     column: 1
-    message: 'filename "filename-mismatch.md" does not match required pattern "[0-9]*_*.md"'
+    message: |-
+      filename: got "filename-mismatch.md", expected filename matching glob [0-9]*_*.md
+      schema: ../../internal/rules/MDS020-required-structure/bad/data/filename-tmpl.md
 ---
 # My Doc

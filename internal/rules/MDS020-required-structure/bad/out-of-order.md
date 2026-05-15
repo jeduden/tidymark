@@ -4,7 +4,10 @@ settings:
 diagnostics:
   - line: 3
     column: 1
-    message: 'section "## Tasks" out of order: expected after "## Goal"'
+    message: |-
+      ## Tasks: got <out of order>, expected in declared order
+        (expected after "## Goal")
+      schema: ../../internal/rules/MDS020-required-structure/bad/data/tmpl.md
 ---
 # My Plan
 

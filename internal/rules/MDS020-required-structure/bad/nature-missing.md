@@ -6,7 +6,9 @@ settings:
 diagnostics:
   - line: 1
     column: 1
-    message: 'front matter does not satisfy schema CUE constraints: nature: incomplete value "directive" | "generator" | "content" | "style" | "structure"'
+    message: |-
+      nature: got <missing>, expected one of: "directive", "generator", "content", "style", "structure"
+      schema: inline kind schema
 ---
 # MDS999: example-rule
 

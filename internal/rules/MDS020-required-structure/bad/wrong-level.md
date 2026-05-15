@@ -4,7 +4,9 @@ settings:
 diagnostics:
   - line: 3
     column: 1
-    message: 'heading level mismatch for "Goal": expected h2, got h3'
+    message: |-
+      Goal: got h3, expected h2
+      schema: ../../internal/rules/MDS020-required-structure/bad/data/tmpl.md
 ---
 # My Plan
 
