@@ -17,8 +17,6 @@ coverage:
     changes:
       default:
         enabled: true
-        target: auto
-        threshold: 0%
 
 # Coverage is uploaded with a flag per language so each report
 # only contains the files it actually measured. Without flags,
