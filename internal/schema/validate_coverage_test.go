@@ -246,3 +246,19 @@ func TestDocFrontmatterKeyLines_SourceFallback(t *testing.T) {
 	assert.Equal(t, 2, lines["id"])
 	assert.Equal(t, 3, lines["status"])
 }
+
+// TestDocFrontmatterKeyLines_StrippedFrontMatter covers the
+// production path: lint.NewFileFromSource(..., true) leaves
+// f.FrontMatter populated with the stripped block. The
+// helper goes through parseFMBlockKeyLines directly without
+// re-extracting from the source.
+func TestDocFrontmatterKeyLines_StrippedFrontMatter(t *testing.T) {
+	src := []byte("---\nid: 1\nstatus: open\n---\n# Body\n")
+	f, err := lint.NewFileFromSource("doc.md", src, true)
+	require.NoError(t, err)
+	require.NotEmpty(t, f.FrontMatter)
+	lines := docFrontmatterKeyLines(f)
+	require.NotNil(t, lines)
+	assert.Equal(t, 2, lines["id"])
+	assert.Equal(t, 3, lines["status"])
+}

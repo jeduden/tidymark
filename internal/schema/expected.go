@@ -61,15 +61,25 @@ func renderStringDisjunction(expr string) (string, bool) {
 	return "one of: " + strings.Join(literals, ", "), true
 }
 
-// renderRegex matches `=~"<pattern>"` (with optional surrounding
-// `string &`) and renders it as `string matching <pattern>`.
-// Bare regex matchers without a `string &` cover the common
-// proto.md shape; constraints that further restrict the type
-// fall through to the raw expression.
+// renderRegex matches `=~"<pattern>"` (with an optional
+// surrounding `string &`) and renders it as `string matching
+// <pattern>`. Bare regex matchers without a `string &` cover
+// the common proto.md shape; constraints that further restrict
+// the type fall through to the raw expression.
+//
+// CUE doesn't require whitespace around `&`, so both
+// `string & =~"^A$"` and `string&=~"^A$"` are valid input.
+// We normalise by splitting on the `=~` token directly rather
+// than the whitespace-sensitive `string &` prefix, so format
+// drift on the input side doesn't lose the rendered shape.
 func renderRegex(expr string) (string, bool) {
-	body := expr
+	body := strings.TrimSpace(expr)
+	// Strip an optional `string` prefix and any `&` (with or
+	// without surrounding whitespace) so we land directly on
+	// the `=~` token.
+	body = strings.TrimPrefix(body, "string")
 	body = strings.TrimSpace(body)
-	body = strings.TrimPrefix(body, "string &")
+	body = strings.TrimPrefix(body, "&")
 	body = strings.TrimSpace(body)
 	if !strings.HasPrefix(body, "=~") {
 		return "", false

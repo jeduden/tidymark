@@ -78,3 +78,36 @@ func TestRenderExpected_IntRangeUnknownOperand(t *testing.T) {
 	got := RenderExpected("int & some-other & >=1")
 	assert.Equal(t, "int & some-other & >=1", got)
 }
+
+// TestRenderExpected_RegexNoWhitespace regresses a Copilot
+// review observation: `string&=~"^A$"` (no spaces around `&`)
+// is semantically equivalent to `string & =~"^A$"`. Both now
+// render as `string matching <pattern>` instead of falling
+// through to the raw expression.
+func TestRenderExpected_RegexNoWhitespace(t *testing.T) {
+	cases := map[string]string{
+		`string&=~"^A$"`:  "string matching ^A$",
+		`string &=~"^B$"`: "string matching ^B$",
+		`string& =~"^C$"`: "string matching ^C$",
+		`=~"^D$"`:         "string matching ^D$",
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, RenderExpected(in), "input: %q", in)
+	}
+}
+
+// TestRenderExpected_RegexUnquoteFailure covers the
+// strconv.Unquote error branch in renderRegex: a pattern
+// with a malformed escape sequence (e.g. `\q` which Go does
+// not recognise) is rejected after isQuotedString accepts
+// the outer quotes.
+func TestRenderExpected_RegexUnquoteFailure(t *testing.T) {
+	assert.Equal(t, `=~"\q"`, RenderExpected(`=~"\q"`))
+}
+
+// TestRenderExpected_IntRangeUpperHalfOpen covers the
+// half-open upper-bound render branch (`int <= N`) that the
+// other tests miss when the lower bound is unspecified.
+func TestRenderExpected_IntRangeUpperHalfOpen(t *testing.T) {
+	assert.Equal(t, "int <= 5", RenderExpected("int & <=5"))
+}

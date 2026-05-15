@@ -38,9 +38,11 @@ func TestRenderHint_NonQuotedAlternative(t *testing.T) {
 // error branch: a malformed escape inside a string literal
 // prevents the literal from being decoded, so no hint fires.
 func TestRenderHint_UnquoteFailure(t *testing.T) {
-	// Two alternatives so len(parts) >= 2; the bad escape
-	// breaks Unquote on the second literal.
-	assert.Empty(t, RenderHint(`"ok" | "\xff"`, "ok-typo"))
+	// `"\q"` uses an invalid Go escape sequence (`\q` is
+	// not a recognised letter). isQuotedString accepts it
+	// (it starts and ends with `"`), but strconv.Unquote
+	// fails, exercising the error branch.
+	assert.Empty(t, RenderHint(`"ok" | "\q"`, "qq"))
 }
 
 // TestRenderHint_ExactMatchSkipped covers the d==0 branch:
@@ -118,6 +120,17 @@ func TestParseRenderedBounds_Edges(t *testing.T) {
 		_, _, hasLo, hasHi := parseRenderedBounds("string")
 		assert.False(t, hasLo)
 		assert.False(t, hasHi)
+	})
+
+	t.Run("half-open upper bound parses cleanly", func(t *testing.T) {
+		// `int <= 5` is the upper half-open form; the helper
+		// returns (0, 5, false, true). The other tests use
+		// `int >= N` which already covers the lower-half
+		// branch.
+		_, hi, hasLo, hasHi := parseRenderedBounds("int <= 5")
+		assert.False(t, hasLo)
+		assert.True(t, hasHi)
+		assert.Equal(t, 5, hi)
 	})
 }
 
