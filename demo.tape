@@ -41,6 +41,14 @@ Set Framerate 60
 Set TypingSpeed 0.005
 Set PlaybackSpeed 0.1
 
+# Terminal palette mirrors the mdsmith.dev design tokens
+# (website/static/css/colors_and_type.css — steel-900 panel,
+# warm forge accents) so the embedded GIF matches the site's
+# code surfaces instead of the default VHS theme. Updating
+# these takes effect on the next push to main (demo.yml
+# re-records and republishes the GIF to the assets branch).
+Set Theme { "name": "mdsmith", "background": "#0F1419", "foreground": "#E6E1D6", "selection": "#3F4A57", "cursor": "#E58233", "black": "#0F1419", "red": "#FF6B5C", "green": "#5DC58C", "yellow": "#ECA152", "blue": "#79C7E8", "magenta": "#E58233", "cyan": "#79C7E8", "white": "#E6E1D6", "brightBlack": "#5C6773", "brightRed": "#FF8A7E", "brightGreen": "#7FD3A6", "brightYellow": "#F4B860", "brightBlue": "#9BD6EF", "brightMagenta": "#ECA152", "brightCyan": "#9BD6EF", "brightWhite": "#FAF7F2" }
+
 # --- Hidden setup ---
 # Add mdsmith to PATH, create temp dirs for each scene,
 # copy sample files and configs.
