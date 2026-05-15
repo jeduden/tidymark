@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"
+  create:
 
 permissions:
   contents: read
@@ -20,6 +21,9 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.event_name != 'create' ||
+      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
     strategy:
       matrix:
         include:
@@ -75,7 +79,10 @@ jobs:
     # docs/development/release.md for why the `release` environment
     # gates them and what reviewer rules the maintainer should set
     # on it.
-    if: github.repository == 'jeduden/mdsmith'
+    if: >-
+      github.repository == 'jeduden/mdsmith' &&
+      (github.event_name != 'create' ||
+      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))
     environment: release
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -190,7 +197,10 @@ jobs:
     # the operational checklist for npmjs.com / pypi.org / GitHub
     # environment configuration. Workflow comments here only record
     # the local intent of each setting.
-    if: github.repository == 'jeduden/mdsmith'
+    if: >-
+      github.repository == 'jeduden/mdsmith' &&
+      (github.event_name != 'create' ||
+      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))
     environment: release
     # `id-token: write` lets `npm publish --provenance` mint an OIDC
     # token so the npm registry stamps each tarball with verifiable
@@ -266,7 +276,10 @@ jobs:
     # See docs/development/release.md for the canonical PyPI Trusted
     # Publisher config (workflow + environment scope) and the
     # operational checklist.
-    if: github.repository == 'jeduden/mdsmith'
+    if: >-
+      github.repository == 'jeduden/mdsmith' &&
+      (github.event_name != 'create' ||
+      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))
     environment: release
     permissions:
       contents: read
@@ -308,7 +321,10 @@ jobs:
     runs-on: ubuntu-latest
     # See docs/development/release.md for the rationale on `if:`,
     # `environment:`, and the OIDC + attestations permission set.
-    if: github.repository == 'jeduden/mdsmith'
+    if: >-
+      github.repository == 'jeduden/mdsmith' &&
+      (github.event_name != 'create' ||
+      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))
     environment: release
     permissions:
       contents: write
@@ -369,6 +385,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
         with:
+          draft: ${{ github.event_name == 'create' }}
           generate_release_notes: true
           files: |
             mdsmith-*
@@ -477,7 +494,10 @@ jobs:
     # GitHub Actions as the source.
     name: Deploy mdsmith.dev to GitHub Pages
     needs: [build]
-    if: github.repository == 'jeduden/mdsmith'
+    if: >-
+      github.repository == 'jeduden/mdsmith' &&
+      (github.event_name != 'create' ||
+      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))
     runs-on: ubuntu-latest
     permissions:
       contents: read
