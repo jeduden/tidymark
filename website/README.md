@@ -57,15 +57,25 @@ runs `mdsmith fix` over `../docs/` (skippable with
 the same `sync-docs` logic. The release workflow calls
 `build-website --no-fix` on every tag push.
 
-The subcommand applies the four transforms Hugo needs.
-First, it snapshots `docs/` into `content/docs/`. Next,
-it drops `proto.md` schema templates whose front matter
-holds CUE expressions rather than real values. Then it
-renames `index.md` to `_index.md` (Hugo's section-page
-convention). Finally, it prunes non-markdown / non-image
-files and escapes literal Hugo shortcode patterns
-(`{{< … >}}` and `{{% … %}}`) so documentation about Hugo
-renders as text instead of being parsed.
+The subcommand snapshots `docs/` into `content/docs/`.
+It then adapts the tree for Hugo. The synced output
+differs from the source docs. These transforms cause
+the difference:
+
+- Drop `proto.md` schema templates. Their front matter
+  holds CUE expressions, not real values.
+- Rename `index.md` to `_index.md` (Hugo's section-page
+  convention).
+- Prune non-markdown / non-image files.
+- Escape literal Hugo shortcode patterns (`{{< … >}}`
+  and `{{% … %}}`) so docs about Hugo render as text.
+- Promote the first body H1 to front-matter `title:`
+  and remove it from the body. Hugo themes render the
+  title from front matter, so a body H1 would double it.
+- Strip mdsmith `<?…?>` directive markers. They are
+  source syntax with no meaning to Hugo. The same syntax
+  inside code fences or inline code is kept, so
+  directive documentation still renders.
 
 Pass `--no-fix` to skip the `mdsmith fix` step during
 local preview.

@@ -59,6 +59,14 @@ var syncableExt = map[string]struct{}{
 //     documentation about Hugo would otherwise resolve as
 //     shortcodes during the build. Escaped to {{</* ... */>}}
 //     and {{%/* ... */%}}.
+//   - mdsmith docs carry the page title as the first body H1
+//     (Hugo themes expect front-matter title:, no body H1).
+//     The first H1 is promoted to front-matter title: and
+//     removed from the body (see liftDocTitle).
+//   - mdsmith <?name … ?> / <?/name?> directive markers are
+//     source syntax with no meaning to Hugo. Removed, while
+//     the same syntax inside code fences/spans (directive
+//     documentation) is preserved (see stripDirectiveMarkers).
 //
 // dstDir is removed before the copy, so SyncDocs is idempotent.
 //
@@ -240,13 +248,16 @@ func splitDocFrontMatter(s string) (fm, body string, hasFM, ok bool) {
 // markers: a `<?catalog?>` shown inside a fenced code block
 // is an ast.FencedCodeBlock and inline `<?catalog?>` is an
 // ast.CodeSpan — both structurally distinct, so directive
-// documentation renders verbatim. Removing the markers lets
-// Hugo render with markup.goldmark.renderer.unsafe = false;
-// the marker text is mdsmith source syntax with no meaning
-// to Hugo, and the generated body between a pair is ordinary
-// Markdown that renders on its own. Only the marker's own
-// physical lines are removed (surrounding blank lines stay,
-// so block separation is preserved).
+// documentation renders verbatim. The marker text is mdsmith
+// source syntax with no meaning to Hugo and must not surface
+// on the published site; the generated body between a pair
+// is ordinary Markdown that renders on its own. Removing the
+// markers also shrinks the raw-HTML surface goldmark sees
+// (relevant to the separate markup.goldmark.renderer.unsafe
+// decision — currently true by intent in hugo.toml), but the
+// strip is correct regardless of that setting. Only the
+// marker's own physical lines are removed (surrounding blank
+// lines stay, so block separation is preserved).
 func stripDirectiveMarkers(b []byte) []byte {
 	fmBlock, body, hasFM, ok := splitDocFrontMatter(string(b))
 	if !ok {

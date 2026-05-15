@@ -183,7 +183,11 @@ func runSyncDocs(_ string, args []string) int {
 			"  - skip non-markdown, non-image files\n"+
 			"  - escape {{< ... >}} and {{%% ... %%}} patterns so\n"+
 			"    Hugo renders them verbatim instead of resolving\n"+
-			"    them as shortcodes\n\n"+
+			"    them as shortcodes\n"+
+			"  - promote the first body H1 to front-matter\n"+
+			"    title: and remove it from the body\n"+
+			"  - strip mdsmith <?...?> directive markers (kept\n"+
+			"    when shown inside code fences or inline code)\n\n"+
 			"<dst-dir> is removed before the copy. Idempotent.\n")
 	}
 	if err := fs.Parse(args); err != nil {
