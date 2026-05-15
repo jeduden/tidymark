@@ -1,6 +1,7 @@
 public/
 resources/
 .hugo_build.lock
-# Synced from ../docs/ by scripts/sync-docs.sh. Source of truth lives in
-# the repository's docs/ tree; this copy is a build artifact.
+# Synced from ../docs/ by `mdsmith-release build-website`. Source of
+# truth lives in the repository's docs/ tree; this copy is a build
+# artifact.
 content/docs/
