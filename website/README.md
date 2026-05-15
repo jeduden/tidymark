@@ -14,7 +14,6 @@ the website cannot drift out of sync with the binary.
 |--------------------------------|-----------------------------------------------------------------------------|
 | `hugo.toml`                    | Site config + module mounts (does NOT mount `../docs` directly).            |
 | `content/_index.md`            | Homepage front matter and copy.                                             |
-| `content/compare.md`           | "vs other linters" page.                                                    |
 | `content/docs/`                | **Synced** from `../docs/` by `mdsmith-release build-website` (gitignored). |
 | `layouts/_default/baseof.html` | Page shell — `<head>`, top nav, footer.                                     |
 | `layouts/index.html`           | Homepage template (hero · feature grid · install tabs · terminal).          |

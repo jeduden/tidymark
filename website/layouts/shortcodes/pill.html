@@ -2,4 +2,4 @@
 {{- /* Render the body as inline Markdown so the inner content
        does not wrap in a block-level <p>, which would be
        invalid markup inside this <span>. */ -}}
-<span class="pill is-{{ $status }}"><span class="dot"></span>{{ .Page.RenderString (dict "display" "inline") .Inner }}</span>
+<span class="pill is-{{ $status }}"><span class="dot"></span><span>{{ .Page.RenderString (dict "display" "inline") .Inner }}</span></span>

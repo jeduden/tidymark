@@ -11,11 +11,15 @@
            .RelPermalink includes the subpath. */ -}}
     {{- $docsPrefix := relURL "/docs/" -}}
     {{- $refPrefix := relURL "/docs/reference/" -}}
-    {{- $cmpPrefix := relURL "/compare/" -}}
+    {{- /* Compare points at the canonical comparison doc that
+           sync-docs publishes — there is no hand-authored
+           /compare/ page. Its path is excluded from the Docs
+           active-state so only one nav item lights up. */ -}}
+    {{- $cmpPrefix := relURL "/docs/background/markdown-linters/" -}}
     <nav class="topnav-links">
-      <a class="topnav-link{{ if and (hasPrefix .RelPermalink $docsPrefix) (not (hasPrefix .RelPermalink $refPrefix)) }} is-active{{ end }}" href="{{ "/docs/" | relURL }}">Docs</a>
+      <a class="topnav-link{{ if and (hasPrefix .RelPermalink $docsPrefix) (not (hasPrefix .RelPermalink $refPrefix)) (not (hasPrefix .RelPermalink $cmpPrefix)) }} is-active{{ end }}" href="{{ "/docs/" | relURL }}">Docs</a>
       <a class="topnav-link{{ if hasPrefix .RelPermalink $refPrefix }} is-active{{ end }}" href="{{ "/docs/reference/" | relURL }}">Reference</a>
-      <a class="topnav-link{{ if hasPrefix .RelPermalink $cmpPrefix }} is-active{{ end }}" href="{{ "/compare/" | relURL }}">Compare</a>
+      <a class="topnav-link{{ if hasPrefix .RelPermalink $cmpPrefix }} is-active{{ end }}" href="{{ "/docs/background/markdown-linters/" | relURL }}">Compare</a>
       <a class="topnav-link" href="{{ "/docs/guides/install/" | relURL }}">Install</a>
     </nav>
     <div class="topnav-right">
