@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  VERSION: ${{ github.event_name == 'create' && github.event.ref || github.ref_name }}
+
 # Serialize every release run so two publish jobs cannot mint OIDC
 # tokens against the same registry at the same time. The group is
 # tag-agnostic — different tags pushed close together queue rather
@@ -23,7 +26,7 @@ jobs:
   build:
     if: &release_ref_ok >-
       github.event_name != 'create' ||
-      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
+      (github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v'))
     strategy:
       matrix:
         include:
@@ -61,7 +64,7 @@ jobs:
           # (libSystem, kernel32) — this knob is about avoiding
           # glibc on Linux, not achieving full static linkage.
           CGO_ENABLED: "0"
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.VERSION }}
         run: |
           ext=""
           if [ "$GOOS" = "windows" ]; then ext=".exe"; fi
@@ -82,7 +85,7 @@ jobs:
     if: &release_repo_ref_ok >-
       github.repository == 'jeduden/mdsmith' &&
       (github.event_name != 'create' ||
-      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')))
+      (github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v')))
     environment: release
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -100,7 +103,7 @@ jobs:
           cache: false
       - name: Stamp tracked manifests with the tag
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.VERSION }}
         run: go run ./cmd/mdsmith-release stamp "${VERSION#v}"
       - name: Install extension dependencies
         working-directory: editors/vscode
@@ -121,7 +124,7 @@ jobs:
         run: bun run build.ts --production
       - name: Package .vsix
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.VERSION }}
         working-directory: editors/vscode
         run: |
           ver="${VERSION#v}"
@@ -153,7 +156,7 @@ jobs:
         # registry errors.
         continue-on-error: true
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.VERSION }}
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         working-directory: editors/vscode
         # Reuse the exact .vsix the artifact upload below ships, so
@@ -172,7 +175,7 @@ jobs:
       - name: Publish to Open VSX
         continue-on-error: true
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.VERSION }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         working-directory: editors/vscode
         # Open VSX is the registry VSCodium, Cursor, Theia, and
@@ -243,7 +246,7 @@ jobs:
           ' "$actual"
       - name: Stamp tracked manifests with the tag
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.VERSION }}
         run: go run ./cmd/mdsmith-release stamp "${VERSION#v}"
       - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -291,7 +294,7 @@ jobs:
           python-version: "3.12"
       - name: Stamp tracked manifests with the tag
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ env.VERSION }}
         run: go run ./cmd/mdsmith-release stamp "${VERSION#v}"
       - name: Install build tooling
         # `python -m build` and `python -m wheel` orchestrate the
@@ -459,7 +462,7 @@ jobs:
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
     env:
-      VERSION: ${{ github.ref_name }}
+      VERSION: ${{ env.VERSION }}
     steps:
       - name: Install
         run: ${{ matrix.install }}
@@ -506,7 +509,7 @@ jobs:
       # ``.Site.Params.version`` and the on-disk pin in
       # website/hugo.toml. Stamp validates that the value has
       # no leading "v" before rewriting, so strip it here.
-      VERSION: ${{ github.ref_name }}
+      VERSION: ${{ env.VERSION }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
