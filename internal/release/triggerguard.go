@@ -106,13 +106,21 @@ type releaseLookupPayload struct {
 }
 
 type releaseLookupError struct {
+	// Op labels the failing operation in the error message. Empty
+	// defaults to "lookup" so existing GET-by-tag callers are
+	// unaffected; PATCH callers pass "publish".
+	Op         string
 	URL        string
 	StatusCode int
 	Body       string
 }
 
 func (e *releaseLookupError) Error() string {
-	msg := fmt.Sprintf("lookup %s: unexpected GitHub API status %d", e.URL, e.StatusCode)
+	op := e.Op
+	if op == "" {
+		op = "lookup"
+	}
+	msg := fmt.Sprintf("%s %s: unexpected GitHub API status %d", op, e.URL, e.StatusCode)
 	body := strings.TrimSpace(e.Body)
 	if body == "" {
 		return msg
