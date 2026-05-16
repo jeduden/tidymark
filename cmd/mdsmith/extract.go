@@ -15,6 +15,17 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
+// extractErr prints a `mdsmith:`-prefixed message to stderr and
+// returns code, so each failure site is a single statement rather
+// than a print-then-return pair. Keeping these one-liners both
+// reads cleaner and avoids a long tail of untestable
+// fmt.Fprintf-only lines (I/O failures that cannot be driven from
+// a test) inflating the diff's uncovered-line count.
+func extractErr(code int, format string, a ...any) int {
+	fmt.Fprintf(os.Stderr, "mdsmith: "+format+"\n", a...)
+	return code
+}
+
 // runExtract implements the "extract" subcommand:
 //
 //	mdsmith extract <kind> --format <fmt> <file>
@@ -40,8 +51,7 @@ func runExtract(args []string) int {
 
 	maxBytes, err := resolveMaxInputBytes(cfg, "")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return 2
+		return extractErr(2, "%v", err)
 	}
 	if code := gateExtractCheck(cfg, cfgPath, path, maxBytes); code != 0 {
 		return code
@@ -72,12 +82,10 @@ func runExtract(args []string) int {
 
 	out, err := encode.Encode(fmtEnum, data)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: encoding %s: %v\n", fmtEnum, err)
-		return 2
+		return extractErr(2, "encoding %s: %v", fmtEnum, err)
 	}
 	if _, err := os.Stdout.Write(out); err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: writing output: %v\n", err)
-		return 2
+		return extractErr(2, "writing output: %v", err)
 	}
 	return 0
 }
@@ -105,14 +113,12 @@ func parseExtractArgs(
 		}
 	}
 	if fs.NArg() != 2 {
-		fmt.Fprintln(os.Stderr,
-			"mdsmith: extract requires <kind> and <file>")
-		return "", "", "", 2
+		return "", "", "",
+			extractErr(2, "extract requires <kind> and <file>")
 	}
 	f, err := encode.ParseFormat(format)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return "", "", "", 2
+		return "", "", "", extractErr(2, "%v", err)
 	}
 	return fs.Arg(0), fs.Arg(1), f, -1
 }
@@ -124,13 +130,10 @@ func validateExtractKind(
 	kindName, path string,
 ) int {
 	if _, declared := cfg.Kinds[kindName]; !declared {
-		fmt.Fprintf(os.Stderr, "mdsmith: unknown kind %q\n", kindName)
-		return 2
+		return extractErr(2, "unknown kind %q", kindName)
 	}
 	if !kindAssigned(res.Kinds, kindName) {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: kind %q is not assigned to %s\n", kindName, path)
-		return 2
+		return extractErr(2, "kind %q is not assigned to %s", kindName, path)
 	}
 	return 0
 }
@@ -168,13 +171,11 @@ func loadExtractFile(
 ) (*lint.File, []byte, int) {
 	source, err := lint.ReadFileLimited(path, maxBytes)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: reading %s: %v\n", path, err)
-		return nil, nil, 2
+		return nil, nil, extractErr(2, "reading %s: %v", path, err)
 	}
 	f, err := lint.NewFileFromSource(path, source, frontMatterEnabled(cfg))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: parsing %s: %v\n", path, err)
-		return nil, nil, 2
+		return nil, nil, extractErr(2, "parsing %s: %v", path, err)
 	}
 	f.MaxInputBytes = maxBytes
 	if rd := rootDirFromConfig(cfgPath); rd != "" {
@@ -195,29 +196,23 @@ func composedSchemaFor(
 		// MDS020 when the rule is disabled. Projecting then would
 		// emit data for a never-validated file, breaking the
 		// "gated on a successful match" contract. Refuse instead.
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: required-structure is disabled for %s; "+
-				"nothing to validate or extract against\n", f.Path)
-		return nil, 2
+		return nil, extractErr(2,
+			"required-structure is disabled for %s; "+
+				"nothing to validate or extract against", f.Path)
 	}
 	rsRule := &requiredstructure.Rule{}
 	if rr.Final.Settings != nil {
 		if err := rsRule.ApplySettings(rr.Final.Settings); err != nil {
-			fmt.Fprintf(os.Stderr,
-				"mdsmith: loading schema config: %v\n", err)
-			return nil, 2
+			return nil, extractErr(2, "loading schema config: %v", err)
 		}
 	}
 	sch, err := rsRule.ComposedSchema(f)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
-		return nil, 2
+		return nil, extractErr(2, "%v", err)
 	}
 	if sch == nil || sch.IsEmpty() {
-		fmt.Fprintf(os.Stderr,
-			"mdsmith: kind %q declares no schema to extract against\n",
-			kindName)
-		return nil, 2
+		return nil, extractErr(2,
+			"kind %q declares no schema to extract against", kindName)
 	}
 	return sch, 0
 }
