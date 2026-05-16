@@ -25,7 +25,6 @@ the website cannot drift out of sync with the binary.
 | `static/css/`                  | `colors_and_type.css` (tokens) + `app.css` (component styles).              |
 | `static/fonts/`                | Self-hosted WOFF2: 0xProto (mono) + IBM Plex Sans/Serif.                    |
 | `static/img/`                  | Logo SVGs.                                                                  |
-| `data/`                        | Hugo data files (`homepage.yaml` drives the homepage).                      |
 
 ## Develop
 
@@ -92,10 +91,26 @@ tree, so a relative link would 404. The result is a
 browsable **Rules** section in the top nav and docs
 sidebar.
 
+## Homepage content sources
+
+The homepage has **no** Hugo data file. Every block is
+sourced from Markdown so a copy edit lands in one place:
+
+- **Hero + install quickstart** — front matter (`hero:`,
+  `install:`) on the homepage itself,
+  `content/_index.md`, read by `hero.html` and
+  `install-list.html`.
+- **"Distributed via" strip** — the release-channel docs
+  `../docs/development/release-channels/*.md`. Each
+  carries a canonical `url:` and an ordering `weight:`;
+  `logos-strip.html` ranges the synced section.
+- **Feature cards** — the shared Markdown described
+  below.
+
 ## Shared feature copy
 
-Feature copy is **not** authored in `data/homepage.yaml`.
-It lives once, as Markdown, in `../docs/features/`:
+Feature copy lives once, as Markdown, in
+`../docs/features/`:
 
 - `index.md` is the shared "Why mdsmith" overview. The
   repository `README.md` splices it in with `<?include?>`,
