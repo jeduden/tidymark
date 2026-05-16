@@ -1,5 +1,6 @@
 {{- /* Render-link hook: rewrite repo-relative hrefs to
-       Hugo's resolved page URLs.
+       Hugo's resolved page URLs, and adjust site-absolute
+       hrefs to honour the configured baseURL.
 
        Source docs link sibling pages by relative path
        (`[CLI](../reference/cli.md)`) so the markdown stays
@@ -27,9 +28,25 @@
        non-Page target (e.g. a resource file) still
        renders sensibly.
 
-       External URLs (http(s), mailto), fragment-only
-       links, and site-absolute paths bypass the lookup —
-       they are already in the right form. */ -}}
+       For site-absolute hrefs (the rewriter emits
+       `/docs/rules/<id>/` for cross-rule and docs-to-rule
+       references), we run them through `relURL` so a
+       deploy with a non-root `--baseURL`
+       (e.g. https://example.com/mdsmith/) gets the
+       configured prefix. Without this, Pages served from a
+       subpath would 404 on every rewritten link.
+       Fragments pass through unchanged. External URLs
+       (http(s), mailto) and fragment-only links bypass
+       both branches — they are already in the right form
+       or page-local.
+
+       `safeURL` would mark the URL as pre-sanitized and
+       skip Go html/template's built-in escaping, which
+       would let a `javascript:` or `data:` href in the
+       source markdown pass straight through. Without it,
+       Go neutralizes unknown schemes (rewriting them to
+       `#ZgotmplZ`) while still preserving legitimate path
+       characters in clean URLs — the right default. */ -}}
 
 {{- $url := .Destination -}}
 {{- $external := or
@@ -39,7 +56,15 @@
 {{- $anchorOnly := strings.HasPrefix $url "#" -}}
 {{- $absolute := strings.HasPrefix $url "/" -}}
 
-{{- if not (or $external $anchorOnly $absolute) -}}
+{{- if $absolute -}}
+  {{- $parts := split $url "#" -}}
+  {{- $path := index $parts 0 -}}
+  {{- $frag := "" -}}
+  {{- if gt (len $parts) 1 -}}
+    {{- $frag = printf "#%s" (delimit (after 1 $parts) "#") -}}
+  {{- end -}}
+  {{- $url = printf "%s%s" (relURL $path) $frag -}}
+{{- else if not (or $external $anchorOnly) -}}
   {{- $parts := split $url "#" -}}
   {{- $path := index $parts 0 -}}
   {{- $frag := "" -}}
@@ -64,11 +89,4 @@
     {{- $url = printf "%s/%s" (strings.TrimSuffix ".md" $path) $frag -}}
   {{- end -}}
 {{- end -}}
-{{- /* `safeURL` would mark the URL as pre-sanitized and skip
-       Go html/template's built-in escaping, which would let a
-       `javascript:` or `data:` href in the source markdown
-       pass straight through to the rendered anchor. Without
-       it, Go neutralizes unknown schemes (rewriting them to
-       `#ZgotmplZ`) while still preserving legitimate path
-       characters in clean URLs — which is the right default. */ -}}
 <a href="{{ $url }}"{{ with .Title }} title="{{ . | safeHTML }}"{{ end }}>{{ .Text | safeHTML }}</a>
