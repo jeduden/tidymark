@@ -482,7 +482,7 @@ main {
 }
 .docs-side-link:hover { color: var(--fg); text-decoration: none; background: var(--steel-50); }
 .docs-side-link.is-active {
-  color: var(--forge-600);
+  color: var(--forge-700);
   border-left-color: var(--forge-500);
   background: var(--forge-50);
   font-weight: 500;

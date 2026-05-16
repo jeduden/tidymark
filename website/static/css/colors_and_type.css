@@ -112,16 +112,19 @@
   --fg-muted:      var(--steel-600);
   --fg-subtle:     var(--steel-500);
   --fg-inverse:    var(--canvas);
-  --accent:        var(--forge-600);
-  --accent-hover:  var(--forge-700);
+  /* forge-700 / forge-800 give ≥ 6.4:1 on all site backgrounds
+     including canvas-sunken (footer). forge-600 failed on
+     canvas-sunken at 4.36:1 (AA threshold 4.5:1). */
+  --accent:        var(--forge-700);
+  --accent-hover:  var(--forge-800);
   --accent-soft:   var(--forge-50);
   --accent-fg:     #FFFFFF;
   --border:        var(--steel-200);
   --border-strong: var(--steel-300);
   --border-subtle: var(--steel-100);
-  --link:          var(--forge-600);
-  --link-hover:    var(--forge-700);
-  --link-visited:  var(--forge-700);
+  --link:          var(--forge-700);
+  --link-hover:    var(--forge-800);
+  --link-visited:  var(--forge-800);
   --code-bg:       var(--steel-50);
   --code-fg:       var(--steel-800);
   --code-border:   var(--steel-200);
