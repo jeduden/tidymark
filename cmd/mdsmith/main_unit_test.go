@@ -768,6 +768,25 @@ func TestRunHelpPatterns_TrailingArg_ExitsTwo(t *testing.T) {
 	assert.Contains(t, stderr, "extra")
 }
 
+// TestRunHelpPatterns_JSON_WriteError_ExitsTwo verifies that a stdout write
+// failure during json encoding (e.g. broken pipe when the consumer hung up)
+// surfaces as exit 2 with a clear error rather than a silent exit 0.
+func TestRunHelpPatterns_JSON_WriteError_ExitsTwo(t *testing.T) {
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	require.NoError(t, r.Close()) // close read end so subsequent writes get EPIPE
+	require.NoError(t, w.Close()) // close write end so encoder hits "file already closed"
+
+	stderr := captureStderr(func() {
+		oldStdout := os.Stdout
+		os.Stdout = w
+		defer func() { os.Stdout = oldStdout }()
+		code := runHelpPatterns([]string{"-f", "json"})
+		assert.Equal(t, 2, code)
+	})
+	assert.Contains(t, stderr, "writing json")
+}
+
 func TestRunHelp_PatternsTopicDispatches(t *testing.T) {
 	out := captureStdout(func() {
 		code := runHelp([]string{"patterns", "-f", "json"})

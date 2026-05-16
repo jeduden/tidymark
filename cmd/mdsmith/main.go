@@ -1116,8 +1116,10 @@ func runHelpPatterns(args []string) int {
 	if format == "json" {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		// items is a slice of plain string/bool fields, so encoding cannot fail.
-		_ = enc.Encode(items)
+		if err := enc.Encode(items); err != nil {
+			fmt.Fprintf(os.Stderr, "mdsmith: writing json: %v\n", err)
+			return 2
+		}
 		return 0
 	}
 	for _, it := range items {
