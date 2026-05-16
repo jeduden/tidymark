@@ -8,17 +8,28 @@
 # rename) legitimately reshape files in ways that violate
 # the stylistic rules the source tree passes.
 #
-# Scope of validation: this config catches every
-# **relative-path** broken link in the rewritten output —
-# sibling-relative refs left by the rewriter, missing
-# `_index.md` renames, links to docs/ pages that no longer
-# exist. It does NOT validate site-absolute targets
-# (`/docs/rules/<id>/`, `/docs/guides/<page>/`) because
-# MDS027 short-circuits on absolute paths. The rewriter
-# emits those targets with unit-test coverage
-# (internal/release/syncdocs_test.go: rule-link rewrites);
-# Hugo's build step is the second guard. A follow-up could
-# add a Hugo-aware link check for those URLs.
+# Scope of validation: MDS027 only walks the goldmark AST
+# Link nodes that the parser actually produces, so this
+# config catches broken **inline** Markdown links and image
+# targets in the rewritten output — e.g. a docs page that
+# kept a relative `.md` reference the rewriter missed, or a
+# rewritten `_index.md`/`index.md` rename that points at a
+# directory the sync did not produce. Three classes of
+# breakage are NOT covered:
+#
+# - Reference-style links (`[label]: target`): linkgraph
+#   skips them so the per-link walk never sees them.
+# - Code-block contents: a `[…](…)`-shaped sequence inside
+#   a fenced or inline span parses as code text, not a
+#   Link node.
+# - Site-absolute targets (`/docs/rules/<id>/`,
+#   `/docs/<page>/`): MDS027 short-circuits absolute paths.
+#
+# The rewriter emits each rewritten URL form with unit-test
+# coverage (internal/release/syncdocs_test.go,
+# website_test.go); Hugo's build step is the second guard.
+# A follow-up could add a Hugo-aware end-to-end link check
+# for the gaps above.
 #
 # Used from CI via `mdsmith check --config
 # website/build-output.mdsmith.yml --no-gitignore

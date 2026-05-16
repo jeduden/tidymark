@@ -615,7 +615,6 @@ const (
 	ghBlob    = "https://github.com/jeduden/mdsmith/blob/main/"
 	ghTree    = "https://github.com/jeduden/mdsmith/tree/main/"
 	rulesBase = "/docs/rules/"
-	docsBase  = "/docs/"
 )
 
 // transformCase pairs an input markdown body with the expected
