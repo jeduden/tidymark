@@ -24,7 +24,10 @@ func fixtureManifests(t *testing.T, root string) {
 	write("editors/vscode/package.json", `{
   "name": "mdsmith",
   "version": "0.0.0-dev",
-  "publisher": "jeduden"
+  "publisher": "jeduden",
+  "optionalDependencies": {
+    "@mdsmith/cli": "0.0.0-dev"
+  }
 }
 `)
 	write("npm/mdsmith/package.json", `{
@@ -75,6 +78,7 @@ func TestStampRewritesEveryManifest(t *testing.T) {
 		want string
 	}{
 		{"editors/vscode/package.json", `"version": "1.2.3"`},
+		{"editors/vscode/package.json", `"@mdsmith/cli": "1.2.3"`},
 		{"npm/mdsmith/package.json", `"version": "1.2.3"`},
 		{"npm/mdsmith/package.json", `"@mdsmith/linux-x64": "1.2.3"`},
 		{"npm/mdsmith/package.json", `"@mdsmith/win32-x64": "1.2.3"`},
@@ -194,6 +198,25 @@ func TestStampFailsWhenManifestMissing(t *testing.T) {
 	assert.Contains(t, err.Error(), "required manifest missing")
 }
 
+func TestStampFailsWhenVscodeMdsmithCliPinMissing(t *testing.T) {
+	root := t.TempDir()
+	fixtureManifests(t, root)
+	// Drop the optionalDependencies block so the @mdsmith/cli pin
+	// disappears. build.ts bundles the host platform binary via this
+	// pin; without it the .vsix would ship empty.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "editors/vscode/package.json"), []byte(`{
+  "name": "mdsmith",
+  "version": "0.0.0-dev",
+  "publisher": "jeduden"
+}
+`), 0o644))
+
+	err := Stamp(root, "1.2.3")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no @mdsmith/* optionalDependencies")
+}
+
 func TestCheckAcceptsDevSentinel(t *testing.T) {
 	root := t.TempDir()
 	fixtureManifests(t, root)
@@ -209,7 +232,10 @@ func TestCheckRejectsHandEdit(t *testing.T) {
 		filepath.Join(root, "editors/vscode/package.json"), []byte(`{
   "name": "mdsmith",
   "version": "0.1.2",
-  "publisher": "jeduden"
+  "publisher": "jeduden",
+  "optionalDependencies": {
+    "@mdsmith/cli": "0.0.0-dev"
+  }
 }
 `), 0o644))
 
@@ -239,6 +265,47 @@ func TestCheckRejectsOptionalDepDrift(t *testing.T) {
 	err := Check(root)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `@mdsmith/linux-x64 pin "1.2.3"`)
+}
+
+func TestCheckRejectsMissingMdsmithCliPin(t *testing.T) {
+	root := t.TempDir()
+	fixtureManifests(t, root)
+	// editors/vscode/package.json with the @mdsmith/cli pin removed
+	// must fail Check — the release-time bun install relies on this
+	// pin to fetch the bundled binary.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "editors/vscode/package.json"), []byte(`{
+  "name": "mdsmith",
+  "version": "0.0.0-dev",
+  "publisher": "jeduden"
+}
+`), 0o644))
+
+	err := Check(root)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "@mdsmith/cli")
+}
+
+func TestCheckRejectsDriftedMdsmithCliPin(t *testing.T) {
+	root := t.TempDir()
+	fixtureManifests(t, root)
+	// editors/vscode/package.json carries the dev sentinel on
+	// `version` but a real release on @mdsmith/cli. The version-guard
+	// CI job must surface that mismatch.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, "editors/vscode/package.json"), []byte(`{
+  "name": "mdsmith",
+  "version": "0.0.0-dev",
+  "publisher": "jeduden",
+  "optionalDependencies": {
+    "@mdsmith/cli": "1.2.3"
+  }
+}
+`), 0o644))
+
+	err := Check(root)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `@mdsmith/cli pin "1.2.3"`)
 }
 
 func TestCheckRejectsMissingOptionalDepKey(t *testing.T) {

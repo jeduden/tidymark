@@ -84,13 +84,13 @@ packages from the root.
 
 ## Job Topology
 
-`build` produces per-platform binaries that fan out
-to `vscode`, `npm`, `pypi`, and `release`. The
-`release` job runs `smoke-test` against the freshly
-published `npm`, `pypi`, and `mise` channels. Every
-job that holds a credential is also gated by
-`if: github.repository == 'jeduden/mdsmith'` and
-runs in the `release` GitHub environment.
+`build` feeds binaries to `npm`, `pypi`, and
+`release`. `vscode` chains off `npm` (the `.vsix`
+bundles the just-published binary). `release` runs
+`smoke-test` against the fresh `npm`, `pypi`, and
+`mise` channels. Every credential-bearing job is
+gated by `if: github.repository == 'jeduden/mdsmith'`
+and runs in the `release` GitHub environment.
 
 The website deploy is a **separate workflow**,
 `.github/workflows/pages.yml`. It builds

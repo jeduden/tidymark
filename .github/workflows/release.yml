@@ -106,7 +106,15 @@ jobs:
           path: ${{ env.bin }}
 
   vscode:
-    needs: [preflight]
+    # `needs: [npm]` is load-bearing, not just for ordering. The
+    # extension's `bun install` step fetches `@mdsmith/cli@<version>`
+    # so build.ts can copy the host-platform binary out of
+    # node_modules/@mdsmith/<plat>/bin/ into dist/bin/ for the
+    # bundled .vsix. That version of @mdsmith/cli does not exist
+    # on npm until the npm job has published it; without this
+    # dependency the install silently no-ops the optionalDep and
+    # the .vsix ships without a binary.
+    needs: [npm]
     runs-on: ubuntu-latest
     # VSCE_PAT and OVSX_PAT are long-lived publisher tokens — see
     # docs/development/release.md for why the `release` environment
@@ -131,6 +139,11 @@ jobs:
       - name: Stamp tracked manifests with the tag
         env:
           VERSION: ${{ env.VERSION }}
+        # Stamp rewrites both the `version` field and the
+        # @mdsmith/cli optionalDependency pin in
+        # editors/vscode/package.json, so the install step below
+        # fetches the freshly-published binary instead of chasing
+        # the 0.0.0-dev sentinel.
         run: go run ./cmd/mdsmith-release stamp "${VERSION#v}"
       - name: Install extension dependencies
         working-directory: editors/vscode
@@ -142,7 +155,14 @@ jobs:
         # radius if a future lockfile update or registry compromise
         # ships a malicious lifecycle script (the TanStack /
         # shai-hulud worm class).
-        run: bun install --frozen-lockfile --ignore-scripts
+        #
+        # No `--frozen-lockfile` here: the Stamp step above just
+        # rewrote the @mdsmith/cli optionalDependency to the
+        # version this run is publishing, so bun.lock is
+        # intentionally out-of-date for that one entry.
+        # `--ignore-scripts` still guards the lifecycle-hook
+        # surface that the shai-hulud / TanStack worm relies on.
+        run: bun install --ignore-scripts
       - name: Run extension unit tests
         working-directory: editors/vscode
         run: bun test

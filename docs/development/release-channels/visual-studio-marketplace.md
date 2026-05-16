@@ -36,3 +36,10 @@ The `vscode` job in `release.yml` calls
 same `.vsix` Open VSX and the GitHub release
 attach. All three artifacts have identical SHA-256
 sums.
+
+The job depends on the `npm` job: the `.vsix`
+bundles the host-platform binary by `bun install`-
+ing `@mdsmith/cli` at the release version, so the
+npm platform packages must publish first. See the
+[release pipeline doc](../release.md#job-topology)
+for the full dependency chain.

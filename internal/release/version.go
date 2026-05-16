@@ -47,12 +47,15 @@ const (
 	ManifestTOML
 )
 
-// Manifest is one tracked file. OptionalDeps marks the npm root
-// — only that file carries @mdsmith/* pins.
+// Manifest is one tracked file. RequiredMdsmithPins lists the
+// @mdsmith/* dependency keys this manifest must declare at the
+// dev sentinel. When non-empty, Stamp rewrites every @mdsmith/*
+// pin found in the file (so a future extra entry stays in sync)
+// and Check verifies each listed key is present at DevSentinel.
 type Manifest struct {
-	Path         string
-	Kind         ManifestKind
-	OptionalDeps bool
+	Path                string
+	Kind                ManifestKind
+	RequiredMdsmithPins []string
 }
 
 // TrackedManifests returns the set of manifests Stamp rewrites
@@ -64,27 +67,34 @@ type Manifest struct {
 // previous local Stamp+BuildNpmPlatforms invocation, a custom
 // staging step) is stamped here too; if the directory is
 // absent the helper just returns the four checked-in manifests.
+//
+// The VS Code extension manifest pins @mdsmith/cli as an
+// optionalDependency so the release-time `bun install` pulls
+// the just-published binary into node_modules and build.ts
+// bundles it into the .vsix. Stamp keeps that pin in lockstep
+// with the release version; without the rewrite, bun would
+// still chase the 0.0.0-dev sentinel and silently skip it.
 func (t *Toolkit) TrackedManifests(root string) []Manifest {
 	out := []Manifest{
-		{filepath.Join(root, "editors", "vscode", "package.json"), ManifestJSON, false},
-		{filepath.Join(root, "npm", "mdsmith", "package.json"), ManifestJSON, true},
+		{filepath.Join(root, "editors", "vscode", "package.json"), ManifestJSON, []string{"@mdsmith/cli"}},
+		{filepath.Join(root, "npm", "mdsmith", "package.json"), ManifestJSON, PlatformPackages},
 	}
 	platformsDir := filepath.Join(root, "npm", "platforms")
 	if entries, err := t.fs.ReadDir(platformsDir); err == nil {
 		for _, e := range entries {
 			p := filepath.Join(platformsDir, e.Name(), "package.json")
 			if _, err := t.fs.Stat(p); err == nil {
-				out = append(out, Manifest{p, ManifestJSON, false})
+				out = append(out, Manifest{p, ManifestJSON, nil})
 			}
 		}
 	}
-	out = append(out, Manifest{filepath.Join(root, "python", "pyproject.toml"), ManifestTOML, false})
+	out = append(out, Manifest{filepath.Join(root, "python", "pyproject.toml"), ManifestTOML, nil})
 	// website/hugo.toml carries the version the deployed
 	// mdsmith.dev site renders in topnav and elsewhere. The
 	// pages-deploy workflow re-runs Stamp before `hugo --minify`
 	// so the site always reflects the release tag rather than
 	// the dev sentinel.
-	out = append(out, Manifest{filepath.Join(root, "website", "hugo.toml"), ManifestTOML, false})
+	out = append(out, Manifest{filepath.Join(root, "website", "hugo.toml"), ManifestTOML, nil})
 	return out
 }
 
@@ -130,8 +140,9 @@ func ValidateSemver(v string) error {
 // Stamp rewrites every tracked manifest under root from the dev
 // sentinel to version. Idempotent: running with the same version
 // twice produces no further change. A required manifest that's
-// missing a version field — or, for the npm root, missing the
-// @mdsmith/* optionalDependencies block — is a hard error.
+// missing a version field — or missing the @mdsmith/*
+// optionalDependencies block on a manifest that declares any
+// RequiredMdsmithPins — is a hard error.
 func (t *Toolkit) Stamp(root, version string) error {
 	if err := ValidateSemver(version); err != nil {
 		return err
@@ -162,7 +173,7 @@ func (t *Toolkit) stampManifest(m Manifest, version string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", m.Path, err)
 	}
-	if m.OptionalDeps {
+	if len(m.RequiredMdsmithPins) > 0 {
 		if !jsonOptDepRE.Match(out) {
 			return fmt.Errorf("%s: no @mdsmith/* optionalDependencies pins found", m.Path)
 		}
@@ -229,18 +240,16 @@ func (t *Toolkit) checkManifest(m Manifest, note func(string)) {
 	if string(sub[2]) != DevSentinel {
 		note(fmt.Sprintf("%s: version is %q, want %q", m.Path, sub[2], DevSentinel))
 	}
-	if m.OptionalDeps {
-		for _, key := range PlatformPackages {
-			keyRE := regexp.MustCompile(`(?m)^[ \t]*"` + regexp.QuoteMeta(key) +
-				`"[ \t]*:[ \t]*"([^"]+)"`)
-			kSub := keyRE.FindSubmatch(body)
-			if kSub == nil {
-				note(fmt.Sprintf("%s: optionalDependencies missing key %s", m.Path, key))
-				continue
-			}
-			if string(kSub[1]) != DevSentinel {
-				note(fmt.Sprintf("%s: %s pin %q, want %q", m.Path, key, kSub[1], DevSentinel))
-			}
+	for _, key := range m.RequiredMdsmithPins {
+		keyRE := regexp.MustCompile(`(?m)^[ \t]*"` + regexp.QuoteMeta(key) +
+			`"[ \t]*:[ \t]*"([^"]+)"`)
+		kSub := keyRE.FindSubmatch(body)
+		if kSub == nil {
+			note(fmt.Sprintf("%s: optionalDependencies missing key %s", m.Path, key))
+			continue
+		}
+		if string(kSub[1]) != DevSentinel {
+			note(fmt.Sprintf("%s: %s pin %q, want %q", m.Path, key, kSub[1], DevSentinel))
 		}
 	}
 }

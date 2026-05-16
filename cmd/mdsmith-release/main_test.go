@@ -320,7 +320,10 @@ func writeFixture(t *testing.T, root string) {
 	files := map[string]string{
 		"editors/vscode/package.json": `{
   "name": "mdsmith",
-  "version": "0.0.0-dev"
+  "version": "0.0.0-dev",
+  "optionalDependencies": {
+    "@mdsmith/cli": "0.0.0-dev"
+  }
 }
 `,
 		"npm/mdsmith/package.json": `{
