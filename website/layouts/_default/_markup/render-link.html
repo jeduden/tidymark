@@ -64,4 +64,11 @@
     {{- $url = printf "%s/%s" (strings.TrimSuffix ".md" $path) $frag -}}
   {{- end -}}
 {{- end -}}
-<a href="{{ $url | safeURL }}"{{ with .Title }} title="{{ . | safeHTML }}"{{ end }}>{{ .Text | safeHTML }}</a>
+{{- /* `safeURL` would mark the URL as pre-sanitized and skip
+       Go html/template's built-in escaping, which would let a
+       `javascript:` or `data:` href in the source markdown
+       pass straight through to the rendered anchor. Without
+       it, Go neutralizes unknown schemes (rewriting them to
+       `#ZgotmplZ`) while still preserving legitimate path
+       characters in clean URLs — which is the right default. */ -}}
+<a href="{{ $url }}"{{ with .Title }} title="{{ . | safeHTML }}"{{ end }}>{{ .Text | safeHTML }}</a>

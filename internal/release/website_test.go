@@ -57,7 +57,7 @@ See [Plan 107](../../../plan/107_no-reference-style.md) for background.
 Fixture examples: [good/default.md](good/default.md) and [bad/x.md](bad/x.md).
 Pattern directory: [pattern/good/](pattern/good/).
 Sibling Go package: [linelength rule](../linelength/rule.go).
-Schema schema: [proto.md](../proto.md).
+Schema: [proto.md](../proto.md).
 
 ## Meta-Information
 
