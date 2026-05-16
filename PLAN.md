@@ -95,4 +95,5 @@ footer: |
 | 166 | 🔲     | opus   | [Schema-driven data extraction (mdsmith extract)](plan/166_schema-driven-data-extraction.md)                              |
 | 167 | 🔲     | opus   | [Custom binding overrides for mdsmith extract](plan/167_custom-binding-overrides.md)                                      |
 | 168 | 🔲     | sonnet | [Obsidian Flavored Markdown support](plan/168_obsidian-markdown-support.md)                                               |
+| 169 | 🔲     | opus   | [Enforce terminal Meta-Information and render it from frontmatter](plan/169_rule-readme-meta-information-sync.md)         |
 <?/catalog?>
