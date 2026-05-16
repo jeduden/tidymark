@@ -264,15 +264,32 @@ func translateMetaCategory(cats map[string]bool) (v bool, found bool) {
 	return v, true
 }
 
-// applyMovedProseRules sets per-rule entries for rules that left meta for
-// prose. It only writes entries that are not already explicitly configured.
-// rules must be non-nil.
-func applyMovedProseRules(rules map[string]RuleCfg, enabled bool) {
+// applyMovedProseRules sets per-rule disabled entries for rules that left meta
+// for prose, initialising rules if nil. Only call when meta was false:
+// meta: true must not activate default-disabled (opt-in) prose rules.
+func applyMovedProseRules(rules *map[string]RuleCfg) {
+	if *rules == nil {
+		*rules = make(map[string]RuleCfg)
+	}
 	for _, name := range metaMovedProseRules {
-		if _, set := rules[name]; !set {
-			rules[name] = RuleCfg{Enabled: enabled}
+		if _, set := (*rules)[name]; !set {
+			(*rules)[name] = RuleCfg{Enabled: false}
 		}
 	}
+}
+
+// migrateMetaCategory translates a meta key in cats to the new category names
+// and, when meta was false, disables the moved prose rules in rules.
+// Returns true when meta was present.
+func migrateMetaCategory(cats map[string]bool, rules *map[string]RuleCfg) bool {
+	v, ok := translateMetaCategory(cats)
+	if !ok {
+		return false
+	}
+	if !v {
+		applyMovedProseRules(rules)
+	}
+	return true
 }
 
 func detectMetaCategoryDeprecations(cfg *Config) {
@@ -281,48 +298,21 @@ func detectMetaCategoryDeprecations(cfg *Config) {
 		"rules (paragraph-readability, paragraph-structure, token-budget, " +
 		"conciseness-scoring, duplicated-content, emphasis-style, ambiguous-emphasis) " +
 		"by rule name if needed"
-	warned := false
-	if v, ok := translateMetaCategory(cfg.Categories); ok {
-		// Only disable prose rules explicitly; enabling them (meta: true) must
-		// not opt in default-disabled rules that meta: true never activated.
-		if !v {
-			if cfg.Rules == nil {
-				cfg.Rules = make(map[string]RuleCfg)
-			}
-			applyMovedProseRules(cfg.Rules, false)
-		}
-		cfg.Deprecations = append(cfg.Deprecations, msg)
-		warned = true
-	}
+	migrated := migrateMetaCategory(cfg.Categories, &cfg.Rules)
 	for name, kind := range cfg.Kinds {
-		if v, ok := translateMetaCategory(kind.Categories); ok {
-			if !v {
-				if kind.Rules == nil {
-					kind.Rules = make(map[string]RuleCfg)
-				}
-				applyMovedProseRules(kind.Rules, false)
-			}
+		if migrateMetaCategory(kind.Categories, &kind.Rules) {
 			cfg.Kinds[name] = kind
-			if !warned {
-				cfg.Deprecations = append(cfg.Deprecations, msg)
-				warned = true
-			}
+			migrated = true
 		}
 	}
 	for i, o := range cfg.Overrides {
-		if v, ok := translateMetaCategory(o.Categories); ok {
-			if !v {
-				if o.Rules == nil {
-					o.Rules = make(map[string]RuleCfg)
-				}
-				applyMovedProseRules(o.Rules, false)
-			}
+		if migrateMetaCategory(o.Categories, &o.Rules) {
 			cfg.Overrides[i] = o
-			if !warned {
-				cfg.Deprecations = append(cfg.Deprecations, msg)
-				warned = true
-			}
+			migrated = true
 		}
+	}
+	if migrated {
+		cfg.Deprecations = append(cfg.Deprecations, msg)
 	}
 }
 
