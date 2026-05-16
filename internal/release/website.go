@@ -252,9 +252,6 @@ func rewriteRuleLinks(b []byte) []byte {
 // template cannot branch on the capture.
 func rewriteNonPublishedInline(match []byte) []byte {
 	m := repoNonPublishedLink.FindSubmatch(match)
-	if len(m) < 2 {
-		return match
-	}
 	return []byte("](" + githubURLForPath(m[1]) + ")")
 }
 
@@ -263,9 +260,6 @@ func rewriteNonPublishedInline(match []byte) []byte {
 // is preserved so the definition keeps its `[label]: ` form.
 func rewriteNonPublishedRefDef(match []byte) []byte {
 	m := repoNonPublishedRefDef.FindSubmatch(match)
-	if len(m) < 3 {
-		return match
-	}
 	return []byte(string(m[1]) + githubURLForPath(m[2]))
 }
 
@@ -630,9 +624,6 @@ func transformRulePage(data []byte, ruleName string) []byte {
 func rewriteRuleFixtures(seg []byte, fileBase, dirBase string) []byte {
 	return ruleFixtureLink.ReplaceAllFunc(seg, func(match []byte) []byte {
 		m := ruleFixtureLink.FindSubmatch(match)
-		if len(m) < 2 {
-			return match
-		}
 		base := fileBase
 		if bytes.HasSuffix(m[1], []byte("/")) {
 			base = dirBase
@@ -649,9 +640,6 @@ func rewriteRuleFixtures(seg []byte, fileBase, dirBase string) []byte {
 // directory vs file route is decided by trailing slash.
 func rewriteRuleSibling(match []byte) []byte {
 	m := ruleSiblingNonMDSLink.FindSubmatch(match)
-	if len(m) < 2 {
-		return match
-	}
 	return []byte("](" + githubURLForPath([]byte("internal/rules/"+string(m[1]))) + ")")
 }
 

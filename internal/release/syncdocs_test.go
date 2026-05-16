@@ -781,6 +781,21 @@ func TestTransformMarkdown_SkipsFencedExamples(t *testing.T) {
 			in:   "Doc `[p](../../plan/x.md)` real [p](../../plan/y.md).\n",
 			want: "Doc `[p](../../plan/x.md)` real [p](" + ghBlob + "plan/y.md).\n",
 		},
+		{
+			name: "single backtick run is not a fence — rewrite continues",
+			in:   "Prose with one `tick` and [p](../../plan/y.md).\n",
+			want: "Prose with one `tick` and [p](" + ghBlob + "plan/y.md).\n",
+		},
+		{
+			name: "line starting with one backtick does not open a fence",
+			in:   "`code line`\n\n[p](../../plan/y.md)\n",
+			want: "`code line`\n\n[p](" + ghBlob + "plan/y.md)\n",
+		},
+		{
+			name: "closing fence with leading spaces still ends fence",
+			in:   "```markdown\n[r](../../plan/a.md)\n   ```\n\nReal [p](../../plan/b.md).\n",
+			want: "```markdown\n[r](../../plan/a.md)\n   ```\n\nReal [p](" + ghBlob + "plan/b.md).\n",
+		},
 	})
 }
 

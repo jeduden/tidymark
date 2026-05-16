@@ -54,6 +54,7 @@ and the [schemas guide](../../../docs/guides/schemas.md#section-content).
 See [Plan 107](../../../plan/107_no-reference-style.md) for background.
 
 Fixture examples: [good/default.md](good/default.md) and [bad/x.md](bad/x.md).
+Pattern directory: [pattern/good/](pattern/good/).
 Sibling Go package: [linelength rule](../linelength/rule.go).
 Schema schema: [proto.md](../proto.md).
 
@@ -188,6 +189,10 @@ func TestBuildWebsite_PublishesRulePages_FixtureAndSibling(t *testing.T) {
 	assert.Contains(t, body,
 		"](https://github.com/jeduden/mdsmith/blob/main/internal/rules/MDS001-line-length/bad/x.md)",
 		"bad/ fixture file link must become rule's GitHub blob URL")
+	// Fixture directory link (pattern/good/) → rule's GitHub /tree/ URL.
+	assert.Contains(t, body,
+		"](https://github.com/jeduden/mdsmith/tree/main/internal/rules/MDS001-line-length/pattern/good/)",
+		"pattern/ fixture directory link must become rule's GitHub tree URL")
 	// Sibling non-MDS references (Go package, proto.md) → GitHub
 	// /blob/ URL; cross-rule (../MDS021-include/) must NOT match.
 	assert.Contains(t, body,
