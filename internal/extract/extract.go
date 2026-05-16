@@ -174,9 +174,6 @@ func (p *projector) listItems(n ast.Node) []any {
 	}
 	var items []any
 	for c := lst.FirstChild(); c != nil; c = c.NextSibling() {
-		if _, ok := c.(*ast.ListItem); !ok {
-			continue
-		}
 		items = append(items, strings.TrimSpace(
 			mdtext.ExtractPlainText(c, p.f.Source)))
 	}
@@ -193,9 +190,6 @@ func (p *projector) tableRows(n ast.Node) []any {
 	for r := tbl.FirstChild(); r != nil; r = r.NextSibling() {
 		var cells []string
 		for c := r.FirstChild(); c != nil; c = c.NextSibling() {
-			if _, ok := c.(*extast.TableCell); !ok {
-				continue
-			}
 			cells = append(cells, strings.TrimSpace(
 				mdtext.ExtractPlainText(c, p.f.Source)))
 		}

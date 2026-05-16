@@ -184,12 +184,12 @@ func buildScopeMatches(
 func scopeCaptures(sc *Scope, dh DocHeading, docFM map[string]any) map[string]string {
 	_, caps := headingCaptures(sc.Matcher, dh, docFM)
 	_, fmvars, _ := HeadingStem(sc)
+	// The only regex-named capture the schema parser emits is the
+	// `n` digits group, and protoTokenRegex routes a `{n}`
+	// placeholder to `\#(digits)` rather than fmvar — so an fmvar
+	// field name can never collide with an existing capture key.
+	// No dedup guard is needed.
 	for _, name := range fmvars {
-		if caps != nil {
-			if _, ok := caps[name]; ok {
-				continue
-			}
-		}
 		path := fieldinterp.ParseCUEPath(name)
 		if len(path) == 0 {
 			continue

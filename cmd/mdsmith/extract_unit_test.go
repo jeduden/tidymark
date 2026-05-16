@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -159,28 +160,51 @@ kind-assignment:
 }
 
 func TestRunExtract_CollisionExitsOne(t *testing.T) {
-	// Two sibling scopes whose headings slugify to the same key.
-	// The document conforms (gate passes) but projection collides,
-	// so extract prints a schema diagnostic and exits 1.
+	// A child-scope slug ("Code") collides with the code-block
+	// content default key ("code") inside the same section. The
+	// document conforms to MDS020 (gate passes) but projection
+	// collides, so extract prints a schema diagnostic and exits 1.
 	cfg := `kinds:
   col:
     schema:
       sections:
         - heading: "Goal"
-        - heading: "Goal."
+          content:
+            - kind: code-block
+          sections:
+            - heading: "Code"
 kind-assignment:
   - glob: ["col/*.md"]
     kinds: [col]
 `
 	extractUnitDir(t, cfg, map[string]string{
-		"col/a.md": "# Title\n\n## Goal\n\nx\n\n## Goal.\n\ny\n",
+		"col/a.md": "# Title\n\n## Goal\n\n```go\nx\n```\n\n### Code\n\nbody\n",
 	})
 	var code int
-	_ = captureStdout(func() {
+	out := captureStdout(func() {
 		code = runExtract([]string{"col", "col/a.md", "--format", "json"})
 	})
-	assert.Equal(t, 1, code)
+	assert.Equal(t, 1, code, "stdout=%s", out)
 }
+
+func TestRunExtract_LoadFileFailurePropagates(t *testing.T) {
+	extractUnitDir(t, extractUnitCfg, map[string]string{
+		"recipes/cake.md": "# Cake\n\n## Goal\n\nBake.\n\n## Steps\n\n" +
+			"### Step 1\n\nMix.\n\n## Notes\n\n```go\np()\n```\n\n- a\n",
+	})
+	// Gate runs the real engine and passes; the post-gate read seam
+	// then fails, exercising runExtract's loadExtractFile error
+	// propagation.
+	orig := extractReadFile
+	extractReadFile = func(string, int64) ([]byte, error) {
+		return nil, errBadRead
+	}
+	defer func() { extractReadFile = orig }()
+	code := runExtract([]string{"recipe", "recipes/cake.md"})
+	assert.Equal(t, 2, code)
+}
+
+var errBadRead = fmt.Errorf("injected read failure")
 
 func TestRunExtract_FlagParsing(t *testing.T) {
 	// Unknown flag → usage error exit 2.

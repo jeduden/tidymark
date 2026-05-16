@@ -60,6 +60,58 @@ func TestMergeCoverage_ModeMismatch(t *testing.T) {
 	assert.Contains(t, err.Error(), "mode mismatch")
 }
 
+func TestParseCovLine(t *testing.T) {
+	key, hits, err := parseCovLine("x.go:1.1,2.2 3 7")
+	require.NoError(t, err)
+	assert.Equal(t, "x.go:1.1,2.2 3", key)
+	assert.Equal(t, 7, hits)
+
+	_, _, err = parseCovLine("nospace")
+	assert.Error(t, err)
+	_, _, err = parseCovLine("x.go:1.1,2.2 3 notanint")
+	assert.Error(t, err)
+	// Has a trailing count but no statement-count field.
+	_, _, err = parseCovLine("x.go:1.1,2.2 3")
+	assert.Error(t, err)
+}
+
+func TestCovStartKey(t *testing.T) {
+	assert.Equal(t, "x.go:000000012",
+		covStartKey("x.go:12.4,13.2 1"))
+	assert.Equal(t, "nocolon", covStartKey("nocolon"))
+	assert.Equal(t, "x.go:12", covStartKey("x.go:12")) // no comma
+	assert.Equal(t, "x.go:a.1,2.2 1",
+		covStartKey("x.go:a.1,2.2 1")) // non-numeric start line
+}
+
+func TestMergeCoverage_BlankLinesAndOddKeys(t *testing.T) {
+	dir := t.TempDir()
+	// Blank line tolerated; a record whose key has no colon/comma
+	// still round-trips through covStartKey's fallbacks.
+	p := writeProfile(t, dir, "p.cov",
+		"mode: atomic\n\nx.go:1.1,2.2 1 1\nabc 1 0\n")
+	out := filepath.Join(dir, "m.cov")
+	require.NoError(t, MergeCoverage([]string{p}, out))
+	got, _ := os.ReadFile(out)
+	assert.Contains(t, string(got), "x.go:1.1,2.2 1 1")
+	assert.Contains(t, string(got), "abc 1 0")
+}
+
+func TestMergeCoverage_ScannerError(t *testing.T) {
+	dir := t.TempDir()
+	// A single token larger than the 4 MiB scanner buffer makes
+	// bufio.Scanner fail with ErrTooLong.
+	huge := make([]byte, 5<<20)
+	for i := range huge {
+		huge[i] = 'a'
+	}
+	body := "mode: atomic\n" + string(huge) + "\n"
+	p := writeProfile(t, dir, "huge.cov", body)
+	err := MergeCoverage([]string{p}, filepath.Join(dir, "m.cov"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read")
+}
+
 func TestMergeCoverage_Errors(t *testing.T) {
 	dir := t.TempDir()
 	assert.Error(t, MergeCoverage(nil, filepath.Join(dir, "m.cov")))

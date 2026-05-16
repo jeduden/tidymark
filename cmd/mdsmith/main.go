@@ -69,53 +69,39 @@ func run() int {
 		debug.SetMemoryLimit(512 * 1024 * 1024)
 	}
 
-	// Handle no arguments: print usage, exit 0.
-	if len(os.Args) < 2 {
+	// No arguments or a global help flag: print usage and exit 0.
+	if len(os.Args) < 2 || os.Args[1] == "--help" || os.Args[1] == "-h" {
 		fmt.Fprint(os.Stderr, usageText)
 		return 0
 	}
 
-	// Handle global flags before subcommand dispatch.
+	// Dispatch to subcommand.
 	first := os.Args[1]
-
-	switch first {
-	case "--help", "-h":
-		fmt.Fprint(os.Stderr, usageText)
-		return 0
-	}
-
-	return dispatch(first, os.Args[2:])
-}
-
-// dispatch routes a subcommand name to its runner. Split out of
-// run() so the entry point stays under the statement budget as new
-// subcommands are added.
-func dispatch(first string, args []string) int {
 	switch first {
 	case "check":
-		return runCheck(args)
+		return runCheck(os.Args[2:])
 	case "fix":
-		return runFix(args)
+		return runFix(os.Args[2:])
 	case "export":
-		return runExport(args)
+		return runExport(os.Args[2:])
 	case "extract":
-		return runExtract(args)
+		return runExtract(os.Args[2:])
 	case "list":
-		return runList(args)
+		return runList(os.Args[2:])
 	case "help":
-		return runHelp(args)
+		return runHelp(os.Args[2:])
 	case "metrics":
-		return runMetrics(args)
+		return runMetrics(os.Args[2:])
 	case "merge-driver":
-		return runMergeDriver(args)
+		return runMergeDriver(os.Args[2:])
 	case "pre-merge-commit":
-		return runPreMergeCommit(args)
+		return runPreMergeCommit(os.Args[2:])
 	case "kinds":
-		return runKinds(args)
+		return runKinds(os.Args[2:])
 	case "init":
-		return runInit(args)
+		return runInit(os.Args[2:])
 	case "lsp":
-		return runLSP(args)
+		return runLSP(os.Args[2:])
 	case "version":
 		printVersion()
 		return 0

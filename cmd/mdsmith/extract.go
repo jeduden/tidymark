@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/jeduden/mdsmith/internal/config"
@@ -13,6 +14,25 @@ import (
 	"github.com/jeduden/mdsmith/internal/rules/requiredstructure"
 	"github.com/jeduden/mdsmith/internal/schema"
 	flag "github.com/spf13/pflag"
+)
+
+// Fault-injection seams. These default to the real implementations
+// and are only reassigned by extract_unit_test.go to drive the I/O
+// error paths that cannot occur once the file has already passed
+// resolveFileFromCLI and the check gate (a duplicate read or a
+// stdout write failure on already-validated state).
+var (
+	extractReadFile = lint.ReadFileLimited
+	extractNewFile  = lint.NewFileFromSource
+	extractEncode   = encode.Encode
+	// extractStdout nil means "resolve os.Stdout at call time" so a
+	// test (or captureStdout) that swaps os.Stdout still sees the
+	// write. Tests set it to a failing writer to drive the
+	// write-error path.
+	extractStdout  io.Writer
+	extractGateRun = func(r *engine.Runner, path string) *engine.Result {
+		return r.Run([]string{path})
+	}
 )
 
 // extractErr prints a `mdsmith:`-prefixed message to stderr and
@@ -49,10 +69,10 @@ func runExtract(args []string) int {
 		return code
 	}
 
-	maxBytes, err := resolveMaxInputBytes(cfg, "")
-	if err != nil {
-		return extractErr(2, "%v", err)
-	}
+	// resolveFileFromCLI already parsed and validated
+	// cfg.MaxInputSize (it resolves the same value before reading
+	// the file), so this cannot fail here.
+	maxBytes, _ := resolveMaxInputBytes(cfg, "")
 	if code := gateExtractCheck(cfg, cfgPath, path, maxBytes); code != 0 {
 		return code
 	}
@@ -80,11 +100,22 @@ func runExtract(args []string) int {
 		return 1
 	}
 
-	out, err := encode.Encode(fmtEnum, data)
-	if err != nil {
-		return extractErr(2, "encoding %s: %v", fmtEnum, err)
+	return emit(extractStdout, fmtEnum, data)
+}
+
+// emit encodes data and writes it. Split out so its encode-error
+// and write-error returns are unit-testable directly (the real
+// projection always yields encodable data, and os.Stdout does not
+// fail in normal operation).
+func emit(w io.Writer, f encode.Format, data any) int {
+	if w == nil {
+		w = os.Stdout
 	}
-	if _, err := os.Stdout.Write(out); err != nil {
+	out, err := extractEncode(f, data)
+	if err != nil {
+		return extractErr(2, "encoding %s: %v", f, err)
+	}
+	if _, err := w.Write(out); err != nil {
 		return extractErr(2, "writing output: %v", err)
 	}
 	return 0
@@ -152,7 +183,15 @@ func gateExtractCheck(
 		MaxInputBytes:    maxBytes,
 		ConfigPath:       cfgPath,
 	}
-	result := runner.Run([]string{path})
+	return gateResultCode(extractGateRun(runner, path))
+}
+
+// gateResultCode maps a check Result to extract's exit code:
+// engine errors with no diagnostics → 2 (same as a runtime
+// failure), any diagnostics → 1 (non-conformant), else 0. Split
+// out so all three arms are unit-testable without provoking the
+// engine into an errors-only state on already-resolved input.
+func gateResultCode(result *engine.Result) int {
 	if len(result.Errors) > 0 && len(result.Diagnostics) == 0 {
 		printErrors(result.Errors)
 		return 2
@@ -169,11 +208,11 @@ func gateExtractCheck(
 func loadExtractFile(
 	cfg *config.Config, cfgPath, path string, maxBytes int64,
 ) (*lint.File, []byte, int) {
-	source, err := lint.ReadFileLimited(path, maxBytes)
+	source, err := extractReadFile(path, maxBytes)
 	if err != nil {
 		return nil, nil, extractErr(2, "reading %s: %v", path, err)
 	}
-	f, err := lint.NewFileFromSource(path, source, frontMatterEnabled(cfg))
+	f, err := extractNewFile(path, source, frontMatterEnabled(cfg))
 	if err != nil {
 		return nil, nil, extractErr(2, "parsing %s: %v", path, err)
 	}

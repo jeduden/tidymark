@@ -168,6 +168,30 @@ func TestBuildMatchTree_OptionalContentYieldsToRequired(t *testing.T) {
 	assert.Equal(t, ContentKindCodeBlock, got[0].Entry.Kind)
 }
 
+// An `unlisted` content entry is skipped (collectContent's
+// e.Kind == ContentKindUnlisted continue), and a body node that
+// matches neither the current nor any later entry is consumed
+// (the trailing nodeIdx++).
+func TestCollectContent_UnlistedSkipAndNodeAdvance(t *testing.T) {
+	sc := Scope{
+		Heading: "Goal",
+		Matcher: &Matcher{Regex: "Goal"},
+		Content: []ContentEntry{
+			{Kind: ContentKindUnlisted},
+			{Kind: ContentKindCodeBlock, Required: true},
+		},
+	}
+	sch := &Schema{RootLevel: 2, Sections: []Scope{sc}}
+	// A leading paragraph matches neither the unlisted entry (skipped)
+	// nor the code-block, so it is advanced past before the code is
+	// matched.
+	mt := BuildMatchTree(mtFile(t, "## Goal\n\nintro\n\n```\nx\n```\n"), sch, nil)
+	require.Len(t, mt.Root.Children, 1)
+	got := mt.Root.Children[0].Content
+	require.Len(t, got, 1)
+	assert.Equal(t, ContentKindCodeBlock, got[0].Entry.Kind)
+}
+
 func TestLaterContentEntryMatches(t *testing.T) {
 	content := []ContentEntry{
 		{Kind: ContentKindUnlisted},

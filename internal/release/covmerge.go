@@ -56,9 +56,8 @@ func MergeCoverage(inputs []string, output string) error {
 			return fmt.Errorf("coverage mode mismatch: %q vs %q (%s)", mode, m, in)
 		}
 	}
-	if mode == "" {
-		return fmt.Errorf("no coverage records in %v", inputs)
-	}
+	// mode is non-empty here: len(inputs) >= 1 and accumulateProfile
+	// errors out (returning above) for any input lacking a mode line.
 
 	blocks := make([]covBlock, 0, len(meta))
 	for _, b := range meta {
