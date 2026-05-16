@@ -133,6 +133,55 @@ func TestRunExtract_ArgAndKindErrors(t *testing.T) {
 	}
 }
 
+func TestRunExtract_FrontMatterDoc(t *testing.T) {
+	// A front-matter-bearing document exercises the
+	// StripFrontMatter / ParseFrontMatterFields branch.
+	cfg := `kinds:
+  fm:
+    schema:
+      sections:
+        - heading: "Goal"
+kind-assignment:
+  - glob: ["fm/*.md"]
+    kinds: [fm]
+`
+	extractUnitDir(t, cfg, map[string]string{
+		"fm/a.md": "---\nid: RFC-1\n---\n# Title\n\n## Goal\n\nbody\n",
+	})
+	var code int
+	out := captureStdout(func() {
+		code = runExtract([]string{"fm", "fm/a.md", "--format", "json"})
+	})
+	require.Equal(t, 0, code)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out), &got))
+	assert.Equal(t, map[string]any{"id": "RFC-1"}, got["frontmatter"])
+}
+
+func TestRunExtract_CollisionExitsOne(t *testing.T) {
+	// Two sibling scopes whose headings slugify to the same key.
+	// The document conforms (gate passes) but projection collides,
+	// so extract prints a schema diagnostic and exits 1.
+	cfg := `kinds:
+  col:
+    schema:
+      sections:
+        - heading: "Goal"
+        - heading: "Goal."
+kind-assignment:
+  - glob: ["col/*.md"]
+    kinds: [col]
+`
+	extractUnitDir(t, cfg, map[string]string{
+		"col/a.md": "# Title\n\n## Goal\n\nx\n\n## Goal.\n\ny\n",
+	})
+	var code int
+	_ = captureStdout(func() {
+		code = runExtract([]string{"col", "col/a.md", "--format", "json"})
+	})
+	assert.Equal(t, 1, code)
+}
+
 func TestRunExtract_FlagParsing(t *testing.T) {
 	// Unknown flag → usage error exit 2.
 	assert.Equal(t, 2, runExtract([]string{"--nope"}))
