@@ -338,6 +338,67 @@ func TestCompose_FilenameConflictErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "filename")
 }
 
+// TestCompose_DisjointCardinalityErrors drives the empty-intersection
+// guard through the public Compose path: two root schemas declare the
+// same Step heading with disjoint run lengths (1..3 vs 5..10). The
+// error must propagate through composeSectionLists and mergeScopes
+// rather than silently honoring one input.
+func TestCompose_DisjointCardinalityErrors(t *testing.T) {
+	a := &Schema{Sections: []Scope{{
+		Heading: "Step",
+		Matcher: &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 3}},
+	}}}
+	b := &Schema{Sections: []Scope{{
+		Heading: "Step",
+		Matcher: &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 5, Max: 10}},
+	}}}
+	_, err := Compose(a, b)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "disjoint cardinality")
+}
+
+// TestCompose_NestedDisjointCardinalityErrors covers mergeScopes'
+// recursive composeSectionLists error arm: a shared Goal parent
+// merges fine, but its Step child has disjoint cardinality, so the
+// error surfaces from the nested composition.
+func TestCompose_NestedDisjointCardinalityErrors(t *testing.T) {
+	child := func(min, max int) Scope {
+		return Scope{
+			Heading: "Goal", Matcher: &Matcher{Regex: "Goal"},
+			Sections: []Scope{{
+				Heading: "Step",
+				Matcher: &Matcher{Regex: "Step",
+					Repeat: Repeat{Set: true, Min: min, Max: max}},
+			}},
+		}
+	}
+	a := &Schema{Sections: []Scope{child(1, 3)}}
+	b := &Schema{Sections: []Scope{child(5, 10)}}
+	_, err := Compose(a, b)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "disjoint cardinality")
+}
+
+// TestComposeSectionLists_PreambleMergeError white-box-covers the
+// preamble error-return arm: two lists each lead with a preamble
+// whose matcher carries a disjoint run length, so merging the
+// second into the first must surface the composition error.
+func TestComposeSectionLists_PreambleMergeError(t *testing.T) {
+	pre := func(min, max int) Scope {
+		return Scope{
+			Preamble: true,
+			Matcher: &Matcher{Regex: "x",
+				Repeat: Repeat{Set: true, Min: min, Max: max}},
+		}
+	}
+	_, err := composeSectionLists([][]Scope{
+		{pre(1, 3)},
+		{pre(5, 10)},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "disjoint cardinality")
+}
+
 // TestCompose_StrictClosedWinsFromSecondInput regresses the
 // branch where the SECOND merged scope (b) carries Closed=true
 // while the first didn't — `out.Closed = true` must still fire.
@@ -611,7 +672,8 @@ func TestCompose_ContentConcatenatesOnMerge(t *testing.T) {
 // input's matcher.
 func TestMergeMatcher_BNil(t *testing.T) {
 	a := &Matcher{Regex: "Meta"}
-	got := mergeMatcher(a, nil)
+	got, err := mergeMatcher(a, nil)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "Meta", got.Regex)
 	assert.NotSame(t, a, got, "result must be a clone, not the input pointer")
@@ -620,24 +682,26 @@ func TestMergeMatcher_BNil(t *testing.T) {
 // TestMergeMatcher_ANil covers the symmetric `a == nil` arm.
 func TestMergeMatcher_ANil(t *testing.T) {
 	b := &Matcher{Regex: "Meta"}
-	got := mergeMatcher(nil, b)
+	got, err := mergeMatcher(nil, b)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "Meta", got.Regex)
 	assert.NotSame(t, b, got)
 }
 
-// TestMergeMatcher_WiderMaxAndRepeatSet covers two branches: the
-// `bMax > max` widening (b's bounded max is larger than a's) and
-// the non-(1,1) `else` that sets an explicit Repeat. a allows
-// 1..2, b allows 1..5 -> merged is 1..5.
-func TestMergeMatcher_WiderMaxAndRepeatSet(t *testing.T) {
+// TestMergeMatcher_StricterMaxAndRepeatSet covers two branches: the
+// `a < b` arm of intersectMax (a's bounded max is smaller, so it
+// wins) and the non-(1,1) `else` that sets an explicit Repeat. a
+// allows 1..2, b allows 1..5 -> the intersection is 1..2.
+func TestMergeMatcher_StricterMaxAndRepeatSet(t *testing.T) {
 	a := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 2}}
 	b := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 5}}
-	got := mergeMatcher(a, b)
+	got, err := mergeMatcher(a, b)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	gotMin, gotMax := got.Repeat.Bounds()
 	assert.Equal(t, 1, gotMin)
-	assert.Equal(t, 5, gotMax, "the wider max must win")
+	assert.Equal(t, 2, gotMax, "the stricter (smaller) max must win")
 	assert.True(t, got.Repeat.Set, "non-(1,1) bounds must set Repeat explicitly")
 }
 
@@ -647,7 +711,8 @@ func TestMergeMatcher_WiderMaxAndRepeatSet(t *testing.T) {
 func TestMergeMatcher_RequiredWinsOverOptional(t *testing.T) {
 	optional := &Matcher{Regex: "Meta", Repeat: Repeat{Set: true, Min: 0, Max: 1}}
 	required := &Matcher{Regex: "Meta"} // exactly one
-	got := mergeMatcher(optional, required)
+	got, err := mergeMatcher(optional, required)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	gotMin, _ := got.Repeat.Bounds()
 	assert.Equal(t, 1, gotMin, "required (min 1) must win over optional (min 0)")
@@ -690,12 +755,13 @@ func TestMergeMatcher_SequentialOredAndUnbounded(t *testing.T) {
 		Regex:  "Step",
 		Repeat: Repeat{Set: true, Min: 1, Max: 0},
 	}
-	got := mergeMatcher(a, b)
+	got, err := mergeMatcher(a, b)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.True(t, got.Sequential, "Sequential must OR across inputs")
 	gotMin, gotMax := got.Repeat.Bounds()
 	assert.Equal(t, 1, gotMin)
-	assert.Equal(t, 0, gotMax, "unbounded max stays unbounded")
+	assert.Equal(t, 0, gotMax, "unbounded ∩ unbounded stays unbounded")
 }
 
 // TestMergeMatcher_SequentialFromBOnly covers the right operand of
@@ -703,7 +769,8 @@ func TestMergeMatcher_SequentialOredAndUnbounded(t *testing.T) {
 func TestMergeMatcher_SequentialFromBOnly(t *testing.T) {
 	a := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 0}}
 	b := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 0}, Sequential: true}
-	got := mergeMatcher(a, b)
+	got, err := mergeMatcher(a, b)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.True(t, got.Sequential)
 }
@@ -714,22 +781,66 @@ func TestMergeMatcher_SequentialFromBOnly(t *testing.T) {
 func TestMergeMatcher_OptionalBothSides(t *testing.T) {
 	a := &Matcher{Regex: "Notes", Repeat: Repeat{Set: true, Min: 0, Max: 1}}
 	b := &Matcher{Regex: "Notes", Repeat: Repeat{Set: true, Min: 0, Max: 1}}
-	got := mergeMatcher(a, b)
+	got, err := mergeMatcher(a, b)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	gotMin, _ := got.Repeat.Bounds()
 	assert.Equal(t, 0, gotMin, "two optional runs stay optional")
 	assert.True(t, got.Repeat.Optional())
 }
 
-// TestMergeMatcher_BoundedAThenUnboundedB covers the `bMax != 0`
-// false arm: a is bounded (max 3), b is unbounded (max 0). Either
-// side unbounded makes the merged run unbounded.
+// TestMergeMatcher_BoundedAThenUnboundedB covers intersectMax's
+// `b == 0` arm: a is bounded (max 3), b is unbounded (max 0). The
+// intersection keeps the bounded side so the unbounded input never
+// loosens it.
 func TestMergeMatcher_BoundedAThenUnboundedB(t *testing.T) {
 	a := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 3}}
 	b := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 0}}
-	got := mergeMatcher(a, b)
+	got, err := mergeMatcher(a, b)
+	require.NoError(t, err)
 	require.NotNil(t, got)
 	_, gotMax := got.Repeat.Bounds()
-	assert.Equal(t, 0, gotMax,
-		"a bounded max merged with an unbounded one yields unbounded")
+	assert.Equal(t, 3, gotMax,
+		"a bounded max intersected with an unbounded one stays bounded")
+}
+
+// TestMergeMatcher_UnboundedAThenBoundedB covers intersectMax's
+// `a == 0` arm: a is unbounded, b is bounded (max 4). The bounded
+// side wins.
+func TestMergeMatcher_UnboundedAThenBoundedB(t *testing.T) {
+	a := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 0}}
+	b := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 4}}
+	got, err := mergeMatcher(a, b)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	_, gotMax := got.Repeat.Bounds()
+	assert.Equal(t, 4, gotMax,
+		"an unbounded max intersected with a bounded one stays bounded")
+}
+
+// TestMergeMatcher_DisjointRangesError covers the empty-intersection
+// guard: 1..3 and 5..10 share no satisfiable run length, so compose
+// surfaces a config error instead of silently honoring one input.
+func TestMergeMatcher_DisjointRangesError(t *testing.T) {
+	a := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 3}}
+	b := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 5, Max: 10}}
+	got, err := mergeMatcher(a, b)
+	assert.Nil(t, got)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "disjoint cardinality")
+	assert.Contains(t, err.Error(), "1..3")
+	assert.Contains(t, err.Error(), "5..10")
+}
+
+// TestMergeMatcher_DisjointWithUnboundedError covers the
+// boundsLabel "unbounded" branch: a requires 5..unbounded, b caps
+// at 1..2 — disjoint, and the error names the unbounded side.
+func TestMergeMatcher_DisjointWithUnboundedError(t *testing.T) {
+	a := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 5, Max: 0}}
+	b := &Matcher{Regex: "Step", Repeat: Repeat{Set: true, Min: 1, Max: 2}}
+	got, err := mergeMatcher(a, b)
+	assert.Nil(t, got)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "5..unbounded")
+	assert.Contains(t, err.Error(), "1..2")
 }

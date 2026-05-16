@@ -12,11 +12,12 @@ import (
 // merged so that scopes sharing the same heading label combine their
 // child sections recursively; remaining scopes append in input order.
 // The stricter `closed:` wins (any input that sets Closed=true makes
-// the composed scope closed) and the stricter cardinality wins (a
-// section required by any input is required in the result). Filename
-// uses the first non-empty value; conflicting patterns cause an error
-// so the caller surfaces a clear diagnostic rather than silently
-// ignoring one constraint. Acronyms, CrossReferences, and Index slots
+// the composed scope closed) and the cardinality intersects (the
+// composed run length must satisfy every input; disjoint ranges have
+// an empty intersection and return an error). Filename uses the first
+// non-empty value; conflicting patterns cause an error so the caller
+// surfaces a clear diagnostic rather than silently ignoring one
+// constraint. Acronyms, CrossReferences, and Index slots
 // are joined from inputs that declare them; conflicts on Index.Output
 // return an error.
 //
@@ -51,7 +52,10 @@ func Compose(schemas ...*Schema) (*Schema, error) {
 		return nil, err
 	}
 	composeRootClosed(out, nonNil)
-	out.Sections = composeSectionLists(extractRootSections(nonNil))
+	out.Sections, err = composeSectionLists(extractRootSections(nonNil))
+	if err != nil {
+		return nil, err
+	}
 	out.CrossReferences = composeCrossRefs(nonNil)
 	composeAcronyms(out, nonNil)
 	if err := composeIndex(out, nonNil); err != nil {
@@ -164,45 +168,77 @@ func extractRootSections(schemas []*Schema) [][]Scope {
 // stable identity and DOES merge, so two proto.md sources that
 // each wrap their sections in the same H1 yield one combined H1
 // scope rather than requiring two H1s in the document.
-func composeSectionLists(lists [][]Scope) []Scope {
-	var out []Scope
-	indexByHeading := map[string]int{}
+func composeSectionLists(lists [][]Scope) ([]Scope, error) {
+	acc := &sectionAcc{indexByHeading: map[string]int{}}
 	for _, list := range lists {
-		seenPreambleInList := false
+		seenPreamble := false
 		for _, sc := range list {
-			if sc.Preamble {
-				if seenPreambleInList {
-					// A list can have at most one preamble at index
-					// 0; defensively skip duplicates.
-					continue
-				}
-				seenPreambleInList = true
-				if existing := findPreambleIndex(out); existing >= 0 {
-					out[existing] = mergeScopes(out[existing], sc)
-					continue
-				}
-				// Preamble must be first in any list. Prepend on the
-				// composed list so the invariant survives.
-				out = append([]Scope{sc}, out...)
-				// Shift existing heading indices.
-				for k, v := range indexByHeading {
-					indexByHeading[k] = v + 1
-				}
+			switch {
+			case sc.Preamble && seenPreamble:
+				// A list can have at most one preamble at index 0;
+				// defensively skip duplicates.
 				continue
+			case sc.Preamble:
+				seenPreamble = true
+				if err := acc.addPreamble(sc); err != nil {
+					return nil, err
+				}
+			default:
+				if err := acc.addNamed(sc); err != nil {
+					return nil, err
+				}
 			}
-			if !canMergeByHeading(sc) {
-				out = append(out, cloneScope(sc))
-				continue
-			}
-			if idx, ok := indexByHeading[sc.Heading]; ok {
-				out[idx] = mergeScopes(out[idx], sc)
-				continue
-			}
-			indexByHeading[sc.Heading] = len(out)
-			out = append(out, cloneScope(sc))
 		}
 	}
-	return out
+	return acc.out, nil
+}
+
+// sectionAcc accumulates composed scopes while tracking where each
+// mergeable heading landed, so a later input's same-heading scope
+// folds into the earlier one instead of duplicating.
+type sectionAcc struct {
+	out            []Scope
+	indexByHeading map[string]int
+}
+
+// addPreamble folds a preamble into the existing one or prepends it.
+// A preamble must lead the composed list, so prepending shifts every
+// recorded heading index by one to keep them valid.
+func (a *sectionAcc) addPreamble(sc Scope) error {
+	if existing := findPreambleIndex(a.out); existing >= 0 {
+		return a.mergeAt(existing, sc)
+	}
+	a.out = append([]Scope{sc}, a.out...)
+	for k, v := range a.indexByHeading {
+		a.indexByHeading[k] = v + 1
+	}
+	return nil
+}
+
+// addNamed appends a no-identity scope verbatim, merges a repeated
+// stable heading into its first occurrence, or records a new one.
+func (a *sectionAcc) addNamed(sc Scope) error {
+	if !canMergeByHeading(sc) {
+		a.out = append(a.out, cloneScope(sc))
+		return nil
+	}
+	if idx, ok := a.indexByHeading[sc.Heading]; ok {
+		return a.mergeAt(idx, sc)
+	}
+	a.indexByHeading[sc.Heading] = len(a.out)
+	a.out = append(a.out, cloneScope(sc))
+	return nil
+}
+
+// mergeAt merges sc into a.out[idx] in place, propagating any
+// composition error.
+func (a *sectionAcc) mergeAt(idx int, sc Scope) error {
+	merged, err := mergeScopes(a.out[idx], sc)
+	if err != nil {
+		return err
+	}
+	a.out[idx] = merged
+	return nil
 }
 
 func findPreambleIndex(list []Scope) int {
@@ -236,40 +272,51 @@ func canMergeByHeading(sc Scope) bool {
 
 // mergeScopes combines two scopes that share a heading label. The
 // result keeps the first scope's heading label; Closed takes the
-// stricter value (true wins) and the Matcher's cardinality takes
-// the stricter value (a section required by either input is
-// required in the result). Child sections and per-scope rule
-// overrides compose by the same rules as the root; positional
-// Content constraints concatenate in input order.
-func mergeScopes(a, b Scope) Scope {
+// stricter value (true wins) and the Matcher's cardinality is the
+// intersection of both inputs' run-length ranges (disjoint ranges
+// return an error). Child sections and per-scope rule overrides
+// compose by the same rules as the root; positional Content
+// constraints concatenate in input order.
+func mergeScopes(a, b Scope) (Scope, error) {
 	out := cloneScope(a)
 	if b.Closed {
 		out.Closed = true
 	}
-	out.Matcher = mergeMatcher(a.Matcher, b.Matcher)
-	out.Sections = composeSectionLists([][]Scope{a.Sections, b.Sections})
+	m, err := mergeMatcher(a.Matcher, b.Matcher)
+	if err != nil {
+		return Scope{}, err
+	}
+	out.Matcher = m
+	out.Sections, err = composeSectionLists([][]Scope{a.Sections, b.Sections})
+	if err != nil {
+		return Scope{}, err
+	}
 	// Rules: union by rule name; later input wins on key collisions.
 	// The schema-rule walker is the only consumer, and its semantics
 	// are already "later overrides earlier" within a single scope.
 	out.Rules = mergeScopeRules(a.Rules, b.Rules)
 	out.Content = append(cloneContent(a.Content), cloneContent(b.Content)...)
-	return out
+	return out, nil
 }
 
 // mergeMatcher combines two matchers for scopes that share a
 // heading label. In practice both matchers derive from the same
 // heading text, so their Regex bodies are identical; the function
-// keeps the first scope's Regex and folds the stricter cardinality
-// in. "Stricter" means a section required by either input is
-// required in the result (the larger minimum), and the run length
-// is the more permissive of the two maxima so composition never
-// makes a satisfiable document impossible. Sequential is OR-ed.
-func mergeMatcher(a, b *Matcher) *Matcher {
+// keeps the first scope's Regex and intersects the cardinality so
+// the composed run length satisfies every input. The minimum is
+// the larger of the two (a section required by either input is
+// required in the result) and the maximum is the smaller of the
+// two, treating 0 as unbounded so an unbounded side never loosens
+// a bounded one. Disjoint ranges (e.g. 1..3 and 5..10) have an
+// empty intersection: no document can satisfy both, so they return
+// an error, mirroring how conflicting filename patterns surface
+// rather than silently honoring one input. Sequential is OR-ed.
+func mergeMatcher(a, b *Matcher) (*Matcher, error) {
 	if a == nil {
-		return cloneMatcher(b)
+		return cloneMatcher(b), nil
 	}
 	if b == nil {
-		return cloneMatcher(a)
+		return cloneMatcher(a), nil
 	}
 	out := *a
 	out.Sequential = a.Sequential || b.Sequential
@@ -279,19 +326,46 @@ func mergeMatcher(a, b *Matcher) *Matcher {
 	if bMin > min {
 		min = bMin
 	}
-	var max int // 0 == unbounded
-	if aMax != 0 && bMax != 0 {
-		max = aMax
-		if bMax > max {
-			max = bMax
-		}
+	max := intersectMax(aMax, bMax)
+	if max != 0 && min > max {
+		return nil, fmt.Errorf(
+			"composed schemas declare disjoint cardinality for a "+
+				"section: one input allows %s, another allows %s — "+
+				"the intersection is empty so no document satisfies "+
+				"both",
+			boundsLabel(aMin, aMax), boundsLabel(bMin, bMax))
 	}
 	if min == 1 && max == 1 {
 		out.Repeat = Repeat{}
 	} else {
 		out.Repeat = Repeat{Set: true, Min: min, Max: max}
 	}
-	return &out
+	return &out, nil
+}
+
+// intersectMax returns the stricter (smaller) of two run-length
+// maxima, where 0 means unbounded. An unbounded side yields the
+// other's bound so it never loosens a bounded constraint.
+func intersectMax(a, b int) int {
+	switch {
+	case a == 0:
+		return b
+	case b == 0:
+		return a
+	case a < b:
+		return a
+	default:
+		return b
+	}
+}
+
+// boundsLabel renders a (min, max) cardinality pair for error
+// messages; a 0 max prints as "unbounded".
+func boundsLabel(min, max int) string {
+	if max == 0 {
+		return fmt.Sprintf("%d..unbounded", min)
+	}
+	return fmt.Sprintf("%d..%d", min, max)
 }
 
 func cloneMatcher(m *Matcher) *Matcher {

@@ -12,11 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestApplySettings_SchemaSourcesList exercises plan 156's primary
-// new input: a `schema-sources` list installed by the merge layer.
-// The rule loads each entry into Sources and reflects the first
-// entry into Schema / InlineSchema only when the list has exactly
-// one element.
 // TestTranslateLayerSettings_FileSource covers the rule's
 // rule.SettingsTranslator implementation: a `schema:` file path
 // becomes a one-entry schema-sources list and the legacy key is
@@ -174,6 +169,11 @@ func TestRule_ImplementsSettingsTranslator(t *testing.T) {
 		"required-structure must be discoverable as a SettingsTranslator via the registry")
 }
 
+// TestApplySettings_SchemaSourcesList exercises plan 156's primary
+// new input: a `schema-sources` list installed by the merge layer.
+// The rule loads each entry into Sources and reflects the first
+// entry into Schema / InlineSchema only when the list has exactly
+// one element.
 func TestApplySettings_SchemaSourcesList(t *testing.T) {
 	r := &Rule{}
 	err := r.ApplySettings(map[string]any{
