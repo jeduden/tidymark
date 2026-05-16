@@ -142,13 +142,18 @@ var repoNonPublishedRefDef = regexp.MustCompile(
 
 // indexMdLink matches an inline link whose target ends in
 // `<path>/index.md` (the docs/-tree convention for a directory
-// overview). Hugo serves a section's `_index.md` at the
-// directory URL (`/section/`) with no filename suffix — it does
-// not publish `_index.md` (or `index.md`) as a URL — so the
-// rewrite drops the filename entirely and resolves to
-// `<path>/`. The synced filesystem still has `_index.md` at
-// that directory thanks to SyncDocs' rename, so directory
-// targets continue to resolve in MDS027's filesystem check too.
+// overview). The rewrite drops the `index.md` filename so the
+// target becomes `<path>/`. Hugo serves a section's _index.md
+// at the directory URL with no filename; the synced filesystem
+// still has `_index.md` at that directory thanks to SyncDocs'
+// rename, so MDS027 stats the directory target as a regular
+// existing path. The render-link hook
+// (website/layouts/_default/_markup/render-link.html) then
+// resolves the directory target to the section's absolute
+// permalink at HTML-render time, which is what fixes the
+// source-vs-rendered-URL depth mismatch that a bare relative
+// directory link would otherwise have on leaf pages.
+//
 // Group 1 captures the path prefix (required: a bare
 // `index.md` link with no parent directory is ambiguous and
 // left alone); group 2 captures an optional `#anchor`.

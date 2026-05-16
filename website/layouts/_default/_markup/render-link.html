@@ -1,22 +1,35 @@
-{{- /* Render-link hook: rewrite repo-relative `.md` hrefs to
-       Hugo's extensionless directory URLs.
+{{- /* Render-link hook: rewrite repo-relative hrefs to
+       Hugo's resolved page URLs.
 
-       Source docs link sibling pages with the .md suffix
-       (`[CLI](../reference/cli.md)`) because the markdown
-       must also be valid on the local filesystem so MDS027
-       can resolve it. Hugo, on the other hand, serves
-       `reference/cli.md` at `/docs/reference/cli/` — no
-       extension, trailing slash. Without this hook the
-       rendered `<a href="reference/cli.md">` would 404 on
-       the live site.
+       Source docs link sibling pages by relative path
+       (`[CLI](../reference/cli.md)`) so the markdown stays
+       filesystem-valid for MDS027. The site's URL layout
+       is one level deeper than the source: a markdown file
+       at `docs/guides/foo.md` renders at
+       `/docs/guides/foo/`. A relative href resolved from
+       that rendered URL therefore lands one directory
+       below where the source intended — for example
+       `../reference/globs.md` from `docs/guides/file-kinds.md`
+       would resolve to `/docs/guides/reference/globs/`
+       instead of `/docs/reference/globs/`. Stripping `.md`
+       alone does not fix that mismatch.
 
-       The hook passes external URLs (http(s)/mailto),
-       fragment-only links, and site-absolute paths through
-       unchanged — those are already in the right form. For
-       any other target the fragment is split off, a
-       trailing `/index.md` or `/_index.md` collapses to the
-       directory URL, and a trailing `.md` becomes `/`. The
-       fragment is reattached after the transform. */ -}}
+       Hugo's `.Page.GetPage` resolves a source-relative
+       path to a Page and returns its absolute
+       `.RelPermalink`, which already accounts for the
+       deeper rendering URL. We try GetPage first for any
+       relative target. If it succeeds (typically every
+       link into another docs page, including section
+       indexes), we use the page's permalink and append any
+       fragment. GetPage misses fall back to a path-only
+       fix-up (strip a trailing `.md`, collapse
+       `index.md`/`_index.md` to the directory) so a stray
+       non-Page target (e.g. a resource file) still
+       renders sensibly.
+
+       External URLs (http(s), mailto), fragment-only
+       links, and site-absolute paths bypass the lookup —
+       they are already in the right form. */ -}}
 
 {{- $url := .Destination -}}
 {{- $external := or
@@ -25,6 +38,7 @@
   (strings.HasPrefix $url "mailto:") -}}
 {{- $anchorOnly := strings.HasPrefix $url "#" -}}
 {{- $absolute := strings.HasPrefix $url "/" -}}
+
 {{- if not (or $external $anchorOnly $absolute) -}}
   {{- $parts := split $url "#" -}}
   {{- $path := index $parts 0 -}}
@@ -32,15 +46,22 @@
   {{- if gt (len $parts) 1 -}}
     {{- $frag = printf "#%s" (delimit (after 1 $parts) "#") -}}
   {{- end -}}
-  {{- if strings.HasSuffix $path "/index.md" -}}
-    {{- $path = strings.TrimSuffix "index.md" $path -}}
-  {{- else if strings.HasSuffix $path "/_index.md" -}}
-    {{- $path = strings.TrimSuffix "_index.md" $path -}}
-  {{- else if or (eq $path "index.md") (eq $path "_index.md") -}}
-    {{- $path = "./" -}}
-  {{- else if strings.HasSuffix $path ".md" -}}
-    {{- $path = printf "%s/" (strings.TrimSuffix ".md" $path) -}}
+
+  {{- $resolved := "" -}}
+  {{- with .Page.GetPage $path -}}
+    {{- $resolved = .RelPermalink -}}
   {{- end -}}
-  {{- $url = printf "%s%s" $path $frag -}}
+
+  {{- if $resolved -}}
+    {{- $url = printf "%s%s" $resolved $frag -}}
+  {{- else if strings.HasSuffix $path "/index.md" -}}
+    {{- $url = printf "%s%s" (strings.TrimSuffix "index.md" $path) $frag -}}
+  {{- else if strings.HasSuffix $path "/_index.md" -}}
+    {{- $url = printf "%s%s" (strings.TrimSuffix "_index.md" $path) $frag -}}
+  {{- else if or (eq $path "index.md") (eq $path "_index.md") -}}
+    {{- $url = printf "./%s" $frag -}}
+  {{- else if strings.HasSuffix $path ".md" -}}
+    {{- $url = printf "%s/%s" (strings.TrimSuffix ".md" $path) $frag -}}
+  {{- end -}}
 {{- end -}}
 <a href="{{ $url | safeURL }}"{{ with .Title }} title="{{ . | safeHTML }}"{{ end }}>{{ .Text | safeHTML }}</a>
