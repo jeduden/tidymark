@@ -96,12 +96,13 @@ func (t *Toolkit) syncRuleIndex(rulesDir, dstDir string) error {
 	if !found {
 		return nil
 	}
+	// ReadDir already confirmed a non-symlink index.md, so a
+	// ReadFile failure here is a real error (or a TOCTOU
+	// disappearance) — wrap it rather than special-casing
+	// not-exist.
 	src := filepath.Join(rulesDir, "index.md")
 	data, err := t.fs.ReadFile(src)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
 		return fmt.Errorf("read rule index %s: %w", src, err)
 	}
 	data = transformMarkdown(data)

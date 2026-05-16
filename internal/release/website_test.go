@@ -114,6 +114,8 @@ func TestSyncRuleIndex_SymlinkIndexSkipped(t *testing.T) {
 
 func TestSyncRuleIndex_NoIndexFileIsNoop(t *testing.T) {
 	rulesDir := t.TempDir() // exists, but holds no index.md
+	// A decoy sibling exercises the non-index loop branch.
+	writeFile(t, filepath.Join(rulesDir, "proto.md"), "schema\n")
 	dst := filepath.Join(t.TempDir(), "out")
 
 	require.NoError(t, NewWithFS(osFS{}).syncRuleIndex(rulesDir, dst))
