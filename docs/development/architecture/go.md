@@ -325,27 +325,25 @@ packaged-artifact tests.
 - **Unit tests** in `xxx_test.go`
   next to `xxx.go`. The dedicated
   test for a package function
-  `func Foo` is `TestFoo`. For a
-  method `func (r *Receiver) Foo`,
-  the dedicated test is
-  `TestReceiver_Foo`. Sub-behaviours
-  may live as subtests via
-  `t.Run("case", …)` under that
-  parent (see
-  `internal/lint/frontmatter_test.go`'s
-  `TestParseFrontMatterFields`) or
-  as additional top-level functions
-  named `TestReceiver_Foo_Variant`
-  (see
-  `internal/archetype/gensection/`
-  `engine_test.go`'s
-  `TestEngine_Check_*` family).
+  `func Foo` is `TestFoo`; for a
+  method `func (r *Receiver) Foo`
+  it is `TestReceiver_Foo`.
+  Sub-behaviours may live as
+  `t.Run("case", …)` subtests
+  under that parent (e.g.
+  `TestParseFrontMatterFields` in
+  `internal/lint/frontmatter_test.go`)
+  or as additional top-level
+  functions
+  `TestReceiver_Foo_Variant` (e.g.
+  the `TestEngine_Check_*` family
+  in
+  `internal/archetype/gensection/engine_test.go`).
   Either form satisfies the
-  "dedicated test by name" rule;
-  pick subtests when behaviours
-  share setup, separate top-level
-  tests when each variant stands
-  alone.
+  dedicated-test rule — subtests
+  when behaviours share setup,
+  separate top-level when each
+  variant stands alone.
 - **Contract tests** in this repo:
   `internal/integration/rule_boundaries_test.go`
   pins the rule import graph;
@@ -363,17 +361,25 @@ packaged-artifact tests.
   `internal/integration/`. The rule
   fixture runner (`rules_test.go`)
   is the canonical example.
-- **E2E tests** are named with
-  either an `e2e_*_test.go` prefix
-  (e.g. `cmd/mdsmith/e2e_test.go`,
-  `e2e_backlinks_test.go`) or an
-  `*_e2e_test.go` suffix (e.g.
-  `kinds_e2e_test.go`,
-  `list_e2e_test.go`,
-  `explain_e2e_test.go`). Both
-  patterns count; the demo tape
-  harness under `demo/` is also
-  e2e.
+- **E2E tests** live under
+  `cmd/mdsmith/` and are defined
+  by behaviour — the test spawns
+  the built `mdsmith` binary and
+  drives it over stdio, exit
+  code, or signals. Audit by what
+  the test does, not the
+  filename; three name shapes
+  appear in the repo: `e2e_`
+  prefix (`e2e_test.go`,
+  `e2e_backlinks_test.go`),
+  `_e2e_` suffix
+  (`kinds_e2e_test.go`,
+  `list_e2e_test.go`), and
+  topic-named LSP subprocess
+  tests (`lsp_test.go`,
+  `lsp_hover_test.go`, …). The
+  demo tape harness under `demo/`
+  is also e2e.
 - Rule fixtures live in
   `internal/rules/MDS###-<rule-name>/`:
   `good/` must lint clean against
@@ -458,13 +464,16 @@ checklist can pattern-match.
   Pyramid is inverted; push the
   assertion down to a unit test in
   the function's own package.
-- **An e2e test (`e2e_*_test.go`
-  prefix or `*_e2e_test.go`
-  suffix) added where a unit test
-  would suffice.** E2E tests build
-  and run the binary; reserve them
-  for behaviour that needs the
-  full process boundary.
+- **A test that spawns the
+  `mdsmith` binary as a
+  subprocess to assert behaviour
+  reachable without it.** Pyramid
+  is inverted regardless of
+  filename — any of the three
+  e2e shapes above counts.
+  Reserve e2e for behaviour that
+  needs the full process
+  boundary.
 
 ## Refactor moves we have used
 

@@ -171,15 +171,22 @@ the audit needs are below.
   TypeScript integration tests sit
   next to the command module they
   exercise.
-- **E2E test location**:
-  `cmd/mdsmith/` for Go, using
-  either an `e2e_*_test.go` prefix
-  (e.g. `e2e_test.go`,
-  `e2e_backlinks_test.go`) or an
-  `*_e2e_test.go` suffix (e.g.
-  `kinds_e2e_test.go`,
+- **E2E test location**: under
+  `cmd/mdsmith/` for Go, defined
+  by behaviour (the test spawns
+  the built binary and drives it
+  over stdio, exit code, or
+  signals). Three filename shapes
+  appear in the repo, all e2e:
+  `e2e_` prefix (`e2e_test.go`,
+  `e2e_backlinks_test.go`),
+  `_e2e_` suffix
+  (`kinds_e2e_test.go`,
   `list_e2e_test.go`,
-  `explain_e2e_test.go`); demo
+  `explain_e2e_test.go`), and
+  topic-named LSP subprocess
+  tests (`lsp_test.go`,
+  `lsp_hover_test.go`, …). Demo
   tapes under `demo/` are also
   e2e. The VS Code extension host
   runs are e2e for the TypeScript
@@ -242,13 +249,15 @@ explicit mention here:
   pyramid is inverted; push the
   assertion down to a unit test in
   the function's own package.
-- **An e2e test (`e2e_*_test.go`
-  prefix or `*_e2e_test.go`
-  suffix) added where a unit or
-  integration test would suffice**
-  — e2e tests build and run the
-  binary; reserve them for
-  behaviour that needs the full
+- **A test that spawns the
+  `mdsmith` binary as a
+  subprocess to assert behaviour
+  reachable without it** —
+  pyramid is inverted regardless
+  of the filename shape; e2e
+  tests build and run the binary,
+  reserve them for behaviour that
+  needs the full
   process boundary.
 
 ## Common skip cases in this repo
