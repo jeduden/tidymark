@@ -305,6 +305,8 @@ kinds:
     rules:
       required-structure:
         schema: internal/rules/proto.md
+      no-inline-html:
+        allow: [kbd]
   directive-rule-readme:
     rules:
       required-structure:
