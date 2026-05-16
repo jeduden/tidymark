@@ -21,7 +21,7 @@ wrong, without changing the default behavior.
 
 ## Why this is a small change
 
-Plan 163 routes every key through one `keyFor(node)`
+Plan 166 routes every key through one `keyFor(node)`
 function. This plan only changes that function and adds
 parsing. The walk, encoders, and CLI are untouched.
 
@@ -32,7 +32,7 @@ parsing. The walk, encoders, and CLI are untouched.
   children merge into the parent instead of nesting.
 - Composition rule: two kinds binding one composed node
   to different names is a compose-time error, reusing the
-  collision diagnostic from plan 163.
+  collision diagnostic from plan 166.
 
 ## Tasks
 
@@ -55,7 +55,7 @@ parsing. The walk, encoders, and CLI are untouched.
 ## Acceptance Criteria
 
 - [ ] `bind:` overrides the default key; output is
-      otherwise identical to plan 163.
+      otherwise identical to plan 166.
 - [ ] `bind: ""` hoists a node's children into its
       parent.
 - [ ] Duplicate or unreachable binds are rejected with

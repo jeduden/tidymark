@@ -3,7 +3,7 @@ id: 166
 title: Schema-driven data extraction (mdsmith extract)
 status: "🔲"
 model: opus
-depends-on: [149, 156]
+depends-on: [149]
 summary: >-
   Derive a default data tree from the hierarchical
   schema and add an `extract` subcommand that emits a
@@ -97,10 +97,11 @@ legacy single-source model.
   target this shape directly.
 - **[Plan 156 — kind-schema
   composition](156_kind-schema-composition.md) / PR
-  #288.** (Disambiguation: two plan files share id 156;
-  this dependency is the composition one, not the
-  now-landed `156_schema-entry-unification`.) A file can
-  resolve to multiple kinds whose schemas compose via
+  #288.** (Two plan files share id 156, so this
+  dependency is named by filename here rather than in
+  numeric `depends-on:`: it is the composition one, not
+  the now-landed `156_schema-entry-unification`.) A file
+  can resolve to multiple kinds whose schemas compose via
   `schema.Compose()`. The extractor consumes the composed
   `Schema`. Default keys derive from heading text, so
   identical headings from two kinds merge to the same key
