@@ -60,11 +60,15 @@ the validated match and mirrors the hierarchy:
   field** (both the placeholder name and its value
   survive), plus the element's own child scopes and
   content.
-- **Preamble** (content before the first heading, when
-  the schema declares a preamble scope) → projected under
-  a `preamble` key. Wildcard slots and unlisted/closed
-  headings are skipped: the output is a faithful
-  projection of the *declared* schema only.
+- **No-heading section** (`heading: null` — content
+  before the first child heading) has no heading text and
+  therefore no slug. Its content entries project
+  **directly into the enclosing object** (root, or the
+  parent section) beside the headed-section keys — there
+  is no `preamble` wrapper key. Wildcard slots
+  (`regex: '.+'`) and unlisted/closed headings are
+  skipped: the output is a faithful projection of the
+  *declared* schema only.
 - **`code-block`** → string under `code` (raw body);
   multiple blocks get `code`, `code-2`, …
 - **`list`** → array of item strings under `items`.
@@ -80,16 +84,23 @@ are omitted rather than emitted as null.
 
 ## Sequencing
 
-The schema engine is mid-rework. This plan lands after,
-and consumes the outputs of, that work — not the legacy
-single-source model.
+This plan consumes the reworked schema engine, not the
+legacy single-source model.
 
+- **Entry-shape unification (`156_schema-entry-unification`
+  / PR #295) — landed in main.** Every `sections:` entry
+  is discriminated by its `heading:` value: a string or
+  `{regex, repeat?, sequential?}` mapping for headed
+  sections, and `heading: null` for the no-heading section
+  (content before the first child heading). There is no
+  standalone `preamble:` key. The projection rules above
+  target this shape directly.
 - **[Plan 156 — kind-schema
   composition](156_kind-schema-composition.md) / PR
   #288.** (Disambiguation: two plan files share id 156;
-  this dependency is the composition one, not
-  `156_schema-entry-unification.md`.) A file can resolve
-  to multiple kinds whose schemas compose via
+  this dependency is the composition one, not the
+  now-landed `156_schema-entry-unification`.) A file can
+  resolve to multiple kinds whose schemas compose via
   `schema.Compose()`. The extractor consumes the composed
   `Schema`. Default keys derive from heading text, so
   identical headings from two kinds merge to the same key
@@ -126,12 +137,13 @@ partial data.
 3. **Default scope projection.** Walk the scope tree and
    build the nested structure per the rules above:
    `frontmatter` plus sections at the root, literal scopes
-   keyed by slug, preamble under `preamble`, wildcard /
+   keyed by slug, the `heading: null` no-heading section's
+   content hoisted into the enclosing object, wildcard /
    unlisted skipped. Route every key through one
    `keyFor(node)` function — the single seam a future
    custom-binding plan overrides. Reuse the existing
-   anchor slugifier. Unit-test literal, nested, preamble,
-   and optional-omitted scopes.
+   anchor slugifier. Unit-test literal, nested,
+   no-heading-section, and optional-omitted scopes.
 4. **Repeating scopes and placeholders.** Project scopes
    with a `repeat: {min, max}` cardinality as arrays; each
    element retains
@@ -178,8 +190,10 @@ partial data.
       become arrays; each element retains every captured
       placeholder as a `name: value` field plus its child
       scopes/content.
-- [ ] Preamble is projected under `preamble`; wildcard
-      and unlisted/closed headings are skipped.
+- [ ] A `heading: null` no-heading section's content
+      projects into its enclosing object (no `preamble`
+      wrapper key); wildcard and unlisted/closed headings
+      are skipped.
 - [ ] Code-block, list, table, and paragraph entries
       project under their default keys; sibling key
       collisions are reported as schema diagnostics.
@@ -207,9 +221,12 @@ partial data.
   `frontmatter` object and the projected sections beside
   it at the same level. Grouping front matter avoids
   collisions with section slugs.
-- **Non-listed nodes.** Preamble is projected under
-  `preamble`; wildcard slots and unlisted/closed headings
-  are skipped.
+- **No-heading section.** A `heading: null` entry has no
+  slug; its content projects directly into the enclosing
+  object rather than under a `preamble` wrapper key. The
+  sibling-collision rule covers any clash with a section
+  slug. Wildcard slots and unlisted/closed headings are
+  skipped.
 - **Lua deferred.** Ship json, yaml, and msgpack. A Lua
   encoder can be added later behind the same `Format`
   enum.
