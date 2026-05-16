@@ -245,15 +245,15 @@ var ruleDirName = regexp.MustCompile(`^MDS[0-9]`)
 // markdown body so it resolves on the published site. The three
 // classes are applied in order: (1) links into internal/rules/MDS…/
 // become /docs/rules/<dir>/<#anchor> site URLs; (2) links into any
-// other non-published repo path — plan/, cmd/, editors/, .claude/,
-// internal/ (other than the rule pages already handled in step 1),
-// and root-level files — become absolute GitHub URLs, /blob/ for
-// file targets and /tree/ for directory targets; (3) sibling
-// links to `<path>/index.md` drop the `index.md` filename so the
-// target becomes the directory itself (`<path>/`). Hugo serves
-// `_index.md` (the rename SyncDocs applies) at that directory
-// URL, and MDS027 stats the directory as an existing path, so
-// the rendered link works and the lint still resolves.
+// other non-published repo path — plan/, cmd/, editors/, website/,
+// .claude/, internal/ (other than the rule pages already handled
+// in step 1), and root-level files — become absolute GitHub URLs,
+// /blob/ for file targets and /tree/ for directory targets;
+// (3) sibling links to `<path>/index.md` drop the `index.md`
+// filename so the target becomes the directory itself (`<path>/`).
+// Hugo serves `_index.md` (the rename SyncDocs applies) at that
+// directory URL, and MDS027 stats the directory as an existing
+// path, so the rendered link works and the lint still resolves.
 //
 // The whole pass runs under applyOutsideCode so a Markdown
 // example inside a fenced code block OR an inline code span

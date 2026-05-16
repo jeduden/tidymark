@@ -680,10 +680,10 @@ func TestTransformMarkdown_RewritesRuleLinks(t *testing.T) {
 
 // TestTransformMarkdown_RewritesNonPublishedLinks: every
 // repo-relative link to a path outside the published trees
-// (plan/, cmd/, internal/ non-rules, .claude/, root files)
-// must rewrite to a GitHub URL. The /blob/ vs /tree/ route is
-// decided by trailing slash: files go to /blob/, directories to
-// /tree/. The reference-style sibling shares the rewrite logic.
+// (plan/, cmd/, internal/ non-rules, website/, .claude/, root
+// files) must rewrite to a GitHub URL. The /blob/ vs /tree/ route
+// is decided by trailing slash: files go to /blob/, directories
+// to /tree/. The reference-style sibling shares the rewrite logic.
 func TestTransformMarkdown_RewritesNonPublishedLinks(t *testing.T) {
 	runTransformCases(t, []transformCase{
 		{
