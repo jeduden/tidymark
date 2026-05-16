@@ -312,9 +312,17 @@ func humanizeDirName(name string) string {
 // parse drives both the body-H1 → front-matter title lift
 // and the <?…?> directive-marker strip (see
 // reconcileDocForHugo), then literal shortcode patterns are
-// escaped so documentation about Hugo renders verbatim.
+// escaped so documentation about Hugo renders verbatim,
+// and finally any repo-relative `internal/rules/MDS…/[README.md]`
+// link is rewritten to its published `/docs/rules/MDS…/` URL.
+// The rule-link rewrite runs at this layer rather than in
+// website.go's rule-specific syncs because plain docs (e.g.
+// docs/background/concepts/generated-section.md) link into
+// internal/rules/ too; without the rewrite those links resolve
+// to a non-existent path on the site even though they work on
+// GitHub.
 func transformMarkdown(b []byte) []byte {
-	return escapeHugoShortcodes(reconcileDocForHugo(b))
+	return rewriteRuleLinks(escapeHugoShortcodes(reconcileDocForHugo(b)))
 }
 
 // splitDocFrontMatter separates a leading "---\n…\n---\n" block

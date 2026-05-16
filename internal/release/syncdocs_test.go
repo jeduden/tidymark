@@ -608,6 +608,52 @@ func TestReconcileDocForHugo_StripNoOp(t *testing.T) {
 	}
 }
 
+// TestTransformMarkdown_RewritesRuleLinks: docs that link into
+// internal/rules/ (any `../` depth, with or without README.md,
+// inline or reference-style) must come out pointing at the
+// published /docs/rules/<dir>/ URL. The same link works on
+// GitHub because the source tree still has internal/rules/, but
+// that directory is not published on the site — without the
+// rewrite the link 404s.
+func TestTransformMarkdown_RewritesRuleLinks(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "deep inline no readme",
+			in:   "See [MDS019 catalog](../../../../internal/rules/MDS019-catalog/).\n",
+			want: "See [MDS019 catalog](/docs/rules/MDS019-catalog/).\n",
+		},
+		{
+			name: "shallow inline with readme",
+			in:   "See [MDS020](../../internal/rules/MDS020-required-structure/README.md).\n",
+			want: "See [MDS020](/docs/rules/MDS020-required-structure/).\n",
+		},
+		{
+			name: "reference-style def with readme",
+			in:   "[mds027]: ../../../internal/rules/MDS027-cross-file-reference-integrity/README.md\n",
+			want: "[mds027]: /docs/rules/MDS027-cross-file-reference-integrity/\n",
+		},
+		{
+			name: "reference-style def no readme",
+			in:   "[mds019]: ../../../../internal/rules/MDS019-catalog/\n",
+			want: "[mds019]: /docs/rules/MDS019-catalog/\n",
+		},
+		{
+			name: "already-rewritten path is unchanged",
+			in:   "See [MDS019](/docs/rules/MDS019-catalog/).\n",
+			want: "See [MDS019](/docs/rules/MDS019-catalog/).\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, string(transformMarkdown([]byte(tc.in))))
+		})
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))

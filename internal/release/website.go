@@ -47,6 +47,31 @@ var repoPlanLink = regexp.MustCompile(`\]\(\.\./\.\./\.\./plan/([^)]+)\)`)
 // Example: [plan107]: ../../../plan/107_no-reference-style.md
 var repoPlanRefDef = regexp.MustCompile(`(?m)^(\[[^\]]+\]: )\.\./\.\./\.\./plan/(\S+)`)
 
+// repoRuleLink matches an inline link from any docs/ page into
+// the internal/rules/ tree (`../…/internal/rules/MDS001-line-length/`
+// or `../…/internal/rules/MDS001-line-length/README.md`). Unlike
+// ruleReadmeLink (which only matches the bare or single-`../`
+// prefix used inside rule pages themselves), this regex accepts
+// any depth of `../` segments so plain docs deep in the tree
+// (e.g. docs/background/concepts/generated-section.md, 4 levels
+// up) get their rule links rewritten too. Group 1 captures the
+// rule directory name. The trailing `README.md` is optional —
+// docs link to both forms.
+var repoRuleLink = regexp.MustCompile(`\]\((?:\.\./)+internal/rules/(MDS[0-9A-Za-z._-]+)/(?:README\.md)?\)`)
+
+// repoRuleRefDef matches a reference-style link definition whose
+// target is a repo-relative internal/rules/ path. Multiline flag
+// so `^` anchors at each line start. Mirrors repoRuleLink — any
+// `../` depth, optional README.md suffix.
+// Example: [mds020]: ../../internal/rules/MDS020-required-structure/README.md
+var repoRuleRefDef = regexp.MustCompile(`(?m)^(\[[^\]]+\]: )(?:\.\./)+internal/rules/(MDS[0-9A-Za-z._-]+)/(?:README\.md)?$`)
+
+// rulePageURLBase is the site-absolute URL prefix every rule page
+// lives under. Hugo serves website/content/docs/rules/<dir>/index.md
+// at /docs/rules/<dir>/, so repo-relative `internal/rules/<dir>/`
+// links from any docs page must rewrite to this prefix to resolve.
+const rulePageURLBase = "/docs/rules/"
+
 // ruleSourceTreeBase is the GitHub directory (tree) route for a
 // rule's source. Per-rule READMEs carry an
 // `Implementation: [source](./)` link that points at the rule's
@@ -64,6 +89,19 @@ const githubBlobBase = "https://github.com/jeduden/mdsmith/blob/main/"
 // stops syncRulePages from copying non-rule directories (fixtures,
 // helper files, …) into the Hugo content tree.
 var ruleDirName = regexp.MustCompile(`^MDS[0-9]`)
+
+// rewriteRuleLinks rewrites every repo-relative link from a docs
+// page into internal/rules/ to its published site URL
+// (/docs/rules/<dir>/). Both inline and reference-style forms are
+// handled, with or without a trailing README.md. Idempotent:
+// already-rewritten /docs/rules/ paths do not match the regexes
+// (they have no `../` prefix and no `internal/rules/` segment),
+// so a second pass is a no-op.
+func rewriteRuleLinks(b []byte) []byte {
+	b = repoRuleLink.ReplaceAll(b, []byte("]("+rulePageURLBase+"$1/)"))
+	b = repoRuleRefDef.ReplaceAll(b, []byte("${1}"+rulePageURLBase+"$2/"))
+	return b
+}
 
 // BuildWebsite prepares the Hugo content tree: optionally runs
 // `mdsmith fix` against srcDir so every <?catalog?>/<?include?>
