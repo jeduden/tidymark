@@ -456,6 +456,48 @@ func TestApplySettings_RejectsBothSources(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot set both")
 }
 
+// TestTranslateLayerSettings_DualSourcePreservesGuard regresses
+// the Copilot review on PR #288: when one config layer sets both
+// a non-empty `schema:` and a non-empty `inline-schema:`, the
+// translator must NOT strip the keys (which would silently drop
+// the inline source). It passes the layer through unchanged so
+// the keys survive deep-merge and ApplySettings' dual-source
+// guard still surfaces the original config error.
+func TestTranslateLayerSettings_DualSourcePreservesGuard(t *testing.T) {
+	r := &Rule{}
+	dual := map[string]any{
+		"schema": "schemas/rfc.md",
+		"inline-schema": map[string]any{
+			"sections": []any{map[string]any{"heading": "X"}},
+		},
+	}
+	out := r.TranslateLayerSettings(dual)
+	// Untouched: both legacy keys survive, no schema-sources added.
+	assert.Equal(t, "schemas/rfc.md", out["schema"],
+		"dual-source layer must pass through with `schema` intact")
+	assert.Contains(t, out, "inline-schema",
+		"dual-source layer must pass through with `inline-schema` intact")
+	assert.NotContains(t, out, "schema-sources",
+		"dual-source layer must not be translated to schema-sources")
+	// The surviving keys still trip the rule's guard.
+	err := r.ApplySettings(out)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot set both")
+}
+
+// TestTranslateLayerSettings_SingleSourcesStillTranslate confirms
+// the dual-source guard does not regress the normal single-source
+// translation (only one of the two keys, non-empty).
+func TestTranslateLayerSettings_SingleSourcesStillTranslate(t *testing.T) {
+	r := &Rule{}
+	out := r.TranslateLayerSettings(map[string]any{"schema": "x.md"})
+	srcs, ok := out["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, srcs, 1)
+	assert.Equal(t, "x.md", srcs[0].(map[string]any)["file"])
+	assert.NotContains(t, out, "schema")
+}
+
 func TestApplySettings_AllowsEmptySchemaWithInline(t *testing.T) {
 	// An empty `schema:""` next to a real `inline-schema` is the
 	// merge-clears-prior-state state; the rule must still accept it.

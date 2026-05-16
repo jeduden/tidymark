@@ -347,6 +347,16 @@ func (r *Rule) SettingMergeMode(key string) rule.MergeMode {
 // input map is treated as read-only; a new map is returned only
 // when a legacy key is present.
 func (r *Rule) TranslateLayerSettings(settings map[string]any) map[string]any {
+	// A single layer that sets BOTH a non-empty `schema:` and a
+	// non-empty `inline-schema:` is a config error. Pass the layer
+	// through untouched so the keys survive deep-merge and the
+	// rule's own rejectDualSchemaSettings (run from ApplySettings)
+	// still surfaces the original error — stripping them here would
+	// silently drop the inline source. Cross-layer composition is
+	// unaffected: this only fires when one map carries both.
+	if hasDualSchemaSource(settings) {
+		return settings
+	}
 	source, hadKey := extractSchemaSourceFromSettings(settings)
 	if !hadKey {
 		return settings
@@ -359,6 +369,17 @@ func (r *Rule) TranslateLayerSettings(settings map[string]any) map[string]any {
 		out["schema-sources"] = append(existing, source)
 	}
 	return out
+}
+
+// hasDualSchemaSource reports whether one settings map sets both a
+// non-empty `schema:` path and a non-empty `inline-schema:` map.
+// It mirrors rejectDualSchemaSettings' non-empty semantics so the
+// translator and the rule's guard agree on what counts as a
+// dual-source layer.
+func hasDualSchemaSource(s map[string]any) bool {
+	path, _ := s["schema"].(string)
+	inline, _ := s["inline-schema"].(map[string]any)
+	return path != "" && len(inline) > 0
 }
 
 // extractSchemaSourceFromSettings inspects a settings map for a
