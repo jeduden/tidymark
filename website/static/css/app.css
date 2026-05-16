@@ -164,6 +164,12 @@ main {
   margin: 0 0 28px;
 }
 .hero-cta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.hero-badges {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-top: 22px;
+}
+.hero-badges a { display: inline-flex; line-height: 0; }
+.hero-badges img { height: 20px; display: block; }
 
 /* ========== BUTTONS ========== */
 

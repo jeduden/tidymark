@@ -23,6 +23,21 @@
             {{ $.Site.Params.githubRepo }}
           </a>
         </div>
+        {{- $repo := $.Site.Params.githubRepo -}}
+        <div class="hero-badges" aria-label="Live project health">
+          <a href="https://github.com/{{ $repo }}/actions/workflows/ci.yml?query=branch%3Amain" rel="noopener">
+            <img src="https://github.com/{{ $repo }}/actions/workflows/ci.yml/badge.svg?branch=main"
+                 alt="CI build status on main" height="20" loading="lazy">
+          </a>
+          <a href="https://goreportcard.com/report/github.com/{{ $repo }}" rel="noopener">
+            <img src="https://goreportcard.com/badge/github.com/{{ $repo }}"
+                 alt="Go Report Card grade" height="20" loading="lazy">
+          </a>
+          <a href="https://codecov.io/gh/{{ $repo }}/branch/main" rel="noopener">
+            <img src="https://codecov.io/gh/{{ $repo }}/branch/main/graph/badge.svg"
+                 alt="Codecov coverage on main" height="20" loading="lazy">
+          </a>
+        </div>
       </div>
       <div>
         <figure class="hero-demo">

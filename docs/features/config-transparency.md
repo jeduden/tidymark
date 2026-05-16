@@ -10,8 +10,9 @@ weight: 13
 ---
 # Config you can explain
 
-Layered config is powerful until a rule fires and nobody knows
-which layer turned it on. mdsmith makes the resolution legible.
+Four config layers stack on every rule. When a rule fires, the
+question is which layer set the value that triggered it — mdsmith
+answers that per leaf.
 
 Config resolves in order: defaults, then convention, then kinds,
 then per-glob overrides. The merge is rule by rule. Maps merge
