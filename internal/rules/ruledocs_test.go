@@ -264,6 +264,26 @@ func TestParseFrontMatter_NullMaintainability(t *testing.T) {
 		"explicit null must result in a nil Maintainability pointer")
 }
 
+// TestParseFrontMatter_FoldsBlockScalarDescription verifies that a folded
+// block scalar (`description: >-`) is parsed as folded YAML and collapsed
+// to a single line so `mdsmith help rule` does not render literal ">-".
+func TestParseFrontMatter_FoldsBlockScalarDescription(t *testing.T) {
+	content := "---\n" +
+		"id: MDS999\n" +
+		"name: example\n" +
+		"status: ready\n" +
+		"description: >-\n" +
+		"  First line\n" +
+		"  continued on a second line.\n" +
+		"maintainability: null\n" +
+		"---\n# Body\n"
+	info, err := parseFrontMatter(content)
+	require.NoError(t, err)
+	assert.Equal(t, "First line continued on a second line.", info.Description)
+	assert.NotContains(t, info.Description, "\n")
+	assert.NotContains(t, info.Description, ">-")
+}
+
 // TestParseFrontMatter_RejectsYAMLAliases verifies that the safe-YAML wrapper
 // rejects anchor/alias usage in rule README front matter rather than silently
 // expanding aliases.

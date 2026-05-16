@@ -18,6 +18,10 @@ Code, Neovim, Helix, JetBrains LSP plugin), not run
 interactively. It reads JSON-RPC frames on stdin and writes
 responses and notifications on stdout.
 
+`--stdio` is accepted as a no-op for clients (notably
+`vscode-languageclient`) that always append it when selecting
+stdio transport. The server uses stdio either way.
+
 ## Capabilities advertised
 
 | Capability                        | Behavior                                                                           |
@@ -67,10 +71,8 @@ Each hover response includes a `range` field set to the matched span
 — the diagnostic range or the full directive block range — so clients
 can anchor the popup to the right span.
 
-`mdsmith/rulePatterns` returns rule maintainability metadata.
-
-Hover adds "Suggested remediation" only when
-`for-diagnostic: true`.
+`mdsmith/rulePatterns` returns rule maintainability metadata; hover
+adds "Suggested remediation" only when `for-diagnostic: true`.
 
 ## Diagnostic mapping
 
@@ -250,14 +252,12 @@ error's `data.conflict` names the colliding symbol.
 
 ## Configuration discovery
 
-The server uses workspace-wide discovery. It starts
-at the workspace root supplied at `initialize`
-(`rootUri` or the first `workspaceFolders` entry)
-and walks upward until it finds a `.mdsmith.yml` or
-hits a `.git` boundary — the same walk `mdsmith
-check` uses from its CWD. Every open buffer shares
-the resolved config; the server does not re-discover
-per file.
+The server uses workspace-wide discovery. It starts at the
+workspace root supplied at `initialize` (`rootUri` or the first
+`workspaceFolders` entry) and walks upward until it finds a
+`.mdsmith.yml` or hits a `.git` boundary — the same walk
+`mdsmith check` uses from its CWD. Every open buffer shares the
+resolved config; the server does not re-discover per file.
 
 Clients override the walk with `mdsmith.config`,
 which the server pulls via `workspace/configuration`.
@@ -278,10 +278,9 @@ mdsmith lsp
 
 ## Performance
 
-The squiggle-update path is benchmarked under
-`internal/lsp/`. Plan 121 sets a p95 budget of 150 ms on a
-1 000-line buffer and 500 ms on a 5 000-line buffer. Run the
-benchmark locally with:
+The squiggle-update path is benchmarked under `internal/lsp/`.
+Plan 121 sets a p95 budget of 150 ms on a 1 000-line buffer and
+500 ms on a 5 000-line buffer. Run the benchmark locally with:
 
 ```bash
 go test -run=^$ -bench=. ./internal/lsp/...

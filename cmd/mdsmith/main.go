@@ -1073,6 +1073,12 @@ func runHelpPatterns(args []string) int {
 	if len(args) >= 2 && (args[0] == "-f" || args[0] == "--format") {
 		format = args[1]
 	}
+	switch format {
+	case "text", "json":
+	default:
+		fmt.Fprintf(os.Stderr, "mdsmith: help patterns: unknown format %q (valid: text, json)\n", format)
+		return 2
+	}
 	rules, err := ruledocs.ListRules()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)

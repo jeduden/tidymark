@@ -722,6 +722,18 @@ func TestRunHelpPatterns_TextIncludesKnownRule(t *testing.T) {
 	assert.Contains(t, out, "catalog")
 }
 
+func TestRunHelpPatterns_UnknownFormat_ExitsTwo(t *testing.T) {
+	var stderr string
+	captureStdout(func() {
+		stderr = captureStderr(func() {
+			code := runHelpPatterns([]string{"-f", "jsno"})
+			assert.Equal(t, 2, code)
+		})
+	})
+	assert.Contains(t, stderr, "unknown format")
+	assert.Contains(t, stderr, "jsno")
+}
+
 func TestRunHelp_PatternsTopicDispatches(t *testing.T) {
 	out := captureStdout(func() {
 		code := runHelp([]string{"patterns", "-f", "json"})

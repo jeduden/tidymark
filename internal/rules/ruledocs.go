@@ -93,14 +93,15 @@ func lookupRuleFromFS(fsys fs.FS, query string) (string, error) {
 	return "", fmt.Errorf("unknown rule %q", query)
 }
 
-// parseFrontMatter extracts id, name, status, and description from YAML front matter.
+// parseFrontMatter extracts id, name, status, description, and maintainability
+// from YAML front matter. Block scalars (`description: >-`) are folded; any
+// embedded newlines collapse to a single space so summaries render on one line.
 func parseFrontMatter(content string) (RuleInfo, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	if !scanner.Scan() || strings.TrimSpace(scanner.Text()) != "---" {
 		return RuleInfo{}, fmt.Errorf("missing front matter")
 	}
 
-	var info RuleInfo
 	var front []string
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -108,28 +109,24 @@ func parseFrontMatter(content string) (RuleInfo, error) {
 			break
 		}
 		front = append(front, line)
-		key, val, ok := parseYAMLLine(line)
-		if !ok {
-			continue
-		}
-		switch key {
-		case "id":
-			info.ID = val
-		case "name":
-			info.Name = val
-		case "status":
-			info.Status = val
-		case "description":
-			info.Description = val
-		}
 	}
 	var meta struct {
+		ID              string           `yaml:"id"`
+		Name            string           `yaml:"name"`
+		Status          string           `yaml:"status"`
+		Description     string           `yaml:"description"`
 		Maintainability *Maintainability `yaml:"maintainability"`
 	}
 	if err := yamlutil.UnmarshalSafe([]byte(strings.Join(front, "\n")), &meta); err != nil {
 		return RuleInfo{}, fmt.Errorf("parsing front matter: %w", err)
 	}
-	info.Maintainability = meta.Maintainability
+	info := RuleInfo{
+		ID:              meta.ID,
+		Name:            meta.Name,
+		Status:          meta.Status,
+		Description:     collapseWhitespace(meta.Description),
+		Maintainability: meta.Maintainability,
+	}
 
 	if info.ID == "" {
 		return RuleInfo{}, fmt.Errorf("front matter missing id")
@@ -139,6 +136,13 @@ func parseFrontMatter(content string) (RuleInfo, error) {
 	}
 
 	return info, nil
+}
+
+// collapseWhitespace folds any run of whitespace (including newlines from
+// folded block scalars) into a single space so the description renders on
+// one line. Leading and trailing whitespace are trimmed.
+func collapseWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // StripFrontMatter removes the leading YAML front matter block (--- ... ---)
@@ -159,15 +163,4 @@ func stripFrontMatter(content string) string {
 	}
 	body := content[4+end+5:]
 	return strings.TrimLeft(body, "\n")
-}
-
-// parseYAMLLine parses a simple "key: value" line.
-func parseYAMLLine(line string) (key, value string, ok bool) {
-	idx := strings.Index(line, ":")
-	if idx < 0 {
-		return "", "", false
-	}
-	key = strings.TrimSpace(line[:idx])
-	value = strings.TrimSpace(line[idx+1:])
-	return key, value, true
 }
