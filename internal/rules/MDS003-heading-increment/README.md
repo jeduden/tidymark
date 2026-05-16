@@ -69,6 +69,10 @@ Body text.
 
 <?/include?>
 
+## See also
+
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+
 ## Meta-Information
 
 - **ID**: MDS003
@@ -79,7 +83,3 @@ Body text.
 - **Implementation**:
   [source](./)
 - **Category**: heading
-
-## See also
-
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)

@@ -83,6 +83,10 @@ The implementation of concurrent distributed systems requires sophisticated unde
 
 <?/include?>
 
+## See also
+
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+
 ## Meta-Information
 
 - **ID**: MDS023
@@ -93,7 +97,3 @@ The implementation of concurrent distributed systems requires sophisticated unde
 - **Implementation**:
   [source](./)
 - **Category**: prose
-
-## See also
-
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)

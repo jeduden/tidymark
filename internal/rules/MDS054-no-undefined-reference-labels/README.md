@@ -159,6 +159,13 @@ Reference labels are CommonMark-normalized before lookup: case-folded,
 inner whitespace collapsed, and ends trimmed. `[Foo Bar][BAR]` resolves
 against `[bar]: url`.
 
+## See also
+
+- [MDS027 cross-file-reference-integrity](../MDS027-cross-file-reference-integrity/README.md)
+- [Plan 107: no-reference-style](../../../plan/107_no-reference-style.md)
+- [Plan 129: no-unused-link-definitions](../../../plan/129_no-unused-link-definitions.md)
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+
 ## Meta-Information
 
 - **ID**: MDS054
@@ -168,10 +175,3 @@ against `[bar]: url`.
 - **Fixable**: no
 - **Implementation**: [source](./)
 - **Category**: link
-
-## See also
-
-- [MDS027 cross-file-reference-integrity](../MDS027-cross-file-reference-integrity/README.md)
-- [Plan 107: no-reference-style](../../../plan/107_no-reference-style.md)
-- [Plan 129: no-unused-link-definitions](../../../plan/129_no-unused-link-definitions.md)
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)

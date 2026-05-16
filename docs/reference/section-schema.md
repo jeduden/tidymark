@@ -255,18 +255,18 @@ schema:
 
 ## `proto.md` file syntax
 
-> **Migration status.** MDS020's file-schema
-> check still uses the legacy `parseSchema`
-> pipeline today: `## ?` and `## ...` already
-> behave as wildcards, and `{field}` in a
-> heading row matches a non-empty run rather
-> than resolving the frontmatter value via
-> `fmvar(...)`. The mapping below is what the
-> schema package parses. Tests exercise it so a
-> follow-up cutover plan can wire MDS020
-> through without docs churn. Until then,
-> proto.md authors should treat `{field}` as a
-> wildcard, not a frontmatter substitution.
+> **Heading rows vs body lines.** In proto.md
+> heading rows, `{field}` matches a non-empty
+> run (wildcard) — it is not resolved against
+> the document's frontmatter. The mapping below
+> shows the equivalent inline entry for each
+> row syntax.
+>
+> In **body lines**, `{field}` is fully wired:
+> MDS020 resolves the placeholder against the
+> document's front matter and flags any mismatch.
+> `mdsmith fix` rewrites stale body lines to the
+> current front-matter value.
 
 Proto.md files use a literal-template surface
 distinct from the inline `regex:` form. Heading

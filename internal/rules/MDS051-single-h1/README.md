@@ -85,6 +85,12 @@ title: My Doc
 | `extra H1 heading; only one H1 is allowed per file` | A second or later H1 heading exists in the document                                                   |
 | `h1 heading conflicts with front-matter title`      | An H1 heading exists and the front matter contains the configured field with a non-empty string value |
 
+## See also
+
+- [MDS003](../MDS003-heading-increment/) — heading hierarchy (no level skips)
+- [MDS004](../MDS004-first-line-heading/) — first-line heading
+- [MDS005](../MDS005-no-duplicate-headings/) — no duplicate heading text
+
 ## Meta-Information
 
 - **ID**: MDS051
@@ -94,9 +100,3 @@ title: My Doc
 - **Fixable**: yes — extra H1s are demoted to H2; front-matter conflicts are not auto-fixed
 - **Implementation**: [source](./)
 - **Category**: heading
-
-## See also
-
-- [MDS003](../MDS003-heading-increment/) — heading hierarchy (no level skips)
-- [MDS004](../MDS004-first-line-heading/) — first-line heading
-- [MDS005](../MDS005-no-duplicate-headings/) — no duplicate heading text

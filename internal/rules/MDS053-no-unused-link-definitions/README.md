@@ -114,16 +114,6 @@ double-blank behind. When only the preceding blank line is present (no
 following blank), it is preserved so adjacent paragraphs remain separated.
 Ignored labels are never removed.
 
-## Meta-Information
-
-- **ID**: MDS053
-- **Name**: `no-unused-link-definitions`
-- **Status**: ready
-- **Default**: enabled, ignored-labels: []
-- **Fixable**: yes
-- **Implementation**: [source](./)
-- **Category**: link
-
 ## See also
 
 - [MDS027 cross-file-reference-integrity][mds027]
@@ -133,3 +123,13 @@ Ignored labels are never removed.
 [mds027]: ../MDS027-cross-file-reference-integrity/README.md
 [plan107]: ../../../plan/107_no-reference-style.md
 [plan128]: ../../../plan/128_no-undefined-reference-labels.md
+
+## Meta-Information
+
+- **ID**: MDS053
+- **Name**: `no-unused-link-definitions`
+- **Status**: ready
+- **Default**: enabled, ignored-labels: []
+- **Fixable**: yes
+- **Implementation**: [source](./)
+- **Category**: link

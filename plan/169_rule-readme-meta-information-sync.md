@@ -1,7 +1,7 @@
 ---
 id: 169
 title: 'Enforce terminal Meta-Information and render it from frontmatter'
-status: "🔲"
+status: "✅"
 model: opus
 depends-on: [156]
 summary: >-
@@ -82,15 +82,15 @@ Meta-Information case.
 
 ## Acceptance Criteria
 
-- [ ] A rule README with any section after
+- [x] A rule README with any section after
   `## Meta-Information` fails `mdsmith check`.
-- [ ] A stale `ID`, `Name`, `Status`, or `Category`
+- [x] A stale `ID`, `Name`, `Status`, or `Category`
   bullet is flagged and `mdsmith fix` rewrites it
   from front matter.
-- [ ] [internal/rules/proto.md](../internal/rules/proto.md)
+- [x] [internal/rules/proto.md](../internal/rules/proto.md)
   has no trailing wildcard after Meta-Information
   and no `CATEGORY` literal.
-- [ ] All `internal/rules/MDS*/README.md` pass
+- [x] All `internal/rules/MDS*/README.md` pass
   `mdsmith check .`.
-- [ ] All tests pass: `go test ./...`.
-- [ ] `go tool golangci-lint run` reports no issues.
+- [x] All tests pass: `go test ./...`.
+- [x] `go tool golangci-lint run` reports no issues.

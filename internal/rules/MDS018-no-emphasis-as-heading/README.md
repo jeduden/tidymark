@@ -67,6 +67,10 @@ This is a normal paragraph.
 
 <?/include?>
 
+## See also
+
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+
 ## Meta-Information
 
 - **ID**: MDS018
@@ -77,7 +81,3 @@ This is a normal paragraph.
 - **Implementation**:
   [source](./)
 - **Category**: heading
-
-## See also
-
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)

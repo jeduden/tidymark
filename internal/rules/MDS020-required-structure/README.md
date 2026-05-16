@@ -343,6 +343,11 @@ Hints fire on string disjunctions (Levenshtein ≤ 2 of a valid
 literal) and integer ranges (nearest bound when just outside).
 Other shapes get no hint.
 
+## See also
+
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+- [Schema field types](../../../docs/reference/schema-types.md)
+
 ## Meta-Information
 
 - **ID**: MDS020
@@ -354,8 +359,3 @@ Other shapes get no hint.
 - **Guide**:
   [directive guide](../../../docs/guides/directives/enforcing-structure.md)
 - **Category**: structural
-
-## See also
-
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
-- [Schema field types](../../../docs/reference/schema-types.md)

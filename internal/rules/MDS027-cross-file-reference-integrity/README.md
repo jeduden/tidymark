@@ -122,6 +122,10 @@ See [guide](bad/ref/guide.md#missing-section).
 | missing file    | broken link target "x.md" not found                              |
 | missing heading | broken link target "x.md#section" has no matching heading anchor |
 
+## See also
+
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+
 ## Meta-Information
 
 - **ID**: MDS027
@@ -132,7 +136,3 @@ See [guide](bad/ref/guide.md#missing-section).
 - **Implementation**:
   [source](./)
 - **Category**: link
-
-## See also
-
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)

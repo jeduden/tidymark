@@ -98,9 +98,7 @@ rules:
 - **Fixable**: no
 - **Implementation**:
   [source](./)
-- **Category**: CATEGORY
-- **Concept**:
-  [NAME](../../../docs/background/concepts/NAME.md)
+- **Category**: {category}
 
 <!-- Bullets in this order: ID, Name, Status, Default, Fixable,
      Implementation, Category, Concept (if applicable).
@@ -109,7 +107,3 @@ rules:
      of the values in ValidCategories. Pick the narrowest that fits;
      drop any category not in this list.
      Delete Concept bullet if not used. -->
-
-## ...
-
-<?allow-empty-section?>

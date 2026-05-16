@@ -408,18 +408,24 @@ title placeholder. `## ...` rows mark wildcard slots.
 Front-matter keys map directly to CUE expressions.
 `<?require?>` declares the filename pattern.
 
-MDS020's file-schema check still routes through
-its legacy parser today: `{field}` in a proto.md
-heading row matches a non-empty run rather than
-resolving the document's frontmatter value via
-`fmvar(...)`. The schema package parses proto.md
-into the new Matcher shape (used by tests), and a
-follow-up plan will wire MDS020 through that
-parser. Until then, treat `{field}` in proto.md
-heading rows as a wildcard placeholder, not as a
-frontmatter substitution. The
+MDS020's file-schema check routes through its
+legacy parser: `{field}` in a proto.md heading row
+matches a non-empty run rather than resolving the
+document's frontmatter value via `fmvar(...)`.
+Heading rows are wildcards, not substitutions.
+
+`{field}` in a proto.md **body** is fully wired:
+MDS020 resolves the placeholder against the
+document's front matter and flags any mismatch.
+`mdsmith fix` rewrites stale body lines to the
+current front-matter value. The rule-readme
+`Meta-Information` body uses this to keep `ID`,
+`Name`, `Status`, and `Category` bullets in sync
+with front matter.
+
+The
 [section-schema reference](../reference/section-schema.md#protomd-file-syntax)
-records the eventual mapping.
+records the heading-row wildcard mapping.
 
 ## Choosing a source
 

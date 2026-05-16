@@ -79,6 +79,10 @@ Dogs bark. Cats meow. Birds sing. Fish swim. Frogs croak. Snakes hiss. Bees buzz
 | too many sentences | `paragraph has too many sentences (8 > 6)` |
 | sentence too long  | `sentence too long (45 > 40 words)`        |
 
+## See also
+
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+
 ## Meta-Information
 
 - **ID**: MDS024
@@ -89,7 +93,3 @@ Dogs bark. Cats meow. Birds sing. Fish swim. Frogs croak. Snakes hiss. Bees buzz
 - **Implementation**:
   [source](./)
 - **Category**: prose
-
-## See also
-
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)

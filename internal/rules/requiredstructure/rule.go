@@ -589,10 +589,11 @@ func (r *Rule) checkSingleInlineSchema(f *lint.File, sch *schema.Schema) []lint.
 	return diags
 }
 
-// Fix implements rule.FixableRule. The rule does not modify the
-// document body — it returns f.Source unchanged — but when any
-// configured inline schema (single-source or composed across
-// kinds) declares an `index:` block, Fix emits the JSON
+// Fix implements rule.FixableRule. For single file-based schemas it
+// rewrites body lines whose {field} template matches but whose value
+// disagrees with the document's front matter (body-sync fix). For
+// any configured inline schema (single-source or composed across
+// kinds) that declares an `index:` block, Fix also emits the JSON
 // side-output next to the source file. `mdsmith check` skips the
 // write, preserving check's read-only contract (plan 143).
 //
@@ -608,7 +609,126 @@ func (r *Rule) Fix(f *lint.File) []byte {
 	if err == nil && sch != nil && !sch.IsEmpty() && sch.Index != nil {
 		_ = schema.WriteIndex(f, sch)
 	}
+	sources := r.effectiveSources()
+	if len(sources) == 1 && sources[0].File != "" && !r.isSchemaFileAt(f, sources[0].File) {
+		schData, schPath, loadErr := r.loadSchemaAt(f, sources[0].File)
+		if loadErr == nil {
+			parsedSch, parseErr := parseSchema(schData, schPath, f.MaxInputBytes)
+			if parseErr == nil {
+				docFMRaw, _ := readDocFrontMatterRaw(f)
+				return fixBodySyncIn(f, parsedSch, docFMRaw)
+			}
+		}
+	}
 	return f.Source
+}
+
+// fixBodySyncIn rewrites body lines whose {field} template matches but
+// whose resolved front-matter value disagrees with the document text.
+// It returns f.Source unchanged when no lines need rewriting.
+func fixBodySyncIn(f *lint.File, sch *parsedSchema, docFM map[string]any) []byte {
+	if len(docFM) == 0 || len(sch.SyncPoints) == 0 {
+		return f.Source
+	}
+	docHeadings := extractHeadings(f)
+	work := make([][]byte, len(f.Lines))
+	copy(work, f.Lines)
+	modified := false
+	docIdx := 0
+	for schIdx, req := range sch.Headings {
+		if isSectionWildcard(req) {
+			continue
+		}
+		syncs := sch.SyncPoints[schIdx]
+		if len(syncs) == 0 {
+			_, docIdx = advanceToMatch(req, docHeadings, docIdx)
+			continue
+		}
+		matchedDoc, newIdx := advanceToMatch(req, docHeadings, docIdx)
+		docIdx = newIdx
+		if matchedDoc < 0 {
+			continue
+		}
+		dh := docHeadings[matchedDoc]
+		startLine := dh.Line + 1
+		endLine := len(f.Lines)
+		if matchedDoc+1 < len(docHeadings) {
+			endLine = docHeadings[matchedDoc+1].Line - 1
+		}
+		for _, sp := range syncs {
+			if patchedLine, ok := resolveBodySyncLine(sp, docFM, work, startLine, endLine); ok {
+				work[patchedLine.idx] = patchedLine.val
+				modified = true
+			}
+		}
+	}
+	if !modified {
+		return f.Source
+	}
+	return bytes.Join(work, []byte("\n"))
+}
+
+// patchedLine carries the index and new value for a line that needs rewriting.
+type patchedLine struct {
+	idx int
+	val []byte
+}
+
+// resolveBodySyncLine returns the line index and replacement bytes for sp
+// if the document contains a stale template-match line in [startLine, endLine).
+// ok is false when sp is not a body sync point, the field is missing, the
+// line already matches, or no template-matching line is found.
+func resolveBodySyncLine(
+	sp syncPoint, docFM map[string]any,
+	work [][]byte, startLine, endLine int,
+) (patchedLine, bool) {
+	if !sp.InBody {
+		return patchedLine{}, false
+	}
+	path := fieldinterp.ParseCUEPath(sp.Field)
+	if path == nil {
+		return patchedLine{}, false
+	}
+	if _, err := fieldinterp.ResolvePath(docFM, path); err != nil {
+		return patchedLine{}, false
+	}
+	expected := resolveFields(sp.BodyText, docFM)
+	re := buildFieldPattern(sp.BodyText)
+	if re == nil {
+		return patchedLine{}, false
+	}
+	for i := startLine - 1; i < endLine && i < len(work); i++ {
+		trimmed := strings.TrimSpace(string(work[i]))
+		if trimmed == expected {
+			return patchedLine{}, false // already correct
+		}
+		if re.MatchString(trimmed) {
+			orig := string(work[i])
+			leadLen := len(orig) - len(strings.TrimLeft(orig, " \t"))
+			return patchedLine{idx: i, val: []byte(orig[:leadLen] + expected)}, true
+		}
+	}
+	return patchedLine{}, false
+}
+
+// buildFieldPattern compiles a regex that matches a body line whose
+// {field} placeholders have been replaced by any non-empty run.
+func buildFieldPattern(bodyText string) *regexp.Regexp {
+	parts := fieldinterp.SplitOnFields(bodyText)
+	var patBuf strings.Builder
+	patBuf.WriteString("^")
+	for i, part := range parts {
+		patBuf.WriteString(regexp.QuoteMeta(part))
+		if i < len(parts)-1 {
+			patBuf.WriteString(".+")
+		}
+	}
+	patBuf.WriteString("$")
+	re, err := regexp.Compile(patBuf.String())
+	if err != nil {
+		return nil
+	}
+	return re
 }
 
 // composedSchemaForFix returns the same composed *schema.Schema

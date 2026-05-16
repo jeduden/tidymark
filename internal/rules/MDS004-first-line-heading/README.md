@@ -102,6 +102,10 @@ Some content here.
 | `first line should be a level {level} heading, found blank line` | First child is a heading but preceded by blank line |
 | `first heading should be level {level}, got {n}`                 | First heading on line 1 has the wrong level         |
 
+## See also
+
+- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+
 ## Meta-Information
 
 - **ID**: MDS004
@@ -112,7 +116,3 @@ Some content here.
 - **Implementation**:
   [source](./)
 - **Category**: heading
-
-## See also
-
-- [Placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)

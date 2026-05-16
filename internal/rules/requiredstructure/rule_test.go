@@ -2075,6 +2075,45 @@ id: 'int & >=1'
 	expectDiagMsg(t, diags, "expected int >= 1")
 }
 
+// =====================================================================
+// plan 169: Meta-Information ordering and body-sync Fix
+// =====================================================================
+
+// TestCheck_SectionAfterMetaInformation_Fails verifies that a section
+// appearing after ## Meta-Information in a schema with no trailing
+// wildcard is flagged as not declared in schema.
+func TestCheck_SectionAfterMetaInformation_Fails(t *testing.T) {
+	schemaPath := writeSchema(t, "# ?\n\n## Meta-Information\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"# My Rule\n\n## Meta-Information\n\n## See also\n")
+	diags := r.Check(f)
+	expectDiagMsg(t, diags,
+		`## See also: got <present>, expected not declared in schema`)
+}
+
+// TestFix_BodySync_RewritesStaleLine verifies that Fix replaces a body
+// line whose template matches but whose value disagrees with front matter.
+func TestFix_BodySync_RewritesStaleLine(t *testing.T) {
+	schemaPath := writeSchema(t, "# ?\n\n## Meta-Information\n\n- **Category**: {category}\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\ncategory: structural\n---\n# My Rule\n\n## Meta-Information\n\n- **Category**: WRONG\n")
+	result := r.Fix(f)
+	assert.Contains(t, string(result), "- **Category**: structural")
+}
+
+// TestFix_BodySync_LeavesCorrectLine verifies that Fix does not touch a
+// body line that already matches its front-matter value.
+func TestFix_BodySync_LeavesCorrectLine(t *testing.T) {
+	schemaPath := writeSchema(t, "# ?\n\n## Meta-Information\n\n- **Category**: {category}\n")
+	r := &Rule{Schema: schemaPath}
+	src := "---\ncategory: structural\n---\n# My Rule\n\n## Meta-Information\n\n- **Category**: structural\n"
+	f := newTestFile(t, "doc.md", src)
+	result := r.Fix(f)
+	assert.Equal(t, string(f.Source), string(result))
+}
+
 // TestIsLikelyArchetypeName_AllBranches gives the helper direct
 // coverage of every branch. Previously it was only exercised
 // indirectly through ApplySettings, so test churn elsewhere
