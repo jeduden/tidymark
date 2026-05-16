@@ -348,7 +348,7 @@ kinds:
             regex: '.+'
             repeat: { min: 0 }
   release-channel:
-    path-pattern: "docs/development/release-channels/{proto.md,*.md}"
+    path-pattern: "{docs,website/content/docs}/development/release-channels/{proto.md,*.md}"
     rules:
       required-structure:
         schema: docs/development/release-channels/proto.md
