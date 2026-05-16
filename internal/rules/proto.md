@@ -103,7 +103,7 @@ rules:
      Default may include key settings: "enabled, max: 80".
      Categories: accessibility, code, directive, heading, line,
      link, list, prose, structural, table, whitespace. Pick
-     the narrowest that fits.
+     the narrowest that fits; drop any category not in this list.
      Delete Concept bullet if not used. -->
 
 ## ...
