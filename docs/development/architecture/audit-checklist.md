@@ -172,10 +172,18 @@ the audit needs are below.
   next to the command module they
   exercise.
 - **E2E test location**:
-  `cmd/mdsmith/e2e_*_test.go` for
-  Go; demo tapes under `demo/`. The
-  VS Code extension host runs are
-  e2e for the TypeScript side.
+  `cmd/mdsmith/` for Go, using
+  either an `e2e_*_test.go` prefix
+  (e.g. `e2e_test.go`,
+  `e2e_backlinks_test.go`) or an
+  `*_e2e_test.go` suffix (e.g.
+  `kinds_e2e_test.go`,
+  `list_e2e_test.go`,
+  `explain_e2e_test.go`); demo
+  tapes under `demo/` are also
+  e2e. The VS Code extension host
+  runs are e2e for the TypeScript
+  side.
 - **Severity for missing unit
   test**: `tax` by default;
   `blocker` if the function is on a
@@ -213,10 +221,14 @@ explicit mention here:
   `internal/engine` to test a rule** —
   push it to a fixture under the
   rule's `good/` or `bad/` directory.
-- **A Go function with no
-  `TestFunctionName` symbol in a
-  sibling `_test.go`** — test debt.
-  Severity per the rule above.
+- **A Go function with no matching
+  test symbol in a sibling
+  `*_test.go`** — `TestFoo` for a
+  package function `func Foo`,
+  `TestReceiver_Foo` (or
+  `TestReceiver_Foo_Variant`) for a
+  method on `Receiver`. Test debt;
+  severity per the rule above.
 - **A TypeScript function not
   covered by a `describe("name",
   () => { test(…) })` block (with
@@ -230,10 +242,12 @@ explicit mention here:
   pyramid is inverted; push the
   assertion down to a unit test in
   the function's own package.
-- **An `e2e_*_test.go` added where
-  a unit or integration test would
-  suffice** — e2e tests build and
-  run the binary; reserve them for
+- **An e2e test (`e2e_*_test.go`
+  prefix or `*_e2e_test.go`
+  suffix) added where a unit or
+  integration test would suffice**
+  — e2e tests build and run the
+  binary; reserve them for
   behaviour that needs the full
   process boundary.
 

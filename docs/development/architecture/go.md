@@ -350,18 +350,30 @@ packaged-artifact tests.
   `internal/integration/rule_boundaries_test.go`
   pins the rule import graph;
   `internal/integration/directive_examples_test.go`
-  pins the directive grammar. Add a
-  new contract test whenever a new
-  interface in `internal/rule/` or a
-  new external surface shape lands.
+  pins the example-folder contract
+  every directive rule must ship
+  (good/bad/fixed and pattern/
+  pairs, plus the registered rule
+  ID surfaced by the directive).
+  Add a new contract test whenever
+  a new interface in
+  `internal/rule/` or a new
+  external surface shape lands.
 - **Integration tests** live under
   `internal/integration/`. The rule
   fixture runner (`rules_test.go`)
   is the canonical example.
-- **E2E tests** are named
-  `cmd/mdsmith/e2e_*_test.go`; the
-  demo tape harness under `demo/`
-  is also e2e.
+- **E2E tests** are named with
+  either an `e2e_*_test.go` prefix
+  (e.g. `cmd/mdsmith/e2e_test.go`,
+  `e2e_backlinks_test.go`) or an
+  `*_e2e_test.go` suffix (e.g.
+  `kinds_e2e_test.go`,
+  `list_e2e_test.go`,
+  `explain_e2e_test.go`). Both
+  patterns count; the demo tape
+  harness under `demo/` is also
+  e2e.
 - Rule fixtures live in
   `internal/rules/MDS###-<rule-name>/`:
   `good/` must lint clean against
@@ -426,9 +438,13 @@ checklist can pattern-match.
 - **A `Helper`, `Util`, or `Misc` symbol
   anywhere.** The name is the problem;
   rename until it answers a question.
-- **A Go function with no
-  `TestFunctionName` symbol in a
-  sibling `_test.go`.** Test debt.
+- **A Go function with no matching
+  test symbol in a sibling
+  `*_test.go`** — `TestFoo` for a
+  package function `func Foo`,
+  `TestReceiver_Foo` (or
+  `TestReceiver_Foo_Variant`) for a
+  method on `Receiver`. Test debt.
   Severity `tax` by default,
   `blocker` if the function is on a
   public surface (a `rule.Rule`
@@ -442,11 +458,13 @@ checklist can pattern-match.
   Pyramid is inverted; push the
   assertion down to a unit test in
   the function's own package.
-- **An `e2e_*_test.go` added where
-  a unit test would suffice.** E2E
-  tests build and run the binary;
-  reserve them for behaviour that
-  needs the full process boundary.
+- **An e2e test (`e2e_*_test.go`
+  prefix or `*_e2e_test.go`
+  suffix) added where a unit test
+  would suffice.** E2E tests build
+  and run the binary; reserve them
+  for behaviour that needs the
+  full process boundary.
 
 ## Refactor moves we have used
 
