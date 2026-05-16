@@ -857,8 +857,12 @@ a.rule-ref:hover code { text-decoration: underline; }
     max-height: none;
     overflow: visible;
   }
+  /* Progressive enhancement: the collapse is JS-only. Without
+     the `html.js` flag (script disabled or failed) the toggle
+     stays hidden and the nav stays visible, so docs navigation
+     is always reachable. */
   .docs-side-toggle {
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: space-between;
     width: 100%;
@@ -875,10 +879,12 @@ a.rule-ref:hover code { text-decoration: underline; }
     border-radius: 4px;
     cursor: pointer;
   }
+  html.js .docs-side-toggle { display: flex; }
   .docs-side-toggle i { transition: transform 0.15s ease; }
   .docs-side-toggle[aria-expanded="true"] i { transform: rotate(180deg); }
-  .docs-side-nav { display: none; padding: 14px 0 4px; }
-  .docs-side-nav.is-open { display: block; }
+  .docs-side-nav { display: block; padding: 14px 0 4px; }
+  html.js .docs-side-nav { display: none; }
+  html.js .docs-side-nav.is-open { display: block; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
   .pg { grid-template-columns: 1fr; height: auto; }
   .pg-pane + .pg-pane { border-left: 0; border-top: 1px solid var(--border); }

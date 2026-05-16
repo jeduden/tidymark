@@ -13,6 +13,12 @@
          because the kind schema standardizes on `summary`. */ -}}
   <meta name="description" content="{{ with .Description }}{{ . }}{{ else with .Params.summary }}{{ . }}{{ else with .Params.description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}">
   <link rel="icon" type="image/svg+xml" href="{{ "img/logo-mark.svg" | relURL }}">
+  {{- /* Mark the document as JS-capable before CSS applies so
+         the mobile docs-nav collapse is scoped to `html.js`.
+         With JS off this class never lands, the nav stays
+         visible, and the (inert) toggle button stays hidden —
+         the navigation is reachable without scripting. */ -}}
+  <script>document.documentElement.classList.add("js")</script>
   <link rel="stylesheet" href="{{ "css/colors_and_type.css" | relURL }}">
   <link rel="stylesheet" href="{{ "css/app.css" | relURL }}">
   <script src="{{ "js/lucide.min.js" | relURL }}" defer></script>

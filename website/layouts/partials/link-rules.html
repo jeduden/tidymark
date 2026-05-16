@@ -12,15 +12,19 @@
        instead. Only `<code>…</code>` spans match, so rule
        codes in prose, headings, links, or tables are left
        alone (the user asked for backticked mentions only).
-       Rule-shaped tokens with no published page (a docs tree
-       built without internal/rules/index.md → empty map) are
-       left as plain code. A rule page does not self-link. */ -}}
+       Each token is matched exactly against the rule-index
+       map keys (bare id and exact page slug), so a typo'd
+       suffix like `MDS001-lenght` is NOT linked — it would
+       otherwise silently point at the wrong rule. Tokens with
+       no published page (a docs tree built without
+       internal/rules/index.md → empty map) are left as plain
+       code. A rule page does not self-link. */ -}}
 {{- $content := .Content -}}
 {{- $self := .RelPermalink -}}
 {{- $rules := partialCached "rule-index.html" . -}}
-{{- range $id, $url := $rules -}}
+{{- range $token, $url := $rules -}}
   {{- if ne $url $self -}}
-    {{- $re := printf `<code>(%s(?:-[a-z0-9-]+)?)</code>` $id -}}
+    {{- $re := printf `<code>(%s)</code>` $token -}}
     {{- $repl := printf `<a class="rule-ref" href="%s"><code>$1</code></a>` $url -}}
     {{- $content = replaceRE $re $repl $content -}}
   {{- end -}}
