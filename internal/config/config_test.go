@@ -1375,188 +1375,87 @@ func TestLoad_ArchetypesKeyEmitsDeprecation(t *testing.T) {
 	assert.True(t, found, "deprecation must mention 'archetypes'")
 }
 
-func TestLoad_MetaCategoryTopLevelEmitsDeprecationAndTranslates(t *testing.T) {
+func assertMetaDeprecation(t *testing.T, cfg *Config) {
+	t.Helper()
+	for _, d := range cfg.Deprecations {
+		if strings.Contains(d, "meta") {
+			assert.Contains(t, d, "directive")
+			assert.Contains(t, d, "structural")
+			assert.Contains(t, d, "prose")
+			return
+		}
+	}
+	t.Error("expected a deprecation mentioning meta, directive, structural, and prose")
+}
+
+func TestLoad_MetaCategoryTopLevelEmitsDeprecation(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	require.NoError(t, os.WriteFile(cfgPath,
 		[]byte("categories:\n  meta: false\n"), 0o644))
-
 	cfg, err := Load(cfgPath)
 	require.NoError(t, err)
-
-	// Deprecation warning emitted.
-	found := false
-	for _, d := range cfg.Deprecations {
-		if strings.Contains(d, "meta") {
-			found = true
-			assert.Contains(t, d, "directive")
-			assert.Contains(t, d, "structural")
-			assert.Contains(t, d, "prose")
-			break
-		}
-	}
-	assert.True(t, found, "meta category key must emit a deprecation")
-
-	// New categories set; prose category left intact (has pre-existing rules).
-	assert.False(t, cfg.Categories["directive"], "directive should be disabled after meta translation")
-	assert.False(t, cfg.Categories["structural"], "structural should be disabled after meta translation")
-	_, proseCatSet := cfg.Categories["prose"]
-	assert.False(t, proseCatSet, "prose category must not be set — it has pre-existing rules")
-	_, metaStillPresent := cfg.Categories["meta"]
-	assert.False(t, metaStillPresent, "meta key should be removed after translation")
-	// Moved prose rules disabled per-name.
-	for _, ruleName := range []string{
-		"paragraph-readability", "paragraph-structure", "token-budget",
-		"conciseness-scoring", "duplicated-content", "emphasis-style", "ambiguous-emphasis",
-	} {
-		rc, ok := cfg.Rules[ruleName]
-		assert.True(t, ok, "moved prose rule %q should be in cfg.Rules after meta translation", ruleName)
-		assert.False(t, rc.Enabled, "moved prose rule %q should be disabled", ruleName)
-	}
+	assertMetaDeprecation(t, cfg)
+	// Config is left as-is: meta key stays and no per-rule inserts are made.
+	// (meta is inert since no rule returns "meta", but the user must fix it.)
+	assert.False(t, cfg.Categories["meta"])
 }
 
-func TestLoad_MetaCategoryKindEmitsDeprecationAndTranslates(t *testing.T) {
+func TestLoad_MetaCategoryKindEmitsDeprecation(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	require.NoError(t, os.WriteFile(cfgPath,
 		[]byte("kinds:\n  docs:\n    categories:\n      meta: false\n"), 0o644))
-
 	cfg, err := Load(cfgPath)
 	require.NoError(t, err)
-
-	found := false
-	for _, d := range cfg.Deprecations {
-		if strings.Contains(d, "meta") {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "meta category key inside a kind must emit a deprecation")
-
-	kind := cfg.Kinds["docs"]
-	assert.False(t, kind.Categories["directive"])
-	assert.False(t, kind.Categories["structural"])
-	_, proseCatSet := kind.Categories["prose"]
-	assert.False(t, proseCatSet, "prose category must not be set on kind")
-	_, metaStillPresent := kind.Categories["meta"]
-	assert.False(t, metaStillPresent)
-	// Moved prose rules disabled per-name in kind rules.
-	for _, ruleName := range []string{"paragraph-readability", "token-budget", "emphasis-style"} {
-		rc, ok := kind.Rules[ruleName]
-		assert.True(t, ok, "moved prose rule %q should be in kind Rules", ruleName)
-		assert.False(t, rc.Enabled, "moved prose rule %q should be disabled in kind", ruleName)
-	}
+	assertMetaDeprecation(t, cfg)
+	assert.False(t, cfg.Kinds["docs"].Categories["meta"])
 }
 
-func TestLoad_MetaCategoryOverrideEmitsDeprecationAndTranslates(t *testing.T) {
+func TestLoad_MetaCategoryOverrideEmitsDeprecation(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	require.NoError(t, os.WriteFile(cfgPath,
 		[]byte("overrides:\n  - glob:\n      - \"**/*.md\"\n    categories:\n      meta: false\n"), 0o644))
-
 	cfg, err := Load(cfgPath)
 	require.NoError(t, err)
-
-	found := false
-	for _, d := range cfg.Deprecations {
-		if strings.Contains(d, "meta") {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "meta category key inside an override must emit a deprecation")
-
-	require.Len(t, cfg.Overrides, 1)
-	cats := cfg.Overrides[0].Categories
-	assert.False(t, cats["directive"])
-	assert.False(t, cats["structural"])
-	_, proseCatSet := cats["prose"]
-	assert.False(t, proseCatSet, "prose category must not be set on override")
-	_, metaStillPresent := cats["meta"]
-	assert.False(t, metaStillPresent)
-	// Moved prose rules disabled per-name in override rules.
-	for _, ruleName := range []string{"paragraph-readability", "token-budget", "emphasis-style"} {
-		rc, ok := cfg.Overrides[0].Rules[ruleName]
-		assert.True(t, ok, "moved prose rule %q should be in override Rules", ruleName)
-		assert.False(t, rc.Enabled, "moved prose rule %q should be disabled in override", ruleName)
-	}
+	assertMetaDeprecation(t, cfg)
+	assert.False(t, cfg.Overrides[0].Categories["meta"])
 }
 
-func TestLoad_MetaCategoryTrueDoesNotEnableOptInProseRules(t *testing.T) {
+func TestLoad_MetaCategoryTrueEmitsDeprecation(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, ".mdsmith.yml")
 	require.NoError(t, os.WriteFile(cfgPath,
 		[]byte("categories:\n  meta: true\n"), 0o644))
-
 	cfg, err := Load(cfgPath)
 	require.NoError(t, err)
-
-	// Deprecation still fires.
-	found := false
-	for _, d := range cfg.Deprecations {
-		if strings.Contains(d, "meta") {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "meta: true should still emit a deprecation")
-
-	// Opt-in prose rules must NOT appear in cfg.Rules — inserting Enabled: true
-	// would activate them even though they were never default-enabled via meta.
+	assertMetaDeprecation(t, cfg)
+	// No rules are inserted — meta: true must not activate opt-in prose rules.
 	for _, ruleName := range []string{
-		"conciseness-scoring", "duplicated-content",
-		"emphasis-style", "ambiguous-emphasis",
+		"conciseness-scoring", "duplicated-content", "emphasis-style", "ambiguous-emphasis",
 	} {
 		_, present := cfg.Rules[ruleName]
-		assert.False(t, present, "opt-in prose rule %q must not be inserted when meta: true", ruleName)
+		assert.False(t, present, "opt-in rule %q must not be inserted when meta: true", ruleName)
 	}
 }
 
-func TestLoad_MetaCategoryMultipleOverridesEmitsDeprecationOnce(t *testing.T) {
+func TestLoad_MetaCategoryMultipleLocationsEmitDeprecationOnce(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, ".mdsmith.yml")
-	yaml := "overrides:\n" +
-		"  - glob:\n      - \"docs/**\"\n    categories:\n      meta: false\n" +
-		"  - glob:\n      - \"api/**\"\n    categories:\n      meta: false\n"
+	yaml := "categories:\n  meta: false\n" +
+		"kinds:\n  docs:\n    categories:\n      meta: false\n" +
+		"overrides:\n  - glob:\n      - \"docs/**\"\n    categories:\n      meta: false\n"
 	require.NoError(t, os.WriteFile(cfgPath, []byte(yaml), 0o644))
-
 	cfg, err := Load(cfgPath)
 	require.NoError(t, err)
-
 	count := 0
 	for _, d := range cfg.Deprecations {
 		if strings.Contains(d, "meta") {
 			count++
 		}
 	}
-	assert.Equal(t, 1, count, "deprecation should appear exactly once even with multiple overrides")
-	// Both overrides translated.
-	for _, o := range cfg.Overrides {
-		assert.False(t, o.Categories["directive"])
-		_, metaStillPresent := o.Categories["meta"]
-		assert.False(t, metaStillPresent)
-	}
-}
-
-func TestLoad_MetaCategoryTopLevelAndKindEmitsDeprecationOnce(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".mdsmith.yml")
-	yaml := "categories:\n  meta: false\nkinds:\n  docs:\n    categories:\n      meta: false\n"
-	require.NoError(t, os.WriteFile(cfgPath, []byte(yaml), 0o644))
-
-	cfg, err := Load(cfgPath)
-	require.NoError(t, err)
-
-	count := 0
-	for _, d := range cfg.Deprecations {
-		if strings.Contains(d, "meta") {
-			count++
-		}
-	}
-	assert.Equal(t, 1, count, "deprecation should appear exactly once even when both top-level and kind have meta")
-	// Both locations translated.
-	assert.False(t, cfg.Categories["directive"])
-	assert.False(t, cfg.Kinds["docs"].Categories["directive"])
+	assert.Equal(t, 1, count, "deprecation should appear exactly once regardless of how many locations use meta")
 }
 
 func TestMergeMaxInputSize_FromLoaded(t *testing.T) {
