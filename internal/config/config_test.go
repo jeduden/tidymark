@@ -1458,6 +1458,53 @@ func TestLoad_MetaCategoryOverrideEmitsDeprecationAndTranslates(t *testing.T) {
 	assert.False(t, metaStillPresent)
 }
 
+func TestLoad_MetaCategoryMultipleOverridesEmitsDeprecationOnce(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
+	yaml := "overrides:\n" +
+		"  - glob:\n      - \"docs/**\"\n    categories:\n      meta: false\n" +
+		"  - glob:\n      - \"api/**\"\n    categories:\n      meta: false\n"
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yaml), 0o644))
+
+	cfg, err := Load(cfgPath)
+	require.NoError(t, err)
+
+	count := 0
+	for _, d := range cfg.Deprecations {
+		if strings.Contains(d, "meta") {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "deprecation should appear exactly once even with multiple overrides")
+	// Both overrides translated.
+	for _, o := range cfg.Overrides {
+		assert.False(t, o.Categories["directive"])
+		_, metaStillPresent := o.Categories["meta"]
+		assert.False(t, metaStillPresent)
+	}
+}
+
+func TestLoad_MetaCategoryTopLevelAndKindEmitsDeprecationOnce(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, ".mdsmith.yml")
+	yaml := "categories:\n  meta: false\nkinds:\n  docs:\n    categories:\n      meta: false\n"
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yaml), 0o644))
+
+	cfg, err := Load(cfgPath)
+	require.NoError(t, err)
+
+	count := 0
+	for _, d := range cfg.Deprecations {
+		if strings.Contains(d, "meta") {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "deprecation should appear exactly once even when both top-level and kind have meta")
+	// Both locations translated.
+	assert.False(t, cfg.Categories["directive"])
+	assert.False(t, cfg.Kinds["docs"].Categories["directive"])
+}
+
 func TestMergeMaxInputSize_FromLoaded(t *testing.T) {
 	defaults := &Config{
 		Rules: map[string]RuleCfg{"a": {Enabled: true}},

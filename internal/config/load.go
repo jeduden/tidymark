@@ -270,6 +270,7 @@ func detectMetaCategoryDeprecations(cfg *Config) {
 			cfg.Overrides[i] = o
 			if !warned {
 				cfg.Deprecations = append(cfg.Deprecations, msg)
+				warned = true
 			}
 		}
 	}
