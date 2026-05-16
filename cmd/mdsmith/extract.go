@@ -189,8 +189,19 @@ func loadExtractFile(
 func composedSchemaFor(
 	f *lint.File, res *config.FileResolution, kindName string,
 ) (*schema.Schema, int) {
+	rr, ok := res.Rules["required-structure"]
+	if !ok || !rr.Final.Enabled {
+		// gateExtractCheck runs the normal engine, which skips
+		// MDS020 when the rule is disabled. Projecting then would
+		// emit data for a never-validated file, breaking the
+		// "gated on a successful match" contract. Refuse instead.
+		fmt.Fprintf(os.Stderr,
+			"mdsmith: required-structure is disabled for %s; "+
+				"nothing to validate or extract against\n", f.Path)
+		return nil, 2
+	}
 	rsRule := &requiredstructure.Rule{}
-	if rr, ok := res.Rules["required-structure"]; ok && rr.Final.Settings != nil {
+	if rr.Final.Settings != nil {
 		if err := rsRule.ApplySettings(rr.Final.Settings); err != nil {
 			fmt.Fprintf(os.Stderr,
 				"mdsmith: loading schema config: %v\n", err)

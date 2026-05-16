@@ -208,8 +208,17 @@ func scopeCaptures(sc *Scope, dh DocHeading, docFM map[string]any) map[string]st
 
 // collectContent pairs each declared content entry with the first
 // not-yet-consumed body node of the matching kind, in declared
-// order. Conformance is already established, so the simple in-order
-// scan suffices; `unlisted` entries never bind a node.
+// order. Conformance is already established, so the in-order scan
+// suffices; `unlisted` entries never bind a node.
+//
+// An optional entry that the document omits must not swallow nodes
+// belonging to a later entry: when the current entry does not match
+// a node but a later listed entry would, the scan stops and leaves
+// the node for that entry. Without this, an absent optional
+// paragraph before a required code block would consume the code
+// block while searching, so it would never be projected even
+// though MDS020 accepts the file. This mirrors the content
+// validator's findLaterEntry yield in validate_content.go.
 func collectContent(
 	sc *Scope, blocks []contentBlock, startLine, endLine int, sm *ScopeMatch,
 ) {
@@ -225,13 +234,34 @@ func collectContent(
 		}
 		for nodeIdx < len(nodes) {
 			n := nodes[nodeIdx]
-			nodeIdx++
 			if nodeMatchesKind(e.Kind, n.node) {
 				sm.Content = append(sm.Content, ContentMatch{
 					Entry: e, Node: n.node, Line: n.line,
 				})
+				nodeIdx++
 				break
 			}
+			if laterContentEntryMatches(sc.Content, ei+1, n.node) {
+				// Node belongs to a later listed entry; leave it
+				// and move on so this (absent) entry does not
+				// consume it.
+				break
+			}
+			nodeIdx++
 		}
 	}
+}
+
+// laterContentEntryMatches reports whether n matches the kind of
+// any listed (non-`unlisted`) content entry at or after startIdx.
+func laterContentEntryMatches(content []ContentEntry, startIdx int, n ast.Node) bool {
+	for j := startIdx; j < len(content); j++ {
+		if content[j].Kind == ContentKindUnlisted {
+			continue
+		}
+		if nodeMatchesKind(content[j].Kind, n) {
+			return true
+		}
+	}
+	return false
 }

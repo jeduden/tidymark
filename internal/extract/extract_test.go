@@ -117,6 +117,25 @@ func TestExtract_ContentKinds(t *testing.T) {
 	assert.Equal(t, map[string]any{"A": "1", "B": "2"}, rows[0])
 }
 
+// An absent optional entry must not consume a later required
+// entry's node (Copilot review on matchtree.go:229).
+func TestExtract_OptionalContentDoesNotEatRequired(t *testing.T) {
+	sc := schema.Scope{
+		Heading: "Goal",
+		Matcher: &schema.Matcher{Regex: "Goal"},
+		Content: []schema.ContentEntry{
+			{Kind: schema.ContentKindParagraph, Required: false},
+			{Kind: schema.ContentKindCodeBlock, Required: true},
+		},
+	}
+	sch := &schema.Schema{RootLevel: 2, Sections: []schema.Scope{sc}}
+	got, diags := run(t, "## Goal\n\n```\nx := 1\n```\n", sch, nil)
+	require.Empty(t, diags)
+	goal := got.(map[string]any)["goal"].(map[string]any)
+	assert.Equal(t, "x := 1", goal["code"])
+	assert.NotContains(t, goal, "text")
+}
+
 func TestExtract_SiblingCollision(t *testing.T) {
 	// Two distinct sibling scopes whose headings slugify to the same
 	// key ("Goal" and "Goal!" both → "goal").
