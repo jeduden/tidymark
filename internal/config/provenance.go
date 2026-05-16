@@ -155,7 +155,10 @@ func buildLayers(cfg *Config, filePath string, kinds []ResolvedKind) []layerInfo
 	defaults, user := splitRulesByExplicit(cfg)
 
 	if len(defaults) > 0 {
-		layers = append(layers, layerInfo{Source: layerSourceDefault, Rules: defaults})
+		layers = append(layers, layerInfo{
+			Source: layerSourceDefault,
+			Rules:  translateLayerRules(defaults),
+		})
 	}
 	if cfg.Convention != "" && len(cfg.ConventionPreset) > 0 {
 		source := "convention." + cfg.Convention
@@ -164,11 +167,14 @@ func buildLayers(cfg *Config, filePath string, kinds []ResolvedKind) []layerInfo
 		}
 		layers = append(layers, layerInfo{
 			Source: source,
-			Rules:  cfg.ConventionPreset,
+			Rules:  translateLayerRules(cfg.ConventionPreset),
 		})
 	}
 	if len(user) > 0 {
-		layers = append(layers, layerInfo{Source: layerSourceUser, Rules: user})
+		layers = append(layers, layerInfo{
+			Source: layerSourceUser,
+			Rules:  translateLayerRules(user),
+		})
 	}
 	for _, k := range kinds {
 		body, ok := cfg.Kinds[k.Name]
@@ -184,7 +190,7 @@ func buildLayers(cfg *Config, filePath string, kinds []ResolvedKind) []layerInfo
 		if matchesAny(o.Patterns(), filePath) {
 			layers = append(layers, layerInfo{
 				Source: fmt.Sprintf("overrides[%d]", i),
-				Rules:  o.Rules,
+				Rules:  translateLayerRules(o.Rules),
 			})
 		}
 	}
@@ -197,18 +203,19 @@ func buildLayers(cfg *Config, filePath string, kinds []ResolvedKind) []layerInfo
 // required-structure outside body.Rules via two top-level fields
 // on KindBody — `schema:` (an inline schema map) and
 // `path-pattern:` — and the engine's merge layer translates each
-// into a setting on the rule (`inline-schema` and `path-patterns`
-// respectively). Without mirroring those injections here,
-// `mdsmith kinds resolve` and `--explain` output drop the
-// winning source for either synthetic setting and diverge from
-// the rule config the engine actually applied.
+// into a setting on the rule (`schema-sources` and `path-patterns`
+// respectively). The body.Rules side also gets translated so user-
+// written `schema:` / `inline-schema:` keys land in
+// `schema-sources` ahead of the deep-merge. Without these mirrored
+// translations, `mdsmith kinds resolve` and `--explain` output
+// diverges from the rule config the engine actually applied.
 func kindLayerRules(kindName string, body KindBody) map[string]RuleCfg {
 	if len(body.Schema) == 0 && body.PathPattern == "" {
-		return body.Rules
+		return translateLayerRules(body.Rules)
 	}
 	out := make(map[string]RuleCfg, len(body.Rules)+1)
 	for k, v := range body.Rules {
-		out[k] = v
+		out[k] = translateLayerSettings(k, v)
 	}
 	rs := out["required-structure"]
 	rs.Enabled = true
@@ -218,7 +225,9 @@ func kindLayerRules(kindName string, body KindBody) map[string]RuleCfg {
 		rs.Settings = cloneSettings(rs.Settings)
 	}
 	if len(body.Schema) > 0 {
-		rs.Settings["inline-schema"] = cloneSettings(body.Schema)
+		entry := map[string]any{"inline": cloneSettings(body.Schema)}
+		existing, _ := rs.Settings["schema-sources"].([]any)
+		rs.Settings["schema-sources"] = append(existing, entry)
 	}
 	if body.PathPattern != "" {
 		entry := map[string]any{"kind": kindName, "pattern": body.PathPattern}
@@ -226,6 +235,20 @@ func kindLayerRules(kindName string, body KindBody) map[string]RuleCfg {
 		rs.Settings["path-patterns"] = append(existing, entry)
 	}
 	out["required-structure"] = rs
+	return out
+}
+
+// translateLayerRules applies each rule's rule.SettingsTranslator
+// (via translateLayerSettings) across a whole rules map so the
+// provenance layer chain shows the same setting keys the engine
+// merges on. Rules without a translator pass through unchanged.
+// Provenance is not a hot path, so this always returns a fresh
+// map rather than threading an allocation-free fast path.
+func translateLayerRules(rules map[string]RuleCfg) map[string]RuleCfg {
+	out := make(map[string]RuleCfg, len(rules))
+	for k, v := range rules {
+		out[k] = translateLayerSettings(k, v)
+	}
 	return out
 }
 

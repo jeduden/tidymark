@@ -105,10 +105,9 @@ kinds:
 
 // TestEffectiveInjectsInlineSchema verifies that a kind's inline
 // schema reaches required-structure via the effective rule config:
-// the merge layer translates KindBody.Schema into
-// rules.required-structure.Settings["inline-schema"] so the rule
-// receives it through ApplySettings without any rule-specific wiring
-// at the call site.
+// the merge layer translates KindBody.Schema into a `schema-sources`
+// list entry so the rule receives it through ApplySettings without
+// any rule-specific wiring at the call site.
 func TestEffectiveInjectsInlineSchema(t *testing.T) {
 	inline := map[string]any{
 		"sections": []any{
@@ -130,17 +129,21 @@ func TestEffectiveInjectsInlineSchema(t *testing.T) {
 	rs, ok := effective["required-structure"]
 	require.True(t, ok, "required-structure should be in effective config")
 	require.NotNil(t, rs.Settings)
-	got, ok := rs.Settings["inline-schema"].(map[string]any)
-	require.True(t, ok, "inline-schema must be injected as a map")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok, "schema-sources must be a list")
+	require.Len(t, sources, 1)
+	entry, ok := sources[0].(map[string]any)
+	require.True(t, ok)
+	got, ok := entry["inline"].(map[string]any)
+	require.True(t, ok, "inline-schema entry must wrap the kind's inline map")
 	require.Contains(t, got, "sections")
 }
 
-// TestEffectiveClearsPriorSchemaWhenNewSourceArrives covers the
-// "last source wins" rule the merge layer enforces. When kind A
-// supplies a file path and kind B supplies an inline schema, the
-// resulting required-structure has only the inline source — the
-// file path is cleared.
-func TestEffectiveClearsPriorSchemaWhenNewSourceArrives(t *testing.T) {
+// TestEffectiveComposesSchemaSourcesAcrossKinds covers plan 156: when
+// kind A supplies a file-path schema and kind B supplies an inline
+// schema, both end up in the composed schema-sources list rather
+// than the last one winning.
+func TestEffectiveComposesSchemaSourcesAcrossKinds(t *testing.T) {
 	cfg := &Config{
 		Rules: map[string]RuleCfg{
 			"required-structure": {Enabled: true},
@@ -161,10 +164,17 @@ func TestEffectiveClearsPriorSchemaWhenNewSourceArrives(t *testing.T) {
 	}
 	effective := Effective(cfg, "foo.md", nil, nil)
 	rs := effective["required-structure"]
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok, "schema-sources must accumulate across kinds")
+	require.Len(t, sources, 2, "both kinds should contribute a source")
+	first := sources[0].(map[string]any)
+	assert.Equal(t, "schemas/a.md", first["file"])
+	second := sources[1].(map[string]any)
+	assert.Contains(t, second, "inline")
 	assert.NotContains(t, rs.Settings, "schema",
-		"prior file-source must be cleared when a later kind installs inline")
-	assert.Contains(t, rs.Settings, "inline-schema",
-		"later inline source should be present")
+		"legacy schema key must be stripped after translation")
+	assert.NotContains(t, rs.Settings, "inline-schema",
+		"legacy inline-schema key must be stripped after translation")
 }
 
 // TestValidateKindAllowsInlineWithoutFileSchemaSetting covers
@@ -242,11 +252,136 @@ func TestEmptyInlineSchemaDoesNotTriggerMutex(t *testing.T) {
 		"empty inline schema map must not count as a declared source")
 }
 
-// TestEmptyInlineSchemaDoesNotClearPriorState ensures the merge
-// layer doesn't wipe a file-schema path when a later kind has
-// `schema: {}`. An empty map is "no source", so prior state
-// survives unchanged.
-func TestEmptyInlineSchemaDoesNotClearPriorState(t *testing.T) {
+// TestEffectiveKinds_NilCfg covers the cfg == nil fast-path:
+// without a Config the function returns the deduplicated fmKinds
+// list straight through.
+func TestEffectiveKinds_NilCfg(t *testing.T) {
+	got := EffectiveKinds(nil, "doc.md", []string{"a", "b", "a"}, nil)
+	assert.Equal(t, []string{"a", "b"}, got,
+		"nil cfg path must dedupe fmKinds in input order")
+}
+
+// TestEffectiveKinds_CfgDelegatesToResolver verifies the non-nil
+// cfg branch forwards to resolveEffectiveKinds.
+func TestEffectiveKinds_CfgDelegatesToResolver(t *testing.T) {
+	cfg := &Config{
+		Kinds: map[string]KindBody{"plan": {}},
+		KindAssignment: []KindAssignmentEntry{
+			{Glob: []string{"plan/*.md"}, Kinds: []string{"plan"}},
+		},
+	}
+	got := EffectiveKinds(cfg, "plan/foo.md", nil, nil)
+	assert.Equal(t, []string{"plan"}, got)
+}
+
+// TestTranslateLayerSettings_NonStringSchemaKey covers a layer
+// whose `schema:` is a non-string value: the rule's translator
+// still strips the legacy key but adds no schema-sources entry.
+func TestTranslateLayerSettings_NonStringSchemaKey(t *testing.T) {
+	out := translateLayerSettings("required-structure", RuleCfg{
+		Enabled:  true,
+		Settings: map[string]any{"schema": 42},
+	})
+	assert.NotContains(t, out.Settings, "schema")
+	assert.NotContains(t, out.Settings, "schema-sources")
+}
+
+// TestTranslateLayerSettings_NonMapInlineKey covers a non-map
+// `inline-schema` value: treated as empty, key stripped, no
+// source added.
+func TestTranslateLayerSettings_NonMapInlineKey(t *testing.T) {
+	out := translateLayerSettings("required-structure", RuleCfg{
+		Enabled:  true,
+		Settings: map[string]any{"inline-schema": "not-a-map"},
+	})
+	assert.NotContains(t, out.Settings, "inline-schema")
+	assert.NotContains(t, out.Settings, "schema-sources")
+}
+
+// TestTranslateLayerSettings_UnknownRulePassthrough covers the
+// rule-not-registered / no-translator branches: a rule with no
+// SettingsTranslator (or an unknown name) returns its settings
+// untouched.
+func TestTranslateLayerSettings_UnknownRulePassthrough(t *testing.T) {
+	in := RuleCfg{Enabled: true, Settings: map[string]any{"schema": "x.md"}}
+	out := translateLayerSettings("definitely-not-a-rule", in)
+	assert.Equal(t, "x.md", out.Settings["schema"],
+		"unknown rule must not have its settings rewritten")
+}
+
+// TestTranslateLayerSettings_NilSettingsPassthrough covers the
+// rc.Settings == nil early return.
+func TestTranslateLayerSettings_NilSettingsPassthrough(t *testing.T) {
+	out := translateLayerSettings("required-structure",
+		RuleCfg{Enabled: true})
+	assert.Nil(t, out.Settings)
+}
+
+// TestKindLayerRules_InlineSchemaWithoutPathPattern covers the
+// `body.PathPattern != ""` false branch in kindLayerRules: when
+// a kind body has an inline Schema map but no path-pattern, the
+// path-patterns inject is skipped while the schema source still
+// lands in schema-sources.
+func TestKindLayerRules_InlineSchemaWithoutPathPattern(t *testing.T) {
+	body := KindBody{
+		Schema: map[string]any{
+			"sections": []any{map[string]any{"heading": "X"}},
+		},
+		// PathPattern intentionally empty.
+	}
+	out := kindLayerRules("k", body)
+	rs := out["required-structure"]
+	assert.True(t, rs.Enabled)
+	assert.NotContains(t, rs.Settings, "path-patterns",
+		"empty PathPattern must not inject a path-patterns entry")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, sources, 1)
+	assert.Contains(t, sources[0].(map[string]any), "inline")
+}
+
+// TestTranslateLayerSettings_StripsLegacyKeyWithoutAddingSource
+// covers the empty-value path: a layer with `schema: ""` (the
+// rule's DefaultSettings placeholder) is stripped of the legacy
+// key without contributing a schema-sources entry, and unrelated
+// settings survive.
+func TestTranslateLayerSettings_StripsLegacyKeyWithoutAddingSource(t *testing.T) {
+	out := translateLayerSettings("required-structure", RuleCfg{
+		Enabled: true,
+		Settings: map[string]any{
+			"schema":       "",
+			"placeholders": []string{"cue-frontmatter"},
+		},
+	})
+	assert.NotContains(t, out.Settings, "schema",
+		"legacy schema key must be stripped even when value is empty")
+	assert.NotContains(t, out.Settings, "schema-sources",
+		"empty schema value must NOT add a schema-sources entry")
+	assert.Contains(t, out.Settings, "placeholders",
+		"unrelated settings must survive translation")
+}
+
+// TestTranslateLayerSettings_BothEmptyValuesStripped covers a
+// layer carrying both legacy keys with empty values: both keys
+// are stripped, no source is added.
+func TestTranslateLayerSettings_BothEmptyValuesStripped(t *testing.T) {
+	out := translateLayerSettings("required-structure", RuleCfg{
+		Enabled: true,
+		Settings: map[string]any{
+			"schema":        "",
+			"inline-schema": map[string]any{},
+		},
+	})
+	assert.NotContains(t, out.Settings, "schema")
+	assert.NotContains(t, out.Settings, "inline-schema")
+	assert.NotContains(t, out.Settings, "schema-sources")
+}
+
+// TestEmptyInlineSchemaIsNoOp ensures the merge layer doesn't add a
+// source entry when a kind has `schema: {}`. An empty map is "no
+// source", so the composed schema-sources list contains only the
+// prior kind's file source.
+func TestEmptyInlineSchemaIsNoOp(t *testing.T) {
 	cfg := &Config{
 		Rules: map[string]RuleCfg{
 			"required-structure": {Enabled: true},
@@ -266,10 +401,11 @@ func TestEmptyInlineSchemaDoesNotClearPriorState(t *testing.T) {
 	}
 	effective := Effective(cfg, "foo.md", nil, nil)
 	rs := effective["required-structure"]
-	assert.Equal(t, "schemas/a.md", rs.Settings["schema"],
-		"empty schema map must not clear prior file-source")
-	assert.NotContains(t, rs.Settings, "inline-schema",
-		"empty schema map must not install an inline-schema entry")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, sources, 1, "empty schema map must not add a source entry")
+	first := sources[0].(map[string]any)
+	assert.Equal(t, "schemas/a.md", first["file"])
 }
 
 // TestInlineSchemaMarksRequiredStructureExplicit regresses a
@@ -326,9 +462,10 @@ func TestBoolOnlyRequiredStructureRuleCfg(t *testing.T) {
 		"bool-only kind entry must still resolve")
 }
 
-func TestClearSchemaState_NoRequiredStructureEntry(t *testing.T) {
-	// clearSchemaState should be a no-op when result has no
-	// required-structure entry. Cover the early-return branch.
+func TestEffectiveInlineSchemaInjectsSourceEntryWithoutPriorRule(t *testing.T) {
+	// A kind with an inline schema reaches the effective config even
+	// when no required-structure rule entry exists yet — the merge
+	// layer creates the rule entry and installs the source.
 	cfg := &Config{
 		Rules: map[string]RuleCfg{"line-length": {Enabled: true}},
 		Kinds: map[string]KindBody{
@@ -343,12 +480,17 @@ func TestClearSchemaState_NoRequiredStructureEntry(t *testing.T) {
 	effective := Effective(cfg, "foo.md", nil, nil)
 	rs, ok := effective["required-structure"]
 	require.True(t, ok)
-	assert.Contains(t, rs.Settings, "inline-schema")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, sources, 1)
+	entry := sources[0].(map[string]any)
+	assert.Contains(t, entry, "inline")
 }
 
-func TestClearSchemaState_NilSettings(t *testing.T) {
-	// clearSchemaState with required-structure present but Settings
-	// nil — early return on settings-nil branch.
+func TestEffectiveInlineSchemaSourceSurvivesNilSettings(t *testing.T) {
+	// required-structure may be present with nil Settings before the
+	// kind runs (bool-only enable). Installing the kind's inline
+	// source must allocate Settings rather than panicking.
 	cfg := &Config{
 		Rules: map[string]RuleCfg{
 			"required-structure": {Enabled: true},
@@ -365,13 +507,15 @@ func TestClearSchemaState_NilSettings(t *testing.T) {
 	}
 	effective := Effective(cfg, "foo.md", nil, nil)
 	rs := effective["required-structure"]
-	assert.Contains(t, rs.Settings, "inline-schema")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, sources, 1)
 }
 
-func TestKindDeclaresSchemaRecognisesInlineSchemaSetting(t *testing.T) {
-	// A kind that supplies `inline-schema` via the rules map (not
-	// via KindBody.Schema) still counts as a schema source so the
-	// merge clears prior state.
+func TestEffectiveComposesInlineSchemaFromRulesWithBaseFile(t *testing.T) {
+	// A kind that supplies `inline-schema` via the rules map composes
+	// with a top-level `schema:` set on the base required-structure
+	// rule. Both sources end up in schema-sources.
 	cfg := &Config{
 		Rules: map[string]RuleCfg{
 			"required-structure": {Enabled: true, Settings: map[string]any{
@@ -396,16 +540,18 @@ func TestKindDeclaresSchemaRecognisesInlineSchemaSetting(t *testing.T) {
 	}
 	effective := Effective(cfg, "foo.md", nil, nil)
 	rs := effective["required-structure"]
-	assert.NotContains(t, rs.Settings, "schema",
-		"a kind installing inline-schema via rules should clear the file path")
-	assert.Contains(t, rs.Settings, "inline-schema")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok, "schema-sources must accumulate base + kind sources")
+	require.Len(t, sources, 2)
+	assert.Equal(t, "schemas/base.md", sources[0].(map[string]any)["file"])
+	assert.Contains(t, sources[1].(map[string]any), "inline")
 }
 
-// TestEffectiveClearsPriorSchemaForOverrideInlineSchema covers the
-// path where an override (not a kind) installs an inline-schema:
-// the helper rulesDeclareSchema must recognise inline-schema as a
-// source so the prior file-schema path gets cleared.
-func TestEffectiveClearsPriorSchemaForOverrideInlineSchema(t *testing.T) {
+// TestEffectiveComposesOverrideInlineWithBaseFile covers the path
+// where an override (not a kind) installs an inline-schema: the
+// override and the base file source compose into a two-entry list
+// rather than the override clearing the base.
+func TestEffectiveComposesOverrideInlineWithBaseFile(t *testing.T) {
 	cfg := &Config{
 		Rules: map[string]RuleCfg{
 			"required-structure": {Enabled: true, Settings: map[string]any{
@@ -425,14 +571,17 @@ func TestEffectiveClearsPriorSchemaForOverrideInlineSchema(t *testing.T) {
 	}
 	effective := Effective(cfg, "foo.md", nil, nil)
 	rs := effective["required-structure"]
-	assert.NotContains(t, rs.Settings, "schema",
-		"override installing inline-schema should clear prior file source")
-	assert.Contains(t, rs.Settings, "inline-schema")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok, "schema-sources must compose base + override")
+	require.Len(t, sources, 2)
+	assert.Equal(t, "schemas/base.md", sources[0].(map[string]any)["file"])
+	assert.Contains(t, sources[1].(map[string]any), "inline")
 }
 
-// TestEffectiveClearsInlineWhenFileSourceArrives is the symmetric
-// case: inline first, file second. The later file source wins.
-func TestEffectiveClearsInlineWhenFileSourceArrives(t *testing.T) {
+// TestEffectiveComposesInlineThenFileSources is the symmetric case
+// to TestEffectiveComposesSchemaSourcesAcrossKinds: kind A has the
+// inline schema and kind B the file. Both compose, in declared order.
+func TestEffectiveComposesInlineThenFileSources(t *testing.T) {
 	cfg := &Config{
 		Rules: map[string]RuleCfg{
 			"required-structure": {Enabled: true},
@@ -453,7 +602,9 @@ func TestEffectiveClearsInlineWhenFileSourceArrives(t *testing.T) {
 	}
 	effective := Effective(cfg, "foo.md", nil, nil)
 	rs := effective["required-structure"]
-	assert.NotContains(t, rs.Settings, "inline-schema",
-		"prior inline source must be cleared when a later kind installs file path")
-	assert.Equal(t, "schemas/b.md", rs.Settings["schema"])
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, sources, 2)
+	assert.Contains(t, sources[0].(map[string]any), "inline")
+	assert.Equal(t, "schemas/b.md", sources[1].(map[string]any)["file"])
 }

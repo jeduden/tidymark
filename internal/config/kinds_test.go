@@ -471,7 +471,9 @@ func TestValidateKinds_AcceptsValidPathPattern(t *testing.T) {
 // settings while injecting the synthetic `path-patterns` entry on
 // top of them. Without this, a kind that both disables a rule and
 // declares a `path-pattern:` would have its `body.Rules` ignored in
-// `kinds resolve` / `--explain` output.
+// `kinds resolve` / `--explain` output. The `schema:` setting is
+// translated to a `schema-sources` entry so the provenance chain
+// reflects the deep-merged form rather than the raw user input.
 func TestKindLayerRules_MergesPathPatternWithExistingRules(t *testing.T) {
 	body := KindBody{
 		PathPattern: "plan/*.md",
@@ -486,7 +488,11 @@ func TestKindLayerRules_MergesPathPatternWithExistingRules(t *testing.T) {
 	assert.False(t, out["line-length"].Enabled)
 	rs := out["required-structure"]
 	assert.True(t, rs.Enabled)
-	assert.Equal(t, "plan/proto.md", rs.Settings["schema"],
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok, "schema-sources must accumulate body.Rules schema source")
+	require.Len(t, sources, 1)
+	assert.Equal(t, "plan/proto.md",
+		sources[0].(map[string]any)["file"],
 		"existing required-structure settings must be preserved")
 	list := rs.Settings["path-patterns"].([]any)
 	require.Len(t, list, 1)
@@ -497,8 +503,7 @@ func TestKindLayerRules_MergesPathPatternWithExistingRules(t *testing.T) {
 // that a kind declaring both `schema:` (an inline schema map) and
 // `path-pattern:` lands BOTH synthetic settings in the provenance
 // layer chain — without this, `kinds resolve` / `--explain` would
-// drop the inline-schema leaf even though effectiveRules applies
-// it.
+// drop the schema source leaf even though effectiveRules applies it.
 func TestKindLayerRules_MirrorsInlineSchemaAndPathPattern(t *testing.T) {
 	body := KindBody{
 		PathPattern: "plan/*.md",
@@ -512,15 +517,98 @@ func TestKindLayerRules_MirrorsInlineSchemaAndPathPattern(t *testing.T) {
 	rs := out["required-structure"]
 	assert.True(t, rs.Enabled)
 
-	schema, ok := rs.Settings["inline-schema"].(map[string]any)
-	require.True(t, ok, "inline-schema must be injected as a map")
-	assert.Contains(t, schema, "sections")
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok, "schema-sources must be injected as a list")
+	require.Len(t, sources, 1)
+	entry := sources[0].(map[string]any)
+	inlineMap, ok := entry["inline"].(map[string]any)
+	require.True(t, ok, "inline entry must wrap the schema map")
+	assert.Contains(t, inlineMap, "sections")
 
 	list, ok := rs.Settings["path-patterns"].([]any)
 	require.True(t, ok)
 	require.Len(t, list, 1)
 	assert.Equal(t, "plan/*.md",
 		list[0].(map[string]any)["pattern"])
+}
+
+// TestKindLayerRules_TranslatesBodyRulesSchema covers the provenance
+// translation of body.Rules' legacy `schema:` setting when the kind
+// has neither `KindBody.Schema` (inline map) nor `path-pattern:`.
+// The provenance chain must surface `schema-sources` for that case
+// too, so explainers don't show a stale `schema:` key.
+func TestKindLayerRules_TranslatesBodyRulesSchema(t *testing.T) {
+	body := KindBody{
+		Rules: map[string]RuleCfg{
+			"required-structure": {
+				Enabled: true,
+				Settings: map[string]any{
+					"schema": "plan/proto.md",
+				},
+			},
+		},
+	}
+	out := kindLayerRules("plan", body)
+	rs := out["required-structure"]
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, sources, 1)
+	assert.Equal(t, "plan/proto.md", sources[0].(map[string]any)["file"])
+	assert.NotContains(t, rs.Settings, "schema",
+		"legacy schema key should be stripped after translation")
+}
+
+// TestKindLayerRules_NoTranslationNeededReturnsSameMap exercises the
+// fast path: a body whose required-structure entry has no schema
+// keys should not allocate a new rules map.
+func TestKindLayerRules_NoTranslationNeededReturnsSameMap(t *testing.T) {
+	body := KindBody{
+		Rules: map[string]RuleCfg{
+			"required-structure": {
+				Enabled: true,
+				Settings: map[string]any{
+					"placeholders": []any{"cue-frontmatter"},
+				},
+			},
+		},
+	}
+	out := kindLayerRules("plan", body)
+	// The function returns body.Rules directly in this path because
+	// neither body.Schema nor body.PathPattern is set, and the
+	// required-structure entry has no schema source to translate.
+	assert.Equal(t, body.Rules["required-structure"].Settings["placeholders"],
+		out["required-structure"].Settings["placeholders"])
+	assert.NotContains(t, out["required-structure"].Settings, "schema-sources")
+}
+
+// TestKindLayerRules_BodyRulesInlineSchemaTranslated covers the
+// `inline-schema:` translation in body.Rules (parallel to the
+// file-path translation above).
+func TestKindLayerRules_BodyRulesInlineSchemaTranslated(t *testing.T) {
+	body := KindBody{
+		Rules: map[string]RuleCfg{
+			"required-structure": {
+				Enabled: true,
+				Settings: map[string]any{
+					"inline-schema": map[string]any{
+						"sections": []any{
+							map[string]any{"heading": "Goal"},
+						},
+					},
+				},
+			},
+		},
+	}
+	out := kindLayerRules("plan", body)
+	rs := out["required-structure"]
+	sources, ok := rs.Settings["schema-sources"].([]any)
+	require.True(t, ok)
+	require.Len(t, sources, 1)
+	inlineMap, ok := sources[0].(map[string]any)["inline"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, inlineMap, "sections")
+	assert.NotContains(t, rs.Settings, "inline-schema",
+		"legacy inline-schema key should be stripped after translation")
 }
 
 // --- helpers ---

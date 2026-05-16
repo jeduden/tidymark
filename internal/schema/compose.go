@@ -1,0 +1,439 @@
+package schema
+
+import (
+	"fmt"
+	"strings"
+)
+
+// Compose merges multiple schemas into one. The composed schema's
+// frontmatter constraints are the union of each input's keys; for keys
+// declared in more than one input, the CUE expressions are conjoined
+// with `&` so a value must satisfy every constraint. Sections are
+// merged so that scopes sharing the same heading label combine their
+// child sections recursively; remaining scopes append in input order.
+// The stricter `closed:` wins (any input that sets Closed=true makes
+// the composed scope closed) and the stricter cardinality wins (a
+// section required by any input is required in the result). Filename
+// uses the first non-empty value; conflicting patterns cause an error
+// so the caller surfaces a clear diagnostic rather than silently
+// ignoring one constraint. Acronyms, CrossReferences, and Index slots
+// are joined from inputs that declare them; conflicts on Index.Output
+// return an error.
+//
+// Compose returns nil when given no inputs. With a single non-nil
+// input it returns that input unchanged.
+func Compose(schemas ...*Schema) (*Schema, error) {
+	nonNil := make([]*Schema, 0, len(schemas))
+	for _, s := range schemas {
+		if s == nil {
+			continue
+		}
+		nonNil = append(nonNil, s)
+	}
+	if len(nonNil) == 0 {
+		return nil, nil
+	}
+	if len(nonNil) == 1 {
+		return nonNil[0], nil
+	}
+
+	rootLevel, err := composedRootLevel(nonNil)
+	if err != nil {
+		return nil, err
+	}
+	out := &Schema{
+		Source:    composedSourceLabel(nonNil),
+		RootLevel: rootLevel,
+	}
+
+	composeFrontmatter(out, nonNil)
+	if err := composeFilename(out, nonNil); err != nil {
+		return nil, err
+	}
+	composeRootClosed(out, nonNil)
+	out.Sections = composeSectionLists(extractRootSections(nonNil))
+	out.CrossReferences = composeCrossRefs(nonNil)
+	composeAcronyms(out, nonNil)
+	if err := composeIndex(out, nonNil); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// composedRootLevel reports the heading level the composed
+// section list should sit at. Every input must agree on the
+// effective root level — mixing an inline schema (RootLevel=2,
+// H1 owned by the title) with a file-based proto.md that wraps
+// its sections in an H1 wildcard (RootLevel=1) would cause the
+// validator's section walk to start at the wrong depth for one
+// of the inputs. Surface the conflict as a config error so the
+// caller sees a clear message instead of silently mis-validated
+// headings.
+func composedRootLevel(schemas []*Schema) (int, error) {
+	root := schemas[0].EffectiveRootLevel()
+	for _, s := range schemas[1:] {
+		if s.EffectiveRootLevel() != root {
+			return 0, fmt.Errorf(
+				"composed schemas disagree on root heading level: "+
+					"%q starts at h%d, %q starts at h%d — every source "+
+					"must declare the same root level (typically the "+
+					"H1 wildcard `# ?` for file-based schemas, H2 for "+
+					"inline)",
+				schemas[0].Source, root,
+				s.Source, s.EffectiveRootLevel())
+		}
+	}
+	return root, nil
+}
+
+func composedSourceLabel(schemas []*Schema) string {
+	parts := make([]string, 0, len(schemas))
+	for _, s := range schemas {
+		if s.Source == "" {
+			continue
+		}
+		parts = append(parts, s.Source)
+	}
+	if len(parts) == 0 {
+		return "composed"
+	}
+	return "composed(" + strings.Join(parts, ", ") + ")"
+}
+
+func composeFrontmatter(out *Schema, schemas []*Schema) {
+	for _, s := range schemas {
+		for k, expr := range s.Frontmatter {
+			if out.Frontmatter == nil {
+				out.Frontmatter = map[string]string{}
+			}
+			existing, ok := out.Frontmatter[k]
+			if !ok {
+				out.Frontmatter[k] = expr
+				continue
+			}
+			if existing == expr {
+				continue
+			}
+			out.Frontmatter[k] = "(" + existing + ") & (" + expr + ")"
+		}
+	}
+}
+
+func composeFilename(out *Schema, schemas []*Schema) error {
+	for _, s := range schemas {
+		if s.Filename == "" {
+			continue
+		}
+		if out.Filename == "" {
+			out.Filename = s.Filename
+			continue
+		}
+		if out.Filename != s.Filename {
+			return fmt.Errorf(
+				"conflicting filename patterns across "+
+					"composed schemas: %q and %q",
+				out.Filename, s.Filename)
+		}
+	}
+	return nil
+}
+
+func composeRootClosed(out *Schema, schemas []*Schema) {
+	for _, s := range schemas {
+		if s.Closed {
+			out.Closed = true
+			return
+		}
+	}
+}
+
+func extractRootSections(schemas []*Schema) [][]Scope {
+	out := make([][]Scope, 0, len(schemas))
+	for _, s := range schemas {
+		out = append(out, s.Sections)
+	}
+	return out
+}
+
+// composeSectionLists merges multiple parallel section lists into
+// one. Scopes that share a heading label (canMergeByHeading) are
+// merged recursively — their child sections compose. The
+// no-identity shapes (the `## ...` wildcard slot, the bare `?`
+// matcher, the preamble) append in input order so each stays
+// distinct. A field-interpolated label like `{id}: {name}` is a
+// stable identity and DOES merge, so two proto.md sources that
+// each wrap their sections in the same H1 yield one combined H1
+// scope rather than requiring two H1s in the document.
+func composeSectionLists(lists [][]Scope) []Scope {
+	var out []Scope
+	indexByHeading := map[string]int{}
+	for _, list := range lists {
+		seenPreambleInList := false
+		for _, sc := range list {
+			if sc.Preamble {
+				if seenPreambleInList {
+					// A list can have at most one preamble at index
+					// 0; defensively skip duplicates.
+					continue
+				}
+				seenPreambleInList = true
+				if existing := findPreambleIndex(out); existing >= 0 {
+					out[existing] = mergeScopes(out[existing], sc)
+					continue
+				}
+				// Preamble must be first in any list. Prepend on the
+				// composed list so the invariant survives.
+				out = append([]Scope{sc}, out...)
+				// Shift existing heading indices.
+				for k, v := range indexByHeading {
+					indexByHeading[k] = v + 1
+				}
+				continue
+			}
+			if !canMergeByHeading(sc) {
+				out = append(out, cloneScope(sc))
+				continue
+			}
+			if idx, ok := indexByHeading[sc.Heading]; ok {
+				out[idx] = mergeScopes(out[idx], sc)
+				continue
+			}
+			indexByHeading[sc.Heading] = len(out)
+			out = append(out, cloneScope(sc))
+		}
+	}
+	return out
+}
+
+func findPreambleIndex(list []Scope) int {
+	for i, sc := range list {
+		if sc.Preamble {
+			return i
+		}
+	}
+	return -1
+}
+
+// canMergeByHeading reports whether a scope has a stable identity
+// that supports merging across composed inputs. Scopes merge by
+// their heading label (including field-interpolated patterns: two
+// schemas that both wrap their sections in `# {id}: {name}`
+// describe the same H1, so the validator must see one combined
+// scope). The no-identity shapes — the `## ...` wildcard slot, the
+// bare `?` any-heading matcher, and the preamble — never merge:
+// each must stay distinct so it independently absorbs the
+// surrounding content the author intended.
+func canMergeByHeading(sc Scope) bool {
+	if sc.Preamble {
+		return false
+	}
+	h := strings.TrimSpace(sc.Heading)
+	if h == "" || h == "?" || h == SectionWildcard {
+		return false
+	}
+	return true
+}
+
+// mergeScopes combines two scopes that share a heading label. The
+// result keeps the first scope's heading label; Closed takes the
+// stricter value (true wins) and the Matcher's cardinality takes
+// the stricter value (a section required by either input is
+// required in the result). Child sections and per-scope rule
+// overrides compose by the same rules as the root; positional
+// Content constraints concatenate in input order.
+func mergeScopes(a, b Scope) Scope {
+	out := cloneScope(a)
+	if b.Closed {
+		out.Closed = true
+	}
+	out.Matcher = mergeMatcher(a.Matcher, b.Matcher)
+	out.Sections = composeSectionLists([][]Scope{a.Sections, b.Sections})
+	// Rules: union by rule name; later input wins on key collisions.
+	// The schema-rule walker is the only consumer, and its semantics
+	// are already "later overrides earlier" within a single scope.
+	out.Rules = mergeScopeRules(a.Rules, b.Rules)
+	out.Content = append(cloneContent(a.Content), cloneContent(b.Content)...)
+	return out
+}
+
+// mergeMatcher combines two matchers for scopes that share a
+// heading label. In practice both matchers derive from the same
+// heading text, so their Regex bodies are identical; the function
+// keeps the first scope's Regex and folds the stricter cardinality
+// in. "Stricter" means a section required by either input is
+// required in the result (the larger minimum), and the run length
+// is the more permissive of the two maxima so composition never
+// makes a satisfiable document impossible. Sequential is OR-ed.
+func mergeMatcher(a, b *Matcher) *Matcher {
+	if a == nil {
+		return cloneMatcher(b)
+	}
+	if b == nil {
+		return cloneMatcher(a)
+	}
+	out := *a
+	out.Sequential = a.Sequential || b.Sequential
+	aMin, aMax := a.Repeat.Bounds()
+	bMin, bMax := b.Repeat.Bounds()
+	min := aMin
+	if bMin > min {
+		min = bMin
+	}
+	var max int // 0 == unbounded
+	if aMax != 0 && bMax != 0 {
+		max = aMax
+		if bMax > max {
+			max = bMax
+		}
+	}
+	if min == 1 && max == 1 {
+		out.Repeat = Repeat{}
+	} else {
+		out.Repeat = Repeat{Set: true, Min: min, Max: max}
+	}
+	return &out
+}
+
+func cloneMatcher(m *Matcher) *Matcher {
+	if m == nil {
+		return nil
+	}
+	c := *m
+	return &c
+}
+
+func cloneContent(c []ContentEntry) []ContentEntry {
+	if len(c) == 0 {
+		return nil
+	}
+	out := make([]ContentEntry, len(c))
+	for i, e := range c {
+		out[i] = e
+		if e.Columns != nil {
+			out[i].Columns = append([]string(nil), e.Columns...)
+		}
+	}
+	return out
+}
+
+func unionStrings(a, b []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(a)+len(b))
+	for _, list := range [][]string{a, b} {
+		for _, s := range list {
+			if seen[s] {
+				continue
+			}
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func mergeScopeRules(
+	a, b map[string]map[string]any,
+) map[string]map[string]any {
+	if len(a) == 0 && len(b) == 0 {
+		return nil
+	}
+	out := make(map[string]map[string]any, len(a)+len(b))
+	for k, v := range a {
+		out[k] = cloneSettingsMap(v)
+	}
+	for k, v := range b {
+		out[k] = cloneSettingsMap(v)
+	}
+	return out
+}
+
+func cloneScope(sc Scope) Scope {
+	out := sc
+	out.Matcher = cloneMatcher(sc.Matcher)
+	if sc.Sections != nil {
+		out.Sections = make([]Scope, len(sc.Sections))
+		for i, child := range sc.Sections {
+			out.Sections[i] = cloneScope(child)
+		}
+	}
+	if sc.Rules != nil {
+		out.Rules = make(map[string]map[string]any, len(sc.Rules))
+		for k, v := range sc.Rules {
+			out.Rules[k] = cloneSettingsMap(v)
+		}
+	}
+	out.Content = cloneContent(sc.Content)
+	return out
+}
+
+func cloneSettingsMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func composeCrossRefs(schemas []*Schema) []CrossRef {
+	var out []CrossRef
+	for _, s := range schemas {
+		out = append(out, s.CrossReferences...)
+	}
+	return out
+}
+
+// composeAcronyms unions KnownSafe entries across inputs. Scope
+// follows the inverse rule: an empty Scope means "document-wide",
+// so once any input declares Acronyms with no Scope restriction
+// the composed Scope becomes nil (document-wide) — narrowing it
+// to another input's restricted list would silently weaken the
+// document-wide check the first input asked for. Two restricted
+// inputs union their Scope lists.
+func composeAcronyms(out *Schema, schemas []*Schema) {
+	scopeWidened := false
+	for _, s := range schemas {
+		if s.Acronyms == nil {
+			continue
+		}
+		if out.Acronyms == nil {
+			out.Acronyms = &AcronymRule{}
+		}
+		out.Acronyms.KnownSafe = unionStrings(out.Acronyms.KnownSafe, s.Acronyms.KnownSafe)
+		if scopeWidened {
+			continue
+		}
+		if len(s.Acronyms.Scope) == 0 {
+			scopeWidened = true
+			out.Acronyms.Scope = nil
+			continue
+		}
+		out.Acronyms.Scope = unionStrings(out.Acronyms.Scope, s.Acronyms.Scope)
+	}
+}
+
+func composeIndex(out *Schema, schemas []*Schema) error {
+	for _, s := range schemas {
+		if s.Index == nil {
+			continue
+		}
+		if out.Index == nil {
+			out.Index = &IndexSpec{Output: s.Index.Output}
+			out.Index.Include = append([]string(nil), s.Index.Include...)
+			continue
+		}
+		if out.Index.Output != s.Index.Output {
+			return fmt.Errorf(
+				"conflicting schema.index.output values across "+
+					"composed schemas: %q and %q",
+				out.Index.Output, s.Index.Output)
+		}
+		out.Index.Include = unionStrings(out.Index.Include, s.Index.Include)
+	}
+	return nil
+}

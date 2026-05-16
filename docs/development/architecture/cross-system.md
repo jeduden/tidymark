@@ -106,6 +106,26 @@ not have is a Liskov violation. Push
 the flag down to the binary, or drop it
 from the shim.
 
+## Schema composition across kinds
+
+When a file resolves to several kinds that each
+declare a `required-structure` schema, the
+schemas compose. Three rules apply:
+
+- Frontmatter conjoins. A key required by any
+  kind is required. Shared keys intersect with
+  CUE `&`.
+- Sections merge. Scopes with the same heading
+  text combine their child lists. Other scopes
+  append in input order.
+- The stricter `closed:` wins.
+
+Multiple kinds can layer schemas. For example,
+`directive-rule-readme` builds on top of
+`rule-readme`. See the
+[Schemas guide](../../guides/schemas.md) for a
+worked example.
+
 ## Versioning policy (post-1.0)
 
 Today mdsmith is at major 0; the rules

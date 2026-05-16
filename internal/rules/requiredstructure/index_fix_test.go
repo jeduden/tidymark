@@ -47,6 +47,56 @@ func TestFix_WritesIndexSideOutput(t *testing.T) {
 	assert.Equal(t, "title", got["headings"][0].Slug)
 }
 
+// TestFix_WritesComposedIndexSideOutput regresses Copilot's review
+// finding on PR #288: when the rule's effective config carries
+// multiple Sources, the legacy r.InlineSchema field stays nil and
+// Fix used to no-op. checkComposedSources still validates an
+// `index:` block on the composed schema, so users would see a
+// "missing index" diagnostic that Fix couldn't resolve. Fix must
+// therefore compose the same way Check does and write the
+// side-output when the composed schema declares one.
+func TestFix_WritesComposedIndexSideOutput(t *testing.T) {
+	dir := t.TempDir()
+	src := "# Title\n\n## Goal\n\n## Tasks\n"
+	docPath := filepath.Join(dir, "doc.md")
+	require.NoError(t, os.WriteFile(docPath, []byte(src), 0o644))
+
+	r := &Rule{}
+	require.NoError(t, r.ApplySettings(map[string]any{
+		"schema-sources": []any{
+			// Kind A: structure only (no index).
+			map[string]any{"inline": map[string]any{
+				"sections": []any{
+					map[string]any{"heading": "Goal"},
+				},
+			}},
+			// Kind B: declares the index side-output.
+			map[string]any{"inline": map[string]any{
+				"index": map[string]any{
+					"output":  "doc-index.json",
+					"include": []any{"headings"},
+				},
+			}},
+		},
+	}))
+	require.Len(t, r.Sources, 2,
+		"multi-source config must keep both entries")
+	require.Nil(t, r.InlineSchema,
+		"multi-source must leave the single-source mirror nil")
+
+	f, err := lint.NewFile(docPath, []byte(src))
+	require.NoError(t, err)
+	out := r.Fix(f)
+	assert.Equal(t, src, string(out), "Fix must return source unchanged")
+
+	idxData, err := os.ReadFile(filepath.Join(dir, "doc-index.json"))
+	require.NoError(t, err,
+		"composed index must be written from the multi-source schema")
+	var got map[string][]schema.IndexHeading
+	require.NoError(t, json.Unmarshal(idxData, &got))
+	require.Len(t, got["headings"], 3)
+}
+
 // TestCheck_ReportsStaleIndex verifies the read-only contract for
 // `mdsmith check`: when the index is missing the rule emits a
 // diagnostic so `mdsmith fix` is triggered, but Check itself does

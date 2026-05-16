@@ -297,7 +297,8 @@ func TestKindPathPattern_MatchEmitsNoDiagnostic(t *testing.T) {
 
 // TestKindSetsRequiredStructureSchema verifies that a kind setting
 // required-structure.schema is reflected in the effective rule config for
-// files assigned to that kind.
+// files assigned to that kind. The merge layer translates the kind's
+// `schema:` setting into a `schema-sources` list entry (plan 156).
 func TestKindSetsRequiredStructureSchema(t *testing.T) {
 	cfg := &config.Config{
 		Rules: map[string]config.RuleCfg{
@@ -314,8 +315,11 @@ func TestKindSetsRequiredStructureSchema(t *testing.T) {
 	}
 
 	effective := config.Effective(cfg, "plan/001_foo.md", nil, nil)
-	got := effective["required-structure"].Settings["schema"]
-	assert.Equal(t, "plan/proto.md", got)
+	sources, ok := effective["required-structure"].Settings["schema-sources"].([]any)
+	require.True(t, ok, "schema-sources must be set")
+	require.Len(t, sources, 1)
+	assert.Equal(t, "plan/proto.md",
+		sources[0].(map[string]any)["file"])
 }
 
 // TestKindRuleReadme_NoInlineHTMLFires guards the .mdsmith.yml change that

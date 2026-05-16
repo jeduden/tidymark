@@ -49,6 +49,25 @@ type ListMerger interface {
 	SettingMergeMode(key string) MergeMode
 }
 
+// SettingsTranslator is implemented by Configurable rules that
+// rewrite one config layer's settings map before the deep-merge
+// runs. The config merge layer calls TranslateLayerSettings on
+// every layer that configures the rule, so merge logic stays free
+// of rule-name special cases.
+//
+// required-structure implements this to collapse the user-facing
+// `schema:` / `inline-schema:` keys into an append-mode
+// `schema-sources` list, letting multiple kinds compose their
+// schemas instead of overwriting (plan 156).
+type SettingsTranslator interface {
+	// TranslateLayerSettings returns the settings the merge layer
+	// should use for one layer. Implementations must treat the
+	// input as read-only and return a new map when they change
+	// anything; returning the input unchanged signals "no
+	// translation applies".
+	TranslateLayerSettings(settings map[string]any) map[string]any
+}
+
 // ConfigTarget is implemented by rules that validate the project
 // config file (.mdsmith.yml) rather than individual Markdown files.
 // The engine runner runs these rules once against a synthetic lint.File

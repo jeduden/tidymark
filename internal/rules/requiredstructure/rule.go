@@ -31,17 +31,35 @@ func init() {
 
 // Rule checks that a document's heading structure matches a schema.
 //
-// A rule instance holds at most one schema source: a path to a
-// proto.md file (Schema) or an already-parsed inline schema
-// (InlineSchema). The kind-level loader rejects configurations that
-// set both on the same kind; the merge logic in internal/config
-// clears the other source whenever a later layer installs a new one,
-// so the rule never has to disambiguate at runtime.
+// A rule instance carries an ordered list of schema sources (Sources)
+// — one per layer (kind, override, or top-level rule entry) that
+// declared a `schema:` (file) or `inline-schema:` (inline map). The
+// rule loads each source at Check time and composes them via
+// schema.Compose; a file resolving to multiple kinds therefore layers
+// each kind's constraints rather than letting the last one win.
+//
+// Schema and InlineSchema mirror the first source's parsed form when
+// exactly one source is present. They support tests that drive the
+// rule directly through ApplySettings with the legacy single-source
+// keys; the kind-level loader still rejects configurations that set
+// both keys on the same layer.
 type Rule struct {
-	Schema       string         // path to schema file
-	InlineSchema *schema.Schema // parsed inline schema (when set)
+	Schema       string         // first source's file path (single-source convenience)
+	InlineSchema *schema.Schema // first source's parsed inline schema
+	Sources      []SchemaSource // ordered list of schema sources (canonical)
 	Placeholders []string       // placeholder tokens to treat as opaque
 	PathPatterns []PathPattern  // kind-level path-pattern entries
+}
+
+// SchemaSource is one entry in the rule's schema-sources list. Either
+// File or Inline is set, never both. Inline schemas are pre-parsed at
+// ApplySettings time so a malformed schema surfaces as a config-load
+// error rather than a per-file diagnostic at Check time. File sources
+// stay as paths because the rule reads them through the lint.File's
+// RootFS at Check time.
+type SchemaSource struct {
+	File   string
+	Inline *schema.Schema
 }
 
 // PathPattern records a kind's `path-pattern:` constraint: the kind
@@ -63,63 +81,188 @@ func (r *Rule) Name() string { return "required-structure" }
 func (r *Rule) Category() string { return "structural" }
 
 // ApplySettings implements rule.Configurable.
+//
+// Three input shapes are accepted, all collapsed into Sources:
+//
+//   - `schema-sources` (canonical, set by the merge layer): a list of
+//     {file: path} / {inline: map} entries in source order.
+//   - `schema` (legacy single-source): a file path; equivalent to a
+//     one-entry schema-sources list.
+//   - `inline-schema` (legacy single-source): a YAML map; equivalent
+//     to a one-entry inline schema-sources list.
+//
+// When called via the merge layer the rule sees only schema-sources;
+// the legacy keys are retained for tests and direct callers. Mixing
+// `schema` and `inline-schema` in the same settings call is rejected
+// as before — the merge layer only produces schema-sources, so the
+// guard fires only on hand-authored configs.
 func (r *Rule) ApplySettings(settings map[string]any) error {
 	if err := rejectDualSchemaSettings(settings); err != nil {
 		return err
 	}
+	r.Sources = nil
 	for k, v := range settings {
-		switch k {
-		case "schema":
-			s, ok := v.(string)
-			if !ok {
-				return fmt.Errorf("required-structure: schema must be a string, got %T", v)
-			}
-			if isLikelyArchetypeName(s) {
-				return fmt.Errorf(
-					"required-structure: schema %q looks like a bare name; "+
-						"name-based lookup has been removed — set `schema:` to "+
-						"an explicit path (e.g. schemas/%s.md), or declare a "+
-						"kind under `kinds:` — see docs/guides/file-kinds.md", s, s)
-			}
-			r.Schema = s
-		case "inline-schema":
-			m, ok := v.(map[string]any)
-			if !ok {
-				return fmt.Errorf(
-					"required-structure: inline-schema must be a mapping, got %T", v)
-			}
-			sch, err := schema.ParseInline(m, "inline kind schema")
-			if err != nil {
-				return fmt.Errorf("required-structure: invalid inline-schema: %w", err)
-			}
-			r.InlineSchema = sch
-		case "placeholders":
-			toks, ok := rulesettings.ToStringSlice(v)
-			if !ok {
-				return fmt.Errorf(
-					"required-structure: placeholders must be a list of strings, got %T", v,
-				)
-			}
-			if err := placeholders.Validate(toks); err != nil {
-				return fmt.Errorf("required-structure: %w", err)
-			}
-			r.Placeholders = toks
-		case "path-patterns":
-			pp, err := parsePathPatterns(v)
-			if err != nil {
-				return fmt.Errorf("required-structure: %w", err)
-			}
-			r.PathPatterns = pp
-		case "archetype", "archetype-roots":
-			return fmt.Errorf(
-				"required-structure: setting %q has been removed; "+
-					"use `schema:` with an explicit path, or declare a kind "+
-					"under `kinds:` — see docs/guides/file-kinds.md", k)
-		default:
-			return fmt.Errorf("required-structure: unknown setting %q", k)
+		if err := r.applySetting(k, v); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (r *Rule) applySetting(key string, value any) error {
+	switch key {
+	case "schema":
+		return r.applySchemaSetting(value)
+	case "inline-schema":
+		return r.applyInlineSchemaSetting(value)
+	case "schema-sources":
+		return r.applySchemaSourcesSetting(value)
+	case "placeholders":
+		return r.applyPlaceholdersSetting(value)
+	case "path-patterns":
+		pp, err := parsePathPatterns(value)
+		if err != nil {
+			return fmt.Errorf("required-structure: %w", err)
+		}
+		r.PathPatterns = pp
+		return nil
+	case "archetype", "archetype-roots":
+		return fmt.Errorf(
+			"required-structure: setting %q has been removed; "+
+				"use `schema:` with an explicit path, or declare a kind "+
+				"under `kinds:` — see docs/guides/file-kinds.md", key)
+	default:
+		return fmt.Errorf("required-structure: unknown setting %q", key)
+	}
+}
+
+func (r *Rule) applySchemaSetting(v any) error {
+	s, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("required-structure: schema must be a string, got %T", v)
+	}
+	if s == "" {
+		return nil
+	}
+	if isLikelyArchetypeName(s) {
+		return fmt.Errorf(
+			"required-structure: schema %q looks like a bare name; "+
+				"name-based lookup has been removed — set `schema:` to "+
+				"an explicit path (e.g. schemas/%s.md), or declare a "+
+				"kind under `kinds:` — see docs/guides/file-kinds.md", s, s)
+	}
+	r.Schema = s
+	r.Sources = append(r.Sources, SchemaSource{File: s})
+	return nil
+}
+
+func (r *Rule) applyInlineSchemaSetting(v any) error {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return fmt.Errorf(
+			"required-structure: inline-schema must be a mapping, got %T", v)
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	sch, err := schema.ParseInline(m, "inline kind schema")
+	if err != nil {
+		return fmt.Errorf("required-structure: invalid inline-schema: %w", err)
+	}
+	r.InlineSchema = sch
+	r.Sources = append(r.Sources, SchemaSource{Inline: sch})
+	return nil
+}
+
+func (r *Rule) applySchemaSourcesSetting(v any) error {
+	sources, err := parseSchemaSources(v)
+	if err != nil {
+		return fmt.Errorf("required-structure: %w", err)
+	}
+	r.Sources = append(r.Sources, sources...)
+	r.reflectSingleSource()
+	return nil
+}
+
+func (r *Rule) applyPlaceholdersSetting(v any) error {
+	toks, ok := rulesettings.ToStringSlice(v)
+	if !ok {
+		return fmt.Errorf(
+			"required-structure: placeholders must be a list of strings, got %T", v,
+		)
+	}
+	if err := placeholders.Validate(toks); err != nil {
+		return fmt.Errorf("required-structure: %w", err)
+	}
+	r.Placeholders = toks
+	return nil
+}
+
+// reflectSingleSource keeps Schema and InlineSchema in sync with
+// Sources when exactly one source is configured. Multi-source
+// configs leave both as their previous values — callers must read
+// Sources to enumerate the list.
+func (r *Rule) reflectSingleSource() {
+	if len(r.Sources) != 1 {
+		return
+	}
+	switch {
+	case r.Sources[0].File != "":
+		r.Schema = r.Sources[0].File
+		r.InlineSchema = nil
+	case r.Sources[0].Inline != nil:
+		r.InlineSchema = r.Sources[0].Inline
+		r.Schema = ""
+	}
+}
+
+// parseSchemaSources reads the `schema-sources` rule setting: a list
+// of `{file: path}` / `{inline: map}` entries installed by the merge
+// layer. Inline maps are parsed eagerly so a malformed schema fails
+// at config-load time rather than per file at Check time.
+func parseSchemaSources(v any) ([]SchemaSource, error) {
+	list, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf(
+			"schema-sources must be a list of {file|inline} entries, got %T", v)
+	}
+	out := make([]SchemaSource, 0, len(list))
+	for i, item := range list {
+		m, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("schema-sources[%d]: entry must be a map, got %T", i, item)
+		}
+		filePath, hasFile := m["file"]
+		inlineV, hasInline := m["inline"]
+		if hasFile && hasInline {
+			return nil, fmt.Errorf(
+				"schema-sources[%d]: entry may set only one of `file` or `inline`", i)
+		}
+		switch {
+		case hasFile:
+			fp, ok := filePath.(string)
+			if !ok || fp == "" {
+				return nil, fmt.Errorf(
+					"schema-sources[%d].file must be a non-empty string, got %T", i, filePath)
+			}
+			out = append(out, SchemaSource{File: fp})
+		case hasInline:
+			im, ok := inlineV.(map[string]any)
+			if !ok || len(im) == 0 {
+				return nil, fmt.Errorf(
+					"schema-sources[%d].inline must be a non-empty mapping, got %T", i, inlineV)
+			}
+			sch, err := schema.ParseInline(im, "inline kind schema")
+			if err != nil {
+				return nil, fmt.Errorf("schema-sources[%d].inline: %w", i, err)
+			}
+			out = append(out, SchemaSource{Inline: sch})
+		default:
+			return nil, fmt.Errorf(
+				"schema-sources[%d]: entry must set `file` or `inline`", i)
+		}
+	}
+	return out, nil
 }
 
 // rejectDualSchemaSettings refuses a settings map that supplies both
@@ -152,12 +295,12 @@ func (r *Rule) DefaultSettings() map[string]any {
 	}
 }
 
-// hasInlineSchema reports whether the rule has a non-empty inline
-// schema attached. The inline source takes precedence over the file
-// source — the kind validator and the effective-config merge prevent
-// them from coexisting, but this is the runtime safeguard.
-func (r *Rule) hasInlineSchema() bool {
-	return r.InlineSchema != nil && !r.InlineSchema.IsEmpty()
+// isSchemaFile reports whether f is the rule's configured schema
+// file. The compose code path uses isSchemaFileAt against an
+// explicit path; this helper preserves the original single-source
+// convenience for callers and tests.
+func (r *Rule) isSchemaFile(f *lint.File) bool {
+	return r.isSchemaFileAt(f, r.Schema)
 }
 
 // isLikelyArchetypeName reports whether s looks like a bare archetype
@@ -182,7 +325,105 @@ func (r *Rule) SettingMergeMode(key string) rule.MergeMode {
 	if key == "path-patterns" {
 		return rule.MergeAppend
 	}
+	if key == "schema-sources" {
+		return rule.MergeAppend
+	}
 	return rule.MergeReplace
+}
+
+// TranslateLayerSettings implements rule.SettingsTranslator. It
+// collapses one config layer's user-facing `schema:` (file path)
+// or `inline-schema:` (map) keys into a single-entry
+// `schema-sources` list and strips the legacy keys. Because the
+// rule declares `schema-sources` as MergeAppend, layers that pass
+// through deep-merge then accumulate their sources instead of
+// scalar-replacing the previous layer — which is what lets a file
+// resolving to several kinds compose every kind's schema
+// (plan 156).
+//
+// Empty values (`schema: ""`, `inline-schema: {}`) are stripped
+// without contributing a source, so the rule's own DefaultSettings
+// `schema: ""` placeholder never pollutes the composed list. The
+// input map is treated as read-only; a new map is returned only
+// when a legacy key is present.
+func (r *Rule) TranslateLayerSettings(settings map[string]any) map[string]any {
+	source, hadKey := extractSchemaSourceFromSettings(settings)
+	if !hadKey {
+		return settings
+	}
+	out := cloneSettingsDeep(settings)
+	delete(out, "schema")
+	delete(out, "inline-schema")
+	if source != nil {
+		existing, _ := out["schema-sources"].([]any)
+		out["schema-sources"] = append(existing, source)
+	}
+	return out
+}
+
+// extractSchemaSourceFromSettings inspects a settings map for a
+// schema-source declaration. It returns (source, true) when either
+// legacy key is present — even if the value is empty / no-op — so
+// the caller strips the key; (nil, false) means no schema key
+// appears at all and the settings pass through untouched.
+func extractSchemaSourceFromSettings(s map[string]any) (any, bool) {
+	hadKey := false
+	if v, ok := s["schema"]; ok {
+		hadKey = true
+		if path, ok := v.(string); ok && path != "" {
+			return map[string]any{"file": path}, true
+		}
+	}
+	if v, ok := s["inline-schema"]; ok {
+		hadKey = true
+		if m, ok := v.(map[string]any); ok && len(m) > 0 {
+			return map[string]any{"inline": cloneSettingsDeep(m)}, true
+		}
+	}
+	if !hadKey {
+		return nil, false
+	}
+	return nil, true
+}
+
+// cloneSettingsDeep deep-copies a settings map so a translated
+// layer never aliases the caller's nested maps or slices.
+func cloneSettingsDeep(s map[string]any) map[string]any {
+	if s == nil {
+		return nil
+	}
+	out := make(map[string]any, len(s))
+	for k, v := range s {
+		out[k] = cloneSettingsValue(v)
+	}
+	return out
+}
+
+func cloneSettingsValue(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, vv := range x {
+			out[k] = cloneSettingsValue(vv)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = cloneSettingsValue(e)
+		}
+		return out
+	case []string:
+		out := make([]string, len(x))
+		copy(out, x)
+		return out
+	case []int:
+		out := make([]int, len(x))
+		copy(out, x)
+		return out
+	default:
+		return v
+	}
 }
 
 // parsePathPatterns reads the `path-patterns` rule setting: a list of
@@ -239,7 +480,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 
 	// Warn when <?require?> appears in a non-schema file.
 	if reqLine := findRequireDirectiveLine(f); reqLine > 0 {
-		if !r.isSchemaFile(f) {
+		if !r.isAnySchemaFile(f) {
 			d := makeDiag(f.Path, reqLine,
 				"<?require?> is only recognized in schema files; this directive has no effect here")
 			d.Severity = lint.Warning
@@ -253,61 +494,149 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	// on top of a `<?require filename:?>` directive.
 	diags = append(diags, r.checkPathPatterns(f)...)
 
-	if r.hasInlineSchema() {
-		return append(diags, r.checkInlineSchema(f)...)
-	}
-
-	if r.Schema == "" {
+	sources := r.effectiveSources()
+	if len(sources) == 0 {
 		return diags
 	}
 
-	return append(diags, r.checkFileSchema(f)...)
+	// Single-source: use the legacy paths so file schemas keep their
+	// heading- and body-sync features (`# {id}: {name}`, body lines
+	// under Meta-Information). Composition is irrelevant when only
+	// one source is configured.
+	if len(sources) == 1 {
+		src := sources[0]
+		if src.Inline != nil {
+			return append(diags, r.checkSingleInlineSchema(f, src.Inline)...)
+		}
+		if src.File != "" {
+			return append(diags, r.checkSingleFileSchema(f, src.File)...)
+		}
+		return diags
+	}
+
+	return append(diags, r.checkComposedSources(f, sources)...)
 }
 
-// checkInlineSchema runs the validator against the rule's parsed
-// inline schema. Inline schemas do not support frontmatter-body
-// {field} sync (no source body content) so the legacy syncPoints
-// code path is skipped.
-func (r *Rule) checkInlineSchema(f *lint.File) []lint.Diagnostic {
+// effectiveSources returns the rule's sources list, falling back to
+// a single-entry list built from the legacy Schema / InlineSchema
+// fields when Sources is empty. This lets tests drive the rule
+// directly with the older fields while still routing through the
+// new multi-source code path.
+func (r *Rule) effectiveSources() []SchemaSource {
+	if len(r.Sources) > 0 {
+		return r.Sources
+	}
+	if r.InlineSchema != nil && !r.InlineSchema.IsEmpty() {
+		return []SchemaSource{{Inline: r.InlineSchema}}
+	}
+	if r.Schema != "" {
+		return []SchemaSource{{File: r.Schema}}
+	}
+	return nil
+}
+
+// isAnySchemaFile reports whether f matches any of the configured
+// file sources. When a file plays the role of its own schema (e.g.
+// rule-readme's proto.md), the warning-on-misplaced-<?require?>
+// check must skip it.
+func (r *Rule) isAnySchemaFile(f *lint.File) bool {
+	for _, src := range r.effectiveSources() {
+		if src.File == "" {
+			continue
+		}
+		if r.isSchemaFileAt(f, src.File) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkSingleInlineSchema runs the validator against a single inline
+// schema. Inline schemas do not support frontmatter-body {field}
+// sync (no source body content) so the legacy syncPoints code path
+// is skipped.
+func (r *Rule) checkSingleInlineSchema(f *lint.File, sch *schema.Schema) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 	docFMRaw, fmDiags := readDocFrontMatterRaw(f)
 	diags = append(diags, fmDiags...)
 	fmIsCUE := placeholders.HasCUEFrontmatter(r.Placeholders)
-	diags = append(diags, schema.Validate(f, r.InlineSchema, docFMRaw, fmIsCUE, makeDiag)...)
-	diags = append(diags, r.applyScopeRules(f, r.InlineSchema, docFMRaw)...)
-	diags = append(diags, schema.ValidateCrossReferences(f, r.InlineSchema, makeDiag)...)
-	diags = append(diags, schema.ValidateAcronyms(f, r.InlineSchema, docFMRaw, makeDiag)...)
-	diags = append(diags, schema.ValidateIndex(f, r.InlineSchema, makeDiag)...)
+	diags = append(diags, schema.Validate(f, sch, docFMRaw, fmIsCUE, makeDiag)...)
+	diags = append(diags, r.applyScopeRules(f, sch, docFMRaw)...)
+	diags = append(diags, schema.ValidateCrossReferences(f, sch, makeDiag)...)
+	diags = append(diags, schema.ValidateAcronyms(f, sch, docFMRaw, makeDiag)...)
+	diags = append(diags, schema.ValidateIndex(f, sch, makeDiag)...)
 	return diags
 }
 
 // Fix implements rule.FixableRule. The rule does not modify the
-// document body — it returns f.Source unchanged — but when the
-// inline schema declares an `index:` block, Fix emits the JSON
+// document body — it returns f.Source unchanged — but when any
+// configured inline schema (single-source or composed across
+// kinds) declares an `index:` block, Fix emits the JSON
 // side-output next to the source file. `mdsmith check` skips the
 // write, preserving check's read-only contract (plan 143).
 //
-// Fix swallows the WriteIndex error because Fix returns bytes, not
-// diagnostics. WriteIndex itself records any failure in the
-// package-level cache keyed by f.Path; the next Check reads that
-// cache and surfaces the underlying I/O error in place of the
-// generic "missing / out of date" message, so users are not
-// trapped in a fix loop without signal.
+// Fix swallows errors (composition and WriteIndex both). WriteIndex
+// itself records any I/O failure in the package-level cache keyed
+// by f.Path; the next Check reads that cache and surfaces the
+// underlying error in place of the generic "missing / out of date"
+// message, so users are not trapped in a fix loop without signal.
+// Composition errors are similarly swallowed — they re-surface on
+// the next Check pass through the same checkComposedSources path.
 func (r *Rule) Fix(f *lint.File) []byte {
-	if r.hasInlineSchema() && r.InlineSchema.Index != nil {
-		_ = schema.WriteIndex(f, r.InlineSchema)
+	sch, err := r.composedSchemaForFix(f)
+	if err == nil && sch != nil && !sch.IsEmpty() && sch.Index != nil {
+		_ = schema.WriteIndex(f, sch)
 	}
 	return f.Source
 }
 
-// checkFileSchema retains the legacy proto.md heading-template
+// composedSchemaForFix returns the same composed *schema.Schema
+// that checkComposedSources validates against — but without
+// running validation or body-sync (Fix doesn't need either).
+// Returns nil with no error when the rule has no schema source or
+// every source is empty / self-referential. A file source pointing
+// at the file currently being fixed is skipped so a schema
+// doesn't drive its own index side-output.
+func (r *Rule) composedSchemaForFix(f *lint.File) (*schema.Schema, error) {
+	sources := r.effectiveSources()
+	if len(sources) == 0 {
+		return nil, nil
+	}
+	parsed := make([]*schema.Schema, 0, len(sources))
+	for _, src := range sources {
+		if src.Inline != nil {
+			if src.Inline.IsEmpty() {
+				continue
+			}
+			parsed = append(parsed, src.Inline)
+			continue
+		}
+		if src.File == "" {
+			continue
+		}
+		sch, err := r.parseFileSchemaForCompose(f, src.File)
+		if err != nil {
+			return nil, err
+		}
+		if sch == nil {
+			continue
+		}
+		parsed = append(parsed, sch)
+	}
+	if len(parsed) == 0 {
+		return nil, nil
+	}
+	return schema.Compose(parsed...)
+}
+
+// checkSingleFileSchema retains the legacy proto.md heading-template
 // validation path. It supports {field} sync points in headings and
 // body content; these features are tied to the source body of the
 // schema markdown and have no inline counterpart.
-func (r *Rule) checkFileSchema(f *lint.File) []lint.Diagnostic {
+func (r *Rule) checkSingleFileSchema(f *lint.File, schemaPath string) []lint.Diagnostic {
 	var diags []lint.Diagnostic
 
-	schData, schPath, err := r.loadSchema(f)
+	schData, schPath, err := r.loadSchemaAt(f, schemaPath)
 	if err != nil {
 		return append(diags, r.diag(f.Path, 1, err.Error()))
 	}
@@ -315,11 +644,11 @@ func (r *Rule) checkFileSchema(f *lint.File) []lint.Diagnostic {
 	sch, err := parseSchema(schData, schPath, f.MaxInputBytes)
 	if err != nil {
 		return append(diags, r.diag(f.Path, 1,
-			fmt.Sprintf("invalid schema %q: %v", r.Schema, err)))
+			fmt.Sprintf("invalid schema %q: %v", schemaPath, err)))
 	}
 
 	// Skip the schema file itself when schemas come from disk.
-	if r.isSchemaFile(f) {
+	if r.isSchemaFileAt(f, schemaPath) {
 		return diags
 	}
 
@@ -351,24 +680,139 @@ func (r *Rule) checkFileSchema(f *lint.File) []lint.Diagnostic {
 	return diags
 }
 
-// loadSchema returns the schema bytes and resolution path.
-func (r *Rule) loadSchema(f *lint.File) ([]byte, string, error) {
-	data, err := readSchemaFile(f, r.Schema)
-	if err != nil {
-		return nil, "", fmt.Errorf("cannot read schema %q: %v", r.Schema, err)
+// checkComposedSources loads every source, composes them via
+// schema.Compose, and validates the document against the composed
+// schema. Each FILE source ALSO runs the legacy heading- and
+// body-sync check (proto.md `# {id}: {name}` and Meta-Information
+// body lines) — composition cannot express those checks today, so
+// per-source legacy validation preserves them. Sources that name a
+// file the rule is currently linting are skipped (self-validation).
+func (r *Rule) checkComposedSources(f *lint.File, sources []SchemaSource) []lint.Diagnostic {
+	var diags []lint.Diagnostic
+	docFMRaw, fmDiags := readDocFrontMatterRaw(f)
+	diags = append(diags, fmDiags...)
+
+	parsed := make([]*schema.Schema, 0, len(sources))
+	for _, src := range sources {
+		if src.Inline != nil {
+			if src.Inline.IsEmpty() {
+				continue
+			}
+			parsed = append(parsed, src.Inline)
+			continue
+		}
+		if src.File == "" {
+			continue
+		}
+		// Per-source legacy body-sync. Loads via the legacy parser so
+		// proto.md-style {field} interpolation and Meta-Information
+		// body sync still fire for each file source.
+		if !r.isSchemaFileAt(f, src.File) {
+			diags = append(diags, r.bodySyncDiagnostics(f, src.File, docFMRaw)...)
+		}
+		sch, err := r.parseFileSchemaForCompose(f, src.File)
+		if err != nil {
+			diags = append(diags, r.diag(f.Path, 1, err.Error()))
+			continue
+		}
+		if sch == nil {
+			// f was the schema itself — skip its composition entry.
+			continue
+		}
+		parsed = append(parsed, sch)
 	}
-	return data, r.Schema, nil
+
+	if len(parsed) == 0 {
+		return diags
+	}
+
+	composed, err := schema.Compose(parsed...)
+	if err != nil {
+		return append(diags, r.diag(f.Path, 1,
+			fmt.Sprintf("composing schemas: %v", err)))
+	}
+	// composed is non-nil here: parsed contains at least one
+	// non-nil schema (the empty-source filter above guarantees it),
+	// and schema.Compose returns its single input unchanged when
+	// len(parsed) == 1. IsEmpty() can still hold when every parsed
+	// schema was itself empty (e.g. a proto.md with no headings).
+	if composed.IsEmpty() {
+		return diags
+	}
+
+	fmIsCUE := placeholders.HasCUEFrontmatter(r.Placeholders)
+	diags = append(diags, schema.Validate(f, composed, docFMRaw, fmIsCUE, makeDiag)...)
+	diags = append(diags, r.applyScopeRules(f, composed, docFMRaw)...)
+	diags = append(diags, schema.ValidateCrossReferences(f, composed, makeDiag)...)
+	diags = append(diags, schema.ValidateAcronyms(f, composed, docFMRaw, makeDiag)...)
+	diags = append(diags, schema.ValidateIndex(f, composed, makeDiag)...)
+	return diags
 }
 
-// isSchemaFile reports whether f is the configured schema file. It
-// normalizes f.Path against f.RootDir so the check still succeeds when
-// mdsmith runs from a subdirectory while `schema:` paths remain
-// project-root-relative.
-func (r *Rule) isSchemaFile(f *lint.File) bool {
-	if r.Schema == "" {
+// parseFileSchemaForCompose loads a proto.md file source via the
+// unified schema.ParseFile parser so the result composes with inline
+// schemas. Returns (nil, nil) when f is the schema file itself —
+// the caller skips that entry so a schema doesn't validate against
+// itself.
+func (r *Rule) parseFileSchemaForCompose(f *lint.File, schemaPath string) (*schema.Schema, error) {
+	if r.isSchemaFileAt(f, schemaPath) {
+		return nil, nil
+	}
+	reader := &schema.FileReader{
+		RootFS:   f.RootFS,
+		RootDir:  f.RootDir,
+		MaxBytes: f.MaxInputBytes,
+	}
+	sch, err := schema.ParseFile(reader, schemaPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load schema %q: %v", schemaPath, err)
+	}
+	return sch, nil
+}
+
+// bodySyncDiagnostics runs only the heading- and body-sync portion
+// of the legacy file-schema check for a single file source. The
+// composed structure validation runs separately; calling
+// checkSingleFileSchema here would double-report missing-section
+// and frontmatter-CUE diagnostics.
+func (r *Rule) bodySyncDiagnostics(f *lint.File, schemaPath string, docFMRaw map[string]any) []lint.Diagnostic {
+	var diags []lint.Diagnostic
+	if len(docFMRaw) == 0 {
+		return diags
+	}
+	data, _, err := r.loadSchemaAt(f, schemaPath)
+	if err != nil {
+		return append(diags, r.diag(f.Path, 1, err.Error()))
+	}
+	sch, err := parseSchema(data, schemaPath, f.MaxInputBytes)
+	if err != nil {
+		// The compose path reports schema-parse errors separately;
+		// avoid duplicating them here.
+		return diags
+	}
+	docHeadings := extractHeadings(f)
+	return append(diags, checkSync(f, sch, docHeadings, docFMRaw)...)
+}
+
+// loadSchemaAt reads the named schema file using the file's RootFS
+// when configured, falling back to the OS filesystem.
+func (r *Rule) loadSchemaAt(f *lint.File, schemaPath string) ([]byte, string, error) {
+	data, err := readSchemaFile(f, schemaPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("cannot read schema %q: %v", schemaPath, err)
+	}
+	return data, schemaPath, nil
+}
+
+// isSchemaFileAt reports whether f is the schema file at the named
+// path. It normalizes f.Path against f.RootDir so the check still
+// succeeds when mdsmith runs from a subdirectory while `schema:`
+// paths remain project-root-relative.
+func (r *Rule) isSchemaFileAt(f *lint.File, schemaPath string) bool {
+	if schemaPath == "" {
 		return false
 	}
-	if isSchemaFile(f.Path, r.Schema) {
+	if isSchemaFile(f.Path, schemaPath) {
 		return true
 	}
 	if f.RootDir == "" {
@@ -379,7 +823,7 @@ func (r *Rule) isSchemaFile(f *lint.File) bool {
 	if err != nil {
 		return false
 	}
-	return isSchemaFile(rel, r.Schema)
+	return isSchemaFile(rel, schemaPath)
 }
 
 func (r *Rule) diag(file string, line int, msg string) lint.Diagnostic {
@@ -395,9 +839,10 @@ func (r *Rule) diag(file string, line int, msg string) lint.Diagnostic {
 }
 
 var (
-	_ rule.Configurable = (*Rule)(nil)
-	_ rule.ListMerger   = (*Rule)(nil)
-	_ rule.FixableRule  = (*Rule)(nil)
+	_ rule.Configurable       = (*Rule)(nil)
+	_ rule.ListMerger         = (*Rule)(nil)
+	_ rule.FixableRule        = (*Rule)(nil)
+	_ rule.SettingsTranslator = (*Rule)(nil)
 )
 
 // schemaConfig holds the parsed schema frontmatter.

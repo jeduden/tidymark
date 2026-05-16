@@ -1,5 +1,7 @@
 package config
 
+import "github.com/jeduden/mdsmith/internal/rule"
+
 // Merge merges a loaded config on top of defaults. The loaded config's rules
 // override the defaults; any rule not mentioned in loaded keeps its default
 // value. Ignore and Overrides come from the loaded config only.
@@ -338,13 +340,21 @@ func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]Rul
 	// the split, the default's `Enabled: false` would land on top of
 	// the convention's `Enabled: true` and silently disable the rule
 	// the user just asked the convention to enable.
+	//
+	// Some rules rewrite a layer's settings before deep-merge by
+	// implementing rule.SettingsTranslator (required-structure
+	// collapses `schema:` / `inline-schema:` into an append-mode
+	// `schema-sources` list so multiple kinds compose, plan 156).
+	// translateLayerSettings consults the rule registry, so this
+	// merge code carries no rule-name special cases.
 	result := make(map[string]RuleCfg, len(cfg.Rules))
 	for k, v := range cfg.Rules {
 		if !cfg.ExplicitRules[k] {
-			result[k] = copyRuleCfg(v)
+			result[k] = copyRuleCfg(translateLayerSettings(k, v))
 		}
 	}
 	apply := func(name string, layer RuleCfg) {
+		layer = translateLayerSettings(name, layer)
 		if existing, ok := result[name]; ok {
 			result[name] = mergeRuleCfg(name, existing, layer)
 			return
@@ -364,15 +374,8 @@ func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]Rul
 		if !ok {
 			continue
 		}
-		// When a kind sets either schema source, treat it as a
-		// fresh schema declaration: clear any prior schema state
-		// on required-structure so the last source wins
-		// unambiguously across mixed kinds.
-		if kindDeclaresSchema(body) {
-			clearSchemaState(result)
-		}
 		if len(body.Schema) > 0 {
-			applyInlineSchema(result, body.Schema)
+			applyInlineSchemaSource(result, body.Schema)
 		}
 		if body.PathPattern != "" {
 			applyPathPattern(result, kindName, body.PathPattern)
@@ -383,9 +386,6 @@ func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]Rul
 	}
 	for _, o := range cfg.Overrides {
 		if matchesAny(o.Patterns(), filePath) {
-			if overrideDeclaresSchema(o) {
-				clearSchemaState(result)
-			}
 			for k, v := range o.Rules {
 				apply(k, v)
 			}
@@ -394,61 +394,32 @@ func effectiveRules(cfg *Config, filePath string, kinds []string) map[string]Rul
 	return result
 }
 
-// kindDeclaresSchema reports whether a kind body declares a schema
-// source — either inline (KindBody.Schema) or via the
-// rules.required-structure.{schema,inline-schema} settings.
-func kindDeclaresSchema(body KindBody) bool {
-	if len(body.Schema) > 0 {
-		return true
+// translateLayerSettings applies a rule's rule.SettingsTranslator
+// (when it implements one) to a single config layer's settings
+// before deep-merge. Rules without the interface — or rules not
+// registered in this binary — pass through unchanged, matching the
+// existing rule.ByName-driven ListMerger lookup in deepmerge.go.
+//
+// The merge code calls this for every layer keyed only by rule
+// name, so it carries no rule-specific behaviour itself: a rule
+// that needs its settings rewritten (e.g. required-structure
+// collapsing `schema:`/`inline-schema:` into `schema-sources`)
+// declares that by implementing the interface.
+func translateLayerSettings(ruleName string, rc RuleCfg) RuleCfg {
+	if rc.Settings == nil {
+		return rc
 	}
-	return rulesDeclareSchema(body.Rules)
-}
-
-// overrideDeclaresSchema reports whether a glob override sets a
-// schema source on required-structure. Both schema sources count —
-// without this, an inline schema installed by an override would
-// leave a prior file-schema path intact and "last source wins"
-// could yield ambiguous configs.
-func overrideDeclaresSchema(o Override) bool {
-	return rulesDeclareSchema(o.Rules)
-}
-
-// rulesDeclareSchema reports whether a per-layer rules map sets
-// either schema source on required-structure. A bool-only entry
-// (`required-structure: true/false`) leaves Settings nil; bail
-// before the lookups to keep the contract explicit.
-func rulesDeclareSchema(rules map[string]RuleCfg) bool {
-	rs, ok := rules["required-structure"]
+	r := rule.ByName(ruleName)
+	if r == nil {
+		return rc
+	}
+	t, ok := r.(rule.SettingsTranslator)
 	if !ok {
-		return false
+		return rc
 	}
-	if rs.Settings == nil {
-		return false
-	}
-	if path, ok := rs.Settings["schema"].(string); ok && path != "" {
-		return true
-	}
-	if m, ok := rs.Settings["inline-schema"].(map[string]any); ok && len(m) > 0 {
-		return true
-	}
-	return false
-}
-
-// clearSchemaState removes any prior schema source from the
-// accumulated effective config for required-structure. Both the
-// inline-schema map and the file-schema path are cleared so the
-// incoming layer can install its own source unambiguously.
-func clearSchemaState(result map[string]RuleCfg) {
-	rs, ok := result["required-structure"]
-	if !ok {
-		return
-	}
-	if rs.Settings == nil {
-		return
-	}
-	delete(rs.Settings, "schema")
-	delete(rs.Settings, "inline-schema")
-	result["required-structure"] = rs
+	out := rc
+	out.Settings = t.TranslateLayerSettings(rc.Settings)
+	return out
 }
 
 // applyPathPattern appends a {kind, pattern} entry to the
@@ -472,10 +443,10 @@ func applyPathPattern(result map[string]RuleCfg, kindName, pattern string) {
 	result["required-structure"] = rs
 }
 
-// applyInlineSchema installs an inline schema (a YAML map) as the
-// `inline-schema` setting on required-structure, creating the rule
-// entry if missing.
-func applyInlineSchema(result map[string]RuleCfg, schema map[string]any) {
+// applyInlineSchemaSource appends a KindBody.Schema (inline schema
+// map) as a `schema-sources` entry. Multiple kinds with inline
+// schemas thus accumulate rather than overwrite.
+func applyInlineSchemaSource(result map[string]RuleCfg, schema map[string]any) {
 	rs, ok := result["required-structure"]
 	if !ok {
 		rs = RuleCfg{Enabled: true}
@@ -483,7 +454,9 @@ func applyInlineSchema(result map[string]RuleCfg, schema map[string]any) {
 	if rs.Settings == nil {
 		rs.Settings = map[string]any{}
 	}
-	rs.Settings["inline-schema"] = cloneSettings(schema)
+	entry := map[string]any{"inline": cloneSettings(schema)}
+	existing, _ := rs.Settings["schema-sources"].([]any)
+	rs.Settings["schema-sources"] = append(existing, entry)
 	rs.Enabled = true
 	result["required-structure"] = rs
 }

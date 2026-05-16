@@ -436,6 +436,101 @@ A project can mix sources across kinds — some kinds use
 inline schemas, others use `proto.md` — but a single
 kind must pick one.
 
+## Composition across kinds
+
+A file resolved by multiple kinds that each declare a
+`required-structure` schema gets the composition of all
+of them — not just the last one. The merge layer
+accumulates each kind's `schema:` or `inline-schema:`
+into a `schema-sources` list, and MDS020 loads every
+source and composes them at check time.
+
+The composition rules are:
+
+- **Frontmatter** keys union across schemas. A key
+  required by any input is required. Two schemas
+  constraining the same key get the intersection of
+  their CUE expressions (joined with `&`).
+- **Sections** merge by literal heading text. Scopes
+  that share the same heading combine their child
+  lists recursively. Scopes that differ — including
+  wildcard slots (`{unlisted: true}`), the preamble
+  (`null`), and the bare `?` wildcard — append in
+  input order.
+- **`closed:`** is OR-ed across inputs. Any scope that
+  was strict in any input is strict in the composed
+  scope.
+- **`require.filename`** picks the first non-empty
+  pattern. Conflicting patterns are a config error.
+
+### Worked example: directive-rule-readme + rule-readme
+
+The four directive READMEs in this repository
+(`MDS019-catalog`, `MDS021-include`, `MDS038-toc`,
+`MDS039-build`) resolve to both `rule-readme` and
+`directive-rule-readme`. The first kind contributes
+the common rule-README structure (`Config`,
+`Examples`, `Meta-Information`); the second only adds
+a required `Pattern` section.
+
+```yaml
+kinds:
+  rule-readme:
+    rules:
+      required-structure:
+        schema: internal/rules/proto.md
+  directive-rule-readme:
+    rules:
+      required-structure:
+        schema: internal/rules/directive-proto.md
+
+kind-assignment:
+  - glob: ["internal/rules/MDS*/README.md"]
+    kinds: [rule-readme]
+  - glob: ["internal/rules/MDS019-catalog/README.md", …]
+    kinds: [directive-rule-readme]
+```
+
+`directive-proto.md` declares only what's specific to
+directive rules:
+
+```markdown
+---
+nature: '"directive"'
+---
+# {id}: {name}
+
+## ...
+
+## Pattern
+
+### Without the directive
+### With the directive
+
+## ...
+```
+
+The composed schema requires the union of both
+sections lists. `rule-readme`'s `nature` is
+`"directive" | "generator" | "content" | "style" |
+"structure"`; `directive-rule-readme`'s narrower
+`"directive"` intersects to require exactly
+`"directive"` on every file resolving to both kinds.
+
+### Picking an input order
+
+The composed section list is the concatenation of each
+schema's sections (with same-heading scopes merged).
+Order matters for the "last required section" — if the
+later schema's required sections must appear before
+the earlier schema's required sections in the document,
+either reorder the kinds in `kind-assignment` or rewrite
+the document so the sections fall in composed order.
+The directive READMEs put `Pattern` after
+`Meta-Information` precisely so the composed ordering
+(`rule-readme` first, `directive-rule-readme` appended)
+matches the document layout.
+
 ## Diagnostics
 
 Schema diagnostics surface through

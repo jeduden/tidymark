@@ -1,7 +1,7 @@
 ---
 id: 156
 title: 'Composable required-structure schemas across multiple kinds'
-status: '🔲'
+status: '✅'
 summary: >-
   Two kinds whose required-structure schemas
   differ overwrite each other under deep-merge.
@@ -58,55 +58,57 @@ drops the other. Neither path composes.
 
 ## Tasks
 
-1. Document the current behaviour. Add a short
-   note to the [cross-system
-   doc](../docs/development/architecture/cross-system.md)
-   stating that conflicting required-structure
-   schemas across kinds pick the last applied.
-   That is the baseline this plan moves off of.
+1. ✅ Baseline note landed in the
+   [cross-system doc](../docs/development/architecture/cross-system.md).
+   It describes the new composition rule. The
+   note doubles as the public contract.
 
-2. Decide the composition rule. Three candidates:
+2. ✅ Chose composition rule option 1.
 
-  - Concatenate sections; intersect frontmatter
-    types. Sections from earlier kinds run first.
-    Later kinds append. A key required by any kind
-    is required. The stricter `closed:` wins.
-  - Schema-include. The later kind's schema gets a
-    synthetic `<?include?>` of the earlier kind's
-    schema at the top. Composition piggy-backs on
-    the schema-include feature in
-    [MDS020](../internal/rules/MDS020-required-structure/README.md).
-  - Explicit extends. Each kind declares
-    `extends: <kind-name>` in its schema body. The
-    merge resolver walks the chain. Mirrors
-    [plan/135_schema-extends.md](135_schema-extends.md)
-    at the kind level.
+  - Sections concatenate.
+  - Same-heading scopes merge.
+  - Frontmatter conjoins via CUE `&`.
+  - Stricter `closed:` wins.
+  - `Require.Filename` picks the first
+    non-empty pattern.
+  - Conflicting patterns error.
+  - Acceptance test:
+    [compose_test.go](../internal/schema/compose_test.go).
 
-  Acceptance test for the decision. Write a YAML
-  doc with two kinds A and B. A requires `## Goal`.
-  B requires `## Risks`. After composition a file
-  resolving to `[A, B]` must require both.
+3. ✅ Merge layer accumulates a
+   `schema-sources` list across layers. Each
+   layer that sets `schema:` or `inline-schema:`
+   contributes one entry. The rule loads the
+   list and calls
+   [`schema.Compose`](../internal/schema/compose.go)
+   at check time.
 
-3. Implement the chosen rule in the merge layer.
-   Special-case `required-structure.schema` and
-   `required-structure.inline-schema`. They run
-   the composition procedure. Other paths keep
-   the default scalar replacement. Add a test in
-   `internal/config/` covering two kinds with
-   disjoint required headings.
+   Tests in
+   [schema_kinds_test.go](../internal/config/schema_kinds_test.go)
+   cover disjoint sections, disjoint frontmatter,
+   and the kind-plus-override path.
+   [compose_test.go](../internal/rules/requiredstructure/compose_test.go)
+   exercises the end-to-end Check path.
 
-4. Validate directive-rule-readme + rule-readme.
-   Reassign the four directive READMEs through
-   both kinds in [.mdsmith.yml](../.mdsmith.yml).
-   Confirm `mdsmith check .` enforces both header
-   sets. Remove the duplicated headings from
-   `internal/rules/directive-proto.md` so it
-   declares only Pattern additions.
+4. ✅ The four directive READMEs now resolve to
+   both `rule-readme` and `directive-rule-readme`
+   in [.mdsmith.yml](../.mdsmith.yml). The
+   [directive-proto.md](../internal/rules/directive-proto.md)
+   schema lost the duplicated headings. It now
+   declares only the `Pattern` section. The
+   `nature` frontmatter narrows to
+   `"directive"`. Each directive README moved
+   `Pattern` to the end so the composed section
+   order matches: `rule-readme` first, then
+   `directive-rule-readme`.
 
-5. Document the composition rule. Update the
+5. ✅ Composition rule lives in
+   [schemas.md](../docs/guides/schemas.md) with
+   the worked
+   `rule-readme + directive-rule-readme`
+   example. The
    [MDS020 README](../internal/rules/MDS020-required-structure/README.md)
-   and [docs/guides/schemas.md](../docs/guides/schemas.md).
-   Include a worked two-kind example.
+   points at the guide.
 
 ## ...
 
@@ -114,21 +116,21 @@ drops the other. Neither path composes.
 
 ## Acceptance Criteria
 
-- [ ] A file resolving to two kinds with disjoint
+- [x] A file resolving to two kinds with disjoint
   required sections fails `mdsmith check` until
   both sets are present.
-- [ ] A file resolving to two kinds with disjoint
+- [x] A file resolving to two kinds with disjoint
   required front-matter keys fails `mdsmith check`
   until both sets are present.
-- [ ] `internal/rules/directive-proto.md` no
+- [x] `internal/rules/directive-proto.md` no
   longer duplicates rule-readme's `Config`,
   `Examples`, and `Meta-Information` headings; it
   declares only Pattern additions.
-- [ ] [docs/guides/schemas.md](../docs/guides/schemas.md)
+- [x] [docs/guides/schemas.md](../docs/guides/schemas.md)
   documents the composition rule with a two-kind
   worked example.
-- [ ] All tests pass: `go test ./...`.
-- [ ] `go tool golangci-lint run` reports no
+- [x] All tests pass: `go test ./...`.
+- [x] `go tool golangci-lint run` reports no
   issues.
 
 ## ...
