@@ -45,12 +45,25 @@ Line exceeds maximum length.
 |---------|------|---------|-------------|
 | ` + "`max`" + ` | int | 80 | Maximum line length |
 
-See also [MDS021](../MDS021-include/README.md).
+See also [MDS021](../MDS021-include/README.md) and [MDS027][mds027].
+
+See the [placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
+and the [schemas guide](../../../docs/guides/schemas.md#section-content).
+
+See [Plan 107](../../../plan/107_no-reference-style.md) for background.
 
 ## Meta-Information
 
 - **Implementation**:
   [source](./)
+
+## See also
+
+- [MDS027 cross-file-reference-integrity][mds027]
+- [Plan 107][plan107]
+
+[mds027]: ../MDS027-cross-file-reference-integrity/README.md
+[plan107]: ../../../plan/107_no-reference-style.md
 `
 
 // ruleIndexAt writes the rule-directory fixture to
@@ -123,6 +136,30 @@ func TestBuildWebsite_PublishesRulePages(t *testing.T) {
 		"[source](./) self-link must be repointed at the GitHub tree URL")
 	assert.NotContains(t, body, "[source](./)",
 		"the on-site self-link must not survive")
+
+	// Reference-style link definition to a sibling rule.
+	assert.Contains(t, body, "[mds027]: ../MDS027-cross-file-reference-integrity/",
+		"reference-style rule link definitions must drop README.md")
+	assert.NotContains(t, body, "[mds027]: ../MDS027-cross-file-reference-integrity/README.md",
+		"raw reference def README.md target must not survive")
+
+	// Inline links to the docs/ tree → site-absolute paths.
+	assert.Contains(t, body, "](/docs/background/concepts/placeholder-grammar/)",
+		"docs link must become site-absolute path (no .md extension)")
+	assert.Contains(t, body, "](/docs/guides/schemas/#section-content)",
+		"docs link with anchor must preserve the anchor after the trailing slash")
+	assert.NotContains(t, body, "../../../docs/",
+		"no repo-relative docs/ link may remain on the published page")
+
+	// Inline and reference-style links to plan/ → GitHub blob URLs.
+	assert.Contains(t, body,
+		"](https://github.com/jeduden/mdsmith/blob/main/plan/107_no-reference-style.md)",
+		"plan inline link must become a GitHub blob URL")
+	assert.Contains(t, body,
+		"[plan107]: https://github.com/jeduden/mdsmith/blob/main/plan/107_no-reference-style.md",
+		"plan reference-style definition must become a GitHub blob URL")
+	assert.NotContains(t, body, "../../../plan/",
+		"no repo-relative plan/ link may remain on the published page")
 }
 
 func TestBuildWebsite_NoRuleDirectoryIsNotAnError(t *testing.T) {

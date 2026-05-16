@@ -21,6 +21,32 @@ import (
 // `../MDS021-include/`) rather than an unpublished `README.md`.
 var ruleReadmeLink = regexp.MustCompile(`\]\(((?:\.\./)?MDS[0-9A-Za-z._-]+)/README\.md\)`)
 
+// ruleRefDefLink matches a Markdown reference-style link definition
+// whose target is a rule README path (with an optional `../`
+// prefix). The multiline flag makes `^` match at each line start.
+// Example: [mds027]: ../MDS027-cross-file-reference-integrity/README.md
+// Rewriting drops `/README.md` and adds a trailing slash so the
+// reference resolves to the published rule page directory.
+var ruleRefDefLink = regexp.MustCompile(`(?m)^(\[[^\]]+\]: (?:\.\./)?(MDS[0-9A-Za-z._-]+))/README\.md`)
+
+// repoDocsLink matches an inline link from a rule README into the
+// docs/ tree (`../../../docs/path/file.md`). The docs tree IS
+// published on the site (under /docs/), but Hugo serves each page
+// at `/docs/path/file/` (no `.md`), so the raw relative path
+// resolves to a 404. Group 1 captures the path without `.md`;
+// group 2 captures an optional `#anchor` fragment.
+var repoDocsLink = regexp.MustCompile(`\]\(\.\./\.\./\.\./docs/([^)#]*)\.md([^)]*)\)`)
+
+// repoPlanLink matches an inline link from a rule README into the
+// plan/ tree (`../../../plan/file.md`). Plan files are not published
+// on the site and must be rewritten as absolute GitHub blob URLs.
+var repoPlanLink = regexp.MustCompile(`\]\(\.\./\.\./\.\./plan/([^)]+)\)`)
+
+// repoPlanRefDef matches a reference-style link definition whose
+// target is a plan/ file. The multiline flag makes `^` line-anchored.
+// Example: [plan107]: ../../../plan/107_no-reference-style.md
+var repoPlanRefDef = regexp.MustCompile(`(?m)^(\[[^\]]+\]: )\.\./\.\./\.\./plan/(\S+)`)
+
 // ruleSourceTreeBase is the GitHub directory (tree) route for a
 // rule's source. Per-rule READMEs carry an
 // `Implementation: [source](./)` link that points at the rule's
@@ -28,6 +54,10 @@ var ruleReadmeLink = regexp.MustCompile(`\]\(((?:\.\./)?MDS[0-9A-Za-z._-]+)/READ
 // generated page, so syncRulePages rewrites it to the rule's
 // GitHub tree URL. `/tree/` (not `/blob/`) is the directory route.
 const ruleSourceTreeBase = "https://github.com/jeduden/mdsmith/tree/main/internal/rules/"
+
+// githubBlobBase is the GitHub blob (file) URL prefix for files in
+// the repository that are not published on the site (plan/, etc.).
+const githubBlobBase = "https://github.com/jeduden/mdsmith/blob/main/"
 
 // ruleDirName matches the MDS-prefixed directory names used for
 // per-rule subdirectories under internal/rules/. The prefix guard
@@ -189,10 +219,27 @@ func (t *Toolkit) syncRulePages(rulesDir, dstDir string) error {
 			return fmt.Errorf("read rule README %s: %w", readmeSrc, err)
 		}
 		data = transformMarkdown(data)
-		// Rewrite cross-rule links (`../MDS021-include/README.md` →
+		// Rewrite inline cross-rule links (`../MDS021-include/README.md` →
 		// `../MDS021-include/`) so they resolve to the sibling rule's
 		// published page rather than an unpublished README.md.
 		data = ruleReadmeLink.ReplaceAll(data, []byte("]($1/)"))
+		// Rewrite reference-style link definitions to sibling rule
+		// directories (e.g. `[mds027]: ../MDS027-.../README.md`) so the
+		// definition URL resolves to the published page, not a raw README.
+		data = ruleRefDefLink.ReplaceAll(data, []byte("$1/"))
+		// Rewrite inline links to the docs/ tree to site-absolute paths.
+		// Hugo serves each doc at /docs/path/ (no .md); the raw relative
+		// ../../../docs/path/file.md would resolve to a 404 on the site.
+		// An optional #anchor fragment is preserved after the trailing slash.
+		data = repoDocsLink.ReplaceAll(data, []byte("](/docs/$1/$2)"))
+		// Rewrite inline links to the plan/ tree (not published on the
+		// site) to absolute GitHub blob URLs.
+		data = repoPlanLink.ReplaceAll(data, []byte("]("+githubBlobBase+"plan/$1)"))
+		// Rewrite reference-style link definitions to plan/ files.
+		// ${1} (braced form) is required: Go's template engine would
+		// otherwise parse "$1https" as a single group name, leaving the
+		// expansion empty.
+		data = repoPlanRefDef.ReplaceAll(data, []byte("${1}"+githubBlobBase+"plan/$2"))
 		// The `Implementation: [source](./)` meta line self-links the
 		// generated page on the site; repoint it at the rule's
 		// GitHub source directory.
