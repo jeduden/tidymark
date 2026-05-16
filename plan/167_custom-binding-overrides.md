@@ -1,19 +1,19 @@
 ---
-id: 164
+id: 167
 title: Custom binding overrides for mdsmith extract
 status: "🔲"
 model: opus
-depends-on: [163]
+depends-on: [166]
 summary: >-
   Add an opt-in `bind:` key that overrides the default
   schema-derived key in `mdsmith extract`, layered on
-  the `keyFor` seam from plan 163.
+  the `keyFor` seam from plan 166.
 ---
 # Custom binding overrides for mdsmith extract
 
 ## Goal
 
-[Plan 163](163_schema-driven-data-extraction.md) derives
+[Plan 166](166_schema-driven-data-extraction.md) derives
 the extracted data tree from the schema hierarchy with no
 annotations. This plan adds an opt-in `bind:` key that
 renames or restructures a node when the default key is

@@ -90,8 +90,8 @@ footer: |
 | 161 | 🔳     | sonnet | [Expose rule maintainability patterns via CLI help and LSP](plan/161_rule-pattern-metadata.md)                            |
 | 162 | 🔲     | sonnet | [Split the overloaded `meta` rule category](plan/162_rule-category-cleanup.md)                                            |
 | 163 | 🔲     |        | [Extract mdsmith Markdown parse/produce as a public Go library](plan/163_public-markdown-library.md)                      |
-| 163 | 🔲     | opus   | [Schema-driven data extraction (mdsmith extract)](plan/163_schema-driven-data-extraction.md)                              |
-| 164 | 🔲     | opus   | [Custom binding overrides for mdsmith extract](plan/164_custom-binding-overrides.md)                                      |
 | 164 | ✅     |        | [GitHub-UI-triggered releases and a split website deploy](plan/164_github-ui-releases-and-split-website.md)               |
 | 165 | 🔲     | opus   | [Portable Markdown export (mdsmith export)](plan/165_portable-markdown-export.md)                                         |
+| 166 | 🔲     | opus   | [Schema-driven data extraction (mdsmith extract)](plan/166_schema-driven-data-extraction.md)                              |
+| 167 | 🔲     | opus   | [Custom binding overrides for mdsmith extract](plan/167_custom-binding-overrides.md)                                      |
 <?/catalog?>

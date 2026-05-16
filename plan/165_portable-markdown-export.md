@@ -22,7 +22,7 @@ knowledge.
 
 ## Why a separate command
 
-This is not schema extraction. `extract` (plan 163)
+This is not schema extraction. `extract` (plan 166)
 projects a kind's schema into a data tree. `export` is a
 source-to-source transform of the document itself. It
 needs no kind, schema, or conformance gate — only that
@@ -47,10 +47,11 @@ apart and leaves room to grow (output path, later batch).
 - Markerless directives with no body (for example
   `<?allow-empty-section?>`, `<?require?>`) are removed
   outright.
-- Nested same-type markers that the engine treats as
-  literal content of an outer directive are preserved,
-  by reusing the engine's directive-range detection
-  rather than a separate scan.
+- Only lines the engine's marker-pair detection
+  recognizes as real directive start/end markers are
+  removed. Marker-like text the engine treats as literal
+  content (for example inner same-type markers nested in
+  an outer directive) is left untouched.
 - After stripping, normalize blank lines so the output is
   stable and lint-clean. Front matter is kept as-is.
 - Exporting an already directive-free file is a no-op;
@@ -66,9 +67,17 @@ apart and leaves room to grow (output path, later batch).
    retention, include inlining, and the no-directive
    no-op.
 2. **Nested / literal-content markers.** Drive removal
-   off the engine's directive ranges (e.g.
-   `lint.File` generated ranges) so inner same-type
-   markers that are literal content survive. Add a test.
+   off the engine's own marker-pair detection —
+   `gensection.FindMarkerPairs` in
+   [internal/archetype/gensection](../internal/archetype/gensection/parse.go),
+   whose `MarkerPair.StartLine`/`EndLine` give the exact
+   start- and end-marker line for every directive (not
+   just the include/catalog *body* ranges that
+   `lint.File.GeneratedRanges` records for diagnostic
+   suppression). Only lines the engine recognizes as real
+   markers are removed, so inner same-type markers that
+   the engine treats as literal content survive. Add a
+   test.
 3. **Whitespace normalization.** Collapse the blank
    lines left by removed markers so output is stable and
    passes `mdsmith check`. Test idempotence: export of
@@ -91,9 +100,11 @@ apart and leaves room to grow (output path, later batch).
 
 ## Acceptance Criteria
 
-- [ ] `mdsmith export <file>` emits the file with all
-      directive markers removed and generated bodies
-      kept; `<?include?>` content is inlined.
+- [ ] `mdsmith export <file>` removes every line the
+      engine recognizes as a real directive start/end
+      marker, keeps generated bodies, and inlines
+      `<?include?>` content. Marker-like text treated as
+      literal content is left in place.
 - [ ] The source file is never modified.
 - [ ] Stale directive bodies are regenerated before
       stripping, so the output is never stale.

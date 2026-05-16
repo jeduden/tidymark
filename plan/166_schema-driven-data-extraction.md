@@ -1,5 +1,5 @@
 ---
-id: 163
+id: 166
 title: Schema-driven data extraction (mdsmith extract)
 status: "🔲"
 model: opus
@@ -30,7 +30,7 @@ mirroring its nesting. No new schema concept is needed
 for the common case.
 
 Custom shaping is *not* in this plan. It is a separate
-follow-up — [plan 164](164_custom-binding-overrides.md) —
+follow-up — [plan 167](167_custom-binding-overrides.md) —
 and we keep it cheap by design: every key flows through
 one `keyFor(node)` seam (task 3), so the override plan is
 a focused change there plus parsing `bind:`. Until then,
@@ -231,7 +231,7 @@ partial data.
   encoder can be added later behind the same `Format`
   enum.
 - **Custom bindings** ship in [plan
-  164](164_custom-binding-overrides.md), layered on the
+  167](167_custom-binding-overrides.md), layered on the
   `keyFor` seam; out of scope here.
 - **LSP / `query`-style selector** for extraction is out
   of scope here.
