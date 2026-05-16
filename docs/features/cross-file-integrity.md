@@ -19,7 +19,7 @@ resolves links and anchors across the whole workspace.
 enforces a per-file section schema: required headings,
 front-matter fields, and ordering. `MDS033` keeps each Markdown
 file in an allowed folder. The
-[rule directory](https://github.com/jeduden/mdsmith/blob/main/internal/rules/)
+[rule directory](/docs/rules/)
 has the full reference for each.
 
 A schema can be declared inline on a [file

@@ -19,7 +19,7 @@ token-budget (`MDS028`) length. Prose rules enforce a reading
 grade (`MDS023`) and a sentence count (`MDS024`). `MDS037` flags
 verbatim copy-paste across files, so a generator cannot pad the
 corpus by repeating itself. The
-[rule directory](https://github.com/jeduden/mdsmith/blob/main/internal/rules/)
+[rule directory](/docs/rules/)
 has the full reference for each.
 
 See the [metrics trade-offs guide](../guides/metrics-tradeoffs.md)
