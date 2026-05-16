@@ -1,14 +1,13 @@
 ---
 title: Release Pipeline
 summary: >-
-  How a maintainer-dispatched workflow run publishes
-  mdsmith to npm, PyPI, the Visual Studio Marketplace,
-  Open VSX, and GitHub Releases — the workflow
-  structure, the OIDC trusted publishers it relies on,
-  the `release` environment that gates every publishing
-  job, the separate website deploy, and the
-  supply-chain hardening features baked into the
-  pipeline.
+  How a tag-triggered workflow run publishes mdsmith to
+  npm, PyPI, the Visual Studio Marketplace, Open VSX,
+  and GitHub Releases — the workflow structure, the
+  OIDC trusted publishers it relies on, the `release`
+  environment that gates every publishing job, the
+  separate website deploy, and the supply-chain
+  hardening features baked into the pipeline.
 ---
 # Release Pipeline
 
@@ -39,28 +38,25 @@ row: "| [{title}]({filename}) | {credential} |"
 
 ## Triggering a Release
 
-A maintainer opens the **Release** workflow in the
-Actions tab, clicks **Run workflow**, enters the
-version (e.g. `v0.13.0`), and confirms. The run pauses
-on the `release` environment's required-reviewer gate;
+A maintainer creates and pushes a version tag:
+
+```bash
+git tag v0.13.0
+git push origin v0.13.0
+```
+
+The tag push triggers `release.yml`. The run pauses on
+the `release` environment's required-reviewer gate;
 one approval releases every channel.
 
-`release.yml` triggers solely on `workflow_dispatch`
-with a required `version` input. It does not trigger
-on `push`, tags, the `release` event,
-`pull_request_target`, or `workflow_run`. The Releases
-UI cannot drive the pipeline directly. A draft release
-never creates a tag. The pipeline also owns the
-release object (draft → upload → publish), so an
-externally created release would collide.
-
-The `release` job creates the tag itself: `tag_name` and
-`target_commitish` on the `action-gh-release` step
-point it at the dispatched commit (the branch chosen
-in the form, normally `main`). A `preflight` job
-validates the `version` input first. It is read
-through an env var, never interpolated into a shell.
-So a typo fails fast and nothing publishes.
+`release.yml` triggers solely on `push: tags: [v*]`.
+It does not trigger on `workflow_dispatch`, the
+`release` event, `pull_request_target`, or
+`workflow_run`. The Releases UI cannot drive the
+pipeline directly. A `preflight` job validates the tag
+format first. It is read through an env var, never
+interpolated into a shell. So a malformed tag fails
+fast and nothing publishes.
 
 The `release` job uploads every asset to a **draft**
 release first. It then publishes the draft as a
@@ -136,14 +132,12 @@ not duplicate it.
 | Repository  | `jeduden/mdsmith` |
 | Workflow    | `release.yml`     |
 | Environment | `release`         |
-| Ref         | `refs/heads/main` |
+| Ref         | `refs/tags/v*`    |
 
-The run is dispatched from a branch, not a tag, so
-the OIDC `ref` claim is `refs/heads/main` (the
-Run-workflow source), not `refs/tags/v*`. The primary
-pin is `environment=release` plus the required
-reviewer; the `ref` row narrows it to the release
-branch.
+The workflow triggers on a tag push, so the OIDC
+`ref` claim is `refs/tags/v*`. The primary pin is
+`environment=release` plus the required reviewer; the
+`ref` row narrows it to release tags.
 
 Packages that do not exist yet are configured as
 [pending publishers](https://docs.npmjs.com/trusted-publishers)
@@ -189,11 +183,11 @@ and PyPI Trusted Publisher configs above.
 Configure the environment at
 <https://github.com/jeduden/mdsmith/settings/environments>:
 
-| Setting                      | Value                               |
-|------------------------------|-------------------------------------|
-| Required reviewers           | jeduden                             |
-| Wait timer                   | 5 minutes (cancellation window)     |
-| Deployment branches and tags | Selected — protected branch: `main` |
+| Setting                      | Value                           |
+|------------------------------|---------------------------------|
+| Required reviewers           | jeduden                         |
+| Wait timer                   | 5 minutes (cancellation window) |
+| Deployment branches and tags | Selected — tag pattern: `v*`    |
 
 Without these protections the `environment` claim is
 purely decorative. The Trusted Publishers reject any

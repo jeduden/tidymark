@@ -1,25 +1,20 @@
 name: Release
 
-# Triggered from the Actions "Run workflow" UI. A pushed tag is no
-# longer the trigger: the GitHub Releases UI cannot drive the
-# draft-first immutable publish flow (a draft release never creates a
-# tag, so no push event fires), and workflow_dispatch keeps the run
-# behind the `release` environment's single required-reviewer gate.
-# The `release` job creates the tag itself. See
+# Triggered by pushing a version tag (e.g. `git tag v1.2.3 && git push
+# origin v1.2.3`). The tag ref satisfies the `release` environment's
+# deployment branch policy (which allows `v*` tags but not `main`), so
+# all credential-bearing jobs clear the environment gate. The
+# required-reviewer gate on the environment still applies. See
 # docs/development/release.md.
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version, e.g. v0.13.0 (must start with v)"
-        required: true
-        type: string
+  push:
+    tags: ["v*"]
 
 permissions:
   contents: read
 
 env:
-  VERSION: ${{ inputs.version }}
+  VERSION: ${{ github.ref_name }}
 
 # Serialize release runs so two publish jobs cannot mint OIDC tokens
 # against the same registry at the same time. `cancel-in-progress:
@@ -31,19 +26,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Validate the dispatch input before any credential-bearing job
-  # runs. The input is read through an env var, never interpolated
-  # into the shell, so a crafted value cannot inject commands
-  # (zizmor template-expansion rule). This job also carries the
-  # repository guard anchor reused by every publishing job.
+  # Validate the tag before any credential-bearing job runs. The tag
+  # is read through an env var, never interpolated into the shell, so
+  # a crafted value cannot inject commands (zizmor template-expansion
+  # rule). This job also carries the repository guard anchor reused by
+  # every publishing job.
   preflight:
     runs-on: ubuntu-latest
     if: &release_repo_trigger_ok >-
       github.repository == 'jeduden/mdsmith'
     steps:
-      - name: Validate version input
+      - name: Validate version tag
         env:
-          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_VERSION: ${{ env.VERSION }}
         run: |
           if ! printf '%s' "$INPUT_VERSION" | \
             grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$'; then
@@ -542,4 +537,4 @@ jobs:
       id-token: write
     uses: ./.github/workflows/pages.yml
     with:
-      version: ${{ inputs.version }}
+      version: ${{ github.ref_name }}
