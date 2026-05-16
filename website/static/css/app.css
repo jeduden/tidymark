@@ -183,8 +183,8 @@ main {
 }
 .btn:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 .btn:active { transform: translateY(1px); }
-.btn-primary { background: var(--forge-500); color: #fff; box-shadow: var(--shadow-inset); }
-.btn-primary:hover { background: var(--forge-600); }
+.btn-primary { background: var(--forge-600); color: #fff; box-shadow: var(--shadow-inset); }
+.btn-primary:hover { background: var(--forge-700); }
 .btn-secondary { background: var(--bg-raised); color: var(--steel-800); border-color: var(--border-strong); }
 .btn-secondary:hover { border-color: var(--steel-500); background: var(--steel-50); }
 .btn-ghost { background: transparent; color: var(--steel-700); }
@@ -484,7 +484,7 @@ main {
 
 .docs-main { min-width: 0; }
 .docs-breadcrumb { font-size: 13px; color: var(--fg-muted); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
-.docs-breadcrumb .sep { color: var(--steel-300); font-family: var(--font-mono); }
+.docs-breadcrumb .sep { color: var(--steel-500); font-family: var(--font-mono); }
 .docs-prose h1 { font-size: 38px; font-weight: 600; letter-spacing: -0.025em; margin: 0 0 12px; line-height: 1.1; }
 .docs-prose h2 {
   font-size: 24px; font-weight: 600; letter-spacing: -0.015em;
@@ -771,6 +771,45 @@ a.docs-side-title:hover, a.docs-side-title.is-active { color: var(--accent); tex
   color: var(--steel-600);
 }
 .docs-side-nested { padding-left: 18px; font-size: 13px; color: var(--steel-500); }
+
+/* ========== RULE PAGES ========== */
+
+.rule-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.rule-id {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-subtle);
+  letter-spacing: 0.04em;
+}
+.rule-source-link {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.rule-source-link a {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--fg-subtle);
+}
+.rule-source-link a:hover { color: var(--accent); }
+
+/* Category chips — each maps to a distinct palette pair with
+   contrast ≥ 4.5:1 against its background. */
+.chip.cat-heading    { background: var(--steel-100); border-color: var(--steel-300); color: var(--steel-700); }
+.chip.cat-whitespace { background: var(--steel-50);  border-color: var(--steel-300); color: var(--steel-700); }
+.chip.cat-code       { background: var(--forge-50);  border-color: var(--forge-200); color: var(--forge-700); }
+.chip.cat-link       { background: #D9E6F5; border-color: #2563A8; color: #1a4780; }
+.chip.cat-prose      { background: #DDF0E5; border-color: #2A8E5A; color: #1f5e3e; }
+.chip.cat-structural { background: #FCEFD2; border-color: #C77A0C; color: #7a4a07; }
+.chip.cat-directive  { background: var(--forge-50);  border-color: var(--forge-300); color: var(--forge-700); }
+.chip.cat-list       { background: var(--steel-100); border-color: var(--steel-300); color: var(--steel-700); }
+.chip.cat-table      { background: #D9E6F5; border-color: #2563A8; color: #1a4780; }
+.chip.cat-accessibility { background: #DDF0E5; border-color: #2A8E5A; color: #1f5e3e; }
+.chip.cat-line       { background: var(--steel-50);  border-color: var(--steel-300); color: var(--steel-700); }
 
 /* ========== UTIL ========== */
 .muted { color: var(--fg-muted); }

@@ -6,26 +6,28 @@ import (
 	"io/fs"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
-// ruleReadmeBlobBase is the canonical location of a rule's README
-// on GitHub. The synced rule directory keeps the source catalog's
-// relative `MDSxxx-name/README.md` link targets pointed at the
-// authoritative file: the per-rule READMEs are not themselves
-// snapshotted into the Hugo tree (they live under internal/, not
-// docs/), so a relative link would 404 on the published site.
-const ruleReadmeBlobBase = "https://github.com/jeduden/mdsmith/blob/main/internal/rules/"
+// ruleReadmeLink matches a Markdown link whose target is a rule
+// README relative path (`MDS001-line-length/README.md`) and
+// captures the rule directory name separately from the filename so
+// syncRuleIndex can rewrite the link to the local site page URL
+// (`MDS001-line-length/`).
+var ruleReadmeLink = regexp.MustCompile(`\]\((MDS[0-9A-Za-z._-]+)/README\.md\)`)
 
-// ruleReadmeLink matches a Markdown link whose target is a
-// rule-README relative path (`MDS001-line-length/README.md`) so
-// syncRuleIndex can rewrite it to the absolute GitHub URL.
-var ruleReadmeLink = regexp.MustCompile(`\]\((MDS[0-9A-Za-z._-]+/README\.md)\)`)
+// ruleDirName matches the MDS-prefixed directory names used for
+// per-rule subdirectories under internal/rules/. The prefix guard
+// stops syncRulePages from copying non-rule directories (fixtures,
+// helper files, …) into the Hugo content tree.
+var ruleDirName = regexp.MustCompile(`^MDS[0-9]`)
 
 // BuildWebsite prepares the Hugo content tree: optionally runs
 // `mdsmith fix` against srcDir so every <?catalog?>/<?include?>
-// body is current, snapshots srcDir into dstDir via SyncDocs, then
-// publishes the rule directory (internal/rules/index.md) as the
-// browsable Rules section under dstDir. It is the canonical
+// body is current, snapshots srcDir into dstDir via SyncDocs,
+// then publishes the rule directory (internal/rules/index.md) as
+// the browsable Rules section under dstDir and copies each
+// per-rule README as its own website page. It is the canonical
 // implementation behind the website sync — both local dev and the
 // pages-deploy workflow call this rather than carrying the
 // fix+sync sequence as inline shell (see
@@ -54,7 +56,10 @@ func (t *Toolkit) BuildWebsite(srcDir, dstDir string, runFix bool) error {
 	// sees it. Publish it as its own section after the docs
 	// snapshot (SyncDocs wiped dstDir, so this must run last).
 	rulesDir := filepath.Join(filepath.Dir(filepath.Clean(srcDir)), "internal", "rules")
-	return t.syncRuleIndex(rulesDir, dstDir)
+	if err := t.syncRuleIndex(rulesDir, dstDir); err != nil {
+		return err
+	}
+	return t.syncRulePages(rulesDir, dstDir)
 }
 
 // syncRuleIndex snapshots the rule directory index
@@ -62,7 +67,13 @@ func (t *Toolkit) BuildWebsite(srcDir, dstDir string, runFix bool) error {
 // catalog is a browsable page on the site. The same docs→Hugo
 // transforms SyncDocs applies (title lift, directive-marker strip)
 // are applied here, then each rule-README relative link is
-// rewritten to its absolute GitHub URL (see ruleReadmeBlobBase).
+// rewritten to the corresponding local site page URL (e.g.
+// `MDS001-line-length/README.md` → `MDS001-line-length/`) so the
+// links stay on-site rather than bouncing to GitHub.
+//
+// A cascade front-matter block is injected so Hugo applies the
+// `rule` layout type to all child pages, enabling category and
+// status metadata to be displayed in the per-rule template.
 //
 // A missing rule index is not an error: callers that point
 // BuildWebsite at a docs tree with no sibling internal/rules/
@@ -106,7 +117,12 @@ func (t *Toolkit) syncRuleIndex(rulesDir, dstDir string) error {
 		return fmt.Errorf("read rule index %s: %w", src, err)
 	}
 	data = transformMarkdown(data)
-	data = ruleReadmeLink.ReplaceAll(data, []byte("]("+ruleReadmeBlobBase+"$1)"))
+	// Rewrite `MDS001-line-length/README.md` → `MDS001-line-length/`
+	// so links stay on-site rather than pointing at GitHub.
+	data = ruleReadmeLink.ReplaceAll(data, []byte("]($1/)"))
+	// Cascade the `rule` layout type to all child pages so Hugo
+	// picks up the per-rule template for category/status display.
+	data = injectFMField(data, "cascade:\n  type: rule")
 	dstRulesDir := filepath.Join(dstDir, "rules")
 	if err := t.fs.MkdirAll(dstRulesDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dstRulesDir, err)
@@ -116,6 +132,81 @@ func (t *Toolkit) syncRuleIndex(rulesDir, dstDir string) error {
 		return fmt.Errorf("write rule index %s: %w", dst, err)
 	}
 	return nil
+}
+
+// syncRulePages copies each per-rule README
+// (rulesDir/MDS###-name/README.md) into
+// dstDir/rules/MDS###-name/index.md as a standalone Hugo page.
+// The same docs→Hugo transforms applied by SyncDocs (title lift,
+// directive-marker strip, Hugo shortcode escaping) are applied to
+// each README. A `github_source` front-matter field recording the
+// repo-relative path to the rule's source directory is injected so
+// the rule layout template can link back to GitHub.
+//
+// Symlinked rule directories are skipped (same rationale as
+// SyncDocs). Directories whose name does not start with "MDS" are
+// skipped (guard against helper or fixture directories). A rule
+// directory with no README.md is silently skipped rather than
+// failing, so a partially-authored rule does not block the build.
+//
+// A missing rules directory is not an error — same as
+// syncRuleIndex.
+func (t *Toolkit) syncRulePages(rulesDir, dstDir string) error {
+	entries, err := t.fs.ReadDir(rulesDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read rule dir %s: %w", rulesDir, err)
+	}
+	dstRulesDir := filepath.Join(dstDir, "rules")
+	for _, e := range entries {
+		if e.Type()&fs.ModeSymlink != 0 || !e.IsDir() {
+			continue
+		}
+		if !ruleDirName.MatchString(e.Name()) {
+			continue
+		}
+		readmeSrc := filepath.Join(rulesDir, e.Name(), "README.md")
+		data, err := t.fs.ReadFile(readmeSrc)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("read rule README %s: %w", readmeSrc, err)
+		}
+		data = transformMarkdown(data)
+		// Inject the repo-relative source path so the layout can
+		// render a "View source on GitHub" link without hard-coding
+		// the repo URL in the Go layer.
+		sourcePath := "internal/rules/" + e.Name() + "/"
+		data = injectFMField(data, "github_source: "+sourcePath)
+		ruleDst := filepath.Join(dstRulesDir, e.Name())
+		if err := t.fs.MkdirAll(ruleDst, 0o755); err != nil {
+			return fmt.Errorf("mkdir %s: %w", ruleDst, err)
+		}
+		dst := filepath.Join(ruleDst, "index.md")
+		if err := t.fs.WriteFile(dst, data, 0o644); err != nil {
+			return fmt.Errorf("write rule page %s: %w", dst, err)
+		}
+	}
+	return nil
+}
+
+// injectFMField inserts a YAML field block into a document's front
+// matter. If the document has no front matter, one is synthesized.
+// If the front matter is malformed (opening delimiter with no
+// close), the document is returned byte-for-byte unchanged.
+// field must be valid YAML without a trailing newline.
+func injectFMField(data []byte, field string) []byte {
+	fm, body, hasFM, ok := splitDocFrontMatter(string(data))
+	if !ok {
+		return data
+	}
+	if hasFM {
+		return []byte("---\n" + strings.TrimRight(fm, "\n") + "\n" + field + "\n---\n" + body)
+	}
+	return []byte("---\n" + field + "\n---\n" + body)
 }
 
 // BuildWebsite delegates to a default-OS Toolkit (see Stamp).

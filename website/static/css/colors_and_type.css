@@ -112,8 +112,8 @@
   --fg-muted:      var(--steel-600);
   --fg-subtle:     var(--steel-500);
   --fg-inverse:    var(--canvas);
-  --accent:        var(--forge-500);
-  --accent-hover:  var(--forge-600);
+  --accent:        var(--forge-600);
+  --accent-hover:  var(--forge-700);
   --accent-soft:   var(--forge-50);
   --accent-fg:     #FFFFFF;
   --border:        var(--steel-200);
@@ -182,7 +182,7 @@
   --shadow-lg: 0 18px 40px -8px rgba(15, 20, 25, 0.18),
                0 6px 12px -4px rgba(15, 20, 25, 0.08);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --shadow-focus: 0 0 0 3px rgba(217, 101, 29, 0.30);
+  --shadow-focus: 0 0 0 3px rgba(184, 79, 18, 0.30);
 
   --ease-out:    cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);

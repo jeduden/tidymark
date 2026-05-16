@@ -1,0 +1,47 @@
+{{ define "main" }}
+  <div class="docs-grid">
+    <aside class="docs-side">
+      {{ partial "docs-sidebar.html" . }}
+    </aside>
+    <article class="docs-main">
+      <nav class="docs-breadcrumb">
+        <a href="{{ "/" | relURL }}">mdsmith</a>
+        {{ range .Ancestors.Reverse }}
+          {{ if not .IsHome }}
+            <span class="sep">/</span>
+            <a href="{{ .RelPermalink }}">{{ .Title }}</a>
+          {{ end }}
+        {{ end }}
+        <span class="sep">/</span>
+        <span>{{ .Title }}</span>
+      </nav>
+      <div class="docs-prose">
+        <div class="rule-meta">
+          {{ with .Params.id }}<span class="rule-id">{{ . }}</span>{{ end }}
+          {{ with .Params.category }}
+            <span class="chip cat-{{ . }}">{{ . }}</span>
+          {{ end }}
+          {{ with .Params.status }}
+            <span class="pill {{ if eq . "ready" }}is-stable{{ else if eq . "not-ready" }}is-experimental{{ else }}is-planned{{ end }}">
+              <span class="dot"></span>{{ . }}
+            </span>
+          {{ end }}
+          {{ with .Params.nature }}
+            {{ if eq . "directive" }}<span class="chip cat-directive">directive</span>{{ end }}
+          {{ end }}
+        </div>
+        <h1>{{ .Title }}</h1>
+        {{ with .Params.description }}<p class="lead">{{ . }}</p>{{ end }}
+        {{ .Content }}
+        {{ with .Params.github_source }}
+          <div class="rule-source-link">
+            <a href="https://github.com/{{ $.Site.Params.githubRepo }}/blob/main/{{ . }}" rel="noopener">
+              <i data-lucide="github" width="14" height="14" aria-hidden="true"></i>
+              View source on GitHub
+            </a>
+          </div>
+        {{ end }}
+      </div>
+    </article>
+  </div>
+{{ end }}

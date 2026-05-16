@@ -26,6 +26,26 @@ glob: "MDS*/README.md"
 <?/catalog?>
 `
 
+const ruleReadmeFixture = `---
+id: MDS001
+name: line-length
+status: ready
+description: Line exceeds maximum length.
+category: line
+nature: content
+maintainability: null
+---
+# MDS001: line-length
+
+Line exceeds maximum length.
+
+## Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| ` + "`max`" + ` | int | 80 | Maximum line length |
+`
+
 // ruleIndexAt writes the rule-directory fixture to
 // <parent>/internal/rules/index.md so BuildWebsite's sibling
 // lookup (filepath.Dir(srcDir)/internal/rules) finds it when
@@ -33,6 +53,13 @@ glob: "MDS*/README.md"
 func ruleIndexAt(t *testing.T, parent string) {
 	t.Helper()
 	writeFile(t, filepath.Join(parent, "internal", "rules", "index.md"), ruleIndexFixture)
+}
+
+// ruleReadmeAt writes a minimal rule README fixture to
+// <parent>/internal/rules/<dir>/README.md.
+func ruleReadmeAt(t *testing.T, parent, dir string) {
+	t.Helper()
+	writeFile(t, filepath.Join(parent, "internal", "rules", dir, "README.md"), ruleReadmeFixture)
 }
 
 func TestBuildWebsite_PublishesRuleDirectory(t *testing.T) {
@@ -48,12 +75,38 @@ func TestBuildWebsite_PublishesRuleDirectory(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(dst, "rules", "_index.md"))
 	require.NoError(t, err, "Rules section page must be written")
 	body := string(got)
-	assert.Contains(t, body,
-		"https://github.com/jeduden/mdsmith/blob/main/internal/rules/MDS001-line-length/README.md",
-		"rule-README link must be rewritten to its absolute GitHub URL")
+	assert.Contains(t, body, "MDS001-line-length/",
+		"rule-README link must be rewritten to a local site URL")
+	assert.NotContains(t, body, "github.com",
+		"local rule pages replace GitHub links in the index")
+	assert.NotContains(t, body, "README.md",
+		"README.md suffix must be stripped from rewritten links")
 	assert.NotContains(t, body, "<?catalog", "directive markers must be stripped")
 	assert.NotContains(t, body, "# Rule Directory", "the body H1 must be lifted to front matter")
 	assert.Contains(t, body, "title: Rule Directory", "front-matter title is preserved")
+	assert.Contains(t, body, "cascade:", "cascade block must be injected for rule layout type")
+	assert.Contains(t, body, "type: rule", "cascade must set layout type to rule")
+}
+
+func TestBuildWebsite_PublishesRulePages(t *testing.T) {
+	parent := t.TempDir()
+	src := filepath.Join(parent, "docs")
+	dst := filepath.Join(t.TempDir(), "out")
+	writeFile(t, filepath.Join(src, "top.md"), "top body\n")
+	ruleIndexAt(t, parent)
+	ruleReadmeAt(t, parent, "MDS001-line-length")
+
+	require.NoError(t, NewWithDeps(osFS{}, &recordingRunner{}).BuildWebsite(src, dst, false))
+
+	got, err := os.ReadFile(filepath.Join(dst, "rules", "MDS001-line-length", "index.md"))
+	require.NoError(t, err, "per-rule page must be written at rules/<dir>/index.md")
+	body := string(got)
+	assert.Contains(t, body, `title: "MDS001: line-length"`,
+		"rule H1 must be lifted to front-matter title")
+	assert.Contains(t, body, "github_source: internal/rules/MDS001-line-length/",
+		"github_source field must be injected for source link")
+	assert.NotContains(t, body, "# MDS001: line-length",
+		"body H1 must be stripped after promotion")
 }
 
 func TestBuildWebsite_NoRuleDirectoryIsNotAnError(t *testing.T) {
@@ -66,6 +119,99 @@ func TestBuildWebsite_NoRuleDirectoryIsNotAnError(t *testing.T) {
 
 	_, err := os.Stat(filepath.Join(dst, "rules"))
 	assert.True(t, os.IsNotExist(err), "no rule index -> no Rules section, no error")
+}
+
+func TestSyncRulePages_SkipsNonMDSDirs(t *testing.T) {
+	rulesDir := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "out")
+	// A helper directory that must not be copied as a rule page.
+	writeFile(t, filepath.Join(rulesDir, "testdata", "README.md"), "private\n")
+	writeFile(t, filepath.Join(rulesDir, "MDS001-line-length", "README.md"), ruleReadmeFixture)
+
+	require.NoError(t, NewWithFS(osFS{}).syncRulePages(rulesDir, dst))
+
+	_, err := os.Stat(filepath.Join(dst, "rules", "testdata"))
+	assert.True(t, os.IsNotExist(err), "non-MDS directory must not be published")
+	_, err = os.Stat(filepath.Join(dst, "rules", "MDS001-line-length", "index.md"))
+	assert.NoError(t, err, "MDS rule page must be published")
+}
+
+func TestSyncRulePages_MissingReadmeIsSkipped(t *testing.T) {
+	rulesDir := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "out")
+	// Rule dir with no README.md (partially authored rule).
+	require.NoError(t, os.MkdirAll(filepath.Join(rulesDir, "MDS099-wip"), 0o755))
+
+	require.NoError(t, NewWithFS(osFS{}).syncRulePages(rulesDir, dst))
+
+	_, err := os.Stat(filepath.Join(dst, "rules", "MDS099-wip"))
+	assert.True(t, os.IsNotExist(err), "rule dir with no README must produce no page")
+}
+
+func TestSyncRulePages_NoRulesDirIsNoop(t *testing.T) {
+	dst := filepath.Join(t.TempDir(), "out")
+
+	require.NoError(t, NewWithFS(osFS{}).syncRulePages("/does/not/exist", dst))
+}
+
+func TestSyncRulePages_ReadmeReadErrorWraps(t *testing.T) {
+	rulesDir := t.TempDir()
+	writeFile(t, filepath.Join(rulesDir, "MDS001-line-length", "README.md"), ruleReadmeFixture)
+	ff := newFakeFS()
+	// ReadDir succeeds; first ReadFile (the README) fails.
+	ff.failOnReadFileCall = 1
+
+	err := NewWithFS(ff).syncRulePages(rulesDir, t.TempDir())
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+	assert.Contains(t, err.Error(), "read rule README")
+}
+
+func TestSyncRulePages_MkdirErrorWraps(t *testing.T) {
+	rulesDir := t.TempDir()
+	writeFile(t, filepath.Join(rulesDir, "MDS001-line-length", "README.md"), ruleReadmeFixture)
+	ff := newFakeFS()
+	// ReadDir succeeds; ReadFile succeeds; MkdirAll for the rule dst fails.
+	ff.failOnMkdirAllCall = 1
+
+	err := NewWithFS(ff).syncRulePages(rulesDir, t.TempDir())
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+	assert.Contains(t, err.Error(), "mkdir")
+}
+
+func TestSyncRulePages_WriteErrorWraps(t *testing.T) {
+	rulesDir := t.TempDir()
+	writeFile(t, filepath.Join(rulesDir, "MDS001-line-length", "README.md"), ruleReadmeFixture)
+	ff := newFakeFS()
+	// ReadDir + ReadFile + MkdirAll succeed; WriteFile fails.
+	ff.failOnWriteFileCall = 1
+
+	err := NewWithFS(ff).syncRulePages(rulesDir, t.TempDir())
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errInjected)
+	assert.Contains(t, err.Error(), "write rule page")
+}
+
+func TestInjectFMField_AddsFieldToExistingFrontMatter(t *testing.T) {
+	input := []byte("---\ntitle: Foo\n---\nbody\n")
+	got := injectFMField(input, "cascade:\n  type: rule")
+	assert.Equal(t, "---\ntitle: Foo\ncascade:\n  type: rule\n---\nbody\n", string(got))
+}
+
+func TestInjectFMField_CreatesFrontMatterWhenAbsent(t *testing.T) {
+	input := []byte("body only\n")
+	got := injectFMField(input, "type: rule")
+	assert.Equal(t, "---\ntype: rule\n---\nbody only\n", string(got))
+}
+
+func TestInjectFMField_MalformedFrontMatterReturnedUnchanged(t *testing.T) {
+	input := []byte("---\nno close\nbody\n")
+	got := injectFMField(input, "type: rule")
+	assert.Equal(t, string(input), string(got))
 }
 
 func TestSyncRuleIndex_ReadErrorWraps(t *testing.T) {
