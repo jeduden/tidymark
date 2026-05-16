@@ -86,11 +86,9 @@ func runExtract(args []string) int {
 		return code
 	}
 
-	var docFM map[string]any
-	if frontMatterEnabled(cfg) {
-		if prefix, _ := lint.StripFrontMatter(source); len(prefix) > 0 {
-			docFM, _ = lint.ParseFrontMatterFields(prefix)
-		}
+	docFM, code := decodeDocFrontMatter(cfg, source, path)
+	if code != 0 {
+		return code
 	}
 
 	mt := schema.BuildMatchTree(f, sch, docFM)
@@ -221,6 +219,29 @@ func loadExtractFile(
 		f.SetRootDir(rd)
 	}
 	return f, source, 0
+}
+
+// decodeDocFrontMatter returns the document's decoded front-matter
+// mapping. The check gate only parses front-matter *fields* when a
+// selector needs them, so a file can pass the gate while carrying
+// front matter that is not a valid mapping. extract always emits
+// the decoded `frontmatter` object, so a decode failure here is a
+// hard error rather than a silently-empty object.
+func decodeDocFrontMatter(
+	cfg *config.Config, source []byte, path string,
+) (map[string]any, int) {
+	if !frontMatterEnabled(cfg) {
+		return nil, 0
+	}
+	prefix, _ := lint.StripFrontMatter(source)
+	if len(prefix) == 0 {
+		return nil, 0
+	}
+	fm, err := lint.ParseFrontMatterFields(prefix)
+	if err != nil {
+		return nil, extractErr(2, "parsing front matter in %s: %v", path, err)
+	}
+	return fm, 0
 }
 
 // composedSchemaFor builds the same composed schema MDS020

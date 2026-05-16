@@ -201,6 +201,20 @@ func (p *projector) tableRows(n ast.Node) []any {
 		}
 		if _, isHeader := r.(*extast.TableHeader); isHeader {
 			cols = cells
+			// Duplicate column headers would collide as row-object
+			// keys, silently dropping every cell but the last.
+			// Surface it as a projection collision (once) rather
+			// than emitting lossy rows.
+			seen := make(map[string]bool, len(cols))
+			for _, c := range cols {
+				if c == "" {
+					continue
+				}
+				if seen[c] {
+					p.collision(c, "duplicate table column header")
+				}
+				seen[c] = true
+			}
 			continue
 		}
 		row := map[string]any{}

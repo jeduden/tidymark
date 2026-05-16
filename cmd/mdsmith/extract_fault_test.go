@@ -79,6 +79,30 @@ func TestLoadExtractFile_ReadAndParseErrors(t *testing.T) {
 	extractReadFile = origRead
 }
 
+func TestDecodeDocFrontMatter(t *testing.T) {
+	disabled := false
+	fm, code := decodeDocFrontMatter(
+		&config.Config{FrontMatter: &disabled}, []byte("anything"), "p.md")
+	assert.Equal(t, 0, code)
+	assert.Nil(t, fm)
+
+	// Enabled, no front matter block.
+	fm, code = decodeDocFrontMatter(&config.Config{}, []byte("# T\n"), "p.md")
+	assert.Equal(t, 0, code)
+	assert.Nil(t, fm)
+
+	// Enabled, valid mapping front matter.
+	fm, code = decodeDocFrontMatter(&config.Config{},
+		[]byte("---\nid: x\n---\n# T\n"), "p.md")
+	assert.Equal(t, 0, code)
+	assert.Equal(t, map[string]any{"id": "x"}, fm)
+
+	// Enabled, non-mapping front matter is a hard error.
+	_, code = decodeDocFrontMatter(&config.Config{},
+		[]byte("---\n- a\n- b\n---\n# T\n"), "p.md")
+	assert.Equal(t, 2, code)
+}
+
 func TestComposedSchemaFor_ApplySettingsAndComposeErrors(t *testing.T) {
 	f, err := lint.NewFile("doc.md", []byte("# T\n"))
 	require.NoError(t, err)

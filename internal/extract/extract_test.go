@@ -136,6 +136,22 @@ func TestExtract_OptionalContentDoesNotEatRequired(t *testing.T) {
 	assert.NotContains(t, goal, "text")
 }
 
+// Duplicate table column headers collide as row-object keys; the
+// projector must report it rather than silently keep only the last
+// cell.
+func TestExtract_DuplicateTableHeaderCollides(t *testing.T) {
+	sc := schema.Scope{
+		Heading: "Goal",
+		Matcher: &schema.Matcher{Regex: "Goal"},
+		Content: []schema.ContentEntry{{Kind: schema.ContentKindTable, Required: true}},
+	}
+	sch := &schema.Schema{RootLevel: 2, Sections: []schema.Scope{sc}}
+	body := "## Goal\n\n| A | A |\n| - | - |\n| 1 | 2 |\n"
+	_, diags := run(t, body, sch, nil)
+	require.NotEmpty(t, diags)
+	assert.Contains(t, diags[0].Message, "A")
+}
+
 func TestExtract_SiblingCollision(t *testing.T) {
 	// Two distinct sibling scopes whose headings slugify to the same
 	// key ("Goal" and "Goal!" both → "goal").
