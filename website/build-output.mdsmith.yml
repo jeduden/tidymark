@@ -1,0 +1,66 @@
+# Lint config for the Hugo content tree under
+# website/content/docs/, produced by `mdsmith-release
+# build-website`. That tree is gitignored and regenerated
+# on every build, so it carries its own config rather than
+# inheriting the strict project config at the repo root —
+# sync transforms (H1 → front-matter title lift, directive-
+# marker strip, link rewrites, `index.md` → `_index.md`
+# rename) legitimately reshape files in ways that violate
+# the stylistic rules the source tree passes.
+#
+# This config keeps the integrity checks active and turns
+# off every style/structure rule whose source-shape
+# assumption no longer holds after sync. The remaining
+# active rules catch the one class of breakage the source
+# config cannot see: broken links in the rewritten output.
+#
+# Used from CI via `mdsmith check --config
+# website/build-output.mdsmith.yml --no-gitignore
+# website/content/docs/`.
+
+front-matter: true
+
+rules:
+  # Cross-file integrity: this is the entire point of
+  # running the lint over the synced tree. strict: true so
+  # non-Markdown link targets (image files, scripts, …)
+  # are also checked.
+  cross-file-reference-integrity:
+    strict: true
+
+  # Disabled — sync transforms break the rule's assumptions
+  # rather than producing real diagnostics:
+  #
+  # - first-line-heading / heading-increment: the source
+  #   H1 is lifted to front-matter `title:` by
+  #   reconcileDocForHugo, so the body's first heading is
+  #   level 2 (or there is no body heading at all on a
+  #   stub _index.md).
+  # - no-multiple-blanks: stripping <?include?> /
+  #   <?catalog?> markers can leave adjacent blank lines
+  #   that no longer separate a marker from its body.
+  # - single-trailing-newline: synthesizeSectionIndex
+  #   writes a minimal stub without a final newline.
+  # - line-length / max-file-length / paragraph-structure /
+  #   table-format / table-readability: catalog and
+  #   include outputs in the synced tree can have row
+  #   widths and paragraph shapes the source-side limits
+  #   were not tuned for.
+  # - required-structure: schemas target the
+  #   docs/-tree shape (paths, filenames, front matter);
+  #   the synced tree has different paths
+  #   (website/content/docs/...) and different filenames
+  #   (_index.md), so every schema mismatches.
+  first-line-heading: false
+  heading-increment: false
+  no-multiple-blanks: false
+  single-trailing-newline: false
+  line-length: false
+  max-file-length: false
+  paragraph-structure: false
+  paragraph-readability: false
+  table-format: false
+  table-readability: false
+  required-structure: false
+  no-emphasis-as-heading: false
+  token-budget: false

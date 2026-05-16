@@ -109,6 +109,19 @@ jobs:
         # docs/development/release-tooling.md for why this lives
         # in the release-tooling Go CLI rather than inline shell.
         run: go run ./cmd/mdsmith-release build-website --no-fix ./docs ./website/content/docs
+      - name: Lint built docs tree for broken links
+        # Run mdsmith over the synced tree with its own config
+        # (style/structure rules off, link integrity on) so any
+        # post-sync broken link or missing target fails CI before
+        # we publish. --no-gitignore is needed because
+        # website/content/docs/ is .gitignore'd. See
+        # website/build-output.mdsmith.yml for the rule set and
+        # the rationale for each disabled rule.
+        run: |
+          go run ./cmd/mdsmith check \
+            --config ./website/build-output.mdsmith.yml \
+            --no-gitignore \
+            ./website/content/docs
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
         id: pages
       - name: Build site

@@ -46,11 +46,16 @@ Line exceeds maximum length.
 | ` + "`max`" + ` | int | 80 | Maximum line length |
 
 See also [MDS021](../MDS021-include/README.md) and [MDS027][mds027].
+Linkable sibling without README suffix: [MDS020 anchor](../../../internal/rules/MDS020-required-structure/README.md#index-side-output).
 
 See the [placeholder grammar](../../../docs/background/concepts/placeholder-grammar.md)
 and the [schemas guide](../../../docs/guides/schemas.md#section-content).
 
 See [Plan 107](../../../plan/107_no-reference-style.md) for background.
+
+Fixture examples: [good/default.md](good/default.md) and [bad/x.md](bad/x.md).
+Sibling Go package: [linelength rule](../linelength/rule.go).
+Schema schema: [proto.md](../proto.md).
 
 ## Meta-Information
 
@@ -160,6 +165,33 @@ func TestBuildWebsite_PublishesRulePages(t *testing.T) {
 		"plan reference-style definition must become a GitHub blob URL")
 	assert.NotContains(t, body, "../../../plan/",
 		"no repo-relative plan/ link may remain on the published page")
+
+	// Deep `internal/rules/MDS…/README.md#anchor` → site URL with
+	// anchor preserved. transformMarkdown handles this for any
+	// docs body (rewriteRuleLinks runs before the rule-specific
+	// transforms layered on top in syncRulePages).
+	assert.Contains(t, body, "(/docs/rules/MDS020-required-structure/#index-side-output)",
+		"deep rule link must rewrite to site URL with anchor preserved")
+
+	// Rule fixture references (good/, bad/, pattern/) → rule's
+	// GitHub source tree URL: fixtures are not republished on
+	// the site, so a repo-relative link would 404.
+	assert.Contains(t, body,
+		"](https://github.com/jeduden/mdsmith/tree/main/internal/rules/MDS001-line-length/good/default.md)",
+		"good/ fixture link must become rule's GitHub tree URL")
+	assert.Contains(t, body,
+		"](https://github.com/jeduden/mdsmith/tree/main/internal/rules/MDS001-line-length/bad/x.md)",
+		"bad/ fixture link must become rule's GitHub tree URL")
+
+	// Sibling non-MDS references (Go package, proto.md) →
+	// GitHub blob URL under internal/rules/. Cross-rule sibling
+	// links (../MDS021-include/) must NOT match this pattern.
+	assert.Contains(t, body,
+		"](https://github.com/jeduden/mdsmith/blob/main/internal/rules/linelength/rule.go)",
+		"sibling Go package link must become a GitHub blob URL")
+	assert.Contains(t, body,
+		"](https://github.com/jeduden/mdsmith/blob/main/internal/rules/proto.md)",
+		"sibling proto.md link must become a GitHub blob URL")
 }
 
 func TestBuildWebsite_NoRuleDirectoryIsNotAnError(t *testing.T) {

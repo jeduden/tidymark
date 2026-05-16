@@ -646,6 +646,46 @@ func TestTransformMarkdown_RewritesRuleLinks(t *testing.T) {
 			in:   "See [MDS019](/docs/rules/MDS019-catalog/).\n",
 			want: "See [MDS019](/docs/rules/MDS019-catalog/).\n",
 		},
+		{
+			name: "deep rule link preserves anchor",
+			in:   "See [MDS020 anchor](../../../internal/rules/MDS020-required-structure/README.md#index-side-output).\n",
+			want: "See [MDS020 anchor](/docs/rules/MDS020-required-structure/#index-side-output).\n",
+		},
+		{
+			name: "plan link to GitHub blob URL",
+			in:   "See [plan 154](../../plan/154_arch-fix-rule-helper-extraction.md).\n",
+			want: "See [plan 154](https://github.com/jeduden/mdsmith/blob/main/plan/154_arch-fix-rule-helper-extraction.md).\n",
+		},
+		{
+			name: "internal Go source to GitHub blob URL",
+			in:   "See [convention loader](../../internal/config/convention.go).\n",
+			want: "See [convention loader](https://github.com/jeduden/mdsmith/blob/main/internal/config/convention.go).\n",
+		},
+		{
+			name: "claude skill to GitHub blob URL",
+			in:   "See [skill](../../../.claude/skills/solid-architecture/SKILL.md).\n",
+			want: "See [skill](https://github.com/jeduden/mdsmith/blob/main/.claude/skills/solid-architecture/SKILL.md).\n",
+		},
+		{
+			name: "repo root PLAN.md to GitHub blob URL",
+			in:   "See [PLAN](../../PLAN.md).\n",
+			want: "See [PLAN](https://github.com/jeduden/mdsmith/blob/main/PLAN.md).\n",
+		},
+		{
+			name: "sibling index.md renamed to _index.md",
+			in:   "See [arch](architecture/index.md).\n",
+			want: "See [arch](architecture/_index.md).\n",
+		},
+		{
+			name: "sibling index.md with anchor renamed",
+			in:   "See [arch deep](architecture/index.md#section).\n",
+			want: "See [arch deep](architecture/_index.md#section).\n",
+		},
+		{
+			name: "non-published reference-style def to GitHub",
+			in:   "[plan154]: ../../plan/154_arch.md\n",
+			want: "[plan154]: https://github.com/jeduden/mdsmith/blob/main/plan/154_arch.md\n",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

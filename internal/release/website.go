@@ -56,21 +56,112 @@ var repoPlanRefDef = regexp.MustCompile(`(?m)^(\[[^\]]+\]: )\.\./\.\./\.\./plan/
 // (e.g. docs/background/concepts/generated-section.md, 4 levels
 // up) get their rule links rewritten too. Group 1 captures the
 // rule directory name. The trailing `README.md` is optional —
-// docs link to both forms.
-var repoRuleLink = regexp.MustCompile(`\]\((?:\.\./)+internal/rules/(MDS[0-9A-Za-z._-]+)/(?:README\.md)?\)`)
+// docs link to both forms. Group 2 captures an optional
+// `#anchor` so a deep-link into a rule README's heading
+// (e.g. `MDS020-required-structure/README.md#index-side-output`)
+// preserves the fragment after the slash.
+var repoRuleLink = regexp.MustCompile(`\]\((?:\.\./)+internal/rules/(MDS[0-9A-Za-z._-]+)/(?:README\.md)?(#[^)]*)?\)`)
 
 // repoRuleRefDef matches a reference-style link definition whose
 // target is a repo-relative internal/rules/ path. Multiline flag
 // so `^` anchors at each line start. Mirrors repoRuleLink — any
-// `../` depth, optional README.md suffix.
+// `../` depth, optional README.md suffix, optional anchor.
 // Example: [mds020]: ../../internal/rules/MDS020-required-structure/README.md
-var repoRuleRefDef = regexp.MustCompile(`(?m)^(\[[^\]]+\]: )(?:\.\./)+internal/rules/(MDS[0-9A-Za-z._-]+)/(?:README\.md)?$`)
+var repoRuleRefDef = regexp.MustCompile(`(?m)^(\[[^\]]+\]: )(?:\.\./)+internal/rules/(MDS[0-9A-Za-z._-]+)/(?:README\.md)?(#\S+)?$`)
 
 // rulePageURLBase is the site-absolute URL prefix every rule page
 // lives under. Hugo serves website/content/docs/rules/<dir>/index.md
 // at /docs/rules/<dir>/, so repo-relative `internal/rules/<dir>/`
 // links from any docs page must rewrite to this prefix to resolve.
 const rulePageURLBase = "/docs/rules/"
+
+// repoNonPublishedLink matches an inline link whose target is a
+// repo-relative path that the website does NOT publish — every
+// tree under the repo that lives outside docs/ and outside
+// internal/rules/MDS*/ falls here. On the source tree the link
+// resolves to a real file (so mdsmith fix and humans reading the
+// source see it fine); on the synced Hugo tree there is no such
+// path, so the link 404s. Rewriting to an absolute GitHub blob
+// URL keeps the reference clickable on the live site while still
+// pointing at the canonical source on github.com.
+//
+// Group 1 captures the repo-relative path (everything past the
+// last `../`). The alternative order matters: every `internal/…`
+// prefix that is NOT `internal/rules/MDS…/` falls here, but
+// `internal/rules/MDS…/` itself is already rewritten by
+// rewriteRuleLinks (run first) and never reaches this regex.
+// The `internal/rules/<non-MDS>/` case (e.g.
+// `internal/rules/markdownflavor/`) is intentionally caught
+// here because only MDS-prefixed directories carry a published
+// README.
+//
+// Root-level files (PLAN.md, README.md, LICENSE, …) are listed
+// explicitly. They live at the repo root with no enclosing
+// directory, so a `(?:\.\./)+` prefix is the only signal that
+// the link target is repo-relative rather than sibling.
+var repoNonPublishedLink = regexp.MustCompile(
+	`\]\((?:\.\./)+(` +
+		`plan/[^)]+|` +
+		`cmd/[^)]+|` +
+		`editors/[^)]+|` +
+		`cue/[^)]+|` +
+		`npm/[^)]+|` +
+		`python/[^)]+|` +
+		`\.claude/[^)]+|` +
+		`\.github/[^)]+|` +
+		`internal/[^)]+|` +
+		`PLAN\.md|README\.md|LICENSE|SECURITY\.md|CLAUDE\.md|AGENTS\.md` +
+		`)\)`)
+
+// repoNonPublishedRefDef is the reference-style sibling of
+// repoNonPublishedLink for definitions like
+// `[plan107]: ../../../plan/107.md`. Multiline anchor; `\S+`
+// captures the target so trailing whitespace or comments after
+// the URL are not eaten.
+var repoNonPublishedRefDef = regexp.MustCompile(
+	`(?m)^(\[[^\]]+\]: )(?:\.\./)+(` +
+		`plan/\S+|` +
+		`cmd/\S+|` +
+		`editors/\S+|` +
+		`cue/\S+|` +
+		`npm/\S+|` +
+		`python/\S+|` +
+		`\.claude/\S+|` +
+		`\.github/\S+|` +
+		`internal/\S+|` +
+		`PLAN\.md|README\.md|LICENSE|SECURITY\.md|CLAUDE\.md|AGENTS\.md` +
+		`)`)
+
+// indexMdLink matches a sibling-style inline link whose target
+// is `index.md` (the docs/-tree convention for a directory
+// overview). syncDocsFile renames every `index.md` to
+// `_index.md` when copying into the Hugo tree, so a link that
+// kept the source name resolves to nothing on the synced
+// filesystem (and MDS027 flags it). Rewrite `index.md` in the
+// link target to `_index.md` to follow the rename. Group 1
+// captures the path prefix (e.g. `architecture/`); group 2
+// captures an optional `#anchor` fragment.
+var indexMdLink = regexp.MustCompile(`\]\(((?:[^)/]+/)*)index\.md((?:#[^)]*)?)\)`)
+
+// ruleFixtureLink matches an inline link in a per-rule README
+// whose target is a fixture path under the rule's own directory:
+// `[good/default.md](good/default.md)`, `[bad/x.md](bad/x.md)`,
+// or the `pattern/bad/` / `pattern/good/` directives-rule case.
+// Fixtures live in the source tree but are intentionally not
+// republished on the site (no Hugo page for raw test data), so a
+// repo-relative link 404s. Rewrite to the rule's GitHub source
+// tree URL so the example file is still reachable.
+var ruleFixtureLink = regexp.MustCompile(`\]\(((?:bad|good|pattern)/[^)]*)\)`)
+
+// ruleSiblingNonMDSLink matches an inline link in a per-rule
+// README whose target is a single-`../`-prefixed sibling under
+// internal/rules/ that is NOT another rule's page — the rule's
+// Go package directory or the shared `proto.md` schema, for
+// example. Sibling MDS rule pages (`../MDS021-include/`) ARE
+// published, so they are excluded by requiring the first
+// character after `../` to be lowercase or a dot (rule names
+// start with uppercase `M`).
+var ruleSiblingNonMDSLink = regexp.MustCompile(`\]\(\.\./([a-z._][^)]*)\)`)
 
 // ruleSourceTreeBase is the GitHub directory (tree) route for a
 // rule's source. Per-rule READMEs carry an
@@ -90,16 +181,34 @@ const githubBlobBase = "https://github.com/jeduden/mdsmith/blob/main/"
 // helper files, …) into the Hugo content tree.
 var ruleDirName = regexp.MustCompile(`^MDS[0-9]`)
 
-// rewriteRuleLinks rewrites every repo-relative link from a docs
-// page into internal/rules/ to its published site URL
-// (/docs/rules/<dir>/). Both inline and reference-style forms are
-// handled, with or without a trailing README.md. Idempotent:
-// already-rewritten /docs/rules/ paths do not match the regexes
-// (they have no `../` prefix and no `internal/rules/` segment),
-// so a second pass is a no-op.
+// rewriteRuleLinks rewrites every repo-relative link in a synced
+// markdown body so it resolves on the published site. The three
+// classes are applied in order: (1) links into internal/rules/MDS…/
+// become /docs/rules/<dir>/<#anchor> site URLs; (2) links into any
+// other non-published repo path — plan/, cmd/, editors/, .claude/,
+// internal/ (other than the rule pages already handled in step 1),
+// and root-level files — become absolute GitHub blob URLs;
+// (3) sibling links to `index.md` get the `_index.md` rename
+// SyncDocs applied to the file itself, so MDS027 still resolves
+// the target on the synced filesystem.
+//
+// The ordering matters because the rule rewrite is the only one
+// that has a site-local target — the non-published rewrite would
+// otherwise consume `internal/rules/MDS…` and send it to GitHub.
+//
+// Idempotent: already-rewritten paths (a leading `/docs/`,
+// `https://`, or `_index.md`) do not match any of the three
+// regexes, so a second pass is a no-op.
 func rewriteRuleLinks(b []byte) []byte {
-	b = repoRuleLink.ReplaceAll(b, []byte("]("+rulePageURLBase+"$1/)"))
-	b = repoRuleRefDef.ReplaceAll(b, []byte("${1}"+rulePageURLBase+"$2/"))
+	b = repoRuleLink.ReplaceAll(b, []byte("]("+rulePageURLBase+"$1/$2)"))
+	b = repoRuleRefDef.ReplaceAll(b, []byte("${1}"+rulePageURLBase+"$2/$3"))
+	b = repoNonPublishedLink.ReplaceAll(b, []byte("]("+githubBlobBase+"$1)"))
+	b = repoNonPublishedRefDef.ReplaceAll(b, []byte("${1}"+githubBlobBase+"$2"))
+	// `${1}` (braced form) is required: `$1_index.md` would parse
+	// as a variable named `1_index` to Go's regexp expander, so
+	// the captured directory prefix would silently vanish (and
+	// every link become `.md`).
+	b = indexMdLink.ReplaceAll(b, []byte("](${1}_index.md$2)"))
 	return b
 }
 
@@ -278,12 +387,26 @@ func (t *Toolkit) syncRulePages(rulesDir, dstDir string) error {
 		// otherwise parse "$1https" as a single group name, leaving the
 		// expansion empty.
 		data = repoPlanRefDef.ReplaceAll(data, []byte("${1}"+githubBlobBase+"plan/$2"))
+		// Rewrite fixture references (`good/default.md`,
+		// `bad/x.md`, `pattern/good/`) to the rule's GitHub source
+		// tree URL. Fixtures live under the rule's source
+		// directory but are not republished on the site.
+		ruleSourceURL := ruleSourceTreeBase + e.Name() + "/"
+		data = ruleFixtureLink.ReplaceAll(data, []byte("]("+ruleSourceURL+"$1)"))
+		// Rewrite single-`../`-prefixed sibling references that
+		// are NOT MDS rule pages (a sibling Go package, the
+		// shared `proto.md`, etc.) to GitHub blob URLs under
+		// internal/rules/. The non-MDS guard in the regex
+		// preserves working cross-rule links like
+		// `../MDS021-include/`.
+		data = ruleSiblingNonMDSLink.ReplaceAll(data,
+			[]byte("]("+githubBlobBase+"internal/rules/$1)"))
 		// The `Implementation: [source](./)` meta line self-links the
 		// generated page on the site; repoint it at the rule's
 		// GitHub source directory.
 		data = bytes.ReplaceAll(data,
 			[]byte("[source](./)"),
-			[]byte("[source]("+ruleSourceTreeBase+e.Name()+"/)"))
+			[]byte("[source]("+ruleSourceURL+")"))
 		// Inject the repo-relative source path so the layout can
 		// render a "View source on GitHub" link without hard-coding
 		// the repo URL in the Go layer.
