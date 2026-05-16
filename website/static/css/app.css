@@ -319,6 +319,10 @@ main {
   font-size: 13.5px;
   white-space: nowrap;
   overflow-x: auto;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
 }
 .install-body {
   padding: 18px 20px;
