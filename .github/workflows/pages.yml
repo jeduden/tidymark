@@ -149,88 +149,40 @@ jobs:
         # (website/layouts/_default/_markup/render-link.html) does
         # the source-relative → permalink resolution, baseURL
         # prefixing, and scheme sanitization. None of that is
-        # visible to the synced-tree mdsmith check (it operates on
-        # markdown filesystem, pre-render). Probe the rendered
-        # HTML for representative cases so a regression in the
-        # hook breaks CI here rather than silently shipping a
-        # site full of 404s. Each grep is wrapped in its own
-        # if-block so the failing case prints a clear message;
-        # `set -euo pipefail` ensures the first failure aborts.
-        #
-        # The expected href prefix is derived from BASE_URL so
-        # this works equally on a root deploy (prefix empty,
-        # hrefs are `/docs/…/`) and a project-pages deploy
-        # (prefix `/<repo>`, hrefs are `/<repo>/docs/…/`). The
-        # render-link hook runs absolute paths through relURL,
-        # which prepends whatever prefix Hugo was built with.
-        working-directory: website
+        # visible to the synced-tree mdsmith check (it operates
+        # on the markdown filesystem, pre-render). Probe the
+        # rendered HTML for representative cases via a Go
+        # subcommand so a regression breaks CI here rather than
+        # silently shipping a site full of 404s. The probes
+        # (and their regexes that tolerate both quoted and
+        # minified href forms) live in
+        # internal/release/verifylinks.go with unit-test
+        # coverage rather than as inline YAML shell, per the
+        # convention in docs/development/release-tooling.md.
         env:
           BASE_URL: ${{ steps.pages.outputs.base_url }}
         run: |
-          set -euo pipefail
-
-          # Strip scheme + host and trailing slash to leave just
-          # the path portion. Root deploys collapse to "";
-          # project-pages deploys leave "/<repo>".
-          prefix="$(printf '%s' "$BASE_URL" | sed -E 's|^https?://[^/]+||; s|/$||')"
-
-          # 1. A sibling `.md` link from a leaf-page source
-          #    resolves to the target page's permalink, not a
-          #    literal `.md` path under the source's URL.
-          if ! grep -q "href=${prefix}/docs/development/pr-fixup-workflow/" \
-              public/docs/development/merge-queue/index.html; then
-            echo "::error::render-link: sibling .md not resolved to permalink (prefix=${prefix})" >&2
-            exit 1
-          fi
-
-          # 2. The rewriter's `architecture/index.md` →
-          #    `architecture/` drop resolves through GetPage to
-          #    the section permalink rather than nesting under
-          #    the leaf page (the source-vs-rendered-depth bug).
-          if ! grep -q "href=${prefix}/docs/development/architecture/" \
-              public/docs/development/architecture-audit/index.html; then
-            echo "::error::render-link: index.md drop misresolved on leaf page (prefix=${prefix})" >&2
-            exit 1
-          fi
-
-          # 3. Cross-rule references survive as the published
-          #    rule-page URL, not the unpublished README.md. No
-          #    prefix needed — this asserts absence.
-          if grep -rq 'href=[^"]*README\.md' public/docs/rules/; then
-            echo "::error::render-link: README.md target leaked into a rule page" >&2
-            exit 1
-          fi
-
-          # 4. javascript: and data: hrefs must be neutralized
-          #    by Go's html/template auto-escape. The hook drops
-          #    safeURL exactly so these cannot pass through.
-          if grep -rq 'href=javascript:' public/; then
-            echo "::error::render-link: javascript: href reached rendered HTML" >&2
-            exit 1
-          fi
-          if grep -rq 'href=data:' public/; then
-            echo "::error::render-link: data: href reached rendered HTML" >&2
-            exit 1
-          fi
+          go run ./cmd/mdsmith-release verify-website-links \
+            --dir ./website/public --base-url "$BASE_URL"
       - name: Verify baseURL prefix on absolute hrefs
         # The rewriter emits site-absolute `/docs/...` URLs into
         # the synced markdown. The render-link hook runs them
         # through relURL so a non-root --baseURL deploy
         # (Pages served from a subpath) gets the configured
         # prefix. Build a second copy with a fake subpath
-        # baseURL and assert at least one rewritten link picks
-        # up the prefix. The build output goes to a throwaway
-        # destination so it does not displace the real artifact.
+        # baseURL and re-run the same Go probe against it; the
+        # subcommand uses the supplied baseURL's path component
+        # as the expected prefix. The build output goes to a
+        # throwaway destination so it does not displace the
+        # real artifact.
         working-directory: website
         run: |
-          set -euo pipefail
           hugo --minify --baseURL "https://example.com/mdsmith/" \
             --destination /tmp/baseurl-probe
-          if ! grep -rq 'href=/mdsmith/docs/rules/' \
-              /tmp/baseurl-probe/docs/rules/; then
-            echo "::error::render-link: baseURL prefix not applied to /docs/rules/ hrefs" >&2
-            exit 1
-          fi
+          cd ..
+          go run ./cmd/mdsmith-release verify-website-links \
+            --dir /tmp/baseurl-probe \
+            --base-url "https://example.com/mdsmith/"
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: website/public
