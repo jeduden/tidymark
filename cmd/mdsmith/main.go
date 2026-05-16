@@ -1078,6 +1078,10 @@ func runHelpPatterns(args []string) int {
 			fmt.Fprintf(os.Stderr, "mdsmith: help patterns: %s requires a value (text or json)\n", args[0])
 			return 2
 		}
+		if len(args) > 2 {
+			fmt.Fprintf(os.Stderr, "mdsmith: help patterns: unexpected trailing argument %q\n", args[2])
+			return 2
+		}
 		format = args[1]
 	}
 	switch format {

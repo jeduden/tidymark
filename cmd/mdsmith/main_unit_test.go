@@ -756,6 +756,18 @@ func TestRunHelpPatterns_UnexpectedArg_ExitsTwo(t *testing.T) {
 	assert.Contains(t, stderr, "unexpected argument")
 }
 
+func TestRunHelpPatterns_TrailingArg_ExitsTwo(t *testing.T) {
+	var stderr string
+	captureStdout(func() {
+		stderr = captureStderr(func() {
+			code := runHelpPatterns([]string{"-f", "json", "extra"})
+			assert.Equal(t, 2, code)
+		})
+	})
+	assert.Contains(t, stderr, "unexpected trailing argument")
+	assert.Contains(t, stderr, "extra")
+}
+
 func TestRunHelp_PatternsTopicDispatches(t *testing.T) {
 	out := captureStdout(func() {
 		code := runHelp([]string{"patterns", "-f", "json"})
