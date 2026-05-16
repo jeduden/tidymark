@@ -8,8 +8,11 @@ import (
 	flag "github.com/spf13/pflag"
 
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
+	"github.com/jeduden/mdsmith/internal/config"
+	"github.com/jeduden/mdsmith/internal/engine"
 	"github.com/jeduden/mdsmith/internal/export"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 )
 
 type exportFlags struct {
@@ -100,22 +103,14 @@ func doExport(path string, flags exportFlags) int {
 		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
 		return 2
 	}
-	f, err := lint.NewFileFromSource(path, data, frontMatterEnabled(cfg))
+
+	f, rules, err := prepareExportFile(path, data, cfg, cfgPath, maxBytes)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdsmith: parsing %s: %v\n", path, err)
+		fmt.Fprintf(os.Stderr, "mdsmith: %v\n", err)
 		return 2
 	}
-	f.MaxInputBytes = maxBytes
-	f.FS = os.DirFS(filepath.Dir(path))
-	if root := rootDirFromConfig(cfgPath); root != "" {
-		f.SetRootDir(root)
-	}
-	// Match the engine.Runner setup so staleness diagnostics
-	// inside an outer include/catalog body are suppressed: the
-	// host file is not responsible for those bytes.
-	f.GeneratedRanges = gensection.FindAllGeneratedRanges(f)
 
-	out, diags := export.Export(f, exportMode(flags))
+	out, diags := export.Export(f, exportMode(flags), rules)
 	if len(diags) > 0 {
 		if code := formatDiagnostics(diags, "text", false); code != 0 {
 			return code
@@ -127,6 +122,119 @@ func doExport(path string, flags exportFlags) int {
 		return 2
 	}
 	return 0
+}
+
+// prepareExportFile mirrors fix.Fixer.prepareFile + fixableRules: it
+// parses the file, wires FS / RootDir / MaxInputBytes / GitignoreFunc,
+// resolves the effective rule config from .mdsmith.yml kinds and
+// overrides (and any front-matter `kinds:`), then returns the set of
+// directive rules to consult for staleness/regeneration. Each
+// returned rule is a clone with its per-file settings applied via
+// engine.ConfigureRule, and disabled rules are excluded — matching
+// `mdsmith check`/`fix` so a directive turned off in `.mdsmith.yml`
+// neither flags a stale body nor gets regenerated on `--fix`.
+func prepareExportFile(
+	path string, source []byte,
+	cfg *config.Config, cfgPath string, maxBytes int64,
+) (*lint.File, []rule.Rule, error) {
+	f, err := lint.NewFileFromSource(path, source, frontMatterEnabled(cfg))
+	if err != nil {
+		return nil, nil, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	f.MaxInputBytes = maxBytes
+	dir := filepath.Dir(path)
+	f.FS = os.DirFS(dir)
+	gitignoreDir := dir
+	if root := rootDirFromConfig(cfgPath); root != "" {
+		f.SetRootDir(root)
+		gitignoreDir = root
+	}
+	gd := gitignoreDir
+	f.GitignoreFunc = func() *lint.GitignoreMatcher {
+		return lint.NewGitignoreMatcher(gd)
+	}
+	// Match engine.Runner.processFile so staleness diagnostics inside
+	// an outer include/catalog body are suppressed: the host file is
+	// not responsible for those bytes.
+	f.GeneratedRanges = gensection.FindAllGeneratedRanges(f)
+
+	all := rule.All()
+	effective, err := effectiveExportConfig(cfg, path, f.FrontMatter, all)
+	if err != nil {
+		return nil, nil, err
+	}
+	rules, err := configuredEnabledRules(all, effective)
+	if err != nil {
+		return nil, nil, err
+	}
+	return f, rules, nil
+}
+
+// effectiveExportConfig parses front-matter kinds/fields (with the
+// same leniency `fix.Fixer` uses) and resolves the file's effective
+// rule config including category overrides.
+func effectiveExportConfig(
+	cfg *config.Config, path string, fm []byte, all []rule.Rule,
+) (map[string]config.RuleCfg, error) {
+	fmKinds, err := lint.ParseFrontMatterKinds(fm)
+	if err != nil {
+		return nil, fmt.Errorf("parsing front-matter kinds in %s: %w", path, err)
+	}
+	if err := config.ValidateFrontMatterKinds(cfg, path, fmKinds); err != nil {
+		return nil, err
+	}
+	fmFields, err := exportFrontMatterFields(cfg, path, fm)
+	if err != nil {
+		return nil, err
+	}
+	effective, categories, explicit := config.EffectiveAll(cfg, path, fmKinds, fmFields)
+	categoryFor := make(map[string]string, len(all))
+	for _, rl := range all {
+		categoryFor[rl.Name()] = rl.Category()
+	}
+	return config.ApplyCategories(
+		effective, categories,
+		func(name string) string { return categoryFor[name] },
+		explicit,
+	), nil
+}
+
+// exportFrontMatterFields decodes the full front-matter mapping only
+// when a kind-assignment entry's `fields-present:` selector could
+// match this file path, mirroring fix.parseFieldsForSelector.
+func exportFrontMatterFields(
+	cfg *config.Config, path string, fm []byte,
+) (map[string]any, error) {
+	if !config.NeedsFieldsForFile(cfg, path) {
+		return nil, nil
+	}
+	fields, err := lint.ParseFrontMatterFields(fm)
+	if err != nil {
+		return nil, fmt.Errorf("parsing front matter in %s: %w", path, err)
+	}
+	return fields, nil
+}
+
+// configuredEnabledRules clones+configures every enabled rule via
+// engine.ConfigureRule, the same path fix.Fixer.fixableRules uses.
+// A settings-apply error short-circuits the export with a clear
+// message rather than silently dropping the rule.
+func configuredEnabledRules(
+	all []rule.Rule, effective map[string]config.RuleCfg,
+) ([]rule.Rule, error) {
+	var out []rule.Rule
+	for _, rl := range all {
+		cfg, ok := effective[rl.Name()]
+		if !ok || !cfg.Enabled {
+			continue
+		}
+		configured, err := engine.ConfigureRule(rl, cfg)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, configured)
+	}
+	return out, nil
 }
 
 // exportMode maps the parsed CLI flags onto the staleness mode the

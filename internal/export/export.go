@@ -9,7 +9,6 @@ package export
 
 import (
 	"bytes"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -36,6 +35,19 @@ const (
 
 // Export returns a portable, directive-free copy of f's source.
 //
+// rules carries the caller's effective ruleset (already cloned and
+// configured via engine.ConfigureRule, and filtered to enabled rules
+// only — like fix.Fixer.fixableRules). Staleness checks (Check mode)
+// and regeneration (Fix mode) only consult rules in this slice, so a
+// directive disabled in `.mdsmith.yml` neither produces a stale-body
+// refusal nor gets regenerated on `--fix`.
+//
+// Marker stripping is independent of `rules`: every directive
+// registered in the global rule registry has its start/end markers
+// stripped from the output, so a disabled directive's markers still
+// disappear even though its body is untouched. Callers that want
+// stripping but no staleness behavior can pass a nil rules slice.
+//
 // Generated section markers are removed, generated bodies stay as
 // plain Markdown, and `<?include?>` content is inlined (recursively,
 // when the body is fresh or has been regenerated).
@@ -43,34 +55,32 @@ const (
 // Exactly one of the returned values is populated:
 //   - on success, the exported bytes (non-nil) and a nil diagnostic
 //     slice — including the no-op case of a directive-free file
-//   - on refusal, nil bytes and a non-empty diagnostic slice naming
-//     the offending directive(s); the caller should exit non-zero
-func Export(f *lint.File, mode Mode) ([]byte, []lint.Diagnostic) {
-	directives := selectDirectives(rule.All())
+//   - on Check-mode refusal, nil bytes and a non-empty diagnostic
+//     slice naming the offending directive(s); the caller should
+//     exit non-zero
+func Export(f *lint.File, mode Mode, rules []rule.Rule) ([]byte, []lint.Diagnostic) {
+	active := selectDirectives(rules)
+	stripDirs := allDirectiveNames()
 
 	working := f
 	switch mode {
 	case Fix:
-		regenerated, diags := regenerate(f, directives)
-		if len(diags) > 0 {
-			return nil, diags
-		}
-		working = regenerated
+		working = regenerate(f, active)
 	case Check:
-		if diags := checkStaleness(f, directives); len(diags) > 0 {
+		if diags := checkStaleness(f, active); len(diags) > 0 {
 			return nil, diags
 		}
 	case NoCheck:
 		// Skip staleness handling; strip uses the on-disk body verbatim.
 	}
 
-	body := stripDirectives(working, directives)
+	body := stripDirectives(working, stripDirs)
 	return working.FullSource(body), nil
 }
 
 // directiveRule pairs a fixable rule with its gensection.Directive
 // view so we can call both Fix (for regeneration) and the
-// directive-level Validate/Generate (for staleness checks).
+// directive-level Check (for staleness).
 type directiveRule struct {
 	rule      rule.FixableRule
 	directive gensection.Directive
@@ -78,7 +88,7 @@ type directiveRule struct {
 
 // selectDirectives picks the rules that implement gensection.Directive
 // AND rule.FixableRule, and orders them by directive name so behavior
-// is deterministic across calls.
+// is deterministic across calls. Returns nil for a nil/empty input.
 func selectDirectives(rules []rule.Rule) []directiveRule {
 	var out []directiveRule
 	for _, r := range rules {
@@ -98,21 +108,61 @@ func selectDirectives(rules []rule.Rule) []directiveRule {
 	return out
 }
 
-// regenerate runs each directive rule's Fix in memory until the source
-// stops changing, then returns a freshly parsed *lint.File that
-// downstream phases can walk. The input is not mutated.
-func regenerate(orig *lint.File, directives []directiveRule) (*lint.File, []lint.Diagnostic) {
+// directiveStrip carries the minimal context Export needs to remove a
+// directive's start/end markers and locate its body range. It is
+// populated from the unconfigured registry so stripping recognises a
+// directive even when its rule is disabled in `.mdsmith.yml`.
+type directiveStrip struct {
+	name     string
+	ruleID   string
+	ruleName string
+}
+
+// allDirectiveNames returns the strip-only descriptor for every
+// directive registered at package-init time. Stripping is independent
+// of the file's effective config — a disabled rule's markers should
+// still vanish — so this list comes straight from `rule.All()` without
+// any kind/override merge.
+func allDirectiveNames() []directiveStrip {
+	all := rule.All()
+	var out []directiveStrip
+	for _, r := range all {
+		d, ok := r.(gensection.Directive)
+		if !ok {
+			continue
+		}
+		out = append(out, directiveStrip{
+			name:     d.Name(),
+			ruleID:   d.RuleID(),
+			ruleName: d.RuleName(),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].name < out[j].name })
+	return out
+}
+
+// regenerate runs each directive rule's Fix in memory until the
+// source stops changing, then returns a freshly parsed *lint.File
+// that downstream phases can walk. The input is not mutated.
+//
+// Mirrors fix.Fixer.applyFixPasses: each rule's Fix only runs when
+// its Check fires — so up-to-date directives aren't regenerated
+// gratuitously. lint.NewFile never errors with the current goldmark
+// configuration (same invariant fix.Fixer relies on at
+// buildPostFixFile), so re-parses here cannot fail.
+func regenerate(orig *lint.File, directives []directiveRule) *lint.File {
 	current := append([]byte(nil), orig.Source...)
 
 	const maxPasses = 10
 	for pass := 0; pass < maxPasses; pass++ {
 		before := current
 		for _, d := range directives {
-			parsed, err := lint.NewFile(orig.Path, current)
-			if err != nil {
+			parsed, _ := lint.NewFile(orig.Path, current) // never errors today
+			hydrate(parsed, orig)
+
+			if len(d.rule.Check(parsed)) == 0 {
 				continue
 			}
-			hydrate(parsed, orig)
 			current = d.rule.Fix(parsed)
 		}
 		if bytes.Equal(before, current) {
@@ -120,21 +170,12 @@ func regenerate(orig *lint.File, directives []directiveRule) (*lint.File, []lint
 		}
 	}
 
-	working, err := lint.NewFile(orig.Path, current)
-	if err != nil {
-		return nil, []lint.Diagnostic{{
-			File:     orig.Path,
-			Line:     1,
-			Column:   1,
-			Severity: lint.Error,
-			Message:  fmt.Sprintf("re-parsing regenerated source: %v", err),
-		}}
-	}
+	working, _ := lint.NewFile(orig.Path, current) // never errors today
 	hydrate(working, orig)
 	working.FrontMatter = orig.FrontMatter
 	working.LineOffset = orig.LineOffset
 	working.StripFrontMatter = orig.StripFrontMatter
-	return working, nil
+	return working
 }
 
 // hydrate copies the per-file context the directive engines rely on
@@ -199,13 +240,12 @@ func inGeneratedRange(line int, ranges []lint.LineRange) bool {
 // inner same-type markers nested in an outer directive — survives,
 // because such PIs sit inside a pair's body range and are skipped
 // here.
-func stripDirectives(f *lint.File, directives []directiveRule) []byte {
+func stripDirectives(f *lint.File, directives []directiveStrip) []byte {
 	stripLines := map[int]bool{}
 	bodyLines := map[int]bool{}
 
 	for _, d := range directives {
-		pairs, _ := gensection.FindMarkerPairs(f, d.directive.Name(),
-			d.directive.RuleID(), d.directive.RuleName())
+		pairs, _ := gensection.FindMarkerPairs(f, d.name, d.ruleID, d.ruleName)
 		for _, p := range pairs {
 			for line := p.StartLine; line < p.ContentFrom; line++ {
 				stripLines[line] = true

@@ -7,9 +7,10 @@ import (
 
 	"github.com/jeduden/mdsmith/internal/export"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 
 	// Register the production directive rules (toc, catalog, include,
-	// build, …) so export.Export sees them via rule.All().
+	// build, …) so allRules() picks them up via rule.All().
 	_ "github.com/jeduden/mdsmith/internal/rules/all"
 
 	"github.com/stretchr/testify/assert"
@@ -25,11 +26,35 @@ func newFile(t *testing.T, path, src string) *lint.File {
 	return f
 }
 
+// allRules returns the registered ruleset unmodified — equivalent to
+// what the CLI would pass when no settings narrow it. Tests that want
+// to simulate a disabled rule build their own slice.
+func allRules() []rule.Rule { return rule.All() }
+
+// rulesExcept returns rule.All() with the directives named in skip
+// removed, simulating an effective config where those rules are
+// disabled.
+func rulesExcept(skip ...string) []rule.Rule {
+	out := rule.All()
+	skipSet := map[string]bool{}
+	for _, n := range skip {
+		skipSet[n] = true
+	}
+	filtered := out[:0]
+	for _, r := range out {
+		if skipSet[r.Name()] {
+			continue
+		}
+		filtered = append(filtered, r)
+	}
+	return filtered
+}
+
 func TestExport_NoDirectives_Noop(t *testing.T) {
 	src := "# Title\n\nSome content.\n\n## Section\n\nMore content.\n"
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.NoCheck)
+	out, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 	assert.Equal(t, src, string(out))
 }
@@ -38,7 +63,7 @@ func TestExport_TOCMarkers_BodyKept(t *testing.T) {
 	src := "# Title\n\n<?toc?>\n\n- [Title](#title)\n- [Two](#two)\n\n<?/toc?>\n\n## Two\n\nbody\n"
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.NoCheck)
+	out, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	assert.NotContains(t, got, "<?toc")
@@ -52,7 +77,7 @@ func TestExport_MarkerlessRequire_Removed(t *testing.T) {
 	f, err := lint.NewFileFromSource("doc.md", []byte(src), true)
 	require.NoError(t, err)
 
-	out, diags := export.Export(f, export.NoCheck)
+	out, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	assert.NotContains(t, got, "<?require")
@@ -65,7 +90,7 @@ func TestExport_MarkerlessAllowEmptySection_Removed(t *testing.T) {
 	src := "# Title\n\n## Stub\n\n<?allow-empty-section?>\n\n## Real\n\nbody\n"
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.NoCheck)
+	out, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	assert.NotContains(t, got, "<?allow-empty-section?>")
@@ -81,7 +106,7 @@ func TestExport_Include_BodyKeptInline(t *testing.T) {
 		"snippet.md": &fstest.MapFile{Data: []byte("snippet body\n")},
 	}
 
-	out, diags := export.Export(f, export.NoCheck)
+	out, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	assert.NotContains(t, got, "<?include")
@@ -112,7 +137,7 @@ func TestExport_NestedSameTypeMarkers_LiteralContentSurvives(t *testing.T) {
 	}, "\n")
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.NoCheck)
+	out, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	// Outer markers gone.
@@ -129,11 +154,11 @@ func TestExport_Idempotent(t *testing.T) {
 	src := "# Title\n\n<?toc?>\n\n- [Section](#section)\n\n<?/toc?>\n\n## Section\n\nbody\n"
 	f := newFile(t, "doc.md", src)
 
-	first, diags := export.Export(f, export.NoCheck)
+	first, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 
 	f2 := newFile(t, "doc.md", string(first))
-	second, diags := export.Export(f2, export.NoCheck)
+	second, diags := export.Export(f2, export.NoCheck, allRules())
 	require.Empty(t, diags)
 
 	assert.Equal(t, string(first), string(second))
@@ -144,7 +169,7 @@ func TestExport_CheckMode_StaleBody_Refuses(t *testing.T) {
 	src := "# Title\n\n<?toc?>\n\n- [Wrong](#wrong)\n\n<?/toc?>\n\n## Section\n\nbody\n"
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.Check)
+	out, diags := export.Export(f, export.Check, allRules())
 	assert.Nil(t, out, "stale body must produce nil bytes")
 	require.NotEmpty(t, diags)
 	// Diagnostic mentions the offending directive and its location.
@@ -158,11 +183,42 @@ func TestExport_CheckMode_StaleBody_Refuses(t *testing.T) {
 	assert.True(t, found, "expected an 'out of date' diagnostic for toc, got %+v", diags)
 }
 
+func TestExport_CheckMode_DisabledDirective_NotFlaggedButStripped(t *testing.T) {
+	// A stale <?toc?> body that would normally refuse the export is
+	// silently allowed when the toc rule is excluded from the
+	// effective config — but the markers still vanish, because
+	// stripping is independent of which rules the caller passes.
+	src := "# Title\n\n<?toc?>\n\n- [Wrong](#wrong)\n\n<?/toc?>\n\n## Section\n\nbody\n"
+	f := newFile(t, "doc.md", src)
+
+	out, diags := export.Export(f, export.Check, rulesExcept("toc"))
+	require.Empty(t, diags, "disabled toc must not produce a stale-body refusal")
+	got := string(out)
+	assert.NotContains(t, got, "<?toc", "markers strip regardless of enabled state")
+	// On-disk body kept verbatim — the wrong link survives, but no diag.
+	assert.Contains(t, got, "- [Wrong](#wrong)")
+}
+
+func TestExport_FixMode_DisabledDirective_NotRegenerated(t *testing.T) {
+	// In Fix mode with toc disabled, the stale body should NOT be
+	// regenerated (the rule isn't in the active set), but its markers
+	// still get stripped on the way out.
+	src := "# Title\n\n<?toc?>\n\n- [Wrong](#wrong)\n\n<?/toc?>\n\n## Section\n\nbody\n"
+	f := newFile(t, "doc.md", src)
+
+	out, diags := export.Export(f, export.Fix, rulesExcept("toc"))
+	require.Empty(t, diags)
+	got := string(out)
+	assert.NotContains(t, got, "<?toc")
+	// Stale body survives because Fix didn't touch it.
+	assert.Contains(t, got, "- [Wrong](#wrong)")
+}
+
 func TestExport_FixMode_StaleBody_Regenerates(t *testing.T) {
 	src := "# Title\n\n<?toc?>\n\n- [Wrong](#wrong)\n\n<?/toc?>\n\n## Section\n\nbody\n"
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.Fix)
+	out, diags := export.Export(f, export.Fix, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	assert.NotContains(t, got, "<?toc")
@@ -175,7 +231,7 @@ func TestExport_NoCheckMode_StaleBody_ExportsAsIs(t *testing.T) {
 	src := "# Title\n\n<?toc?>\n\n- [Wrong](#wrong)\n\n<?/toc?>\n\n## Section\n\nbody\n"
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.NoCheck)
+	out, diags := export.Export(f, export.NoCheck, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	assert.NotContains(t, got, "<?toc")
@@ -208,7 +264,7 @@ func TestExport_Catalog_MarkersRemoved_BodyKept(t *testing.T) {
 		"beta.md":  &fstest.MapFile{Data: []byte("---\ntitle: Beta\n---\n# Beta\n")},
 	}
 
-	out, diags := export.Export(f, export.Check)
+	out, diags := export.Export(f, export.Check, allRules())
 	require.Empty(t, diags, "fresh catalog should pass Check")
 	got := string(out)
 	assert.NotContains(t, got, "<?catalog")
@@ -223,7 +279,7 @@ func TestExport_FullSourceIncludesFrontMatter(t *testing.T) {
 	f, err := lint.NewFileFromSource("doc.md", []byte(src), true)
 	require.NoError(t, err)
 
-	out, diags := export.Export(f, export.Check)
+	out, diags := export.Export(f, export.Check, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	// Front matter is preserved exactly.
@@ -253,7 +309,7 @@ func TestExport_FreshOutputPassesCheck(t *testing.T) {
 	}, "\n")
 	f := newFile(t, "doc.md", src)
 
-	out, diags := export.Export(f, export.Fix)
+	out, diags := export.Export(f, export.Fix, allRules())
 	require.Empty(t, diags)
 	got := string(out)
 	// No directive markers.
@@ -271,7 +327,7 @@ func TestExport_NoDirectives_FullSource(t *testing.T) {
 	f, err := lint.NewFileFromSource("doc.md", []byte(src), true)
 	require.NoError(t, err)
 
-	out, diags := export.Export(f, export.Check)
+	out, diags := export.Export(f, export.Check, allRules())
 	require.Empty(t, diags)
 	assert.Equal(t, src, string(out),
 		"export of a directive-free file should equal the input")
@@ -285,7 +341,7 @@ func TestExport_CheckMode_StaleBody_DiagnosticLine_IncludesFrontmatterOffset(t *
 	f, err := lint.NewFileFromSource("doc.md", []byte(src), true)
 	require.NoError(t, err)
 
-	out, diags := export.Export(f, export.Check)
+	out, diags := export.Export(f, export.Check, allRules())
 	assert.Nil(t, out)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, 6, diags[0].Line,
@@ -320,7 +376,7 @@ func TestExport_CheckMode_SuppressesDiagnosticsInsideGeneratedRange(t *testing.T
 	// not responsible for staleness within that range.
 	f.GeneratedRanges = []lint.LineRange{{From: 6, To: 10}}
 
-	out, diags := export.Export(f, export.Check)
+	out, diags := export.Export(f, export.Check, allRules())
 	// Outer include itself is stale (its body should be `snippet
 	// body\n`), so the export still refuses — but the diagnostic
 	// points at the include marker, not at the suppressed inner toc.
@@ -330,4 +386,95 @@ func TestExport_CheckMode_SuppressesDiagnosticsInsideGeneratedRange(t *testing.T
 		assert.NotEqual(t, "toc", d.RuleName,
 			"diagnostics inside a GeneratedRange should be suppressed: %+v", d)
 	}
+}
+
+func TestExport_FixMode_FreshFile_DoesNotInvokeFix(t *testing.T) {
+	// In Fix mode, when every directive is already fresh, the
+	// underlying rule.Fix should NOT be called — the gate is "only
+	// call Fix when Check fires". countingFixable wraps a real
+	// directive rule to count Fix invocations.
+	src := "# Title\n\n<?toc?>\n\n- [Section](#section)\n\n<?/toc?>\n\n## Section\n\nbody\n"
+	f := newFile(t, "doc.md", src)
+
+	wrappers := wrapDirectives(allRules())
+	out, diags := export.Export(f, export.Fix, wrappers.rules)
+	require.Empty(t, diags)
+	require.NotNil(t, out)
+
+	tocFixCount := wrappers.fixCalls("toc")
+	assert.Equal(t, 0, tocFixCount,
+		"a fresh toc body must not invoke Fix (got %d calls)", tocFixCount)
+}
+
+func TestExport_OnlyDirectives_OutputCollapsesToEmpty(t *testing.T) {
+	// A file containing only markerless directives — and nothing else
+	// once they're stripped — exercises the empty-output branch of
+	// normalizeBlankLines so it does not insert a stray "\n" on output.
+	src := "<?allow-empty-section?>\n\n<?require\nfilename: \"*.md\"\n?>\n"
+	f := newFile(t, "doc.md", src)
+
+	out, diags := export.Export(f, export.NoCheck, allRules())
+	require.Empty(t, diags)
+	assert.Empty(t, out, "all-directive file should normalise to empty output, got %q", string(out))
+}
+
+func TestExport_NormalizeBlankLines_EmptyInput(t *testing.T) {
+	// A file that is empty bytes returns empty bytes unchanged —
+	// guards normalizeBlankLines' fast-path.
+	src := ""
+	f := newFile(t, "doc.md", src)
+
+	out, diags := export.Export(f, export.NoCheck, allRules())
+	require.Empty(t, diags)
+	assert.Empty(t, string(out))
+}
+
+func TestExport_CheckMode_WarningSeverity_DoesNotRefuse(t *testing.T) {
+	// checkStaleness only treats Error-severity diagnostics as
+	// blocking. A Warning (e.g. catalog case-mismatch / injection
+	// hints) must not turn into a refusal. The countingDirective
+	// here returns a fresh body PLUS a warning, simulating that
+	// non-blocking case.
+	src := "# Title\n\n<?toc?>\n\n- [Section](#section)\n\n<?/toc?>\n\n## Section\n\nbody\n"
+	f := newFile(t, "doc.md", src)
+
+	rules := wrapDirectives(allRules())
+	tocWrapper := rules.wrappers["toc"]
+	require.NotNil(t, tocWrapper)
+	tocWrapper.injectWarning = true
+
+	out, diags := export.Export(f, export.Check, rules.rules)
+	require.Empty(t, diags, "a Warning-severity diagnostic must not refuse")
+	require.NotNil(t, out)
+	assert.NotContains(t, string(out), "<?toc")
+}
+
+func TestExport_FixMode_StaleBody_InvokesFixForThatDirectiveOnly(t *testing.T) {
+	// Same gate, opposite direction: when toc is stale, its Fix must
+	// run; an unrelated, fresh directive's Fix must not.
+	src := strings.Join([]string{
+		"# Title",
+		"",
+		"<?toc?>",
+		"",
+		"- [Wrong](#wrong)",
+		"",
+		"<?/toc?>",
+		"",
+		"<?allow-empty-section?>",
+		"",
+		"## Section",
+		"",
+		"body",
+		"",
+	}, "\n")
+	f := newFile(t, "doc.md", src)
+
+	wrappers := wrapDirectives(allRules())
+	out, diags := export.Export(f, export.Fix, wrappers.rules)
+	require.Empty(t, diags)
+	require.NotNil(t, out)
+
+	assert.GreaterOrEqual(t, wrappers.fixCalls("toc"), 1,
+		"stale toc must invoke Fix at least once")
 }
