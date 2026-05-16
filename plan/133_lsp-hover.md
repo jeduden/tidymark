@@ -1,7 +1,7 @@
 ---
 id: 133
 title: LSP hover for rule and directive docs
-status: "🔳"
+status: "✅"
 model: sonnet
 summary: >-
   Add `textDocument/hover` to `mdsmith lsp` so editors
@@ -164,7 +164,7 @@ the capability see the same server. The
 5. ✅ Add `hoverProvider` to the capability table in
    [`docs/reference/cli/lsp.md`](../docs/reference/cli/lsp.md)
    and document the resolution order.
-6. Propose enabling `no-inline-html` on the
+6. ✅ Propose enabling `no-inline-html` on the
    `rule-readme` kind in [.mdsmith.yml](../.mdsmith.yml).
    Surface the diff to the user before applying.
    Add a regression test fixture: a rule README
@@ -183,17 +183,17 @@ the capability see the same server. The
       no diagnostic is present at the cursor.
 - [x] Hovering on plain prose (no diagnostic, no
       directive) returns `null`.
-- [ ] After the `rule-readme` kind change lands,
+- [x] After the `rule-readme` kind change lands,
       a fixture rule README containing a raw
       `<span>` outside a code block fails
       `mdsmith check` with `MDS041`.
 - [x] [`docs/reference/cli/lsp.md`](../docs/reference/cli/lsp.md)
       lists `hoverProvider` in the capability
       table.
-- [ ] All tests pass: `go test ./...`.
-- [ ] `go tool golangci-lint run` reports no
+- [x] All tests pass: `go test ./...`.
+- [x] `go tool golangci-lint run` reports no
       issues.
-- [ ] `mdsmith check .` passes.
+- [x] `mdsmith check .` passes.
 
 ## ...
 

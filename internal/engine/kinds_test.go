@@ -8,6 +8,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/config"
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/rule"
+	_ "github.com/jeduden/mdsmith/internal/rules/noinlinehtml"
 	_ "github.com/jeduden/mdsmith/internal/rules/requiredstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -315,4 +316,71 @@ func TestKindSetsRequiredStructureSchema(t *testing.T) {
 	effective := config.Effective(cfg, "plan/001_foo.md", nil, nil)
 	got := effective["required-structure"].Settings["schema"]
 	assert.Equal(t, "plan/proto.md", got)
+}
+
+// TestKindRuleReadme_NoInlineHTMLFires guards the .mdsmith.yml change that
+// enables MDS041 on the rule-readme kind so future rule README contributors
+// cannot silently sneak inline HTML past hover (plan/133 task 6). A README
+// matching the rule-readme glob with raw `<span>` outside a code block must
+// fail mdsmith check with MDS041; the kbd allow-list entry keeps the
+// existing `<kbd>` examples in the MDS041 README from regressing.
+func TestKindRuleReadme_NoInlineHTMLFires(t *testing.T) {
+	dir := t.TempDir()
+	readme := filepath.Join(dir, "internal", "rules", "MDS999-fake", "README.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(readme), 0o755))
+	require.NoError(t, os.WriteFile(readme, []byte("# Title\n\ntext <span>x</span> text\n"), 0o644))
+
+	cfg := &config.Config{
+		Kinds: map[string]config.KindBody{
+			"rule-readme": {Rules: map[string]config.RuleCfg{
+				"no-inline-html": {Enabled: true, Settings: map[string]any{"allow": []any{"kbd"}}},
+			}},
+		},
+		KindAssignment: []config.KindAssignmentEntry{
+			{Files: []string{"**/internal/rules/MDS*-*/README.md"}, Kinds: []string{"rule-readme"}},
+		},
+	}
+
+	runner := &Runner{
+		Config:  cfg,
+		Rules:   []rule.Rule{rule.ByName("no-inline-html")},
+		RootDir: dir,
+	}
+
+	result := runner.Run([]string{readme})
+	require.Empty(t, result.Errors)
+	require.Len(t, result.Diagnostics, 1)
+	d := result.Diagnostics[0]
+	assert.Equal(t, "MDS041", d.RuleID)
+	assert.Contains(t, d.Message, "<span>")
+}
+
+// TestKindRuleReadme_NoInlineHTMLAllowsKbd verifies the kbd allow-list entry
+// works: a README containing only `<kbd>` produces no MDS041 diagnostic.
+func TestKindRuleReadme_NoInlineHTMLAllowsKbd(t *testing.T) {
+	dir := t.TempDir()
+	readme := filepath.Join(dir, "internal", "rules", "MDS999-fake", "README.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(readme), 0o755))
+	require.NoError(t, os.WriteFile(readme, []byte("# Title\n\nPress <kbd>Enter</kbd> to continue.\n"), 0o644))
+
+	cfg := &config.Config{
+		Kinds: map[string]config.KindBody{
+			"rule-readme": {Rules: map[string]config.RuleCfg{
+				"no-inline-html": {Enabled: true, Settings: map[string]any{"allow": []any{"kbd"}}},
+			}},
+		},
+		KindAssignment: []config.KindAssignmentEntry{
+			{Files: []string{"**/internal/rules/MDS*-*/README.md"}, Kinds: []string{"rule-readme"}},
+		},
+	}
+
+	runner := &Runner{
+		Config:  cfg,
+		Rules:   []rule.Rule{rule.ByName("no-inline-html")},
+		RootDir: dir,
+	}
+
+	result := runner.Run([]string{readme})
+	require.Empty(t, result.Errors)
+	assert.Empty(t, result.Diagnostics)
 }
