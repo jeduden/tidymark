@@ -83,9 +83,15 @@ modified.
 ## Tasks
 
 1. **Export core (red/green).** Add `internal/export`
-   with `Export(f *lint.File) ([]byte, error)`: remove
-   marker lines while keeping the on-disk body bytes
-   verbatim — no regeneration. Unit-test marker removal,
+   with `Export(f *lint.File, mode Mode) ([]byte,
+   []lint.Diagnostic)` — mirroring plan 166's `Extract`
+   signature. It removes marker lines while keeping the
+   on-disk body bytes verbatim — no regeneration. A
+   non-empty diagnostic slice means refusal: bytes are
+   `nil` and the caller exits non-zero (a `nil` slice and
+   bytes is success). `Mode` is the staleness mode from
+   task 4. Reserve a hard `error` only for I/O failures,
+   not document-level problems. Unit-test marker removal,
    body retention, include-body inlining, and the
    no-directive no-op.
 2. **Nested / literal-content markers.** Drive removal
@@ -107,12 +113,15 @@ modified.
 4. **Staleness check and modes.** Add a checker that
    compares each directive's on-disk body to what the
    engine would generate, reusing the `mdsmith fix`
-   directive engine. Default: a stale body makes
-   `Export` return a diagnostic (naming the directive)
-   and no output. `--fix`: regenerate stale bodies in
-   memory before stripping. `--no-check`: skip the
-   check entirely. The two flags are mutually exclusive.
-   Unit-test all three modes on a stale fixture.
+   directive engine. `Mode` is `Check` (default), `Fix`,
+   or `NoCheck`. In `Check`, each stale body appends one
+   `lint.Diagnostic` (naming the directive, positioned at
+   its start marker) and `Export` returns `nil` bytes.
+   `Fix` regenerates stale bodies in memory before
+   stripping. `NoCheck` skips the comparison. The CLI
+   maps `--fix`/`--no-check` to the mode and rejects the
+   combination. Unit-test all three modes on a stale
+   fixture.
 5. **`export` subcommand.** Register `export` in
    [main.go](../cmd/mdsmith/main.go); `mdsmith export
    <file>` writes to stdout, `-o/--output <path>` writes
