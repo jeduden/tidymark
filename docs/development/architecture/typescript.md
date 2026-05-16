@@ -223,37 +223,47 @@ its dedicated unit test by name.
 Sub-behaviours of the same function
 go in subtests under that parent.
 The rule applies to exported and
-unexported functions alike. The
-audit flags every function in the
-touched set that lacks a matching
-test.
+unexported functions alike — in
+production code. Test files
+(`*_test.go`, `*.test.ts`) and
+test-only helpers are out of scope:
+the audit walks production sources
+only and never asks for "tests for
+tests". The audit flags every
+production function in the touched
+set that lacks a matching test.
 
 The language-specific page binds
 this rule to concrete file and
 symbol patterns. For Go, that is
-`TestFunctionName`. For TypeScript,
-that is a `describe("name")` block
-with one or more `it("case")` cases.
+`TestFunctionName` for package
+functions and `TestReceiver_Method`
+for methods. For TypeScript, that
+is a `describe("name")` block with
+one or more `test("case")` cases
+imported from `bun:test`.
 
 #### Exemptions
 
-A function may skip its dedicated
-test only if one of these holds:
+A production function may skip its
+dedicated test only if one of these
+holds:
 
 - It is generated code (file begins
   with a `// Code generated…` header,
   matches a generator file pattern
   such as `*_gen.go`, is a `*.d.ts`
   declaration, or is emitted under
-  `dist/`).
+  `dist/`). The file-level marker is
+  sufficient — no per-function
+  comment is required.
 - It is a trivial accessor with no
   branch — a one-line getter or a
   `String()`-style format method.
-
-Add a one-line comment on the
-function in either case so the audit
-can distinguish "no test by design"
-from "no test, forgotten".
+  Add a one-line comment on the
+  function so the audit can
+  distinguish "no test by design"
+  from "no test, forgotten".
 
 #### Push down by default
 
@@ -283,11 +293,13 @@ packaged-artifact tests.
 ### TypeScript-specific bindings
 
 - **Unit tests** in `xxx.test.ts`
-  next to `xxx.ts`. The dedicated
+  next to `xxx.ts`, importing
+  `describe`, `test`, and `expect`
+  from `bun:test`. The dedicated
   test for `function foo` (or a
   method `foo`) is a
   `describe("foo", () => { … })`
-  block; one or more `it("case",
+  block; one or more `test("case",
   …)` cases enumerate behaviours.
   Extract pure functions out of
   command bodies and unit-test
@@ -340,6 +352,33 @@ or a binary-boundary parser.
 These are the mdsmith-specific shapes
 the audit flags:
 
+- **A TypeScript function with no
+  matching `describe("name", () =>
+  { test(…) })` block in a sibling
+  `*.test.ts`.** Test debt.
+  Severity `tax` by default,
+  `blocker` if the function is on a
+  public surface (an exported
+  command registration, a
+  `contributes`-backed entry point,
+  a binary-boundary parser).
+  Test files and test-only helpers
+  are out of scope; see §"Tests /
+  Exemptions".
+- **A `*.test.ts` under
+  `editors/vscode/test-fixtures/`
+  or an integration-style test that
+  drives a single pure function.**
+  Pyramid is inverted; extract the
+  function and push the assertion
+  down to a unit test next to it.
+- **A VS Code extension-host e2e
+  test added where a unit test on
+  an extracted pure function would
+  suffice.** E2E is for activation,
+  command palette wiring, and
+  `onSave` lifecycle — not for
+  logic reachable by direct call.
 - **A command that imports another
   command.** Share state through
   `wiring.ts` instead.

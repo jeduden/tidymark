@@ -133,19 +133,29 @@ e2e. It also sets the rule that
 every function ships with a
 dedicated unit test.
 
-For every function in the touched
-set:
+For every production function in the
+touched set — skip `_test.go`,
+`*.test.ts`, and test-only helper
+files; the audit does not ask for
+"tests for tests":
 
 - Confirm a dedicated unit test
   exists in the matching test file,
   named after the function per the
   language page's binding (e.g.
-  `TestFunctionName` for Go,
-  `describe("name")` for TS).
+  `TestFunctionName` or
+  `TestReceiver_Method` for Go;
+  `describe("name")` containing
+  `test(…)` cases from `bun:test`
+  for TS).
 - If the function is exempt
-  (generated code, trivial
-  accessor), confirm the one-line
-  exemption comment is present.
+  (generated file marker present,
+  or trivial accessor), confirm
+  the one-line exemption comment
+  is present on trivial accessors
+  (generated files need no
+  per-function comment — the
+  file-level marker is enough).
 - If a test exists but lives one
   layer too high (an integration
   test that drives a single

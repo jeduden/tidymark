@@ -44,37 +44,47 @@ its dedicated unit test by name.
 Sub-behaviours of the same function
 go in subtests under that parent.
 The rule applies to exported and
-unexported functions alike. The
-audit flags every function in the
-touched set that lacks a matching
-test.
+unexported functions alike — in
+production code. Test files
+(`*_test.go`, `*.test.ts`) and
+test-only helpers are out of scope:
+the audit walks production sources
+only and never asks for "tests for
+tests". The audit flags every
+production function in the touched
+set that lacks a matching test.
 
 The language-specific page binds
 this rule to concrete file and
 symbol patterns. For Go, that is
-`TestFunctionName`. For TypeScript,
-that is a `describe("name")` block
-with one or more `it("case")` cases.
+`TestFunctionName` for package
+functions and `TestReceiver_Method`
+for methods. For TypeScript, that
+is a `describe("name")` block with
+one or more `test("case")` cases
+imported from `bun:test`.
 
 ## Exemptions
 
-A function may skip its dedicated
-test only if one of these holds:
+A production function may skip its
+dedicated test only if one of these
+holds:
 
 - It is generated code (file begins
   with a `// Code generated…` header,
   matches a generator file pattern
   such as `*_gen.go`, is a `*.d.ts`
   declaration, or is emitted under
-  `dist/`).
+  `dist/`). The file-level marker is
+  sufficient — no per-function
+  comment is required.
 - It is a trivial accessor with no
   branch — a one-line getter or a
   `String()`-style format method.
-
-Add a one-line comment on the
-function in either case so the audit
-can distinguish "no test by design"
-from "no test, forgotten".
+  Add a one-line comment on the
+  function so the audit can
+  distinguish "no test by design"
+  from "no test, forgotten".
 
 ## Push down by default
 

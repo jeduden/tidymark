@@ -141,20 +141,29 @@ the audit needs are below.
   `xxx.test.ts` next to `xxx.ts` for
   the VS Code extension.
 - **Function-coverage rule**: every
-  Go and TypeScript function — both
-  exported and unexported — has a
-  dedicated test by name (`TestFoo`
-  for Go `func Foo`; a
+  Go and TypeScript production
+  function — both exported and
+  unexported — has a dedicated test
+  by name (`TestFoo` for Go package
+  `func Foo`, `TestReceiver_Foo`
+  for a method on `Receiver`; a
   `describe("foo")` block with one
-  or more `it(…)` cases for TS
-  `foo`). Generated files
-  (`*_gen.go`, `*.d.ts`, `dist/`)
-  and trivial accessors with no
-  branch are exempt; see
+  or more `test(…)` cases imported
+  from `bun:test` for TS `foo`).
+  Test files (`*_test.go`,
+  `*.test.ts`) and test-only
+  helpers are out of scope — the
+  audit walks production sources
+  only. Generated files (`*_gen.go`,
+  `*.d.ts`, `dist/`) and trivial
+  accessors with no branch are
+  exempt; see
   [Test pyramid §"Exemptions"](tests.md#exemptions).
-- **Contract tests** for Go live
-  alongside the port-package they
-  pin. Examples:
+- **Contract tests** for Go in this
+  repo live under
+  `internal/integration/` rather
+  than alongside the port-package
+  they pin. Examples:
   `internal/integration/rule_boundaries_test.go`,
   `internal/integration/directive_examples_test.go`.
 - **Integration test location**:

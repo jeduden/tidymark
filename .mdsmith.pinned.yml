@@ -342,6 +342,9 @@ kinds:
           required: false
         - heading:
             unlisted: true
+    rules:
+      max-file-length:
+        max: 500
   cli-command:
     schema:
       frontmatter:
