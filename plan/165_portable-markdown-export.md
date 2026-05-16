@@ -33,14 +33,37 @@ plain-document transform onto the schema-projection
 command. A dedicated `export` keeps the two concerns
 apart and leaves room to grow (output path, later batch).
 
+## Staleness: check by default, never auto-fix
+
+`export` does **not** silently regenerate directive
+bodies. Auto-fixing on export is surprising and would
+mask drift between a directive and its rendered body.
+The default is to *check*, not to *fix*:
+
+- **Default (check).** Before stripping, verify each
+  directive body equals what the engine would generate.
+  If any body is stale, export writes nothing and exits
+  non-zero with a diagnostic naming the stale directive
+  and advising `mdsmith fix` or `--fix`. The export is
+  faithful — it never papers over drift.
+- **`--no-check`.** Skip the staleness check and export
+  bodies exactly as they appear in the file. For callers
+  who know the file is fresh or deliberately want the
+  on-disk bytes.
+- **`--fix`.** Regenerate stale bodies in memory (same
+  engine as `mdsmith fix`) before stripping. Opt-in
+  convenience for a one-shot fresh export.
+
+`--fix` and `--no-check` are mutually exclusive (one
+regenerates, the other trusts as-is); passing both is a
+usage error. In every mode the source file is never
+modified.
+
 ## Behavior
 
-- Regenerate directive bodies in memory first, reusing
-  the same engine as `mdsmith fix`, so output is never
-  stale. The source file is never modified.
 - Drop the opening and closing marker lines of every
   directive region; keep the body text between them
-  verbatim.
+  verbatim (regenerated first only under `--fix`).
 - `<?include?>` bodies are already expanded by
   regeneration, so keeping the body inlines the included
   content (recursively).
@@ -60,12 +83,11 @@ apart and leaves room to grow (output path, later batch).
 ## Tasks
 
 1. **Export core (red/green).** Add `internal/export`
-   with `Export(f *lint.File) ([]byte, error)`:
-   regenerate directive bodies in memory via the `fix`
-   directive engine, then remove marker lines while
-   keeping bodies. Unit-test marker removal, body
-   retention, include inlining, and the no-directive
-   no-op.
+   with `Export(f *lint.File) ([]byte, error)`: remove
+   marker lines while keeping the on-disk body bytes
+   verbatim — no regeneration. Unit-test marker removal,
+   body retention, include-body inlining, and the
+   no-directive no-op.
 2. **Nested / literal-content markers.** Drive removal
    off the engine's own marker-pair detection —
    `gensection.FindMarkerPairs` in
@@ -82,19 +104,34 @@ apart and leaves room to grow (output path, later batch).
    lines left by removed markers so output is stable and
    passes `mdsmith check`. Test idempotence: export of
    export equals export.
-4. **`export` subcommand.** Register `export` in
+4. **Staleness check and modes.** Add a checker that
+   compares each directive's on-disk body to what the
+   engine would generate, reusing the `mdsmith fix`
+   directive engine. Default: a stale body makes
+   `Export` return a diagnostic (naming the directive)
+   and no output. `--fix`: regenerate stale bodies in
+   memory before stripping. `--no-check`: skip the
+   check entirely. The two flags are mutually exclusive.
+   Unit-test all three modes on a stale fixture.
+5. **`export` subcommand.** Register `export` in
    [main.go](../cmd/mdsmith/main.go); `mdsmith export
    <file>` writes to stdout, `-o/--output <path>` writes
-   a file. Never mutate the source. Reuse the config and
-   file-load helpers that back `fix` in
-   [main.go](../cmd/mdsmith/main.go). Exit non-zero with
-   a clear message on parse errors.
-5. **Fixtures and integration test.** Add `testdata`
+   a file, `--fix` and `--no-check` select the staleness
+   mode (rejecting the combination). Never mutate the
+   source. Reuse the config and file-load helpers that
+   back `fix` in [main.go](../cmd/mdsmith/main.go). Exit
+   non-zero with a clear message on parse errors and on a
+   stale body in the default mode.
+6. **Fixtures and integration test.** Add `testdata`
    inputs covering include, catalog, toc, and build
-   directives with golden directive-free outputs. Assert
-   idempotence and that the output passes `mdsmith
+   directives with golden directive-free outputs. Add a
+   stale-body fixture: assert default mode exits non-zero
+   with no output, `--fix` produces the fresh golden, and
+   `--no-check` exports the stale bytes as-is. Assert
+   idempotence and that fresh output passes `mdsmith
    check`.
-6. **Docs.** Add `docs/reference/cli/export.md` and link
+7. **Docs.** Add `docs/reference/cli/export.md` (covering
+   the default check, `--fix`, and `--no-check`) and link
    it from the CLI reference catalog. Run `mdsmith fix`
    so catalogs and PLAN.md regenerate.
 
@@ -105,12 +142,17 @@ apart and leaves room to grow (output path, later batch).
       marker, keeps generated bodies, and inlines
       `<?include?>` content. Marker-like text treated as
       literal content is left in place.
-- [ ] The source file is never modified.
-- [ ] Stale directive bodies are regenerated before
-      stripping, so the output is never stale.
+- [ ] The source file is never modified in any mode.
+- [ ] Default mode: a stale directive body makes
+      `export` exit non-zero with a diagnostic naming the
+      directive and writes no output.
+- [ ] `--fix` regenerates stale bodies in memory before
+      stripping; `--no-check` exports on-disk bytes as-is;
+      passing both is a usage error.
 - [ ] Nested same-type literal-content markers are
       preserved.
-- [ ] Output is idempotent and passes `mdsmith check`.
+- [ ] Output is idempotent and (when fresh) passes
+      `mdsmith check`.
 - [ ] `-o <path>` writes to a file; stdout is the
       default.
 - [ ] A parse error or missing file exits non-zero with
@@ -128,6 +170,11 @@ apart and leaves room to grow (output path, later batch).
   format and not a `fix` flag; a dedicated command keeps
   the source-to-source transform separate from schema
   extraction.
+- **Check by default, never auto-fix.** A stale body
+  fails the export rather than being silently
+  regenerated, so the output faithfully reflects the
+  file. `--fix` opts into regeneration; `--no-check`
+  opts out of the check.
 - **Front matter retained.** It is not a directive;
   stripping it is out of scope.
 - **Single file first.** Directory or glob batch export
