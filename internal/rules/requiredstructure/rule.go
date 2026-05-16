@@ -694,9 +694,6 @@ func resolveBodySyncLine(
 	}
 	expected := resolveFields(sp.BodyText, docFM)
 	re := buildFieldPattern(sp.BodyText)
-	if re == nil {
-		return patchedLine{}, false
-	}
 	for i := startLine - 1; i < endLine && i < len(work); i++ {
 		trimmed := strings.TrimSpace(string(work[i]))
 		if trimmed == expected {
@@ -713,6 +710,8 @@ func resolveBodySyncLine(
 
 // buildFieldPattern compiles a regex that matches a body line whose
 // {field} placeholders have been replaced by any non-empty run.
+// The pattern is always valid: each part is regexp.QuoteMeta'd and
+// joined with ".+", so regexp.MustCompile never panics here.
 func buildFieldPattern(bodyText string) *regexp.Regexp {
 	parts := fieldinterp.SplitOnFields(bodyText)
 	var patBuf strings.Builder
@@ -724,11 +723,7 @@ func buildFieldPattern(bodyText string) *regexp.Regexp {
 		}
 	}
 	patBuf.WriteString("$")
-	re, err := regexp.Compile(patBuf.String())
-	if err != nil {
-		return nil
-	}
-	return re
+	return regexp.MustCompile(patBuf.String())
 }
 
 // composedSchemaForFix returns the same composed *schema.Schema

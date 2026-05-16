@@ -2198,6 +2198,52 @@ func TestFix_BodySync_MultiSource(t *testing.T) {
 	assert.Equal(t, string(f.Source), string(result))
 }
 
+// TestFix_BodySync_WildcardBeforeSection covers the isSectionWildcard
+// branch in fixBodySyncIn: a schema with ## ... before the sync heading.
+func TestFix_BodySync_WildcardBeforeSection(t *testing.T) {
+	schemaPath := writeSchema(t,
+		"# ?\n\n## ...\n\n## Meta-Information\n\n- **Category**: {category}\n")
+	r := &Rule{Schema: schemaPath}
+	f := newTestFile(t, "doc.md",
+		"---\ncategory: structural\n---\n# My Rule\n\n## Optional\n\n## Meta-Information\n\n- **Category**: WRONG\n")
+	result := r.Fix(f)
+	assert.Contains(t, string(result), "- **Category**: structural")
+}
+
+// TestFix_BodySync_RequiredHeadingAbsent covers the matchedDoc < 0
+// branch in fixBodySyncIn: the schema requires a heading with body
+// sync but the document does not contain that heading.
+func TestFix_BodySync_RequiredHeadingAbsent(t *testing.T) {
+	schemaPath := writeSchema(t, "# ?\n\n## Meta-Information\n\n- **Category**: {category}\n")
+	r := &Rule{Schema: schemaPath}
+	// Doc has no ## Meta-Information heading.
+	src := "---\ncategory: structural\n---\n# My Rule\n"
+	f := newTestFile(t, "doc.md", src)
+	result := r.Fix(f)
+	assert.Equal(t, string(f.Source), string(result))
+}
+
+// TestFix_BodySync_HeadingFollowedByAnother covers the
+// matchedDoc+1 < len(docHeadings) branch: the matched heading is
+// not the last heading in the document.
+func TestFix_BodySync_HeadingFollowedByAnother(t *testing.T) {
+	schemaPath := writeSchema(t, "# ?\n\n## Meta-Information\n\n- **Category**: {category}\n")
+	r := &Rule{Schema: schemaPath}
+	// Doc has ## Appendix after ## Meta-Information.
+	f := newTestFile(t, "doc.md",
+		"---\ncategory: structural\n---\n# My Rule\n\n## Meta-Information\n\n- **Category**: WRONG\n\n## Appendix\n")
+	result := r.Fix(f)
+	assert.Contains(t, string(result), "- **Category**: structural")
+}
+
+// TestResolveBodySyncLine_NilPath covers the path == nil branch by
+// calling resolveBodySyncLine directly with an empty-string field.
+func TestResolveBodySyncLine_NilPath(t *testing.T) {
+	sp := syncPoint{Field: "", InBody: true, BodyText: "- **Category**: {category}"}
+	_, ok := resolveBodySyncLine(sp, map[string]any{"category": "structural"}, nil, 1, 1)
+	assert.False(t, ok, "empty field should yield ok=false")
+}
+
 // TestIsLikelyArchetypeName_AllBranches gives the helper direct
 // coverage of every branch. Previously it was only exercised
 // indirectly through ApplySettings, so test churn elsewhere
