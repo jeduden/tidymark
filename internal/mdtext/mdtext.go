@@ -142,9 +142,27 @@ func extractText(buf *strings.Builder, node ast.Node, source []byte) {
 	}
 }
 
-// CountWords counts words in text by splitting on whitespace.
+// CountWords counts whitespace-delimited words in text. It is exactly
+// len(strings.Fields(text)) — a word is a maximal run of non-space
+// runes, space being unicode.IsSpace — but counts in a single rune
+// scan instead of allocating the []string. CountWords is called per
+// sentence, per paragraph, per file; the slice strings.Fields built
+// only to be discarded was ~0.48 GB over the 600-file check gate
+// (plan 175 profiling).
 func CountWords(text string) int {
-	return len(strings.Fields(text))
+	n := 0
+	inWord := false
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			inWord = false
+			continue
+		}
+		if !inWord {
+			inWord = true
+			n++
+		}
+	}
+	return n
 }
 
 // CountSentences counts sentences by splitting on sentence-ending

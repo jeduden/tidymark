@@ -1,6 +1,7 @@
 package mdtext_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/mdtext"
@@ -108,6 +109,35 @@ func TestCountWords_Empty(t *testing.T) {
 
 func TestCountWords_MultipleSpaces(t *testing.T) {
 	assert.Equal(t, 2, mdtext.CountWords("  hello   world  "))
+}
+
+// TestCountWords_EquivalentToStringsFields pins the allocation-free
+// rewrite to its original definition (len(strings.Fields(s))) across
+// the whitespace shapes that matter: tabs, newlines, CRLF, leading and
+// trailing runs, Unicode spaces (NBSP, ideographic space), and CJK
+// runs with no ASCII space. If these ever diverge, the rewrite changed
+// behaviour and the rule output would shift.
+func TestCountWords_EquivalentToStringsFields(t *testing.T) {
+	cases := []string{
+		"",
+		"   ",
+		"\t\n\r ",
+		"one",
+		"hello world",
+		"  hello   world  ",
+		"a\tb\nc\r\nd",
+		"line one\nline two\n",
+		"emoji 🚀 done",
+		"non breaking space",
+		"ideographic　space　here",
+		"日本語 と English",
+		"trailing ",
+		" leading",
+	}
+	for _, s := range cases {
+		assert.Equalf(t, len(strings.Fields(s)), mdtext.CountWords(s),
+			"CountWords must equal len(strings.Fields(%q))", s)
+	}
 }
 
 // --- CountSentences tests ---
