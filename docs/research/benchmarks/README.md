@@ -99,31 +99,34 @@ takes ~3.4 s. mado, rumdl, and panache are faster still. If
 the alternative is a Node markdownlint, any of these is a
 large speed win.
 
-**Default mdsmith is the slowest native tool here, by
-design.** mado is a check-only port of ~41 markdownlint
-rules; rumdl and panache are per-file linters too. Default
-mdsmith does strictly more on every run: the cross-file
-link/anchor graph, readability and structure scoring, token
-budgets, and generated-section validation. At ~0.8 s on the
-repo corpus it is still ~4x faster than the Node
-markdownlint reference, and ~16x slower than a minimal Rust
-markdownlint clone — because it is not a markdownlint clone.
+**Default mdsmith does the most work per run.** mado is a
+check-only port of ~41 markdownlint rules; rumdl and panache
+are per-file linters too. Default mdsmith also resolves the
+cross-file link/anchor graph, scores readability and
+structure, estimates token budgets, and validates generated
+sections. At ~0.8 s on the repo corpus it is ~4x faster than
+the Node markdownlint reference. It is slower than the Rust
+markdownlint tools — and that gap is a target we are
+actively closing, not an accepted trade-off.
 
 **Apples-to-apples: `mdsmith-parity`.** Restricted to the
 rule class the markdownlint tools actually share (the
 mdsmith-only rules disabled — see
 [`bench-parity.mdsmith.yml`](bench-parity.mdsmith.yml)),
-mdsmith does the repo corpus in ~0.3 s: ~1.7x slower than
-rumdl, ~6x slower than mado, and still ~12x faster than
-Node markdownlint-cli2. The default→parity gap (~0.8 s →
-~0.3 s, ~2.5x) is the measured price of the cross-file and
-generated-content layer. One caveat, stated honestly: the
-parity profile only disables mdsmith's extras; it does not
-also disable the MD rules rumdl/markdownlint implement but
-mdsmith lacks, so the markdownlint tools may still do
-marginally more in this mode. Read `mdsmith-parity` as a
-conservative upper bound on mdsmith's same-rules speed, not
-a byte-identical rule set.
+mdsmith does the repo corpus in ~0.3 s: ~6x slower than
+mado, ~1.7x slower than rumdl, and ~12x faster than Node
+markdownlint-cli2. The default→parity gap (~0.8 s → ~0.3 s,
+~2.5x) is the measured cost of the cross-file and
+generated-content layer — work users opt into, not waste.
+The remaining ~1.7x vs rumdl on the *same* rule class is
+genuine engine headroom: it is the number to drive down,
+and the profiler loop below is how. One caveat, stated
+honestly: the parity profile only disables mdsmith's
+extras; it does not also disable the MD rules
+rumdl/markdownlint implement but mdsmith lacks, so the
+markdownlint tools may still do marginally more in this
+mode. Read `mdsmith-parity` as a conservative upper bound on
+mdsmith's same-rules speed, not a byte-identical rule set.
 
 **The gate + profiler loop caught two real bugs.** The
 first run had mdsmith at ~1.0 s on the repo corpus but

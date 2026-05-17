@@ -84,6 +84,13 @@ research artifact, not a CI gate.
 10. [ ] Confirm `check-bench` and `bench-fragments` are
     green in CI; ask the maintainer to add both to branch
     protection's required checks next to `lsp-bench`.
+11. [ ] Keep driving the `mdsmith-parity` engine gap down.
+    Same-rule-class mdsmith is ~1.7x slower than rumdl;
+    that is engine headroom, not an accepted trade-off.
+    Continue the profiler loop (next candidates: the
+    goldmark walk and the regexp-backtracking hotspots)
+    until parity is within ~1.2x or a profiler shows no
+    cheap win remains.
 
 ## Acceptance Criteria
 

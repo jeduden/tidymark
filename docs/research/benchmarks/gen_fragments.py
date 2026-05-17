@@ -73,8 +73,9 @@ def main() -> None:
     head = (GEN +
             "One static Go binary checks 523 Markdown files in "
             f"about\n{ms / 1000:.1f} s. That is roughly {mult}x "
-            "faster than Node markdownlint.\nIt is slower than the "
-            "per-file Rust linters, by design.\n")
+            "faster than Node markdownlint.\nIt does more per file "
+            "than the Rust linters; closing the rest of\nthat gap "
+            "is active work.\n")
     (frag_dir / "headline.fragment.md").write_text(head)
     print(f"fragments regenerated in {frag_dir}")
 

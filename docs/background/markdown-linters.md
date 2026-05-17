@@ -592,15 +592,15 @@ longer third-party prose):
 <?/include?>
 
 Every native binary beats the Node baseline — default
-mdsmith is about 4x faster than markdownlint-cli2. But
-default mdsmith is the slowest native tool here, by design:
-it also walks the cross-file graph, scores readability, and
-validates generated sections. With those mdsmith-only rules
-off (the `mdsmith-parity` row) it is about 2.5x faster and
-within ~2x of rumdl. So the read is fit, not a race: pick
-mado or rumdl for raw markdownlint throughput, panache for
-Quarto or R Markdown, mdsmith for the cross-file and
-self-maintaining-section layer.
+mdsmith is about 4x faster than markdownlint-cli2. It is the
+slowest native tool here because it also walks the
+cross-file graph, scores readability, and validates
+generated sections. With those mdsmith-only rules off (the
+`mdsmith-parity` row) it is about 2.5x faster, within ~2x of
+rumdl; closing that last gap is active work. So the read is
+fit today: pick mado or rumdl for raw markdownlint
+throughput, panache for Quarto or R Markdown, mdsmith for
+the cross-file and self-maintaining-section layer.
 
 ## When to Use What
 
