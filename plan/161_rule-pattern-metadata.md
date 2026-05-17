@@ -1,7 +1,7 @@
 ---
 id: 161
 title: Expose rule maintainability patterns via CLI help and LSP
-status: "🔳"
+status: "✅"
 model: sonnet
 depends-on: []
 summary: >-
