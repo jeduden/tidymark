@@ -38,36 +38,51 @@ func Start() (stop func()) {
 func start(cpuPath, memPath string, diag io.Writer) func() {
 	var cpuFile *os.File
 	if cpuPath != "" {
-		f, err := os.Create(cpuPath)
-		if err != nil {
-			_, _ = fmt.Fprintf(diag, "profiling: cpu profile: %v\n", err)
-		} else if err := pprof.StartCPUProfile(f); err != nil {
-			_, _ = fmt.Fprintf(diag, "profiling: cpu profile: %v\n", err)
-			_ = f.Close()
-		} else {
-			cpuFile = f
-		}
+		cpuFile = beginCPU(cpuPath, diag)
 	}
-
 	return func() {
 		if cpuFile != nil {
 			pprof.StopCPUProfile()
 			_ = cpuFile.Close()
 		}
 		if memPath != "" {
-			f, err := os.Create(memPath)
-			if err != nil {
-				_, _ = fmt.Fprintf(diag, "profiling: mem profile: %v\n", err)
-				return
-			}
-			runtime.GC() // materialize live heap before the dump
-			// Best-effort, like the Close calls: WriteHeapProfile
-			// on a freshly created writable file has no failure
-			// mode we can drive in a test, so per the repo's
-			// "no untestable defensive branch" rule it is not
-			// error-checked.
-			_ = pprof.WriteHeapProfile(f)
-			_ = f.Close()
+			writeHeap(memPath, diag)
 		}
 	}
+}
+
+// beginCPU starts CPU profiling to path. It returns the open file
+// on success (the caller stops the profile and closes it), or nil
+// after reporting the failure to diag.
+func beginCPU(path string, diag io.Writer) *os.File {
+	f, err := os.Create(path)
+	if err != nil {
+		report(diag, "cpu", err)
+		return nil
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		report(diag, "cpu", err)
+		_ = f.Close()
+		return nil
+	}
+	return f
+}
+
+// writeHeap dumps the live heap to path. WriteHeapProfile on a
+// freshly created writable file has no failure mode reachable in a
+// test, so per the repo's "no untestable defensive branch" rule it
+// is best-effort, like the Close calls.
+func writeHeap(path string, diag io.Writer) {
+	f, err := os.Create(path)
+	if err != nil {
+		report(diag, "mem", err)
+		return
+	}
+	runtime.GC() // materialize live heap before the dump
+	_ = pprof.WriteHeapProfile(f)
+	_ = f.Close()
+}
+
+func report(diag io.Writer, kind string, err error) {
+	_, _ = fmt.Fprintf(diag, "profiling: %s profile: %v\n", kind, err)
 }
