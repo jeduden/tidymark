@@ -123,3 +123,61 @@ func TestEmitDeps_UnknownFormat(t *testing.T) {
 	code := emitDeps(&buf, []depRecord{{Source: "a.md"}}, "yaml")
 	assert.Equal(t, 2, code)
 }
+
+func TestEdgeTargetString_WholeSelfFile(t *testing.T) {
+	// No target file and no anchor: a whole-file same-file edge
+	// renders as the originating file.
+	e := index.Edge{Kind: index.EdgeFileLink}
+	assert.Equal(t, "docs/index.md", edgeTargetString(e, "docs/index.md"))
+}
+
+func TestCollectDeps_OutgoingSorted(t *testing.T) {
+	idx := index.New("/ws")
+	// Two links on the same line (line 3) plus one on a later line,
+	// so collectDeps must sort by line then target.
+	src := map[string][]byte{
+		"a.md": []byte("# A\n\n[z](z.md) and [m](m.md)\n\n[q](q.md)\n"),
+		"z.md": []byte("# Z\n"),
+		"m.md": []byte("# M\n"),
+		"q.md": []byte("# Q\n"),
+	}
+	idx.BuildSerial([]string{"a.md", "z.md", "m.md", "q.md"}, func(p string) ([]byte, error) {
+		return src[p], nil
+	})
+	recs := collectDeps(idx, "a.md", false)
+	require.Len(t, recs, 3)
+	assert.Equal(t, "m.md", recs[0].Target)
+	assert.Equal(t, "z.md", recs[1].Target)
+	assert.Equal(t, 3, recs[0].Line)
+	assert.Equal(t, "q.md", recs[2].Target)
+}
+
+func TestEmitDeps_TextWriteError(t *testing.T) {
+	code := emitDeps(failingWriter{}, []depRecord{
+		{Source: "a.md", Line: 1, Kind: "file-link", Target: "b.md"},
+	}, "text")
+	assert.Equal(t, 2, code)
+}
+
+func TestEmitDeps_JSONWriteError(t *testing.T) {
+	code := emitDeps(failingWriter{}, []depRecord{{Source: "a.md"}}, "json")
+	assert.Equal(t, 2, code)
+}
+
+func TestParseDepsFlags(t *testing.T) {
+	t.Run("valid flags", func(t *testing.T) {
+		opts, pos, err := parseDepsFlags([]string{"--incoming", "--format", "json", "docs/api.md"})
+		require.NoError(t, err)
+		assert.True(t, opts.incoming)
+		assert.Equal(t, "json", opts.format)
+		assert.Equal(t, []string{"docs/api.md"}, pos)
+	})
+	t.Run("unknown flag errors", func(t *testing.T) {
+		_, _, err := parseDepsFlags([]string{"--nope"})
+		assert.Error(t, err)
+	})
+	t.Run("help flag", func(t *testing.T) {
+		_, _, err := parseDepsFlags([]string{"--help"})
+		assert.Error(t, err)
+	})
+}
