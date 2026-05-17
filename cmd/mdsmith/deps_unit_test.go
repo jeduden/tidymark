@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,6 +12,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// depsWorkspace creates a minimal project (.git + .mdsmith.yml + two
+// linked docs) and chdirs into it so runDeps's discovery + config
+// walk resolve against it, not the repo root.
+func depsWorkspace(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	wf := func(rel, body string) {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, rel)), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, rel), []byte(body), 0o644))
+	}
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+	wf(".mdsmith.yml", "files:\n  - \"**/*.md\"\nrules:\n  cross-file-reference-integrity: false\n")
+	wf("a.md", "# A\n\nSee [b](b.md).\n")
+	wf("b.md", "# B\n")
+	t.Chdir(dir)
+}
 
 func TestEdgeKindString(t *testing.T) {
 	cases := []struct {
@@ -179,5 +198,72 @@ func TestParseDepsFlags(t *testing.T) {
 	t.Run("help flag", func(t *testing.T) {
 		_, _, err := parseDepsFlags([]string{"--help"})
 		assert.Error(t, err)
+	})
+}
+
+func TestRunDeps_Success(t *testing.T) {
+	t.Run("outgoing", func(t *testing.T) {
+		depsWorkspace(t)
+		var code int
+		out := captureStdout(func() { code = runDeps([]string{"a.md"}) })
+		assert.Equal(t, 0, code)
+		assert.Contains(t, out, "a.md:")
+		assert.Contains(t, out, "file-link b.md")
+	})
+	t.Run("incoming", func(t *testing.T) {
+		depsWorkspace(t)
+		var code int
+		out := captureStdout(func() { code = runDeps([]string{"b.md", "--incoming"}) })
+		assert.Equal(t, 0, code)
+		assert.Contains(t, out, "a.md:")
+	})
+	t.Run("no edges exits 1", func(t *testing.T) {
+		depsWorkspace(t)
+		var code int
+		_ = captureStdout(func() { code = runDeps([]string{"b.md"}) })
+		assert.Equal(t, 1, code)
+	})
+}
+
+func TestRunDeps_ArgErrors(t *testing.T) {
+	cases := map[string][]string{
+		"no target":     nil,
+		"too many args": {"a.md", "b.md"},
+		"absolute":      {"/etc/passwd"},
+		"bad flag":      {"--bogus"},
+		"bad max-input": {"--max-input-size", "bogus", "a.md"},
+	}
+	for name, args := range cases {
+		t.Run(name, func(t *testing.T) {
+			depsWorkspace(t)
+			assert.Equal(t, 2, runDeps(args))
+		})
+	}
+	t.Run("help exits 0", func(t *testing.T) {
+		depsWorkspace(t)
+		assert.Equal(t, 0, runDeps([]string{"--help"}))
+	})
+	t.Run("unknown format exits 2", func(t *testing.T) {
+		depsWorkspace(t)
+		var code int
+		_ = captureStdout(func() { code = runDeps([]string{"--format", "yaml", "a.md"}) })
+		assert.Equal(t, 2, code)
+	})
+}
+
+func TestRunDeps_Discovery(t *testing.T) {
+	t.Run("missing config exits 2", func(t *testing.T) {
+		depsWorkspace(t)
+		assert.Equal(t, 2, runDeps([]string{"--config", "/no/such/.mdsmith.yml", "a.md"}))
+	})
+	t.Run("empty discovery exits 1", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".mdsmith.yml"),
+			[]byte("files:\n  - \"nope/*.md\"\n"), 0o644))
+		t.Chdir(dir)
+		var code int
+		_ = captureStdout(func() { code = runDeps([]string{"a.md"}) })
+		assert.Equal(t, 1, code)
 	})
 }

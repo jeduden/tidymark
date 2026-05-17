@@ -215,19 +215,14 @@ func runDeps(args []string) int {
 	rels := make([]string, 0, len(files))
 	for _, src := range files {
 		rel := index.NormalizePath(workspaceRelativePath(src, rootDir))
-		if rel == "" {
-			continue
-		}
 		relToAbs[rel] = src
 		rels = append(rels, rel)
 	}
 	idx := index.New(rootDir)
 	idx.BuildSerial(rels, func(rel string) ([]byte, error) {
-		abs, ok := relToAbs[rel]
-		if !ok {
-			return nil, fmt.Errorf("unknown file %q", rel)
-		}
-		return lint.ReadFileLimited(abs, maxBytes)
+		// rel always comes from rels, and rels is built in
+		// lockstep with relToAbs, so the lookup never misses.
+		return lint.ReadFileLimited(relToAbs[rel], maxBytes)
 	})
 
 	recs := collectDeps(idx, target, opts.incoming)
