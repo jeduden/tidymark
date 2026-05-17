@@ -430,6 +430,23 @@ func TestIsIgnored_DirOnlySkipsFile(t *testing.T) {
 
 // --- LineOfOffset tests ---
 
+func TestLineIndex(t *testing.T) {
+	f := &File{Source: []byte("a\nbb\n\n")}
+	got := f.lineIndex()
+	assert.Equal(t, []int{1, 4, 5}, got, "newline offsets")
+	assert.True(t, f.newlineOffsetsOK, "build flag set")
+
+	again := f.lineIndex()
+	require.NotEmpty(t, got)
+	if &got[0] != &again[0] {
+		t.Fatal("lineIndex rebuilt the slice instead of caching it")
+	}
+
+	empty := &File{Source: nil}
+	assert.Empty(t, empty.lineIndex(), "no newlines in empty source")
+	assert.True(t, empty.newlineOffsetsOK)
+}
+
 func TestLineOfOffset_Basic(t *testing.T) {
 	f := &File{Source: []byte("line1\nline2\nline3\n")}
 	assert.Equal(t, 1, f.LineOfOffset(0))

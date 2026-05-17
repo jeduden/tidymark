@@ -2,11 +2,84 @@ package profiling
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"strings"
 	"testing"
 )
+
+func TestReport(t *testing.T) {
+	var b bytes.Buffer
+	report(&b, "cpu", errors.New("boom"))
+	if got := b.String(); got != "profiling: cpu profile: boom\n" {
+		t.Fatalf("unexpected report output: %q", got)
+	}
+}
+
+func TestBeginCPU(t *testing.T) {
+	t.Run("success returns an open file", func(t *testing.T) {
+		var diag bytes.Buffer
+		f := beginCPU(filepath.Join(t.TempDir(), "c.out"), &diag)
+		if f == nil {
+			t.Fatal("expected a file on success")
+		}
+		pprof.StopCPUProfile() // caller's responsibility per the contract
+		_ = f.Close()
+		if diag.Len() != 0 {
+			t.Fatalf("unexpected diagnostic: %q", diag.String())
+		}
+	})
+
+	t.Run("create error returns nil and reports", func(t *testing.T) {
+		var diag bytes.Buffer
+		if f := beginCPU(filepath.Join(t.TempDir(), "no", "c.out"), &diag); f != nil {
+			t.Fatal("expected nil on create error")
+		}
+		if !strings.Contains(diag.String(), "cpu profile") {
+			t.Fatalf("missing diagnostic: %q", diag.String())
+		}
+	})
+
+	t.Run("already running returns nil and reports", func(t *testing.T) {
+		live := beginCPU(filepath.Join(t.TempDir(), "live.out"), &bytes.Buffer{})
+		if live == nil {
+			t.Fatal("setup: first profile must start")
+		}
+		defer func() { pprof.StopCPUProfile(); _ = live.Close() }()
+		var diag bytes.Buffer
+		if f := beginCPU(filepath.Join(t.TempDir(), "second.out"), &diag); f != nil {
+			t.Fatal("expected nil while a profile is already active")
+		}
+		if !strings.Contains(diag.String(), "cpu profile") {
+			t.Fatalf("missing diagnostic: %q", diag.String())
+		}
+	})
+}
+
+func TestWriteHeap(t *testing.T) {
+	t.Run("success writes a non-empty profile", func(t *testing.T) {
+		var diag bytes.Buffer
+		p := filepath.Join(t.TempDir(), "m.out")
+		writeHeap(p, &diag)
+		fi, err := os.Stat(p)
+		if err != nil || fi.Size() == 0 {
+			t.Fatalf("heap profile missing or empty: err=%v", err)
+		}
+		if diag.Len() != 0 {
+			t.Fatalf("unexpected diagnostic: %q", diag.String())
+		}
+	})
+
+	t.Run("create error reports", func(t *testing.T) {
+		var diag bytes.Buffer
+		writeHeap(filepath.Join(t.TempDir(), "no", "m.out"), &diag)
+		if !strings.Contains(diag.String(), "mem profile") {
+			t.Fatalf("missing diagnostic: %q", diag.String())
+		}
+	})
+}
 
 func sizeOf(t *testing.T, path string) int64 {
 	t.Helper()

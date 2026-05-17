@@ -8,7 +8,49 @@ import (
 	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yuin/goldmark/ast"
 )
+
+func firstParagraph(t *testing.T, body string) (*ast.Paragraph, *lint.File) {
+	t.Helper()
+	f, err := lint.NewFile("t.md", []byte(body+"\n"))
+	require.NoError(t, err)
+	var p *ast.Paragraph
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering && p == nil {
+			if pp, ok := n.(*ast.Paragraph); ok {
+				p = pp
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+	require.NotNil(t, p, "no paragraph parsed from %q", body)
+	return p, f
+}
+
+func TestRule_checkParagraph(t *testing.T) {
+	r := &Rule{MaxSentences: 6, MaxWords: 40}
+
+	t.Run("guard short-circuits clean paragraph", func(t *testing.T) {
+		p, f := firstParagraph(t, "Short and safe.")
+		assert.Nil(t, r.checkParagraph(p, f))
+	})
+
+	t.Run("too many sentences", func(t *testing.T) {
+		p, f := firstParagraph(t,
+			"One. Two. Three. Four. Five. Six. Seven. Eight.")
+		d := r.checkParagraph(p, f)
+		require.Len(t, d, 1)
+		assert.Contains(t, d[0].Message, "too many sentences")
+	})
+
+	t.Run("sentence too long", func(t *testing.T) {
+		p, f := firstParagraph(t, strings.Repeat("word ", 45)+".")
+		d := r.checkParagraph(p, f)
+		require.Len(t, d, 1)
+		assert.Contains(t, d[0].Message, "sentence too long")
+	})
+}
 
 func TestCheapBounds(t *testing.T) {
 	cases := []struct {
