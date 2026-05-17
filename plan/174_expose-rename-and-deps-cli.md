@@ -146,9 +146,16 @@ over discovered files and queries `OutgoingEdges` /
    index + disk. Behavior-tested at **100%** statement
    coverage with a real index-backed workspace (no mocks);
    every production function has a dedicated unit test.
-5. [ ] Refactor `internal/lsp/rename.go` to delegate to
-   `internal/rename`; delete duplicated computation. Plans
-   151/131 + `cmd/mdsmith/lsp_rename_test.go` stay green.
+5. [x] Refactor `internal/lsp/rename.go` to delegate to
+   `internal/rename`; duplicated computation deleted.
+   `handleRename` resolves the cursor and calls
+   `rename.Heading` / `rename.LinkRef`; a thin adapter maps
+   the neutral `Edit` set to `workspaceEdit` and the typed
+   errors to `InvalidParams` + `renameCollisionData`. The
+   editor-only prepare-range / cursor-disambiguation code
+   stays; `isValidRefDefLine` now calls
+   `rename.ValidRefDefBodyLines`. Plans 151/131 +
+   `cmd/mdsmith/lsp_rename_test.go` stay green byte-for-byte.
 6. [ ] TDD `cmd/mdsmith/rename.go` (unit + e2e), register in
    `main.go` dispatch + `usageText`.
 7. [x] TDD `cmd/mdsmith/deps.go` (unit + e2e); register
@@ -175,7 +182,7 @@ over discovered files and queries `OutgoingEdges` /
 - [x] `internal/rename` returns plain edits and typed errors,
       imports neither `internal/lsp` nor any LSP wire type
       (DIP — surfaces depend on the core).
-- [ ] `internal/lsp/rename.go` contains no slug / edit
+- [x] `internal/lsp/rename.go` contains no slug / edit
       computation; it delegates to `internal/rename` (no
       duplicated logic across surfaces — `cross-system.md`).
 - [x] Plans 131/151 LSP test suites and
@@ -233,28 +240,30 @@ a path→bytes resolver. `rename.Heading` returns a
 per-key `Edit` set. An unsafe rename returns a typed
 error instead.
 
-The LSP package still carries its own copy. Slice B
-deletes that copy. Behavior tests cover same-file
-anchors, cross-file anchors, the disambiguator
-shift, and each guard at 100%, no mocks.
+Behavior tests cover same-file anchors, cross-file
+anchors, the disambiguator shift, and each guard at
+100%, no mocks.
 
-### Slice B — LSP delegates to the core
+### Slice B — LSP delegates to the core (done)
 
-- `handleRename` resolves the cursor (unchanged), then
-  calls `rename.Heading` / `rename.LinkRef`
-- map the `Edit` set → `workspaceEdit`; map typed
-  errors → `InvalidParams` + `renameCollisionData`
-- delete the now-duplicated engine from the LSP
-  package
-- keep the prepare-range / cursor-disambiguation code
-  (editor-only); `isValidRefDefLine` calls
-  `rename.ValidRefDefBodyLines`
-- regression gate, byte-for-byte: the plan-131/151
-  suites in [internal/lsp](../internal/lsp/) plus
-  [cmd/mdsmith/lsp_rename_test.go](../cmd/mdsmith/lsp_rename_test.go)
-- the neutral `Edit` is line + UTF-16 char, the same
-  shape as the LSP `textEdit`, so the adapter is a
-  field copy — the wire output cannot drift
+`handleRename` resolves the cursor. Then it calls
+`rename.Heading` or `rename.LinkRef`. A thin
+adapter maps the neutral `Edit` set to
+`workspaceEdit`. It maps the typed errors to
+`InvalidParams` plus `renameCollisionData`. The
+duplicated engine was deleted from the LSP package.
+
+The editor-only prepare-range and
+cursor-disambiguation code stays. `isValidRefDefLine`
+now calls `rename.ValidRefDefBodyLines`.
+
+The neutral `Edit` is line + UTF-16 char. That is
+the same shape as the LSP `textEdit`. The adapter is
+a field copy, so the wire output cannot drift. The
+plan-131/151 suites in
+[internal/lsp](../internal/lsp/) plus
+[cmd/mdsmith/lsp_rename_test.go](../cmd/mdsmith/lsp_rename_test.go)
+stay green byte-for-byte.
 
 ### Slice C — the `mdsmith rename` CLI
 
