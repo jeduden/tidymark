@@ -22,6 +22,7 @@ row: "| [`{command}`]({filename}) | {summary} |"
 | Command                                       | Description                                                                          |
 |-----------------------------------------------|--------------------------------------------------------------------------------------|
 | [`check`](cli/check.md)                       | Lint Markdown files for style issues.                                                |
+| [`deps`](cli/deps.md)                         | List a file's dependency-graph edges (includes, links, catalogs, builds).            |
 | [`export`](cli/export.md)                     | Write a portable, directive-free copy of a Markdown file.                            |
 | [`extract`](cli/extract.md)                   | Emit a schema-conformant Markdown file as a JSON/YAML/msgpack data tree.             |
 | [`fix`](cli/fix.md)                           | Auto-fix lint issues in Markdown files in place.                                     |

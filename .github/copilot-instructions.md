@@ -59,6 +59,7 @@ row: "- [{summary}](../{filename})"
 - [The `<?build?>` directive declares an artifact and a recipe. `mdsmith fix` keeps the section body in sync with the recipe output; `MDS040` shell-safety-checks the recipe without running it.](../docs/features/build-artifacts.md)
 - [Config layers deep-merge rule by rule: defaults, convention, kinds, then overrides. `--explain` and `mdsmith kinds resolve` show which layer set each effective value, per leaf.](../docs/features/config-transparency.md)
 - [Built-in rules flag broken links and missing anchors, enforce per-file section schemas, and keep Markdown in the right folders. Schemas can be inline on a file kind or shared via `proto.md` files.](../docs/features/cross-file-integrity.md)
+- [`mdsmith deps` lists what a file pulls in — includes, catalogs, build sources, and links — or, with `--incoming`, every file that points at it. The LSP call-hierarchy walks the same graph in your editor.](../docs/features/dependency-graph.md)
 - [A bundled VS Code extension and Claude Code plugins drive the same `mdsmith lsp` server, so diagnostics, fix-on-save, and navigation reach your editor and your coding agent unchanged.](../docs/features/editor-agent-integration.md)
 - [Tag each file with a `kind`, then validate its headings and front matter against a schema declared inline on the kind or shared via a `proto.md` template — so a whole directory obeys one contract.](../docs/features/file-kinds-schemas.md)
 - [A Git merge driver auto-resolves conflicts inside generated blocks, and a pre-merge-commit hook re-runs `mdsmith fix` and re-stages the result, so generated content never blocks a merge.](../docs/features/git-native.md)
@@ -69,6 +70,7 @@ row: "- [{summary}](../{filename})"
 - [A single static Go binary, no runtime to start. The workspace walk runs in parallel, embeds are linted once, and `check` is built for the hot path — a full check of this repo completes in under 300 ms.](../docs/features/performance.md)
 - [CI badge, Go Report Card grade, and Codecov coverage badge report live project health. mdsmith lints its own docs with the rules it ships, and a coverage gate blocks any merge that drops below the line.](../docs/features/quality.md)
 - [`mdsmith list query 'status: "✅"' plan/` selects files by a CUE expression on front matter; `mdsmith metrics rank` ranks files by any shared metric — both ready to pipe into a release script.](../docs/features/release-gating.md)
+- [Rename a heading and every workspace anchor link that points at it is rewritten in one atomic edit. Link-reference labels rename with their uses. A colliding slug fails loudly instead of silently breaking cross-file links.](../docs/features/rename.md)
 - [On `mdsmith fix`, `<?toc?>` rebuilds a heading TOC, `<?catalog?>` generates an index from front matter, and `<?include?>` splices in another file. A Git merge driver auto-resolves conflicts inside those blocks.](../docs/features/self-maintaining-sections.md)
 - [How to use the build directive to declare artifact outputs, keep generated bodies in sync, and configure user-declared recipes.](../docs/guides/directives/build.md)
 - [How to use schemas, require, and allow-empty-section to validate headings, front matter, and filenames.](../docs/guides/directives/enforcing-structure.md)
@@ -83,6 +85,7 @@ row: "- [{summary}](../{filename})"
 - [CLI commands, flags, exit codes, and output format.](../docs/reference/cli.md)
 - [List workspace links that point at a file.](../docs/reference/cli/backlinks.md)
 - [Lint Markdown files for style issues.](../docs/reference/cli/check.md)
+- [List a file's dependency-graph edges (includes, links, catalogs, builds).](../docs/reference/cli/deps.md)
 - [Write a portable, directive-free copy of a Markdown file.](../docs/reference/cli/export.md)
 - [Emit a schema-conformant Markdown file as a JSON/YAML/msgpack data tree.](../docs/reference/cli/extract.md)
 - [Auto-fix lint issues in Markdown files in place.](../docs/reference/cli/fix.md)
@@ -159,11 +162,10 @@ GIF. When editing it:
 
 ### Writing Guidelines
 
-When writing descriptions, state the concrete constraint:
-what specific data must satisfy what condition. Name the
-inputs (front matter fields, glob pattern, heading level)
-not just the mechanism. Avoid vague verbs (match, sync,
-reflect) without saying what is checked against what.
+When writing descriptions, state what specific data must satisfy
+what condition. Name the inputs (front matter fields, glob pattern,
+heading level), not just the mechanism. Avoid vague verbs (match,
+sync, reflect) without saying what is checked against what.
 
 ### Development Reference
 
