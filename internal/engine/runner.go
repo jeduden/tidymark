@@ -33,6 +33,12 @@ type Runner struct {
 	// Explain, when true, attaches per-leaf rule provenance to each
 	// diagnostic so output formatters can render an explanation trailer.
 	Explain bool
+	// SkipSourceContext, when true, suppresses per-diagnostic
+	// SourceLines population. Set it for callers that never render the
+	// source window (the check benchmark/gate, machine output that
+	// omits it) to avoid its large per-diagnostic allocation. Default
+	// false preserves the CLI text formatter's context display.
+	SkipSourceContext bool
 	// ConfigPath is the path to the loaded .mdsmith.yml. When set,
 	// config-target rules (rule.ConfigTarget) are run once against a
 	// synthetic lint.File for this path before per-file processing.
@@ -121,7 +127,7 @@ func (r *Runner) processFile(path string, res *Result) {
 	mdRules := r.markdownRules()
 	r.logRules(mdRules, effective)
 
-	diags, errs := CheckRules(f, mdRules, effective)
+	diags, errs := checkRules(f, mdRules, effective, r.SkipSourceContext)
 	if r.Explain {
 		explain.Attach(diags, r.Config, path, fmKinds, fmFields)
 	}
@@ -268,7 +274,7 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 	mdRules := r.markdownRules()
 	r.logRules(mdRules, effective)
 
-	diags, errs := CheckRules(f, mdRules, effective)
+	diags, errs := checkRules(f, mdRules, effective, r.SkipSourceContext)
 	if r.Explain {
 		explain.Attach(diags, r.Config, path, fmKinds, fmFields)
 	}
