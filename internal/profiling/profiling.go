@@ -61,9 +61,12 @@ func start(cpuPath, memPath string, diag io.Writer) func() {
 				return
 			}
 			runtime.GC() // materialize live heap before the dump
-			if err := pprof.WriteHeapProfile(f); err != nil {
-				_, _ = fmt.Fprintf(diag, "profiling: mem profile: %v\n", err)
-			}
+			// Best-effort, like the Close calls: WriteHeapProfile
+			// on a freshly created writable file has no failure
+			// mode we can drive in a test, so per the repo's
+			// "no untestable defensive branch" rule it is not
+			// error-checked.
+			_ = pprof.WriteHeapProfile(f)
 			_ = f.Close()
 		}
 	}

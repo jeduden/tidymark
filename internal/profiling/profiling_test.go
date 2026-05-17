@@ -63,6 +63,22 @@ func TestStart_CPUProfile_WritesNonEmpty(t *testing.T) {
 	}
 }
 
+func TestStart_CPUAlreadyRunning_ReportsAndContinues(t *testing.T) {
+	// pprof allows only one active CPU profile per process, so a
+	// second Start while the first is running drives the
+	// StartCPUProfile error branch deterministically.
+	first := start(filepath.Join(t.TempDir(), "first.out"), "", &bytes.Buffer{})
+	defer first()
+
+	cpu2 := filepath.Join(t.TempDir(), "second.out")
+	var diag bytes.Buffer
+	stop := start(cpu2, "", &diag)
+	stop() // no second profile was started; safe no-op
+	if !strings.Contains(diag.String(), "cpu profile") {
+		t.Fatalf("expected cpu-profile diagnostic, got %q", diag.String())
+	}
+}
+
 func TestStart_CPUCreateError_ReportsAndContinues(t *testing.T) {
 	bad := filepath.Join(t.TempDir(), "nope", "cpu.out") // missing dir
 	var diag bytes.Buffer
