@@ -72,9 +72,12 @@ var siblingLink = regexp.MustCompile(`\]\(([^)\s]+)\)`)
 // fragments, and `../`-prefixed paths (those are the
 // non-published rewrite's job — repoNonPublishedLink — and
 // double-handling them here would route the same link twice).
-// Image targets (`.svg`/`.png`/…) are in syncableExt, so the
-// extension filter already leaves them — and any `![alt](…)`
-// image link — untouched.
+// Common image extensions (`.svg`/`.png`/…) are in syncableExt,
+// so the extension filter leaves an `![alt](pic.png)` image link
+// untouched. An image whose extension is outside syncableExt
+// (e.g. `![x](chart.pdf)`) would still be rewritten — acceptable
+// because no such doc image exists and MDS027 never walks image
+// nodes anyway.
 //
 // Runs under applyOutsideCode so a `[x](run.sh)` example inside
 // a code span or fenced block stays verbatim documentation.
@@ -153,6 +156,14 @@ func (t *Toolkit) SyncDocs(srcDir, dstDir string) error {
 	if err := t.fs.MkdirAll(dstDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir dst %s: %w", dstDir, err)
 	}
+	// repoDir is the docs tree's name relative to the repo root,
+	// used to anchor sibling-link GitHub URLs (see
+	// rewriteSiblingNonPublished). The basename of srcDir IS that
+	// segment because BuildWebsite is run from the repo root with
+	// srcDir = ./docs — the same root-relative assumption the
+	// rulesDir derivation makes. A srcDir whose basename is not
+	// the real repo-relative docs path would mis-anchor those
+	// URLs (silently — they would 404 on GitHub, not error here).
 	repoDir := filepath.Base(filepath.Clean(srcDir))
 	if _, err := t.syncDocsDir(srcDir, dstDir, repoDir); err != nil {
 		return fmt.Errorf("sync %s -> %s: %w", srcDir, dstDir, err)
