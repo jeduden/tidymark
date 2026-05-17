@@ -16,19 +16,21 @@ summary: >-
 
 ## Goal
 
-The mdsmith-vs-Rust comparison
-([benchmark research doc](../docs/research/benchmarks/README.md))
-is a hand-refreshed artifact: `run.sh` installs the tools,
-runs hyperfine, promotes JSON, regenerates fragments. CI
-(`bench-fragments`) only checks the committed fragments
-match the committed JSON — it never re-measures. So the
-table drifts stale after every engine change (it is stale
-right now: it predates plan 175's single-core work *and*
-the Run parallelization).
+The mdsmith-vs-Rust comparison is a hand-refreshed
+artifact. See the
+[benchmark research doc](../docs/research/benchmarks/README.md).
+`run.sh` installs the tools, runs hyperfine, promotes
+JSON, and regenerates fragments by hand.
 
-Automate it the way `demo.gif` is automated: on merge to
-`main`, measure, and push the result to the orphan
-`assets` branch; the website pulls from there.
+CI (`bench-fragments`) only checks that the committed
+fragments match the committed JSON. It never re-measures.
+So the table goes stale after every engine change. It is
+stale now. It predates both plan 175's single-core work
+and the Run parallelization.
+
+Fix this the way `demo.gif` is built. On merge to `main`,
+measure. Push the result to the orphan `assets` branch.
+The website pulls from there.
 
 ## Background
 
