@@ -101,4 +101,5 @@ footer: |
 | 172 | 🔲     | opus   | [Link-style rule and shared links config](plan/172_link-style-rule-and-config.md)                                         |
 | 173 | 🔲     | sonnet | [Website rewriter tolerates titled links](plan/173_rewriter-titled-links.md)                                              |
 | 174 | ✅     | opus   | [Expose rename and dependency-graph as CLI subcommands and feature docs](plan/174_expose-rename-and-deps-cli.md)          |
+| 175 | 🔲     |        | [Centralize UTF-16 column helpers in internal/mdtext](plan/175_arch-fix-utf16-centralize.md)                              |
 <?/catalog?>
