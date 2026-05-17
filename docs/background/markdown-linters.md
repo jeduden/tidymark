@@ -551,12 +551,9 @@ access and is non-deterministic.
 
 ## Benchmarks
 
-We ran our own benchmark, not re-quoted READMEs. hyperfine
-drives each tool's default check over the same files, caches
-off, on two corpora: mdsmith's own docs and neutral prose
-(Rust Book plus Rust Reference). Full method is in the
-[benchmark doc][bench]; the numbers below are spliced from
-its output, not hand-typed:
+We ran our own benchmark, not re-quoted READMEs. It uses
+hyperfine over two corpora; the full method is in the
+[benchmark doc][bench]. Numbers come from its output:
 
 <?include
 file: ../research/benchmarks/results.fragment.md
@@ -565,39 +562,45 @@ file: ../research/benchmarks/results.fragment.md
 docs/research/benchmarks/data/*.json — do not edit by hand. Re-run
 the harness (run.sh) and `mdsmith fix` to refresh. -->
 
+`mdsmith` is the default rule set; `mdsmith-parity` disables the
+mdsmith-only rules so the work class matches the markdownlint
+tools (see `bench-parity.mdsmith.yml`).
+
 **Repo corpus — 523 Markdown files** (median wall time, lower is
 better; `vs mado` is the median ratio to the fastest tool):
 
 | Tool              | Median  | Min     | vs mado |
 |-------------------|---------|---------|---------|
-| mado              | 43 ms   | 42 ms   | 1.0x    |
-| rumdl             | 166 ms  | 150 ms  | 3.8x    |
-| panache           | 220 ms  | 212 ms  | 5.1x    |
-| mdsmith           | 759 ms  | 736 ms  | 18x     |
-| markdownlint-cli2 | 3455 ms | 3303 ms | 80x     |
+| mado              | 47 ms   | 43 ms   | 1.0x    |
+| rumdl             | 177 ms  | 157 ms  | 3.7x    |
+| panache           | 215 ms  | 210 ms  | 4.6x    |
+| mdsmith-parity    | 302 ms  | 295 ms  | 6.4x    |
+| mdsmith           | 769 ms  | 739 ms  | 16x     |
+| markdownlint-cli2 | 3528 ms | 3425 ms | 75x     |
 
 **Neutral corpus — 234 files** (Rust Book + Rust Reference,
 longer third-party prose):
 
 | Tool              | Median  | Min     | vs mado |
 |-------------------|---------|---------|---------|
-| mado              | 45 ms   | 44 ms   | 1.0x    |
-| rumdl             | 147 ms  | 139 ms  | 3.3x    |
-| panache           | 332 ms  | 322 ms  | 7.4x    |
-| mdsmith           | 708 ms  | 678 ms  | 16x     |
-| markdownlint-cli2 | 3443 ms | 3130 ms | 77x     |
+| mado              | 46 ms   | 45 ms   | 1.0x    |
+| rumdl             | 149 ms  | 144 ms  | 3.2x    |
+| panache           | 319 ms  | 309 ms  | 6.9x    |
+| mdsmith-parity    | 425 ms  | 417 ms  | 9.2x    |
+| mdsmith           | 706 ms  | 684 ms  | 15x     |
+| markdownlint-cli2 | 3232 ms | 3182 ms | 70x     |
 <?/include?>
 
-Two facts, both honest. Every native binary beats the Node
-baseline by a wide margin — mdsmith is about 4x faster than
-markdownlint-cli2. But mdsmith is the slowest native tool
-here, by design. mado, rumdl, and panache are per-file
-linters; mado is a check-only port of ~41 rules. mdsmith
-also walks the cross-file graph, scores readability, and
-validates generated sections. So the read is fit, not a
-race: pick mado or rumdl for raw markdownlint throughput,
-panache for Quarto or R Markdown, mdsmith for the cross-file
-and self-maintaining-section layer.
+Every native binary beats the Node baseline — default
+mdsmith is about 4x faster than markdownlint-cli2. But
+default mdsmith is the slowest native tool here, by design:
+it also walks the cross-file graph, scores readability, and
+validates generated sections. With those mdsmith-only rules
+off (the `mdsmith-parity` row) it is about 2.5x faster and
+within ~2x of rumdl. So the read is fit, not a race: pick
+mado or rumdl for raw markdownlint throughput, panache for
+Quarto or R Markdown, mdsmith for the cross-file and
+self-maintaining-section layer.
 
 ## When to Use What
 

@@ -53,7 +53,11 @@ def main() -> None:
     repo_tbl, repo = rows(json_dir, "corpus_repo")
     neut_tbl, _ = rows(json_dir, "corpus_neutral")
 
-    results = (GEN + "\n"
+    note = ("`mdsmith` is the default rule set; `mdsmith-parity` "
+            "disables the\nmdsmith-only rules so the work class "
+            "matches the markdownlint\ntools (see "
+            "`bench-parity.mdsmith.yml`).\n\n")
+    results = (GEN + "\n" + note +
                "**Repo corpus — 523 Markdown files** (median wall "
                "time, lower is\nbetter; `vs mado` is the median "
                "ratio to the fastest tool):\n\n" + repo_tbl + "\n\n"

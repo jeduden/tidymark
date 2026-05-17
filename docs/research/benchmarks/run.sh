@@ -60,11 +60,18 @@ if [ ! -d "$WORK/corpus_neutral" ]; then
 fi
 
 # --- benchmark -------------------------------------------------------------
+# mdsmith        — default rule set (what users actually run; the
+#                  cross-file / readability / generated layer is on).
+# mdsmith-parity — only the structural rules that have a markdownlint
+#                  analog, so the work class matches mado / rumdl /
+#                  markdownlint. See bench-parity.mdsmith.yml.
+PARITY="$REPO_ROOT/docs/research/benchmarks/bench-parity.mdsmith.yml"
 for corpus in corpus_repo corpus_neutral; do
   hyperfine -i --warmup 3 --runs 10 -N \
     --command-name "mado"    "mado check $WORK/$corpus" \
     --command-name "rumdl"   "rumdl check --no-cache $WORK/$corpus" \
     --command-name "panache" "panache lint --no-cache $WORK/$corpus" \
+    --command-name "mdsmith-parity" "mdsmith check -c $PARITY $WORK/$corpus" \
     --command-name "mdsmith" "mdsmith check $WORK/$corpus" \
     --export-json "$OUT/$corpus.json" \
     --export-markdown "$OUT/$corpus.md"
