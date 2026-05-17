@@ -212,6 +212,95 @@ over discovered files and queries `OutgoingEdges` /
   Easy to rename before the contract test locks if a
   reviewer prefers otherwise.
 
+## Remaining work
+
+Task 4's first slice landed:
+[internal/rename](../internal/rename/rename.go) holds
+the link-reference engine and the shared body/offset
+helpers, 100% covered. Three slices remain, each its
+own green commit.
+
+### Slice A — move the heading engine
+
+Lift the heading half of
+[internal/lsp/rename.go](../internal/lsp/rename.go)
+into [internal/rename](../internal/rename/rename.go).
+
+- slug map: `computeSlugRemap`, `walkAllHeadings`,
+  `assignSlugs`, `slugRemapPairs`, `headingTextEdit`
+- anchor edits: `anchorEditForEdge`,
+  `anchorFragmentBytes`, `destBounds`, `indexOfHash`,
+  `fragmentEnd`, `fragmentMatchesSlug`,
+  `isBackslashEscaped`
+- ref-def destinations: `refDefDestEditForMatch`,
+  `refDefColonOffset`, `refDefDestRange`,
+  `refDefDestPointsAt`, `refDefParseTarget`
+- ordering: `stableSortEdits`
+- guards to add: reject a control rune, an empty
+  slug, and a slug that collides with another heading
+
+`Workspace` seam the heading path needs:
+
+- list the incoming anchor edges for a `(file, slug)`
+- resolve a workspace path to its bytes
+- LSP backs it with the warm index + open buffers;
+  CLI with a transient index + disk reads
+
+API: `rename.Heading(ws, file, line, newName)` →
+per-file `Edit` set, or `CollisionError` naming the
+clash. Behavior tests: same-file anchors, cross-file
+anchors, disambiguator shift, each guard. 100%
+coverage, no mocks.
+
+### Slice B — LSP delegates to the core
+
+- `handleRename` resolves the cursor (unchanged), then
+  calls `rename.Heading` / `rename.LinkRef`
+- map the `Edit` set → `workspaceEdit`; map typed
+  errors → `InvalidParams` + `renameCollisionData`
+- delete the now-duplicated engine from the LSP
+  package
+- keep the prepare-range / cursor-disambiguation code
+  (editor-only); `isValidRefDefLine` calls
+  `rename.ValidRefDefBodyLines`
+- regression gate, byte-for-byte: the plan-131/151
+  suites in [internal/lsp](../internal/lsp/) plus
+  [cmd/mdsmith/lsp_rename_test.go](../cmd/mdsmith/lsp_rename_test.go)
+- the neutral `Edit` is line + UTF-16 char, the same
+  shape as the LSP `textEdit`, so the adapter is a
+  field copy — the wire output cannot drift
+
+### Slice C — the `mdsmith rename` CLI
+
+Add `cmd/mdsmith/rename.go`, name-based:
+
+```bash
+mdsmith rename <file> --heading "Old" "New"
+mdsmith rename <file> --link-ref oldlabel newlabel
+```
+
+- `--heading` finds the heading line whose text is
+  `Old`; `--link-ref` normalizes `oldlabel`
+- build a `Workspace` over a transient
+  `internal/index` + disk, mirroring
+  [cmd/mdsmith/deps.go](../cmd/mdsmith/deps.go)
+- apply each `Edit`: per line, convert the UTF-16
+  range back to bytes, then splice
+- register `rename` in
+  [cmd/mdsmith/main.go](../cmd/mdsmith/main.go)
+  dispatch + usage text
+- exit codes: `0` rewritten, `1` no match, `2` error
+  or conflict
+- unit + e2e tests, 100% coverage
+
+Then the task-8 follow-ups:
+
+- add a CLI section to
+  [docs/features/rename.md](../docs/features/rename.md)
+- add a `docs/reference/cli/rename.md` page
+- run `mdsmith fix .` to regenerate the catalogs
+- flip this plan's status to ✅
+
 ## ...
 
 <?allow-empty-section?>
