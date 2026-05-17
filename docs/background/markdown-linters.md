@@ -58,6 +58,67 @@ Part of the [unified][]/[remark][] AST pipeline ecosystem.
 - Deep composability with unified plugins
 - ~8.8k stars (remark parent project)
 
+### [rumdl][]
+
+Rust binary, zero runtime deps. ~1.1k stars. Positions itself
+as "a modern Markdown linter and formatter, built for speed
+with Rust" — an explicit, ruff-inspired drop-in replacement
+for markdownlint.
+
+- 71 lint rules, each mapped to a markdownlint ID
+  ([MD001][md001]-style); also reads existing markdownlint
+  JSON/YAML config, so a repo can switch with no rule rewrite
+- Autofix via `rumdl check --fix` plus a `rumdl fmt` formatter
+- Config: TOML (`.rumdl.toml`, or `[tool.rumdl]` in
+  `pyproject.toml`); parent-dir discovery like ESLint/Git
+- LSP server plus VS Code/Cursor/Windsurf and JetBrains
+  extensions
+- Flavor switches for GFM, MkDocs, MDX, and Quarto
+- Install: cargo, pip, npm, Homebrew, Nix, mise, winget,
+  binary download
+- Benchmarked on the Rust Book repo (478 files, Oct 2025);
+  see [Benchmarks](#benchmarks)
+
+### [mado][]
+
+Rust binary. Tagline: "A fast Markdown linter written in
+Rust. Compatible with CommonMark and GitHub Flavored Markdown
+(GFM)." Speed-first: the README leads with a benchmark, not a
+feature list.
+
+- ~41 rules mapped to markdownlint IDs (MD001-MD047 with
+  gaps); each rule is tagged stable, unstable, or unsupported
+- Check-only: no autofix, no `fix` mode, no LSP as of 2026-05
+- Config: TOML (`mado.toml` / `.mado.toml`) with a published
+  JSON Schema; per-platform global config path
+- Install: Homebrew, Nix, pacman, Scoop, WinGet, prebuilt
+  binaries
+- Ships a GitHub Actions integration
+- Headline claim: "≈49-60x faster than existing linters";
+  numbers in [Benchmarks](#benchmarks)
+
+### [panache][]
+
+Rust binary. Not a markdownlint clone — its own rule IDs and
+a different target. Tagline: "A language server, formatter,
+and linter for Markdown, Quarto, and R Markdown, built in
+Rust with a lossless CST parser and support for external
+formatters and linters on code blocks."
+
+- Three tools in one: `panache lint`, `panache format`, and
+  a full LSP (diagnostics, code actions, symbols, folding)
+- Lossless CST parser keeps Pandoc/Quarto syntax (fenced
+  divs, attribute spans) instead of flattening it — the
+  stated edge over Prettier and mdformat on `.qmd`/`.Rmd`
+- Delegates embedded code blocks to external formatters and
+  linters rather than reimplementing them
+- Config: TOML (`panache.toml` / `.panache.toml`)
+- Install: cargo, prebuilt binaries, AUR, Nix, PyPI
+  (uv/pipx), npm, VS Code extension
+- Ships reproducible hyperfine benchmarks against Prettier,
+  Pandoc, rumdl, mdformat, mado, and markdownlint; see
+  [Benchmarks](#benchmarks)
+
 ### [Prettier][]
 
 Node.js. Opinionated formatter, not a linter. ~51.7k
@@ -290,52 +351,59 @@ Weaknesses:
 
 ### Structural Linting
 
-| Capability          | mdsmith                        | markdownlint                             | remark-lint                                       |
-|---------------------|--------------------------------|------------------------------------------|---------------------------------------------------|
-| Heading hierarchy   | [MDS003][mds003]               | [MD001][md001]                           | [heading-increment][rl-hi]                        |
-| First-line heading  | [MDS004][mds004]               | [MD041][md041]                           | [first-heading-level][rl-fhl]                     |
-| Duplicate headings  | [MDS005][mds005]               | [MD024][md024]                           | [no-duplicate-headings][rl-ndh]                   |
-| Blank line spacing  | [MDS013][mds013]-[015][mds015] | [MD022][md022],[025][md025],[031][md031] | plugins                                           |
-| List indentation    | [MDS016][mds016]               | [MD007][md007]                           | [list-item-indent][rl-lii]                        |
-| Code fence style    | [MDS010][mds010]               | [MD048][md048]                           | [fenced-code-flag][rl-fcf]                        |
-| Code block language | [MDS011][mds011]               | [MD040][md040]                           | [fenced-code-flag][rl-fcf]                        |
-| Bare URLs           | [MDS012][mds012]               | [MD034][md034]                           | [no-literal-urls][rl-nlu]                         |
-| Line length         | [MDS001][mds001]               | [MD013][md013]                           | [maximum-line-length][rl-mll]                     |
-| Trailing spaces     | [MDS006][mds006]               | [MD009][md009]                           | [hard-break-spaces][rl-hbs]                       |
-| Inline HTML         | planned ([plan 105][plan105])  | [MD033][md033]                           | [no-html][rl-nh]                                  |
-| Image alt text      | [MDS032][mds032]               | [MD045][md045]                           | [no-empty-image-alt-text][rl-neiat] (third-party) |
-| OL numbering        | [MDS046][mds046]               | [MD029][md029]                           | [ordered-list-marker-style][rl-olms]              |
-| UL marker style     | planned ([plan 109][plan109])  | [MD004][md004]                           | [unordered-list-marker-style][rl-ulms]            |
-| Emphasis style      | planned ([plan 106][plan106])  | [MD049][md049], [MD050][md050]           | [emphasis-marker][rl-em]                          |
-| HR style            | planned ([plan 108][plan108])  | [MD035][md035]                           | [rule-style][rl-rs]                               |
-| Ambiguous emphasis  | planned ([plan 111][plan111])  | [MD037][md037]                           | no                                                |
-| Space in code       | [MDS052][mds052]               | [MD038][md038]                           | no                                                |
-| Space in links      | [MDS049][mds049]               | [MD039][md039]                           | no                                                |
-| Proper names        | [MDS050][mds050]               | [MD044][md044]                           | no                                                |
-| Required headings   | [MDS020][mds020] (via schema)  | [MD043][md043]                           | no                                                |
-| Single H1           | [MDS051][mds051]               | [MD025][md025]                           | no                                                |
-| Link fragments      | [MDS027][mds027] (cross-file)  | [MD051][md051]                           | no                                                |
-| Forbid ref-style    | [MDS043][mds043]               | no                                       | no                                                |
-| Undefined ref label | planned ([plan 128][plan128])  | [MD052][md052]                           | no                                                |
-| Unused/dup ref def  | [MDS053][mds053]               | [MD053][md053]                           | no                                                |
+All three cover the core structural rules; markdownlint has
+the broadest set. The full rule-by-rule mapping lives in the
+[markdownlint coverage matrix][mdcov]: every markdownlint
+`MDxxx`, the mdsmith rule that covers it or the plan that
+schedules it, and the mdsmith-only rules. As of 2026-05
+mdsmith implements 34 of 52 active markdownlint rules (1
+partial); the other 17 are scheduled in plans 172 and
+176-182.
 
-All three cover core structural rules. markdownlint has
-the broadest rule set. Plans cover inline HTML
-([plan 105][plan105]), UL marker style
-([plan 109][plan109]), emphasis style
-([plan 106][plan106]), and HR style
-([plan 108][plan108]). More plans cover ambiguous emphasis
-([plan 111][plan111]) and undefined reference labels
-([plan 128][plan128]).
-Image alt text ([MDS032][mds032]), OL numbering
-([MDS046][mds046]), no-space-in-code-spans
-([MDS052][mds052], [plan 124][plan124]),
-no-space-in-link-text ([MDS049][mds049]),
-proper names ([MDS050][mds050]), single H1
-([MDS051][mds051]), no-reference-style
-([MDS043][mds043]), and unused link reference
-definitions ([MDS053][mds053]) are already
-implemented.
+### Rust Markdown linters (rumdl, mado, panache)
+
+Three Rust tools sit next to mdsmith. [rumdl][] and [mado][]
+are markdownlint-compatible: they adopt markdownlint's
+`MDxxx` rule IDs as a drop-in surface. [panache][] is not —
+it keeps its own IDs and targets Pandoc/Quarto/R Markdown.
+mdsmith also keeps its own `MDSxxx` IDs and adds a
+cross-file, generated-content, and readability layer none
+of the three carry.
+
+In the [coverage matrix][mdcov] the markdownlint column
+doubles as the rumdl/mado column: both reuse the same
+`MDxxx` semantics. rumdl implements ~71 of those IDs; mado
+implements ~41. Neither adds rules outside the markdownlint
+set. panache does not map to that matrix — its checks
+target Quarto and
+R Markdown constructs the others flatten away.
+
+| Aspect                  | mdsmith      | rumdl                | mado                 | panache      |
+|-------------------------|--------------|----------------------|----------------------|--------------|
+| Language                | Go           | Rust                 | Rust                 | Rust         |
+| Rule IDs                | own `MDSxxx` | markdownlint `MDxxx` | markdownlint `MDxxx` | own          |
+| Rule count              | 30+          | 71                   | ~41                  | unenumerated |
+| Autofix / format        | `fix`        | `--fix`, `fmt`       | no                   | `format`     |
+| LSP / editor            | yes (LSP)    | yes (LSP)            | no                   | yes (LSP)    |
+| Config format           | YAML         | TOML                 | TOML                 | TOML         |
+| Reuse markdownlint cfg  | no           | yes                  | no                   | no           |
+| Cross-file integrity    | yes          | no                   | no                   | no           |
+| Generated sections      | yes          | no                   | no                   | no           |
+| Readability/token rules | yes          | no                   | no                   | no           |
+| Front-matter schema     | yes          | no                   | no                   | no           |
+| Quarto / R Markdown     | no           | Quarto flavor        | no                   | yes (CST)    |
+
+**Presentation notes (what to learn).** All three READMEs
+win on focus. mado opens with one sentence and a benchmark
+table — no feature wall before the proof. rumdl leads with
+a single positioning line ("built for speed with Rust"),
+names its inspiration (ruff), and states the drop-in promise
+up front. panache leads with one precise sentence that names
+its three jobs and its one technical edge (the lossless CST).
+mdsmith's own README front matter applies the same lesson:
+one crisp line, one verifiable number (sub-300 ms
+self-check), and an explicit "not just a markdownlint clone"
+framing before the feature list.
 
 ### Prose and Readability
 
@@ -443,6 +511,59 @@ dependencies. Node.js tools require a runtime but benefit
 from the npm ecosystem. LLM-based linting requires network
 access and is non-deterministic.
 
+## Benchmarks
+
+We ran our own benchmark, not re-quoted READMEs. It uses
+hyperfine over two corpora; the full method is in the
+[benchmark doc][bench]. Numbers come from its output:
+
+<?include
+file: ../research/benchmarks/results.fragment.md
+?>
+<!-- Generated by docs/research/benchmarks/gen_fragments.py from
+docs/research/benchmarks/data/*.json — do not edit by hand. Re-run
+the harness (run.sh) and `mdsmith fix` to refresh. -->
+
+`mdsmith` is the default rule set; `mdsmith-parity` disables the
+mdsmith-only rules so the work class matches the markdownlint
+tools (see `bench-parity.mdsmith.yml`).
+
+**Repo corpus — 523 Markdown files** (median wall time, lower is
+better; `vs mado` is the median ratio to the fastest tool):
+
+| Tool              | Median  | Min     | vs mado |
+|-------------------|---------|---------|---------|
+| mado              | 47 ms   | 43 ms   | 1.0x    |
+| rumdl             | 177 ms  | 157 ms  | 3.7x    |
+| panache           | 215 ms  | 210 ms  | 4.6x    |
+| mdsmith-parity    | 302 ms  | 295 ms  | 6.4x    |
+| mdsmith           | 769 ms  | 739 ms  | 16x     |
+| markdownlint-cli2 | 3528 ms | 3425 ms | 75x     |
+
+**Neutral corpus — 234 files** (Rust Book + Rust Reference,
+longer third-party prose):
+
+| Tool              | Median  | Min     | vs mado |
+|-------------------|---------|---------|---------|
+| mado              | 46 ms   | 45 ms   | 1.0x    |
+| rumdl             | 149 ms  | 144 ms  | 3.2x    |
+| panache           | 319 ms  | 309 ms  | 6.9x    |
+| mdsmith-parity    | 425 ms  | 417 ms  | 9.2x    |
+| mdsmith           | 706 ms  | 684 ms  | 15x     |
+| markdownlint-cli2 | 3232 ms | 3182 ms | 70x     |
+<?/include?>
+
+Every native binary beats the Node baseline — default
+mdsmith is about 4x faster than markdownlint-cli2. It is the
+slowest native tool here because it also walks the
+cross-file graph, scores readability, and validates
+generated sections. With those mdsmith-only rules off (the
+`mdsmith-parity` row) it is about 2.5x faster, within ~2x of
+rumdl; closing that last gap is active work. So the read is
+fit today: pick mado or rumdl for raw markdownlint
+throughput, panache for Quarto or R Markdown, mdsmith for
+the cross-file and self-maintaining-section layer.
+
 ## When to Use What
 
 **mdsmith** fits best when you need readability limits,
@@ -467,6 +588,21 @@ rather than replacing them.
 
 **textlint** works well for polyglot text linting (especially
 Japanese) and teams wanting ESLint-style modularity.
+
+**rumdl** is the pick when you want markdownlint's exact
+rules and config. You get them as one fast Rust binary,
+with autofix and an LSP. It is a drop-in speed upgrade for
+a Node markdownlint setup.
+
+**mado** fits a check-only CI gate. It just needs
+markdownlint rules run as fast as it can. There is no
+autofix, LSP, or front-matter support, and the gate does
+not need them.
+
+**panache** is the right choice for Quarto and R Markdown.
+Its lossless CST keeps the Pandoc syntax that Prettier and
+mdformat flatten. It bundles the formatter, linter, and LSP
+for those formats.
 
 **LLM as linter** is best for subjective quality checks:
 conciseness, clarity, tone. Use it in PR review workflows
@@ -655,12 +791,12 @@ items most relevant to this comparison are:
   lifecycle hooks. This will close part of the gap
   with Hugo: deriving artifacts from Markdown sources
   without leaving the linter.
-- **Closing rule gaps with markdownlint** — plans
-  [105][plan105] (no-inline-html / MD033),
-  [106][plan106] (emphasis style / MD049, MD050),
-  [108][plan108] (horizontal rule style / MD035),
-  [109][plan109] (list marker style / MD004), and
-  [111][plan111] (ambiguous emphasis / MD037).
+- **Closing rule gaps with markdownlint** — plans 176-182
+  schedule the 17 still-unmapped rules (heading, blockquote
+  and list whitespace; reversed/empty links; descriptive
+  link text; table structure; code-block style), and
+  [plan 172](../../plan/172_link-style-rule-and-config.md)
+  covers MD054. The [coverage matrix][mdcov] tracks each.
 - **User-defined Markdown conventions**
   ([plan 113][plan113]) — let teams package their own
   rule presets the way the built-in conventions
@@ -678,16 +814,6 @@ you need a stable rule set while these land.
 
 <!-- mdsmith rule links -->
 [mds001]: ../../internal/rules/MDS001-line-length/README.md
-[mds003]: ../../internal/rules/MDS003-heading-increment/README.md
-[mds004]: ../../internal/rules/MDS004-first-line-heading/README.md
-[mds005]: ../../internal/rules/MDS005-no-duplicate-headings/README.md
-[mds006]: ../../internal/rules/MDS006-no-trailing-spaces/README.md
-[mds010]: ../../internal/rules/MDS010-fenced-code-style/README.md
-[mds011]: ../../internal/rules/MDS011-fenced-code-language/README.md
-[mds012]: ../../internal/rules/MDS012-no-bare-urls/README.md
-[mds013]: ../../internal/rules/MDS013-blank-line-around-headings/README.md
-[mds015]: ../../internal/rules/MDS015-blank-line-around-fenced-code/README.md
-[mds016]: ../../internal/rules/MDS016-list-indent/README.md
 [mds019]: ../../internal/rules/MDS019-catalog/README.md
 [mds020]: ../../internal/rules/MDS020-required-structure/README.md
 [mds021]: ../../internal/rules/MDS021-include/README.md
@@ -698,16 +824,8 @@ you need a stable rule set while these land.
 [mds028]: ../../internal/rules/MDS028-token-budget/README.md
 [mds029]: ../../internal/rules/MDS029-conciseness-scoring/README.md
 [mds030]: ../../internal/rules/MDS030-empty-section-body/README.md
-[mds032]: ../../internal/rules/MDS032-no-empty-alt-text/README.md
-[mds043]: ../../internal/rules/MDS043-no-reference-style/README.md
 [mds035]: ../../internal/rules/MDS035-toc-directive/README.md
 [mds038]: ../../internal/rules/MDS038-toc/README.md
-[mds046]: ../../internal/rules/MDS046-ordered-list-numbering/README.md
-[mds049]: ../../internal/rules/MDS049-no-space-in-link-text/README.md
-[mds050]: ../../internal/rules/MDS050-proper-names/README.md
-[mds051]: ../../internal/rules/MDS051-single-h1/README.md
-[mds052]: ../../internal/rules/MDS052-no-space-in-code-spans/README.md
-[mds053]: ../../internal/rules/MDS053-no-unused-link-definitions/README.md
 <!-- markdownlint links -->
 [markdownlint]: https://github.com/DavidAnson/markdownlint
 [markdownlint-cli2]: https://github.com/DavidAnson/markdownlint-cli2
@@ -715,51 +833,11 @@ you need a stable rule set while these land.
 [mdl-vscode]: https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint
 [mdl-action]: https://github.com/DavidAnson/markdownlint-cli2-action
 [md001]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md001.md
-[md004]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md004.md
-[md007]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md007.md
-[md009]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md009.md
-[md013]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md013.md
-[md022]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md022.md
-[md024]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md024.md
-[md025]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md025.md
-[md029]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md029.md
-[md031]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md031.md
-[md033]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md033.md
-[md034]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md034.md
-[md035]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md035.md
-[md037]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md037.md
-[md038]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md038.md
-[md039]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md039.md
-[md040]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md040.md
-[md041]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md041.md
-[md043]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md043.md
-[md044]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md044.md
-[md045]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md045.md
-[md048]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md048.md
-[md049]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md049.md
-[md050]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md050.md
-[md051]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md051.md
-[md052]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md052.md
-[md053]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md053.md
 [md058]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md058.md
 <!-- remark-lint links -->
 [remark-lint]: https://github.com/remarkjs/remark-lint
 [remark]: https://github.com/remarkjs/remark
 [unified]: https://github.com/unifiedjs/unified
-[rl-hi]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-heading-increment
-[rl-fhl]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-first-heading-level
-[rl-ndh]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-duplicate-headings
-[rl-lii]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-list-item-indent
-[rl-fcf]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-fenced-code-flag
-[rl-nlu]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-literal-urls
-[rl-mll]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-maximum-line-length
-[rl-hbs]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-hard-break-spaces
-[rl-nh]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-no-html
-[rl-neiat]: https://github.com/salesforce/remark-lint-no-empty-image-alt-text
-[rl-olms]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-ordered-list-marker-style
-[rl-ulms]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-unordered-list-marker-style
-[rl-em]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-emphasis-marker
-[rl-rs]: https://github.com/remarkjs/remark-lint/tree/main/packages/remark-lint-rule-style
 [rl-vl]: https://github.com/remarkjs/remark-validate-links
 [rl-fm]: https://github.com/remarkjs/remark-frontmatter
 <!-- include / preprocessor tool links -->
@@ -802,9 +880,15 @@ you need a stable rule set while these land.
 <!-- mdbase links -->
 [mdbase]: https://mdbase.dev/
 [mdbase-deep-dive]: ../research/mdbase-vs-mdsmith/README.md
+<!-- rust markdown linter links -->
+[rumdl]: https://github.com/rvben/rumdl
+[mado]: https://github.com/akiomik/mado
+[panache]: https://panache.bz/
 <!-- mdsmith plan + security + reference links -->
 [mdsmith-sec]: ../security/2026-04-05-adversarial-markdown.md
 [conventions]: ../reference/conventions.md
+[bench]: ../research/benchmarks/README.md
+[mdcov]: ../research/markdownlint-coverage/README.md
 [plan78]: ../../plan/78_query-command.md
 [plan83]: ../../plan/83_security-hardening-batch.md
 [plan84]: ../../plan/84_symlink-default-deny.md
@@ -813,12 +897,5 @@ you need a stable rule set while these land.
 [plan102]: ../../plan/102_build-subcommand.md
 [plan103]: ../../plan/103_build-staleness-and-deps.md
 [plan104]: ../../plan/104_build-lifecycle-hooks.md
-[plan105]: ../../plan/105_no-inline-html.md
-[plan106]: ../../plan/106_emphasis-style.md
-[plan108]: ../../plan/108_horizontal-rule-style.md
-[plan109]: ../../plan/109_list-marker-style.md
-[plan111]: ../../plan/111_ambiguous-emphasis.md
 [plan113]: ../../plan/113_user-defined-profiles.md
 [plan120]: ../../plan/120_glob-unification.md
-[plan124]: ../../plan/124_no-space-in-code-spans.md
-[plan128]: ../../plan/128_no-undefined-reference-labels.md

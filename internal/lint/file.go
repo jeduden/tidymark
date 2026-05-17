@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io/fs"
 	"os"
+	"sort"
+	"sync"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
@@ -37,9 +39,10 @@ type File struct {
 	// GitignoreFunc is a lazy factory for the gitignore matcher.
 	// It is called at most once (on first access via GetGitignore)
 	// and the result is cached. Rules that do not call GetGitignore
-	// never trigger matcher construction.
+	// never trigger matcher construction. sync.Once keeps the lazy
+	// build race-free if a *File is shared across goroutines.
 	GitignoreFunc func() *GitignoreMatcher
-	gitignoreOnce bool
+	gitignoreOnce sync.Once
 	gitignoreVal  *GitignoreMatcher
 
 	// GeneratedRanges records the content line ranges of generated
@@ -47,6 +50,17 @@ type File struct {
 	// line falls within these ranges are suppressed when linting the
 	// host file — the source file is responsible for those bytes.
 	GeneratedRanges []LineRange
+
+	// newlineOffsets caches the byte offset of every '\n' in Source,
+	// built once on first LineOfOffset call. Without it LineOfOffset
+	// rescans Source from byte 0 on every call, which made it ~24%
+	// of total `mdsmith check` CPU (plan 175 profiling). Built
+	// lazily because File is also constructed as a struct literal,
+	// not only via NewFile. sync.Once makes the lazy build safe
+	// even if a *File is read from multiple goroutines (e.g. the
+	// LSP serving concurrent requests for one document).
+	newlineOffsets     []int
+	newlineOffsetsOnce sync.Once
 }
 
 // SetRootDir configures the project root directory and its fs.FS together.
@@ -58,13 +72,11 @@ func (f *File) SetRootDir(dir string) {
 // GetGitignore returns the gitignore matcher for this file, creating it
 // lazily on first call. Returns nil if no GitignoreFunc was configured.
 func (f *File) GetGitignore() *GitignoreMatcher {
-	if f.gitignoreOnce {
-		return f.gitignoreVal
-	}
-	f.gitignoreOnce = true
-	if f.GitignoreFunc != nil {
-		f.gitignoreVal = f.GitignoreFunc()
-	}
+	f.gitignoreOnce.Do(func() {
+		if f.GitignoreFunc != nil {
+			f.gitignoreVal = f.GitignoreFunc()
+		}
+	})
 	return f.gitignoreVal
 }
 
@@ -149,15 +161,29 @@ func (f *File) FullSource(body []byte) []byte {
 	return out
 }
 
-// LineOfOffset converts a byte offset in Source to a 1-based line number.
-func (f *File) LineOfOffset(offset int) int {
-	line := 1
-	for i := 0; i < offset && i < len(f.Source); i++ {
-		if f.Source[i] == '\n' {
-			line++
+// lineIndex returns the cached offsets of every '\n' in Source,
+// building it once on first use.
+func (f *File) lineIndex() []int {
+	f.newlineOffsetsOnce.Do(func() {
+		var nl []int
+		for i := 0; i < len(f.Source); i++ {
+			if f.Source[i] == '\n' {
+				nl = append(nl, i)
+			}
 		}
-	}
-	return line
+		f.newlineOffsets = nl
+	})
+	return f.newlineOffsets
+}
+
+// LineOfOffset converts a byte offset in Source to a 1-based line
+// number. The line is 1 plus the number of newlines that occur
+// strictly before offset (a newline exactly at offset starts the
+// next line, so it does not count) — identical to a linear scan,
+// but O(log n) via binary search over the cached newline index.
+func (f *File) LineOfOffset(offset int) int {
+	nl := f.lineIndex()
+	return 1 + sort.Search(len(nl), func(i int) bool { return nl[i] >= offset })
 }
 
 // ColumnOfOffset converts a byte offset in Source to a 1-based column
