@@ -29,15 +29,54 @@ files are discovered from `.mdsmith.yml` `files:` patterns.
 | `-q`, `--quiet`     | false   | Suppress non-error output              |
 | `-v`, `--verbose`   | false   | Show config, files, and rules          |
 | `--explain`         | false   | Attach per-leaf rule provenance        |
+| `--dry-run`         | false   | Preview fixes without writing to disk  |
 
 `--follow-symlinks` semantics match
 [`mdsmith check`](check.md#flags).
+
+## Dry-run preview
+
+`--dry-run` builds the fixed content per file but skips the write.
+Per-file output lists which rules would fire and the violation count.
+Files with no fixes do not appear.
+
+```bash
+mdsmith fix --dry-run docs/
+```
+
+Example output:
+
+```text
+docs/api.md: would fix 3 violations (MDS001, MDS006)
+docs/index.md: would fix 1 violation (MDS002)
+stats: checked=12 fixed=0 failures=0 unfixed=4 would-fix=4
+```
+
+The summary includes `would-fix=N` and always prints `fixed=0`
+(nothing is written).
+
+With `--format json`, each file is an object:
+
+```json
+[
+  {
+    "path": "docs/api.md",
+    "would_fix": 3,
+    "rules": ["MDS001", "MDS006"],
+    "diagnostics": []
+  }
+]
+```
+
+**Exit code:** `0` when every violation is fixable; non-zero when
+unfixable violations remain. Matches the real-run exit code.
 
 ## Examples
 
 ```bash
 mdsmith fix README.md            # fix a single file
 mdsmith fix docs/                # fix a tree
+mdsmith fix --dry-run docs/      # preview without writing
 mdsmith fix --explain plan/      # show provenance for unfixed leftovers
 ```
 
