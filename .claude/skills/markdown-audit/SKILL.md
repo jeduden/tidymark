@@ -109,12 +109,29 @@ command below.
 
 ### 3. Walk the checks
 
-Run the seven checks listed in `## Checks` in
-order. Each summary names the signal, the
-`<?directive?>` or `.mdsmith.yml` knob, and the
-fix recipe. When a sibling `patterns.md` is
-present (project install), read it once at the
-start for deeper heuristics and false positives.
+Load the rule-backed patterns once at the start,
+using the CLI detected in step 2:
+
+```bash
+mdsmith help patterns -f json
+```
+
+Each record is `{id, name, signal, fix,
+for-diagnostic}` for one of the five built-in
+rules that declare a maintainability pattern. Do
+not hard-code these signals or fixes; reading
+them here keeps the audit in sync as rules gain
+or change patterns.
+
+Read `patterns.md` for the three config-level
+checks. It carries their signal, heuristic, false
+positives, severity, and fix recipe. The project
+skill ships it as a sibling file; the marketplace
+plugin appends the same content to this SKILL.md
+under the `Detection patterns` heading at the
+end.
+
+Run all eight checks (see `## Checks`) in order.
 
 For each `<?directive?>` fix, read the rule's
 `pattern/bad/` and `pattern/good/` folders. They
@@ -175,31 +192,46 @@ retune rules the user has already chosen.
 
 ## Checks
 
-Each check has a one-line summary here.  When a
-sibling `patterns.md` is present, it carries the
-full signal, heuristic, false positives, and fix
-recipe per check.
+The audit runs eight checks from two sources.
+
+### Config-level checks
+
+No built-in rule backs these three. `patterns.md`
+(see step 3) carries the full signal, heuristic,
+false positives, severity, and fix recipe.
 
 1. **No `.mdsmith.yml`** — the repo has no
    config; propose `mdsmith init`.
-2. **Hand-maintained indexes** — a list of links
-   to sibling files that should be a
-   `<?catalog?>` directive.
-3. **Similar files, no kind** — a directory of
+2. **Similar files, no kind** — a directory of
    three or more `.md` files with shared front
    matter and no `kind-assignment:` entry.
-4. **Duplicated content** — near-identical
-   sections across files that should use
-   `<?include?>`.
-5. **Kind without `path-pattern`** — a kind whose
+3. **Kind without `path-pattern`** — a kind whose
    files share a naming shape, but the body
    declares no `path-pattern:`.
-6. **Kind without a schema** — a kind whose files
-   share a front matter shape, but the body
-   declares no `required-structure.schema:`.
-7. **File placement violation** — a `.md` file
-   in a directory the file-placement guide
-   rejects.
+
+### Rule-backed checks
+
+Five built-in rules each declare a
+maintainability pattern. `mdsmith help patterns`
+(step 3) supplies the signal and fix wording for
+each; treat that output as the source of truth.
+The list below only maps each rule to its
+check — new rule-backed patterns show up in the
+command output automatically.
+
+- `catalog` (MDS019) — a hand-maintained index
+  of sibling files that should be a `<?catalog?>`
+  directive.
+- `required-structure` (MDS020) — a kind whose
+  files share a shape but declare no
+  `required-structure.schema:`.
+- `include` (MDS021) — near-duplicate sections
+  that drift across files and should use
+  `<?include?>`.
+- `directory-structure` (MDS033) — a `.md` file
+  outside an allowed directory.
+- `duplicated-content` (MDS037) — repeated
+  paragraphs or sections with the same content.
 
 ## Severity
 
@@ -260,11 +292,12 @@ line to the report: `applied → path`.
   otherwise fail.
 - This skill ships in two places. The project
   copy at `.claude/skills/markdown-audit/` is the
-  canonical source and includes a sibling
-  `patterns.md` with deeper recipes; it is used by
-  mdsmith contributors on this repo. The
-  marketplace plugin `mdsmith-audit` mirrors the
-  SKILL body via `<?include?>` so end users get
-  the same workflow without the optional
-  reference. Edit this file and run `mdsmith fix`
-  to keep the plugin copy in sync.
+  canonical source for both the SKILL body and
+  `patterns.md`. The marketplace plugin
+  `mdsmith-audit` mirrors the SKILL body and
+  appends `patterns.md` via `<?include?>`, so end
+  users get the same workflow and config-level
+  recipes in a single file. Edit the canonical
+  `SKILL.md` or `patterns.md` and run
+  `mdsmith fix` to regenerate the plugin
+  SKILL.md.

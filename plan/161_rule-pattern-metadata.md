@@ -1,7 +1,7 @@
 ---
 id: 161
 title: Expose rule maintainability patterns via CLI help and LSP
-status: "🔳"
+status: "✅"
 model: sonnet
 depends-on: []
 summary: >-
@@ -303,13 +303,13 @@ automatically.
       and
       [`docs/reference/cli/lsp.md`](../docs/reference/cli/lsp.md)
       document the new topic and LSP method.
-- [ ] Both the local `markdown-audit` skill
+- [x] Both the local `markdown-audit` skill
       and the installed `mdsmith-audit` plugin
       surface all five rule-backed patterns
       (from `mdsmith help patterns`) plus the
-      three trimmed config-level checks. Deferred
-      to a follow-up; this PR ships the data
-      source the skill consumes.
+      three trimmed config-level checks (sibling
+      `patterns.md` locally; inlined into the
+      plugin SKILL.md via `<?include?>`).
 - [x] `go test ./...` passes.
 - [x] `mdsmith check .` passes.
 
