@@ -91,6 +91,34 @@ research artifact, not a CI gate.
     goldmark walk and the regexp-backtracking hotspots)
     until parity is within ~1.2x or a profiler shows no
     cheap win remains.
+    Pass 1 (trace analysis, this branch): a four-agent
+    profile trace of the single-core `Run` path landed four
+    behaviour-preserving wins — (a) MDS053/MDS054 no longer
+    re-parse the whole file; they read link reference
+    definitions from the parse `NewFile` already ran via
+    `lint.File.LinkReferences`; (b) the goldmark parser is
+    taken from a `sync.Pool` instead of rebuilt per file;
+    (c) `CollectCodeBlockLines` / `CollectPIBlockLines` are
+    memoized per `File` (was ~20 redundant AST walks per
+    file); (d) per-diagnostic source-context strings are
+    skipped when the caller discards them (the gate, machine
+    output). Two further wins from the parallelism effort's
+    single-core notes also landed: (e)
+    `crossfilereferenceintegrity` memoizes its per-link
+    `os.Stat` / `filepath.EvalSymlinks` in package-level
+    `sync.Map`s (Syscall6 was ~5.7% flat); (f)
+    `mdtext.CountWords` counts in an allocation-free rune
+    scan instead of `len(strings.Fields(...))` (~0.48 GB).
+    Measured single-core `BenchmarkCheckCorpusLarge`
+    (`GOMAXPROCS=1`, 12x): 1677 → 1046 us/file, p95 1006 →
+    627 ms (−38% cumulative). All caches `sync.Once`-,
+    `sync.Pool`- or `sync.Map`-guarded so the multi-goroutine
+    check / LSP path stays race-clean (verified under
+    `-race`). One candidate is deliberately deferred: a
+    `rule.RepoScoped`-marked `DedupeDiagnostics` skip —
+    catalog/include/MDS027 also emit cross-file duplicates,
+    so a safe skip needs an audited marker, not a quick
+    guard.
 
 ## Acceptance Criteria
 

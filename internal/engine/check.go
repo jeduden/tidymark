@@ -31,8 +31,25 @@ func ConfigureRule(rl rule.Rule, cfg config.RuleCfg) (rule.Rule, error) {
 // CheckRules runs all enabled rules against f, cloning and applying
 // settings for Configurable rules. It adjusts diagnostics using
 // f.AdjustDiagnostics and returns the collected diagnostics and any
-// settings-application errors.
+// settings-application errors. Source context is populated; callers
+// that discard SourceLines should use checkRules with
+// skipSourceContext=true to avoid that allocation.
 func CheckRules(f *lint.File, rules []rule.Rule, effective map[string]config.RuleCfg) ([]lint.Diagnostic, []error) {
+	return checkRules(f, rules, effective, false)
+}
+
+// checkRules is the core CheckRules implementation. skipSourceContext
+// suppresses populateSourceContext, whose per-diagnostic string copies
+// and []string windows were the single largest object count on the
+// check gate (~315 MB / 3.8M objects, plan 175 profiling) and are
+// unused when the caller never renders SourceLines (the benchmark, and
+// machine output that omits them).
+func checkRules(
+	f *lint.File,
+	rules []rule.Rule,
+	effective map[string]config.RuleCfg,
+	skipSourceContext bool,
+) ([]lint.Diagnostic, []error) {
 	var diags []lint.Diagnostic
 	var errs []error
 
@@ -54,7 +71,9 @@ func CheckRules(f *lint.File, rules []rule.Rule, effective map[string]config.Rul
 
 	diags = filterGeneratedDiags(diags, f.GeneratedRanges)
 	f.AdjustDiagnostics(diags)
-	populateSourceContext(f, diags, 2)
+	if !skipSourceContext {
+		populateSourceContext(f, diags, 2)
+	}
 	return diags, errs
 }
 

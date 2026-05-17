@@ -72,6 +72,10 @@ func benchCheck(b *testing.B, files, lines int, budget time.Duration) {
 			Rules:            rule.All(),
 			StripFrontMatter: true,
 			RootDir:          dir,
+			// The gate discards the Result, so the per-diagnostic
+			// source window is pure allocation here; skipping it
+			// measures rule CPU, not SourceLines string copies.
+			SkipSourceContext: true,
 		}
 	}
 	// Warm one run so first-touch allocations and the rule
