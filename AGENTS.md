@@ -114,23 +114,20 @@ row: "- [{summary}]({filename})"
 
 ## Development Workflow
 
-- Any change follows Red / Green TDD: write a failing
-  test (red), make it pass (green), commit
+- Any change follows Red/Green TDD: failing test, then pass, then commit
 - Keep commits small and focused on one change
 - Run `mdsmith check .` before committing to ensure all
   markdown files pass linting
-- Never modify `.mdsmith.yml` (linter configuration)
-  without explicit user consent — this includes rule
-  settings, overrides, ignore patterns, and file-length
-  limits
+- Never modify `.mdsmith.yml` (linter configuration) without
+  explicit user consent — this includes rule settings,
+  overrides, ignore patterns, and file-length limits
 
 ## PR Workflow
 
-Use the `/pr-fixup`, `/gh-resolve-threads`, and
-`/merge-queue` skills for PR work — they cover
-rebases, CI monitoring, thread resolution, and merge
-enqueuing. After every push, request a Copilot
-re-review (the skills do this automatically).
+Use the `/pr-fixup`, `/gh-resolve-threads`, and `/merge-queue`
+skills for PR work — they cover rebases, CI monitoring, thread
+resolution, and merge enqueuing. After every push, request a
+Copilot re-review (the skills do this automatically).
 
 ## Plan Maintenance
 

@@ -19,6 +19,7 @@ row: "- [{summary}]({filename})"
 - [CLI commands, flags, exit codes, and output format.](cli.md)
 - [List workspace links that point at a file.](cli/backlinks.md)
 - [Lint Markdown files for style issues.](cli/check.md)
+- [List a file's dependency-graph edges (includes, links, catalogs, builds).](cli/deps.md)
 - [Write a portable, directive-free copy of a Markdown file.](cli/export.md)
 - [Emit a schema-conformant Markdown file as a JSON/YAML/msgpack data tree.](cli/extract.md)
 - [Auto-fix lint issues in Markdown files in place.](cli/fix.md)
