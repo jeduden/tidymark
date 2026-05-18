@@ -110,3 +110,23 @@ func TestApplySettingsBannedWrongType(t *testing.T) {
 	err := r.ApplySettings(map[string]any{"banned": "not-a-list"})
 	assert.ErrorContains(t, err, "list of strings")
 }
+
+func TestDefaultSettings(t *testing.T) {
+	r := &Rule{}
+	s := r.DefaultSettings()
+	banned, ok := s["banned"].([]string)
+	require.True(t, ok)
+	assert.Equal(t, defaultBanned, banned)
+}
+
+func TestEmphasisWrappedBannedText(t *testing.T) {
+	diags := check(t, "# T\n\n[*here*](x)\n")
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "not descriptive")
+}
+
+func TestSoftLineBreakInLinkText(t *testing.T) {
+	diags := check(t, "# T\n\n[click\nhere](x)\n")
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "not descriptive")
+}

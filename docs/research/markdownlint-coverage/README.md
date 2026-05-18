@@ -20,8 +20,8 @@ Status legend:
 
 Deprecated markdownlint numbers (MD002, MD006, MD008,
 MD015-MD017) are omitted. As of 2026-05 mdsmith implements
-**34 of the 52** active markdownlint rules (1 partial); the
-remaining **17** are scheduled in plans 172 and 176-182.
+**35 of the 52** active markdownlint rules (1 partial); the
+remaining **16** are scheduled in plans 172 and 176-182.
 
 ## Headings
 

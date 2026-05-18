@@ -132,6 +132,9 @@ func collectText(b *strings.Builder, n ast.Node, source []byte) {
 	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 		if t, ok := c.(*ast.Text); ok {
 			b.Write(t.Segment.Value(source))
+			if t.SoftLineBreak() || t.HardLineBreak() {
+				b.WriteByte(' ')
+			}
 		} else {
 			collectText(b, c, source)
 		}
@@ -142,15 +145,6 @@ func collectText(b *strings.Builder, n ast.Node, source []byte) {
 func linkLine(link *ast.Link, f *lint.File) int {
 	if line := firstTextLine(link, f); line > 0 {
 		return line
-	}
-	for p := link.Parent(); p != nil; p = p.Parent() {
-		if isInlineNode(p) {
-			continue
-		}
-		lines := p.Lines()
-		if lines != nil && lines.Len() > 0 {
-			return f.LineOfOffset(lines.At(0).Start)
-		}
 	}
 	return 1
 }
@@ -165,15 +159,6 @@ func firstTextLine(n ast.Node, f *lint.File) int {
 		}
 	}
 	return 0
-}
-
-func isInlineNode(n ast.Node) bool {
-	switch n.(type) {
-	case *ast.Text, *ast.String, *ast.CodeSpan, *ast.Emphasis,
-		*ast.Link, *ast.Image, *ast.AutoLink, *ast.RawHTML:
-		return true
-	}
-	return false
 }
 
 var (
