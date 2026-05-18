@@ -41,6 +41,35 @@ re-exports the symbols (see
 ~150 callers compile unchanged. Exactly one
 goldmark config exists in the tree.
 
+## How this differs from goldmark
+
+`pkg/markdown` configures goldmark's parser. It
+does not replace or fork it. The differences
+that matter:
+
+- **Processing instructions.** A `<?name … ?>`
+  block parses to a `ProcessingInstruction`
+  node. Stock goldmark parses it as a
+  CommonMark type-3 raw HTML block.
+- **No renderer.** goldmark renders an AST to
+  HTML. This package has no renderer. The
+  producer is `Splice`: byte-exact span surgery
+  on the original source. mdsmith never
+  re-renders Markdown.
+- **Front-matter split.** `StripFrontMatter` is
+  a byte split, not goldmark's frontmatter
+  extension. The closing `---` is matched only
+  at the start of a line. So a `---` row inside
+  a YAML block scalar does not end it early.
+- **CommonMark only.** The canonical parser
+  enables no GFM extensions. Tables,
+  strikethrough, and the rest are composed
+  separately by the MDS034 flavor detector.
+- **Byte-stability contract.** `Splice` output
+  is pinned byte-for-byte (see the policy
+  below). goldmark gives no such cross-version
+  guarantee for rendered output.
+
 ## Parse API
 
 `Parse` is the high-level entry. It splits YAML
