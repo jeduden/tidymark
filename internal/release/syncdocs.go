@@ -12,9 +12,10 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/parser"
+
+	"github.com/jeduden/mdsmith/pkg/markdown"
 )
 
 // hugoShortcodeAngle matches Hugo's angle-bracket shortcode form
@@ -380,9 +381,9 @@ func humanizeDirName(name string) string {
 // transformMarkdown applies the docs/-tree → Hugo content
 // reconciliations to one markdown file in three layered passes:
 //
-//   - reconcileDocForHugo: one goldmark parse lifts the first
-//     body H1 to front-matter title and strips <?…?> directive
-//     markers.
+//   - reconcileDocForHugo: one pkg/markdown parse lifts the
+//     first body H1 to front-matter title and strips <?…?>
+//     directive markers.
 //   - escapeHugoShortcodes: literal `{{< … >}}` / `{{% … %}}`
 //     patterns are rewritten to their Hugo escape forms so
 //     documentation about Hugo renders verbatim.
@@ -420,7 +421,8 @@ func splitDocFrontMatter(s string) (fm, body string, hasFM, ok bool) {
 }
 
 // reconcileDocForHugo performs the two AST-driven docs→Hugo
-// reconciliations from a single goldmark parse of the body:
+// reconciliations from a single parse of the body with the canonical
+// pkg/markdown parser, splicing the result with markdown.Splice:
 //
 //   - Title lift. mdsmith docs carry the page title as the
 //     first body H1 (the first-line-heading rule enforces it)
@@ -438,20 +440,21 @@ func splitDocFrontMatter(s string) (fm, body string, hasFM, ok bool) {
 //   - Directive-marker strip. mdsmith `<?name … ?>` openers
 //     and `<?/name?>` closers are source syntax with no
 //     meaning to Hugo and must not surface on the published
-//     site. goldmark parses real markers as CommonMark type-3
-//     HTML blocks, while the same syntax inside a fenced code
-//     block (ast.FencedCodeBlock) or inline (ast.CodeSpan) is
-//     structurally distinct, so directive documentation
-//     renders verbatim. Stripping the markers also clears the
-//     last raw HTML out of synced content, which is what lets
+//     site. The canonical parser models real markers as
+//     ProcessingInstruction blocks, while the same syntax
+//     inside a fenced code block (ast.FencedCodeBlock) or
+//     inline (ast.CodeSpan) is structurally distinct, so
+//     directive documentation renders verbatim. Stripping the
+//     markers also clears the last raw HTML out of synced
+//     content, which is what lets
 //     hugo.toml keep markup.goldmark.renderer.unsafe = false
 //     (raw HTML in a doc then vanishes loudly instead of
 //     shipping unsanitized); the strip is correct regardless
 //     of that setting.
 //
 // One parse is sufficient and correct: the H1 is the first
-// (leaf) block and a type-3 HTML block opens on its own line
-// independent of any preceding block, so the marker set is
+// (leaf) block and a processing-instruction block opens on its
+// own line independent of any preceding block, so the marker set is
 // identical whether the body is read before or after the H1
 // splice, and front-matter title injection never touches the
 // parsed body. Both edits are therefore line-span deletions
@@ -470,53 +473,46 @@ func reconcileDocForHugo(b []byte) []byte {
 		return b
 	}
 	src := []byte(body)
-	doc := goldmark.New().Parser().Parse(text.NewReader(src))
+	doc := markdown.ParseContext(src, parser.NewContext())
 
-	type span struct{ start, end int }
-	var spans []span
+	var edits []markdown.Edit
 
 	var title string
 	if h, isH := doc.FirstChild().(*ast.Heading); isH && h.Level == 1 && h.Lines().Len() > 0 {
 		if t := strings.TrimSpace(headingText(h, src)); t != "" {
 			title = t
 			s, e := headingSpan(src, h)
-			spans = append(spans, span{s, e})
+			edits = append(edits, markdown.Edit{Start: s, End: e})
 		}
 	}
 
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		hb, isHB := n.(*ast.HTMLBlock)
-		if !entering || !isHB || hb.HTMLBlockType != ast.HTMLBlockType3 || hb.Lines().Len() == 0 {
+		pi, isPI := n.(*markdown.ProcessingInstruction)
+		if !entering || !isPI || pi.Lines().Len() == 0 {
 			return ast.WalkContinue, nil
 		}
-		// goldmark's raw-block line segments already include
-		// the trailing newline; a multi-line opener's "?>"
-		// terminator is the ClosureLine, not a Lines() entry.
-		// So the span end is the closure (multi-line) or the
-		// last/only content line (single-line) — no extra
+		// The canonical parser models a <?…?> marker as a
+		// ProcessingInstruction whose line segments already
+		// include the trailing newline; a multi-line opener's
+		// "?>" terminator is the ClosureLine, not a Lines()
+		// entry. So the span end is the closure (multi-line) or
+		// the last/only content line (single-line) — no extra
 		// newline scan, which would eat a following blank.
-		segStart := hb.Lines().At(0).Start
-		end := hb.Lines().At(hb.Lines().Len() - 1).Stop
-		if hb.HasClosure() {
-			end = hb.ClosureLine.Stop
+		segStart := pi.Lines().At(0).Start
+		end := pi.Lines().At(pi.Lines().Len() - 1).Stop
+		if pi.HasClosure() {
+			end = pi.ClosureLine.Stop
 		}
 		start := bytes.LastIndexByte(src[:segStart], '\n') + 1
-		spans = append(spans, span{start, end})
+		edits = append(edits, markdown.Edit{Start: start, End: end})
 		return ast.WalkContinue, nil
 	})
 
-	if len(spans) == 0 {
+	if len(edits) == 0 {
 		return b
 	}
 
-	var sb strings.Builder
-	prev := 0
-	for _, sp := range spans {
-		sb.Write(src[prev:sp.start])
-		prev = sp.end
-	}
-	sb.Write(src[prev:])
-	newBody := sb.String()
+	newBody := string(markdown.Splice(src, edits))
 
 	switch {
 	case title != "":
