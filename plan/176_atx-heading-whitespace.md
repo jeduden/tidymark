@@ -1,7 +1,7 @@
 ---
 id: 176
 title: ATX heading whitespace and indentation rule
-status: "🔲"
+status: "✅"
 model: sonnet
 depends-on: []
 summary: >-
@@ -66,13 +66,13 @@ the heading's source position, not only the AST node.
 
 ## Acceptance Criteria
 
-- [ ] `#Heading` emits a missing-space diagnostic and
+- [x] `#Heading` emits a missing-space diagnostic and
       fixes to `# Heading`.
-- [ ] `#  Heading` fixes to `# Heading`.
-- [ ] `# Heading #` extra-space and `#Heading#` cases are
+- [x] `#  Heading` fixes to `# Heading`.
+- [x] `# Heading #` extra-space and `#Heading#` cases are
       detected and normalized.
-- [ ] An indented heading is flagged and dedented.
-- [ ] Code blocks and directive bodies are never flagged.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
-- [ ] `mdsmith check .` passes
+- [x] An indented heading is flagged and dedented.
+- [x] Code blocks and directive bodies are never flagged.
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
+- [x] `mdsmith check .` passes
