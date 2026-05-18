@@ -96,17 +96,15 @@ The website deploy is a **separate workflow**,
 `.github/workflows/pages.yml`. It builds
 [mdsmith.dev](https://mdsmith.dev/) from `website/`
 and deploys it to GitHub Pages. It runs on every push
-to `main` that touches `docs/**` or `website/**`, so a
-docs change ships the site with no tool release and no
-`release`-environment approval. A tool release also
-ships the site: `release.yml`'s `pages` job calls
-`pages.yml` (passing the release version) and gates on
-`build`, so a release whose binaries do not compile
-never deploys docs. The publish is asymmetric — a tool
-release implies a website deploy, but a website deploy
-does not imply a tool release. `pages.yml` sits in the
-`github-pages` environment, GitHub's built-in Pages
-protection boundary, not the `release` environment.
+to `main` under `docs/**` or `website/**`, so a docs
+change ships the site with no tool release. A
+maintainer can also deploy on demand: the
+`workflow_dispatch` trigger appears as **Run
+workflow** in the Actions tab. A tool release ships
+it too: `release.yml`'s `pages` job gates on the
+`release` job, so the site deploys only after the
+release is frozen. `pages.yml` runs in the
+`github-pages` environment, not the `release` one.
 
 `pages.yml` calls `mdsmith-release build-website
 --no-fix ./docs ./website/content/docs`. That snapshots

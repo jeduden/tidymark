@@ -2,11 +2,14 @@ name: Deploy mdsmith.dev
 
 # The website deploy is independent of the tool release. A docs or
 # website change on main ships the site with no tool release and no
-# `release`-environment approval. A tool release also ships the site
-# by calling this workflow (see release.yml's `pages` job), passing
-# the release version so the published site shows it. The site is
-# pure HTML built from docs/**/*.md and the homepage data files, so
-# it never needs the registry-publish credentials.
+# `release`-environment approval. A maintainer can also ship the
+# site on demand via the Actions "Run workflow" UI
+# (workflow_dispatch), optionally stamping a specific version. A
+# tool release also ships the site by calling this workflow (see
+# release.yml's `pages` job, which gates on the frozen release),
+# passing the release version so the published site shows it. The
+# site is pure HTML built from docs/**/*.md and the homepage data
+# files, so it never needs the registry-publish credentials.
 on:
   push:
     branches: [main]
@@ -28,6 +31,16 @@ on:
       - "cmd/mdsmith-release/**"
       - "internal/release/**"
       - ".github/workflows/pages.yml"
+  # Manual trigger from the Actions "Run workflow" UI. The optional
+  # version input is read through the same `inputs.version` context
+  # as workflow_call (the "Resolve site version" step below), so a
+  # blank input falls back to the latest v* tag.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp into the site (defaults to the latest v* tag)"
+        required: false
+        type: string
   workflow_call:
     inputs:
       version:

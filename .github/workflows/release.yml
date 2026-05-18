@@ -549,13 +549,16 @@ jobs:
 
   # A tool release also ships the website. The deploy itself lives
   # in pages.yml (its own workflow, also triggered by docs-only
-  # pushes to main); this job just calls it with the release
-  # version so the published site shows the new version. Gated on
-  # `build` so a release whose binaries do not compile never
-  # deploys docs; deliberately NOT gated on the registry-publish
-  # jobs so a flaky registry publish cannot block the docs deploy.
+  # pushes to main and by manual workflow_dispatch); this job just
+  # calls it with the release version so the published site shows
+  # the new version. Gated on `release` so the site is deployed
+  # only after the release has been frozen — the draft is published
+  # and immutable — so mdsmith.dev never advertises a version whose
+  # GitHub release does not yet exist. `release` does not depend on
+  # the npm/pypi registry-publish jobs, so a flaky registry publish
+  # still cannot block the docs deploy.
   pages:
-    needs: [build]
+    needs: [release]
     if: *release_repo_trigger_ok
     permissions:
       contents: read
