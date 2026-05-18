@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
 )
 
 // parseRoot parses src with the canonical parser and returns the
@@ -218,4 +219,35 @@ func TestExtractPINameBytes(t *testing.T) {
 	assert.Equal(t, "catalog", string(extractPINameBytes([]byte("catalog key=val"))))
 	assert.Equal(t, "/include", string(extractPINameBytes([]byte("/include?>"))))
 	assert.Equal(t, "", string(extractPINameBytes([]byte("?>"))))
+}
+
+// TestPIBlockParser_DefensiveGuards drives the early-return guards in
+// Open/Continue that the goldmark parse path cannot reach: a 4-space-
+// indented line is consumed as an indented code block before this
+// parser's Trigger fires, and PeekLine never returns nil mid-block
+// under goldmark's driver. Calling the BlockParser methods directly
+// is the only way to exercise — and pin — these guards.
+func TestPIBlockParser_DefensiveGuards(t *testing.T) {
+	p := NewPIBlockParser()
+	doc := ast.NewDocument()
+	pc := parser.NewContext()
+
+	t.Run("Open returns NoChildren at end of input", func(t *testing.T) {
+		node, state := p.Open(doc, text.NewReader([]byte("")), pc)
+		assert.Nil(t, node)
+		assert.Equal(t, parser.NoChildren, state)
+	})
+
+	t.Run("Open rejects a >3-space indented line", func(t *testing.T) {
+		node, state := p.Open(doc, text.NewReader([]byte("    <?foo?>\n")), pc)
+		assert.Nil(t, node, "4-space indent must not open a PI")
+		assert.Equal(t, parser.NoChildren, state)
+	})
+
+	t.Run("Continue closes an open PI at end of input", func(t *testing.T) {
+		pi := &ProcessingInstruction{Name: "x"}
+		require.False(t, pi.HasClosure())
+		state := p.Continue(pi, text.NewReader([]byte("")), pc)
+		assert.Equal(t, parser.Close, state)
+	})
 }

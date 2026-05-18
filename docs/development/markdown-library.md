@@ -226,6 +226,7 @@ Policy:
   deprecation diagnostic may precede removal.
 - `Splice` output is byte-exact. For the same
   input it must keep producing the same bytes.
-  The sync-docs golden corpus
-  (`internal/release/testdata/reconcile_corpus.golden`)
-  pins this across the whole docs tree.
+  This is pinned by the `TestSplice` cases here
+  and, at the consumer, by the
+  `TestReconcileDocForHugo_*` table tests in
+  `internal/release/syncdocs_test.go`.
