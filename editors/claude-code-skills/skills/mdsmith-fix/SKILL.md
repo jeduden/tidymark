@@ -12,7 +12,10 @@ description: >-
   "regenerate sections".
 user-invocable: true
 argument-hint: "[path | .]"
-allowed-tools: "Bash(mdsmith:*)"
+allowed-tools: >-
+  Bash(mdsmith:*),
+  Bash(git rev-parse:*),
+  Bash(go run ./cmd/mdsmith:*)
 ---
 # mdsmith fix
 

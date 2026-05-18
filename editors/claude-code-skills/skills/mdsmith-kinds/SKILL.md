@@ -10,7 +10,10 @@ description: >-
   or "resolve this file's config".
 user-invocable: true
 argument-hint: "[resolve <file> | list]"
-allowed-tools: "Bash(mdsmith:*)"
+allowed-tools: >-
+  Bash(mdsmith:*),
+  Bash(git rev-parse:*),
+  Bash(go run ./cmd/mdsmith:*)
 ---
 # mdsmith kinds
 
