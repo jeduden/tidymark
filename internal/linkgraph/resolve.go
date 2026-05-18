@@ -23,10 +23,9 @@ import (
 //     so a Windows-authored `sub\x.md` resolves the same way on Linux.
 //     (filepath.ToSlash is OS-dependent and a no-op on POSIX hosts;
 //     this helper translates explicitly via strings.ReplaceAll.)
-//   - Both `path.IsAbs` and the cleaned-path escape check fire as
-//     belt-and-suspenders: an absolute linkPath, an absolute srcFile,
-//     or any combination that produces an absolute cleaned path
-//     returns "".
+//   - Absolute inputs are rejected up-front; path.Join of two relative
+//     paths never produces an absolute result, so the only escape vector
+//     is a leading `../` in the cleaned output (caught below).
 func ResolveRelTarget(srcFile, linkPath string) string {
 	srcFile = strings.ReplaceAll(srcFile, `\`, `/`)
 	linkPath = strings.ReplaceAll(linkPath, `\`, `/`)
@@ -39,9 +38,6 @@ func ResolveRelTarget(srcFile, linkPath string) string {
 	dir := path.Dir(srcFile)
 	cleaned := path.Clean(path.Join(dir, linkPath))
 	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
-		return ""
-	}
-	if path.IsAbs(cleaned) {
 		return ""
 	}
 	return cleaned

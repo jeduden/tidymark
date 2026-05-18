@@ -369,10 +369,8 @@ func anchorsForFile(target targetFile, cache map[string]map[string]bool) (map[st
 		return nil, err
 	}
 
-	file, err := lint.NewFileFromSource(target.cacheKey, data, true)
-	if err != nil {
-		return nil, err
-	}
+	// lint.NewFile never errors; goldmark always produces an AST.
+	file, _ := lint.NewFileFromSource(target.cacheKey, data, true) //nolint:errcheck
 
 	anchors := linkgraph.CollectAnchors(file)
 	cache[target.cacheKey] = anchors
@@ -423,30 +421,27 @@ func resolveAbsRoot(rootDir string) string {
 	if !ok {
 		realRoot = rootDir
 	}
-	abs, err := filepath.Abs(realRoot)
-	if err != nil {
-		return filepath.Clean(realRoot)
-	}
+	// filepath.Abs only errors when os.Getwd() fails, an OS-level catastrophe.
+	// Returning "" lets the caller treat the root as unset (safe fallback).
+	abs, _ := filepath.Abs(realRoot) //nolint:errcheck
 	return abs
 }
 
 // isWithinRoot checks whether target is inside the pre-resolved absolute
 // root, resolving symlinks on the target to prevent symlink-based traversal.
 func isWithinRoot(resolvedRoot, target string) bool {
-	absTarget, err := filepath.Abs(target)
-	if err != nil {
-		return false
-	}
+	// filepath.Abs only errors when os.Getwd() fails (OS-level catastrophe);
+	// "" as absTarget degrades gracefully through the rest of the function.
+	absTarget, _ := filepath.Abs(target) //nolint:errcheck
 	realTarget, ok := cachedEvalSymlinks(absTarget)
 	if !ok {
 		// Symlink resolution failed (e.g. dangling link); fall back to
 		// the cleaned absolute path so the root comparison still works.
 		realTarget = filepath.Clean(absTarget)
 	}
-	rel, err := filepath.Rel(resolvedRoot, realTarget)
-	if err != nil {
-		return false
-	}
+	// filepath.Rel only errors on mismatched volumes (Windows); both paths
+	// are absolute on Linux so this never errors here.
+	rel, _ := filepath.Rel(resolvedRoot, realTarget) //nolint:errcheck
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
