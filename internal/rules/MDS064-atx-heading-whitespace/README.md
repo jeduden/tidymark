@@ -11,9 +11,11 @@ maintainability: null
 
 ATX heading whitespace and indentation.
 
-Flags malformed ATX headings. Checks for missing or extra spaces after
-the opening hashes, incorrect spacing around a closing hash sequence,
-and headings indented away from column 1.
+Flags malformed ATX headings. Checks that the opening hashes are followed
+by exactly one space (not a tab, not two spaces), that the heading starts
+at column 1, and that no closing hash sequence appears after the content.
+A trailing `#` run is only treated as a closing marker when preceded by
+whitespace; a `#` with no preceding space is kept as content.
 
 ## Config
 
@@ -53,16 +55,22 @@ Indented heading:
    # Heading
 ```
 
-Closed ATX with no space:
+Closing `#` marker (any whitespace before `#`):
 
 ```markdown
-#Heading#
+# Heading #
 ```
 
-Closed ATX with multiple spaces before closing `#`:
+Multiple spaces before closing `#`:
 
 ```markdown
 # Heading  #
+```
+
+Tab after opening `#`:
+
+```markdown
+#	Heading
 ```
 
 ### Good

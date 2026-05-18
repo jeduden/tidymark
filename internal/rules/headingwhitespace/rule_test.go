@@ -82,23 +82,45 @@ func TestCheck_Indented(t *testing.T) {
 	assert.Equal(t, 1, diags[0].Column)
 }
 
-// --- Check: MD020 closed ATX no space ---
+// --- Check: #Heading# — trailing # without preceding space is content, not a closing marker ---
 
 func TestCheck_ClosedATX_NoSpace(t *testing.T) {
+	// Per CommonMark, a closing # sequence requires preceding whitespace.
+	// "#Heading#" has no space before the trailing "#", so only MD018 fires.
 	diags := check(t, "# Title\n\n#Heading#\n")
-	require.Len(t, diags, 2)
-	msgs := []string{diags[0].Message, diags[1].Message}
-	assert.Contains(t, msgs, "missing space after # in heading")
-	assert.Contains(t, msgs, "missing space before closing # in heading")
+	require.Len(t, diags, 1)
+	assert.Equal(t, "missing space after # in heading", diags[0].Message)
 }
 
 func TestCheck_ClosedATX_NoSpace_Column(t *testing.T) {
 	diags := check(t, "#Heading#\n")
-	require.Len(t, diags, 2)
-	// Missing space after # at col 2, missing space before closing # at col 9.
-	cols := map[int]bool{diags[0].Column: true, diags[1].Column: true}
-	assert.True(t, cols[2], "expected column 2")
-	assert.True(t, cols[9], "expected column 9")
+	require.Len(t, diags, 1)
+	assert.Equal(t, 2, diags[0].Column)
+}
+
+// --- Check: content ending with # is not a false positive ---
+
+func TestCheck_ContentEndingWithHash(t *testing.T) {
+	// "# C#" — trailing # has no preceding space; it is content, not a closing marker.
+	diags := check(t, "# Title\n\n# C#\n")
+	assert.Empty(t, diags)
+}
+
+// --- Check: tab after # is flagged (normalise to single space) ---
+
+func TestCheck_TabAfterHash(t *testing.T) {
+	diags := check(t, "# Title\n\n#\tHeading\n")
+	require.Len(t, diags, 1)
+	assert.Equal(t, "missing space after # in heading", diags[0].Message)
+}
+
+// --- Check: CRLF line endings don't produce false positives ---
+
+func TestCheck_NoCRLFFalsePositive(t *testing.T) {
+	// An empty ATX heading with CRLF ("##\r\n") must not emit "missing space";
+	// the \r is trailing whitespace, not missing content.
+	diags := check(t, "# Title\r\n\r\n##\r\n")
+	assert.Empty(t, diags)
 }
 
 // --- Check: MD021 closed ATX multiple spaces ---
@@ -147,7 +169,12 @@ func TestFix_Indented(t *testing.T) {
 }
 
 func TestFix_ClosedATX_NoSpace(t *testing.T) {
-	assert.Equal(t, "# Title\n\n# Heading\n", fix(t, "# Title\n\n#Heading#\n"))
+	// Trailing # without preceding space is content; fix only adds the opening space.
+	assert.Equal(t, "# Title\n\n# Heading#\n", fix(t, "# Title\n\n#Heading#\n"))
+}
+
+func TestFix_TabAfterHash(t *testing.T) {
+	assert.Equal(t, "# Title\n\n# Heading\n", fix(t, "# Title\n\n#\tHeading\n"))
 }
 
 func TestFix_ClosedATX_MultipleSpaces(t *testing.T) {

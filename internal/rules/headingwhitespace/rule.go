@@ -61,11 +61,11 @@ func (r *Rule) checkLine(path string, lineNum int, line []byte) []lint.Diagnosti
 	}
 
 	after := rest[level:]
-	if len(bytes.TrimRight(after, " \t")) == 0 {
+	if len(bytes.TrimRight(after, " \t\r")) == 0 {
 		return diags
 	}
 
-	if after[0] != ' ' && after[0] != '\t' {
+	if after[0] != ' ' {
 		diags = append(diags, r.diag(path, lineNum, leading+level+1, "missing space after # in heading"))
 	} else if leadingSpaces(after) > 1 {
 		diags = append(diags, r.diag(path, lineNum, leading+level+2, "multiple spaces after # in heading"))
@@ -76,7 +76,7 @@ func (r *Rule) checkLine(path string, lineNum int, line []byte) []lint.Diagnosti
 }
 
 func (r *Rule) checkClosingATX(path string, lineNum, leading, level int, after []byte) []lint.Diagnostic {
-	trimmed := bytes.TrimRight(after, " \t")
+	trimmed := bytes.TrimRight(after, " \t\r")
 	if len(trimmed) == 0 || trimmed[len(trimmed)-1] != '#' {
 		return nil
 	}
@@ -95,10 +95,13 @@ func (r *Rule) checkClosingATX(path string, lineNum, leading, level int, after [
 	}
 	spacesBeforeHash := hashStart - spaceEnd
 
+	// Only treat trailing # as a closing ATX marker when preceded by whitespace
+	// (CommonMark requirement). No preceding space means the # is content (e.g. "# C#").
+	if spacesBeforeHash == 0 {
+		return nil
+	}
+
 	switch spacesBeforeHash {
-	case 0:
-		return []lint.Diagnostic{r.diag(path, lineNum, leading+level+hashStart+1,
-			"missing space before closing # in heading")}
 	case 1:
 		return []lint.Diagnostic{r.diag(path, lineNum, leading+level+spaceEnd+1,
 			"heading has closing # marker")}
@@ -161,7 +164,9 @@ func normalizeLine(line []byte) string {
 }
 
 // extractContent strips leading/trailing whitespace and any closing ATX suffix
-// from everything after the opening hashes.
+// from everything after the opening hashes. A trailing run of '#' is only
+// treated as a closing marker when preceded by whitespace; otherwise it is
+// part of the content (e.g. "C#" in "# C#").
 func extractContent(after string) string {
 	s := strings.TrimSpace(after)
 	if s == "" {
@@ -176,6 +181,10 @@ func extractContent(after string) string {
 	}
 	if hashStart == 0 {
 		return "" // content is all hashes (empty heading with closing hashes)
+	}
+	// Trailing hashes not preceded by whitespace are content, not a closing marker.
+	if s[hashStart-1] != ' ' && s[hashStart-1] != '\t' {
+		return s
 	}
 	return strings.TrimRight(s[:hashStart], " \t")
 }
