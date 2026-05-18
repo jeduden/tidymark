@@ -1,7 +1,7 @@
 ---
 id: 178
 title: List marker space rule
-status: "🔲"
+status: "✅"
 model: sonnet
 depends-on: []
 summary: >-
@@ -64,12 +64,12 @@ source segment.
 
 ## Acceptance Criteria
 
-- [ ] `-  item` (two spaces) is flagged and fixed to
+- [x] `-  item` (two spaces) is flagged and fixed to
       `- item` under the default config.
-- [ ] A multi-paragraph item honors `ul-multi` when it
+- [x] A multi-paragraph item honors `ul-multi` when it
       differs from `ul-single`.
-- [ ] Ordered and unordered lists use their own knobs.
-- [ ] Nested lists are measured per level, not flattened.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
-- [ ] `mdsmith check .` passes
+- [x] Ordered and unordered lists use their own knobs.
+- [x] Nested lists are measured per level, not flattened.
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
+- [x] `mdsmith check .` passes
