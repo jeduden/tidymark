@@ -111,4 +111,5 @@ footer: |
 | 182 | 🔲     | sonnet | [Code block convention rules](plan/182_code-block-conventions.md)                                                                       |
 | 183 | ✅     | sonnet | [Skip DedupeDiagnostics via an audited rule.RepoScoped marker](plan/183_dedupe-diagnostics-repo-scoped-skip.md)                         |
 | 184 | ✅     | opus   | [Automate the cross-tool benchmark on merge to main and publish numbers to the assets branch](plan/184_release-benchmark-automation.md) |
+| 185 | 🔲     |        | [Expose extended-syntax parsers and the flavor model in pkg/markdown](plan/185_public-markdown-flavor-library.md)                       |
 <?/catalog?>
