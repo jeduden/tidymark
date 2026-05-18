@@ -598,3 +598,38 @@ func TestRefDefDestEditForMatch_BadInputs(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "install", e.NewText)
 }
+
+func TestHeading_ImageInLinkAnchor(t *testing.T) {
+	// [![icon](icon.png)](a.md#setup) — an image-wrapped link.
+	// firstTextOffset finds the alt-text node "icon" inside the image,
+	// which sits before the outer ](a.md#setup). anchorFragmentBytes
+	// must scan past the image destination and locate the outer fragment.
+	ws := newMemWorkspace(map[string]string{
+		"a.md": "# Setup\n\nBody.\n",
+		"b.md": "[![icon](icon.png)](a.md#setup)\n",
+	})
+	src := ws.files["a.md"]
+	changes, err := Heading(ws, "a.md", "a.md", src, 1, "Setup", "Install")
+	require.NoError(t, err)
+	bEdits := changes["b.md"]
+	require.Len(t, bEdits, 1)
+	assert.Equal(t, "install", bEdits[0].NewText)
+}
+
+func TestAnchorFragmentBytes_ImageInLink(t *testing.T) {
+	// destBounds first finds ](icon.png) with no hash; the scanner must
+	// advance past it and find ](a.md#setup).
+	row := []byte("[![icon](icon.png)](a.md#setup)")
+	s, e, ok := anchorFragmentBytes(row, 3, "setup")
+	require.True(t, ok)
+	assert.Equal(t, "setup", string(row[s:e]))
+}
+
+func TestAnchorFragmentBytes_ImageWithFragInLink(t *testing.T) {
+	// Image destination itself has a fragment that doesn't match;
+	// the scanner must advance past it and find the correct one.
+	row := []byte("[![icon](icon.png#badge)](a.md#setup)")
+	s, e, ok := anchorFragmentBytes(row, 3, "setup")
+	require.True(t, ok)
+	assert.Equal(t, "setup", string(row[s:e]))
+}

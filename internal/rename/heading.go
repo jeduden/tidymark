@@ -480,6 +480,12 @@ func anchorEditForEdge(ws Workspace, e index.Edge, oldSlug, newSlug string) (str
 // edges, so `(#Setup)` and `(#Docs%20API)` both participate in a
 // rename even though their literal bytes differ from `setup` /
 // `docs-api`.
+//
+// When a ](dest) found after textStart has no matching fragment —
+// for example the image destination in [![alt](img.png)](url#slug) —
+// the scanner advances past that destination and tries the next `](`
+// on the same row. This handles image-in-link where destBounds would
+// otherwise stop at the inner ](img.png) and never reach ](url#slug).
 func anchorFragmentBytes(row []byte, textStart int, oldSlug string) (int, int, bool) {
 	bracketStart := textStart
 	if bracketStart < 0 {
@@ -488,20 +494,23 @@ func anchorFragmentBytes(row []byte, textStart int, oldSlug string) (int, int, b
 	if bracketStart >= len(row) {
 		return 0, 0, false
 	}
-	open, closeIdx, ok := destBounds(row, bracketStart)
-	if !ok {
-		return 0, 0, false
+	searchFrom := bracketStart
+	for {
+		open, closeIdx, ok := destBounds(row, searchFrom)
+		if !ok {
+			return 0, 0, false
+		}
+		hash := indexOfHash(row, open, closeIdx)
+		if hash >= 0 {
+			fragEnd := fragmentEnd(row, hash+1, closeIdx)
+			rawFrag := row[hash+1 : fragEnd]
+			if fragmentMatchesSlug(rawFrag, oldSlug) {
+				return hash + 1, fragEnd, true
+			}
+		}
+		// This destination had no matching fragment; advance past it.
+		searchFrom = closeIdx + 1
 	}
-	hash := indexOfHash(row, open, closeIdx)
-	if hash < 0 {
-		return 0, 0, false
-	}
-	fragEnd := fragmentEnd(row, hash+1, closeIdx)
-	rawFrag := row[hash+1 : fragEnd]
-	if !fragmentMatchesSlug(rawFrag, oldSlug) {
-		return 0, 0, false
-	}
-	return hash + 1, fragEnd, true
 }
 
 // destBounds returns the byte offsets of the destination content —
