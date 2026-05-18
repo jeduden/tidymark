@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -42,6 +43,66 @@ var syncableExt = map[string]struct{}{
 	".jpeg": {},
 	".gif":  {},
 	".webp": {},
+}
+
+// siblingLink matches the `](target)` tail of an inline
+// Markdown link, capturing the target in group 1. Matching only
+// the tail (not the `[label]` head) is deliberate and matches
+// every other rewriter in this package: applyOutsideCode splits
+// the byte stream at inline code spans, so a real-doc link whose
+// label is a code span — “ [`run.sh`](run.sh) “ — reaches the
+// rewrite as a bare `](run.sh)` fragment with the label in a
+// separate piece. `[^)\s]+` stops the target before a
+// whitespace-separated link title so a titled link is left
+// alone.
+var siblingLink = regexp.MustCompile(`\]\(([^)\s]+)\)`)
+
+// rewriteSiblingNonPublished routes a relative link whose target
+// SyncDocs prunes from the Hugo tree to the file's canonical
+// GitHub blob/tree URL. repoDir is the doc's repo-relative
+// directory (e.g. "docs/research/benchmarks"), so a same-
+// directory `run.sh` or a subdirectory `data/repo.json` resolves
+// to the right source path.
+//
+// Only same-directory and descendant relative targets whose
+// extension is outside syncableExt are rewritten. Five classes
+// are deliberately left untouched: synced `.md`/image targets
+// (still valid relative links), site-absolute targets
+// (`/docs/...`), external URLs (`scheme://`), pure `#anchor`
+// fragments, and `../`-prefixed paths (those are the
+// non-published rewrite's job — repoNonPublishedLink — and
+// double-handling them here would route the same link twice).
+// Common image extensions (`.svg`/`.png`/…) are in syncableExt,
+// so the extension filter leaves an `![alt](pic.png)` image link
+// untouched. An image whose extension is outside syncableExt
+// (e.g. `![x](chart.pdf)`) would still be rewritten — acceptable
+// because no such doc image exists and MDS027 never walks image
+// nodes anyway.
+//
+// Runs under applyOutsideCode so a `[x](run.sh)` example inside
+// a code span or fenced block stays verbatim documentation.
+func rewriteSiblingNonPublished(b []byte, repoDir string) []byte {
+	return applyOutsideCode(b, func(seg []byte) []byte {
+		return siblingLink.ReplaceAllFunc(seg, func(m []byte) []byte {
+			target := string(siblingLink.FindSubmatch(m)[1])
+			if strings.HasPrefix(target, "#") ||
+				strings.HasPrefix(target, "/") ||
+				strings.HasPrefix(target, "../") ||
+				strings.Contains(target, "://") {
+				return m
+			}
+			pathPart, frag := target, ""
+			if i := strings.IndexByte(target, '#'); i >= 0 {
+				pathPart, frag = target[:i], target[i:]
+			}
+			ext := strings.ToLower(filepath.Ext(pathPart))
+			if _, ok := syncableExt[ext]; ok || ext == "" {
+				return m
+			}
+			url := githubURLForPath([]byte(path.Join(repoDir, pathPart)))
+			return []byte("](" + url + frag + ")")
+		})
+	})
 }
 
 // SyncDocs snapshots srcDir into dstDir for a Hugo build. The
@@ -95,7 +156,16 @@ func (t *Toolkit) SyncDocs(srcDir, dstDir string) error {
 	if err := t.fs.MkdirAll(dstDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir dst %s: %w", dstDir, err)
 	}
-	if _, err := t.syncDocsDir(srcDir, dstDir); err != nil {
+	// repoDir is the docs tree's name relative to the repo root,
+	// used to anchor sibling-link GitHub URLs (see
+	// rewriteSiblingNonPublished). The basename of srcDir IS that
+	// segment because BuildWebsite is run from the repo root with
+	// srcDir = ./docs — the same root-relative assumption the
+	// rulesDir derivation makes. A srcDir whose basename is not
+	// the real repo-relative docs path would mis-anchor those
+	// URLs (silently — they would 404 on GitHub, not error here).
+	repoDir := filepath.Base(filepath.Clean(srcDir))
+	if _, err := t.syncDocsDir(srcDir, dstDir, repoDir); err != nil {
 		return fmt.Errorf("sync %s -> %s: %w", srcDir, dstDir, err)
 	}
 	return nil
@@ -157,7 +227,7 @@ func SyncDocs(srcDir, dstDir string) error {
 // file ended up under dst. An empty dst is removed so the rendered
 // tree doesn't expose hollow directories from upstream pruning
 // (a docs/ subdir containing only a proto.md, say).
-func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
+func (t *Toolkit) syncDocsDir(src, dst, repoDir string) (bool, error) {
 	entries, err := t.fs.ReadDir(src)
 	if err != nil {
 		return false, fmt.Errorf("read dir %s: %w", src, err)
@@ -187,9 +257,9 @@ func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 		srcPath := filepath.Join(src, e.Name())
 		var entryWrote bool
 		if e.IsDir() {
-			entryWrote, err = t.syncDocsSubdir(srcPath, dst, e.Name(), mdSiblings)
+			entryWrote, err = t.syncDocsSubdir(srcPath, dst, e.Name(), mdSiblings, repoDir)
 		} else {
-			entryWrote, err = t.syncDocsFile(srcPath, dst, e.Name())
+			entryWrote, err = t.syncDocsFile(srcPath, dst, e.Name(), repoDir)
 		}
 		if err != nil {
 			return wrote, err
@@ -209,12 +279,12 @@ func (t *Toolkit) syncDocsDir(src, dst string) (bool, error) {
 // syncDocsSubdir recurses into one subdirectory, then
 // synthesizes a section _index.md when the subtree produced
 // content. It returns whether anything was written under dst.
-func (t *Toolkit) syncDocsSubdir(src, dst, name string, siblings map[string]struct{}) (bool, error) {
+func (t *Toolkit) syncDocsSubdir(src, dst, name string, siblings map[string]struct{}, repoDir string) (bool, error) {
 	childDst := filepath.Join(dst, name)
 	if err := t.fs.MkdirAll(childDst, 0o755); err != nil {
 		return false, fmt.Errorf("mkdir %s: %w", childDst, err)
 	}
-	childWrote, err := t.syncDocsDir(src, childDst)
+	childWrote, err := t.syncDocsDir(src, childDst, path.Join(repoDir, name))
 	if err != nil {
 		return childWrote, err
 	}
@@ -232,7 +302,7 @@ func (t *Toolkit) syncDocsSubdir(src, dst, name string, siblings map[string]stru
 // non-content extensions are skipped (returns false, nil);
 // index.md is renamed to _index.md. It returns whether a file
 // was written.
-func (t *Toolkit) syncDocsFile(src, dst, name string) (bool, error) {
+func (t *Toolkit) syncDocsFile(src, dst, name, repoDir string) (bool, error) {
 	if name == "proto.md" {
 		return false, nil
 	}
@@ -249,7 +319,7 @@ func (t *Toolkit) syncDocsFile(src, dst, name string) (bool, error) {
 		return false, fmt.Errorf("read %s: %w", src, err)
 	}
 	if ext == ".md" {
-		data = transformMarkdown(data)
+		data = rewriteSiblingNonPublished(transformMarkdown(data), repoDir)
 	}
 	dstPath := filepath.Join(dst, dstName)
 	if err := t.fs.WriteFile(dstPath, data, 0o644); err != nil {

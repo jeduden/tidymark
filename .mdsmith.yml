@@ -174,8 +174,12 @@ overrides:
     rules:
       line-length:
         stern: true
+      # Background docs are long-form reference (the linter
+      # comparison + matrices). Raised 1000 -> 3000 by owner
+      # request so the comparison doc has room; the matrix
+      # itself lives in docs/research/ to keep this in check.
       max-file-length:
-        max: 1000
+        max: 3000
       token-budget:
         max: 12000
         mode: heuristic
@@ -267,6 +271,7 @@ overrides:
       required-structure: false
 
 ignore:
+  - ".git/**"
   - "demo/**"
   - "internal/rules/*/bad/**"
   - "internal/rules/*/bad.md"

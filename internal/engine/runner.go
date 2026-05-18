@@ -1,12 +1,16 @@
 package engine
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"sync"
+	"sync/atomic"
 
 	"github.com/jeduden/mdsmith/internal/archetype/gensection"
 	"github.com/jeduden/mdsmith/internal/config"
@@ -33,6 +37,12 @@ type Runner struct {
 	// Explain, when true, attaches per-leaf rule provenance to each
 	// diagnostic so output formatters can render an explanation trailer.
 	Explain bool
+	// SkipSourceContext, when true, suppresses per-diagnostic
+	// SourceLines population. Set it for callers that never render the
+	// source window (the check benchmark/gate, machine output that
+	// omits it) to avoid its large per-diagnostic allocation. Default
+	// false preserves the CLI text formatter's context display.
+	SkipSourceContext bool
 	// ConfigPath is the path to the loaded .mdsmith.yml. When set,
 	// config-target rules (rule.ConfigTarget) are run once against a
 	// synthetic lint.File for this path before per-file processing.
@@ -45,9 +55,32 @@ type Runner struct {
 	// ignores this field and continues to derive FS from filepath.Dir
 	// per file.
 	SourceFS fs.FS
+	// Concurrency controls how many files Run lints in parallel.
+	// Zero or negative means "use runtime.GOMAXPROCS"; 1 forces the
+	// sequential path; n>1 uses n workers. The worker count is
+	// clamped to the file count. Output is merged in input order and
+	// then sorted, so the value never changes observable results —
+	// it only trades CPU for wall time. RunSource (single in-memory
+	// file) ignores this field.
+	Concurrency int
 	// gitignoreCache caches GitignoreMatchers by directory to avoid
-	// re-walking the filesystem for each file.
+	// re-walking the filesystem for each file. gitignoreMu guards it
+	// because Run lints files on multiple goroutines and the
+	// GitignoreFunc closure each file carries reaches back into the
+	// shared cache lazily during rule execution.
 	gitignoreCache map[string]*lint.GitignoreMatcher
+	gitignoreMu    sync.Mutex
+}
+
+// fileOutcome is one file's contribution to a run. Workers fill a
+// pre-sized slice of these by index, so the merge is order-stable and
+// needs no lock on the shared Result. log holds the file's verbose
+// lines (empty unless the logger is enabled); Run flushes them in
+// input order so -v output is deterministic regardless of scheduling.
+type fileOutcome struct {
+	diags []lint.Diagnostic
+	errs  []error
+	log   []byte
 }
 
 // Result holds the output of a lint run.
@@ -59,7 +92,10 @@ type Result struct {
 }
 
 // Run lints the files at the given paths and returns a Result containing
-// all diagnostics (sorted by file, line, column, message) and any errors encountered.
+// all diagnostics (sorted by file, line, column, message) and any errors
+// encountered. Files are linted concurrently (see Runner.Concurrency);
+// per-file results are merged in input order before dedupe and sort, so
+// the output is identical to a sequential run regardless of scheduling.
 func (r *Runner) Run(paths []string) *Result {
 	res := &Result{}
 
@@ -68,33 +104,136 @@ func (r *Runner) Run(paths []string) *Result {
 	// the project config rather than individual Markdown files.
 	r.runConfigTargetRules(res)
 
-	for _, path := range paths {
-		if config.IsIgnored(r.Config.Ignore, path) {
-			continue
+	work := r.filterIgnored(paths)
+	res.FilesChecked = len(work)
+
+	sink := r.log()
+	for _, o := range r.runFiles(work) {
+		if len(o.log) > 0 && sink.W != nil {
+			_, _ = sink.W.Write(o.log)
 		}
-		res.FilesChecked++
-		r.processFile(path, res)
+		res.Diagnostics = append(res.Diagnostics, o.diags...)
+		res.Errors = append(res.Errors, o.errs...)
 	}
 
-	res.Diagnostics = DedupeDiagnostics(res.Diagnostics)
+	// DedupeDiagnostics is only needed when a repo-scoped rule is
+	// enabled. Repo-scoped rules (e.g. git-hook-sync / MDS048) anchor
+	// their diagnostic to a repository artifact rather than the linted
+	// file, so the same tuple can recur across files. When no such rule
+	// is enabled, every diagnostic tuple is anchored to its linted file
+	// and cannot collide, so the map+slice allocation is pure waste.
+	// RunSource (single in-memory file) is exempt: duplicates cannot
+	// arise from a single-file lint.
+	if r.anyRepoScopedEnabled() {
+		res.Diagnostics = DedupeDiagnostics(res.Diagnostics)
+	}
 	sortDiagnostics(res.Diagnostics)
 	return res
 }
 
-// processFile reads, parses, and checks a single file, appending results to res.
-func (r *Runner) processFile(path string, res *Result) {
-	r.log().Printf("file: %s", path)
+// filterIgnored drops paths matched by the config ignore list, keeping
+// input order.
+func (r *Runner) filterIgnored(paths []string) []string {
+	work := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if config.IsIgnored(r.Config.Ignore, path) {
+			continue
+		}
+		work = append(work, path)
+	}
+	return work
+}
+
+// ResolveWorkers maps the Runner.Concurrency knob to an actual worker
+// count for a run over n files. concurrency <= 0 means "use
+// runtime.GOMAXPROCS"; a positive value is taken literally. The result
+// is clamped to n (never more workers than files) and is 0 when there
+// is nothing to do.
+func ResolveWorkers(concurrency, n int) int {
+	if n <= 0 {
+		return 0
+	}
+	w := concurrency
+	if w <= 0 {
+		w = runtime.GOMAXPROCS(0)
+	}
+	if w > n {
+		w = n
+	}
+	return w
+}
+
+// runFiles lints work into a pre-sized, index-addressed slice. With one
+// worker it stays on the calling goroutine. With more, each worker
+// clones the rule set once (so rules carrying per-Check state — include's
+// visited/chain, the directive engines — never touch another
+// goroutine's instance) and pulls file indices off an atomic counter
+// for even load balancing. No worker writes a slot another reads, so
+// the result needs no lock.
+func (r *Runner) runFiles(work []string) []fileOutcome {
+	outcomes := make([]fileOutcome, len(work))
+	workers := ResolveWorkers(r.Concurrency, len(work))
+	if workers <= 1 {
+		for i, path := range work {
+			outcomes[i] = r.lintFile(path, r.Rules)
+		}
+		return outcomes
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rules := cloneRules(r.Rules)
+			for {
+				i := int(next.Add(1)) - 1
+				if i >= len(work) {
+					return
+				}
+				outcomes[i] = r.lintFile(work[i], rules)
+			}
+		}()
+	}
+	wg.Wait()
+	return outcomes
+}
+
+// cloneRules returns an independent copy of rules for one worker so
+// concurrent Check calls never share a rule instance's mutable state.
+func cloneRules(rules []rule.Rule) []rule.Rule {
+	out := make([]rule.Rule, len(rules))
+	for i, rl := range rules {
+		out[i] = rule.CloneInstance(rl)
+	}
+	return out
+}
+
+// lintFile reads, parses, and checks a single file with the given rule
+// set (the worker's private clones) and returns its diagnostics and
+// errors. It touches no shared Runner state except the mutex-guarded
+// gitignore cache.
+func (r *Runner) lintFile(path string, rules []rule.Rule) (out fileOutcome) {
+	// When verbose, log into a per-file buffer instead of the shared
+	// logger; Run flushes these in input order so concurrent workers
+	// don't interleave -v output. The named return + defer attaches
+	// the buffer no matter which early return fires.
+	flog := r.log()
+	if flog.Enabled {
+		var buf bytes.Buffer
+		flog = &vlog.Logger{Enabled: true, W: &buf}
+		defer func() { out.log = bytes.Clone(buf.Bytes()) }()
+	}
+	flog.Printf("file: %s", path)
 
 	source, err := lint.ReadFileLimited(path, r.MaxInputBytes)
 	if err != nil {
-		res.Errors = append(res.Errors, fmt.Errorf("reading %q: %w", path, err))
-		return
+		return fileOutcome{errs: []error{fmt.Errorf("reading %q: %w", path, err)}}
 	}
 
 	f, err := lint.NewFileFromSource(path, source, r.StripFrontMatter)
 	if err != nil {
-		res.Errors = append(res.Errors, fmt.Errorf("parsing %q: %w", path, err))
-		return
+		return fileOutcome{errs: []error{fmt.Errorf("parsing %q: %w", path, err)}}
 	}
 	f.MaxInputBytes = r.MaxInputBytes
 	dir := filepath.Dir(path)
@@ -111,22 +250,20 @@ func (r *Runner) processFile(path string, res *Result) {
 
 	fmKinds, fmFields, err := r.parseFrontMatter(path, f.FrontMatter)
 	if err != nil {
-		res.Errors = append(res.Errors, err)
-		return
+		return fileOutcome{errs: []error{err}}
 	}
 
 	f.GeneratedRanges = gensection.FindAllGeneratedRanges(f)
 
 	effective := r.effectiveWithCategories(path, fmKinds, fmFields)
-	mdRules := r.markdownRules()
-	r.logRules(mdRules, effective)
+	mdRules := markdownRulesFrom(rules, r.ConfigPath)
+	logRulesTo(flog, mdRules, effective)
 
-	diags, errs := CheckRules(f, mdRules, effective)
+	diags, errs := checkRules(f, mdRules, effective, r.SkipSourceContext)
 	if r.Explain {
 		explain.Attach(diags, r.Config, path, fmKinds, fmFields)
 	}
-	res.Diagnostics = append(res.Diagnostics, diags...)
-	res.Errors = append(res.Errors, errs...)
+	return fileOutcome{diags: diags, errs: errs}
 }
 
 // DedupeDiagnostics returns a new slice with duplicate (file, line,
@@ -268,7 +405,7 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 	mdRules := r.markdownRules()
 	r.logRules(mdRules, effective)
 
-	diags, errs := CheckRules(f, mdRules, effective)
+	diags, errs := checkRules(f, mdRules, effective, r.SkipSourceContext)
 	if r.Explain {
 		explain.Attach(diags, r.Config, path, fmKinds, fmFields)
 	}
@@ -284,11 +421,19 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 // have already run once (via runConfigTargetRules) and their Check method
 // returns nil for any non-config path anyway.
 func (r *Runner) markdownRules() []rule.Rule {
-	if r.ConfigPath == "" {
-		return r.Rules
+	return markdownRulesFrom(r.Rules, r.ConfigPath)
+}
+
+// markdownRulesFrom filters config-target rules out of rules when a
+// config path is set (they ran once via runConfigTargetRules and their
+// Check returns nil for non-config paths anyway). It operates on the
+// passed slice so each worker filters its own clones.
+func markdownRulesFrom(rules []rule.Rule, configPath string) []rule.Rule {
+	if configPath == "" {
+		return rules
 	}
-	filtered := make([]rule.Rule, 0, len(r.Rules))
-	for _, rl := range r.Rules {
+	filtered := make([]rule.Rule, 0, len(rules))
+	for _, rl := range rules {
 		if ct, ok := rl.(rule.ConfigTarget); ok && ct.IsConfigFileRule() {
 			continue
 		}
@@ -355,6 +500,8 @@ func (r *Runner) effectiveWithCategories(
 // The cache key is normalized to an absolute path so equivalent paths
 // (e.g. "sub" vs "./sub") share the same entry.
 func (r *Runner) cachedGitignore(dir string) *lint.GitignoreMatcher {
+	r.gitignoreMu.Lock()
+	defer r.gitignoreMu.Unlock()
 	if r.gitignoreCache == nil {
 		r.gitignoreCache = make(map[string]*lint.GitignoreMatcher)
 	}
@@ -381,7 +528,13 @@ func (r *Runner) log() *vlog.Logger {
 
 // logRules logs each enabled rule in the effective config from the provided slice.
 func (r *Runner) logRules(rules []rule.Rule, effective map[string]config.RuleCfg) {
-	l := r.log()
+	logRulesTo(r.log(), rules, effective)
+}
+
+// logRulesTo logs each enabled rule to l. Split from logRules so the
+// per-file buffered logger in lintFile can reuse the same formatting
+// without going through the shared Runner logger.
+func logRulesTo(l *vlog.Logger, rules []rule.Rule, effective map[string]config.RuleCfg) {
 	if !l.Enabled {
 		return
 	}
@@ -437,6 +590,36 @@ func (r *Runner) runConfigTargetRules(res *Result) {
 		diags := configured.Check(f)
 		res.Diagnostics = append(res.Diagnostics, diags...)
 	}
+}
+
+// anyRepoScopedEnabled reports whether any markdown rule (excluding
+// ConfigTarget rules) implements rule.RepoScoped and is enabled in the
+// global effective configuration. Run uses this once to decide whether
+// DedupeDiagnostics is needed: when no enabled rule is repo-scoped,
+// every diagnostic tuple is anchored to its linted file and cross-file
+// duplicates cannot occur, so the map+slice allocation is skipped.
+//
+// The effective config is queried with an empty path and nil front-matter
+// so kind-specific overrides do not influence the result. A repo-scoped
+// rule enabled only for a specific kind is conservatively treated as
+// potentially enabled (it is still surfaced by its global config entry).
+//
+// RunSource is a single in-memory file and is exempt from this check:
+// a single-file lint cannot produce cross-file duplicates.
+func (r *Runner) anyRepoScopedEnabled() bool {
+	mdRules := markdownRulesFrom(r.Rules, r.ConfigPath)
+	effective := r.effectiveWithCategories("", nil, nil)
+	for _, rl := range mdRules {
+		rs, ok := rl.(rule.RepoScoped)
+		if !ok || !rs.RepoScopedDiagnostics() {
+			continue
+		}
+		cfg, ok := effective[rl.Name()]
+		if ok && cfg.Enabled {
+			return true
+		}
+	}
+	return false
 }
 
 // sortDiagnostics sorts diagnostics by file, line, column, then message.

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"io/fs"
 	"os"
+	"sort"
+	"sync"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
@@ -37,9 +39,10 @@ type File struct {
 	// GitignoreFunc is a lazy factory for the gitignore matcher.
 	// It is called at most once (on first access via GetGitignore)
 	// and the result is cached. Rules that do not call GetGitignore
-	// never trigger matcher construction.
+	// never trigger matcher construction. sync.Once keeps the lazy
+	// build race-free if a *File is shared across goroutines.
 	GitignoreFunc func() *GitignoreMatcher
-	gitignoreOnce bool
+	gitignoreOnce sync.Once
 	gitignoreVal  *GitignoreMatcher
 
 	// GeneratedRanges records the content line ranges of generated
@@ -47,7 +50,49 @@ type File struct {
 	// line falls within these ranges are suppressed when linting the
 	// host file — the source file is responsible for those bytes.
 	GeneratedRanges []LineRange
+
+	// newlineOffsets caches the byte offset of every '\n' in Source,
+	// built once on first LineOfOffset call. Without it LineOfOffset
+	// rescans Source from byte 0 on every call, which made it ~24%
+	// of total `mdsmith check` CPU (plan 175 profiling). Built
+	// lazily because File is also constructed as a struct literal,
+	// not only via NewFile. sync.Once makes the lazy build safe
+	// even if a *File is read from multiple goroutines (e.g. the
+	// LSP serving concurrent requests for one document).
+	newlineOffsets     []int
+	newlineOffsetsOnce sync.Once
+
+	// codeBlockLines / piBlockLines cache the line-set walks behind
+	// CollectCodeBlockLines / CollectPIBlockLines. Both are pure
+	// functions of the immutable f.AST, yet up to a dozen default
+	// rules each called them independently — ~20 redundant full AST
+	// walks per file over the 600-file check gate (plan 175
+	// profiling). The cached map is shared read-only with every
+	// caller; no caller mutates it. sync.Once keeps the lazy build
+	// race-free across the LSP's concurrent readers, matching
+	// newlineOffsets above.
+	codeBlockLines     map[int]bool
+	codeBlockLinesOnce sync.Once
+	piBlockLines       map[int]bool
+	piBlockLinesOnce   sync.Once
+
+	// parseCtx is the goldmark parser.Context produced by the one
+	// parse NewFile already runs. It is the source for LinkReferences
+	// so MDS053/MDS054 no longer each re-parse the whole document
+	// just to read its link reference definitions — the single
+	// largest hot spot on the 600-file check gate (~10% CPU, plan
+	// 175 profiling). nil when the File was built as a struct literal
+	// rather than via NewFile; LinkReferences then parses once on
+	// demand. Released once linkRefs is materialized.
+	parseCtx     parser.Context
+	linkRefs     []Reference
+	linkRefsOnce sync.Once
 }
+
+// Reference is a link reference definition discovered during the parse,
+// re-exported from goldmark so callers of LinkReferences need not import
+// the parser package.
+type Reference = parser.Reference
 
 // SetRootDir configures the project root directory and its fs.FS together.
 func (f *File) SetRootDir(dir string) {
@@ -58,13 +103,11 @@ func (f *File) SetRootDir(dir string) {
 // GetGitignore returns the gitignore matcher for this file, creating it
 // lazily on first call. Returns nil if no GitignoreFunc was configured.
 func (f *File) GetGitignore() *GitignoreMatcher {
-	if f.gitignoreOnce {
-		return f.gitignoreVal
-	}
-	f.gitignoreOnce = true
-	if f.GitignoreFunc != nil {
-		f.gitignoreVal = f.GitignoreFunc()
-	}
+	f.gitignoreOnce.Do(func() {
+		if f.GitignoreFunc != nil {
+			f.gitignoreVal = f.GitignoreFunc()
+		}
+	})
 	return f.gitignoreVal
 }
 
@@ -89,19 +132,64 @@ func NewParser() parser.Parser {
 	)
 }
 
+// parserPool reuses goldmark parsers across NewFile / LinkReferences
+// calls. lint.NewParser() rebuilds a substantial config (default block,
+// inline, and paragraph parsers plus the PI block parser) every call;
+// constructing one per file was ~5% of all allocations over the
+// 600-file check gate (plan 175 profiling). A sync.Pool is the proven
+// house pattern (mirrors internal/index/build.go's parserPool, already
+// safe under its parallel Build): each goroutine Gets its own instance
+// and Puts it back, so there is no shared mutable parser even though
+// NewFile is called from many goroutines at once (parallel check, the
+// LSP serving concurrent documents). goldmark Parse keeps all per-parse
+// state in the per-call parser.Context.
+var parserPool = sync.Pool{
+	New: func() any { return NewParser() },
+}
+
+// parseWithPooledParser parses source with a pooled parser and the
+// given context, returning the document root. The parser is borrowed
+// for the duration of the Parse call only and returned immediately, so
+// concurrent callers each hold a distinct instance.
+func parseWithPooledParser(source []byte, ctx parser.Context) ast.Node {
+	p := parserPool.Get().(parser.Parser)
+	defer parserPool.Put(p)
+	return p.Parse(text.NewReader(source), parser.WithContext(ctx))
+}
+
 // NewFile parses source as Markdown and returns a File.
 func NewFile(path string, source []byte) (*File, error) {
-	reader := text.NewReader(source)
-	node := NewParser().Parse(reader)
+	pc := parser.NewContext()
+	node := parseWithPooledParser(source, pc)
 
 	lines := bytes.Split(source, []byte("\n"))
 
 	return &File{
-		Path:   path,
-		Source: source,
-		Lines:  lines,
-		AST:    node,
+		Path:     path,
+		Source:   source,
+		Lines:    lines,
+		AST:      node,
+		parseCtx: pc,
 	}, nil
+}
+
+// LinkReferences returns the link reference definitions goldmark found
+// in this document. It is computed once and cached. On the normal path
+// it reads the context from the parse NewFile already performed (no
+// extra parse); a File built as a struct literal has no such context,
+// so the first call parses Source once. The returned slice is shared
+// read-only.
+func (f *File) LinkReferences() []Reference {
+	f.linkRefsOnce.Do(func() {
+		ctx := f.parseCtx
+		if ctx == nil {
+			ctx = parser.NewContext()
+			parseWithPooledParser(f.Source, ctx)
+		}
+		f.linkRefs = ctx.References()
+		f.parseCtx = nil // context no longer needed; let it GC
+	})
+	return f.linkRefs
 }
 
 // NewFileFromSource creates a File from raw source bytes. When
@@ -149,15 +237,29 @@ func (f *File) FullSource(body []byte) []byte {
 	return out
 }
 
-// LineOfOffset converts a byte offset in Source to a 1-based line number.
-func (f *File) LineOfOffset(offset int) int {
-	line := 1
-	for i := 0; i < offset && i < len(f.Source); i++ {
-		if f.Source[i] == '\n' {
-			line++
+// lineIndex returns the cached offsets of every '\n' in Source,
+// building it once on first use.
+func (f *File) lineIndex() []int {
+	f.newlineOffsetsOnce.Do(func() {
+		var nl []int
+		for i := 0; i < len(f.Source); i++ {
+			if f.Source[i] == '\n' {
+				nl = append(nl, i)
+			}
 		}
-	}
-	return line
+		f.newlineOffsets = nl
+	})
+	return f.newlineOffsets
+}
+
+// LineOfOffset converts a byte offset in Source to a 1-based line
+// number. The line is 1 plus the number of newlines that occur
+// strictly before offset (a newline exactly at offset starts the
+// next line, so it does not count) — identical to a linear scan,
+// but O(log n) via binary search over the cached newline index.
+func (f *File) LineOfOffset(offset int) int {
+	nl := f.lineIndex()
+	return 1 + sort.Search(len(nl), func(i int) bool { return nl[i] >= offset })
 }
 
 // ColumnOfOffset converts a byte offset in Source to a 1-based column

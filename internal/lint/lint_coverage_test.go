@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -430,12 +431,95 @@ func TestIsIgnored_DirOnlySkipsFile(t *testing.T) {
 
 // --- LineOfOffset tests ---
 
+func TestLineIndex(t *testing.T) {
+	f := &File{Source: []byte("a\nbb\n\n")}
+	got := f.lineIndex()
+	assert.Equal(t, []int{1, 4, 5}, got, "newline offsets")
+
+	again := f.lineIndex()
+	require.NotEmpty(t, got)
+	if &got[0] != &again[0] {
+		t.Fatal("lineIndex rebuilt the slice instead of caching it")
+	}
+
+	empty := &File{Source: nil}
+	assert.Empty(t, empty.lineIndex(), "no newlines in empty source")
+}
+
+func TestLineIndex_ConcurrentFirstCall(t *testing.T) {
+	// sync.Once must make the lazy build race-free even when the
+	// first calls land on different goroutines. Run under -race.
+	f := &File{Source: []byte("x\ny\nz\nw\n")}
+	const n = 16
+	var wg sync.WaitGroup
+	results := make([][]int, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i] = f.lineIndex()
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < n; i++ {
+		assert.Equal(t, []int{1, 3, 5, 7}, results[i], "goroutine %d", i)
+		if i > 0 && &results[i][0] != &results[0][0] {
+			t.Fatal("concurrent callers saw different backing slices")
+		}
+	}
+}
+
 func TestLineOfOffset_Basic(t *testing.T) {
 	f := &File{Source: []byte("line1\nline2\nline3\n")}
 	assert.Equal(t, 1, f.LineOfOffset(0))
 	assert.Equal(t, 1, f.LineOfOffset(4))
 	assert.Equal(t, 2, f.LineOfOffset(6))
 	assert.Equal(t, 3, f.LineOfOffset(12))
+}
+
+// lineOfOffsetOracle is the original O(n) definition. The optimized
+// LineOfOffset must agree with it for every offset, including the
+// out-of-range and at-newline boundaries.
+func lineOfOffsetOracle(src []byte, offset int) int {
+	line := 1
+	for i := 0; i < offset && i < len(src); i++ {
+		if src[i] == '\n' {
+			line++
+		}
+	}
+	return line
+}
+
+func TestLineOfOffset_MatchesOracle(t *testing.T) {
+	sources := [][]byte{
+		nil,
+		[]byte(""),
+		[]byte("\n"),
+		[]byte("no newline"),
+		[]byte("a\nb\nc"),
+		[]byte("line1\nline2\nline3\n"),
+		[]byte("\n\n\nx\n\n"),
+		[]byte("héllo\nwörld\n€\n"), // multibyte: offsets are byte-based
+	}
+	for _, src := range sources {
+		f := &File{Source: src}
+		// Cover every byte boundary plus out-of-range on both ends.
+		for off := -3; off <= len(src)+3; off++ {
+			assert.Equalf(t, lineOfOffsetOracle(src, off), f.LineOfOffset(off),
+				"src=%q offset=%d", src, off)
+		}
+	}
+}
+
+func TestLineOfOffset_StableAcrossRepeatedCalls(t *testing.T) {
+	// The line index is built lazily and cached; a second call must
+	// return the same answer as the first.
+	f := &File{Source: []byte("a\nbb\nccc\n\nd")}
+	for _, off := range []int{0, 1, 2, 5, 9, 10, 11, 99} {
+		first := f.LineOfOffset(off)
+		assert.Equal(t, first, f.LineOfOffset(off), "offset %d", off)
+		assert.Equal(t, lineOfOffsetOracle(f.Source, off), first, "offset %d", off)
+	}
 }
 
 // --- PIBlockParser edge cases ---
