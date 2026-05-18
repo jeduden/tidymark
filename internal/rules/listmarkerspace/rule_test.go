@@ -336,6 +336,30 @@ func TestCheck_LooseList_FallbackPath(t *testing.T) {
 	assert.Equal(t, 3, diags[1].Line)
 }
 
+func TestBlockFirstLine_Recursion(t *testing.T) {
+	// An item whose only child is a *ast.List (lines=0) exercises
+	// blockFirstLine's recursive child-walk (the for-loop body).
+	src := []byte("-\n  - nested item\n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	r := &Rule{ULSingle: 1, ULMulti: 1, OLSingle: 1, OLMulti: 1}
+	_ = r.Check(f)
+}
+
+func TestCheck_NoLineItems(t *testing.T) {
+	// "- \n" → ListItem with no children → firstLineOfListItem returns 0.
+	// "- \n  ---\n" → ThematicBreak child (lines=0, no children) →
+	// blockFirstLine returns 0 → firstLineOfListItem returns 0.
+	// Both exercise the line<=0 bounds check in checkList and Fix.
+	for _, raw := range []string{"- \n", "- \n  ---\n"} {
+		f, err := lint.NewFile("test.md", []byte(raw))
+		require.NoError(t, err)
+		r := &Rule{ULSingle: 1, ULMulti: 1, OLSingle: 1, OLMulti: 1}
+		_ = r.Check(f)
+		_ = r.Fix(f)
+	}
+}
+
 func TestPluralSpace(t *testing.T) {
 	assert.Equal(t, "space", pluralSpace(1))
 	assert.Equal(t, "spaces", pluralSpace(0))

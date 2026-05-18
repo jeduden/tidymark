@@ -139,9 +139,6 @@ func parseMarkerAndSpaces(line []byte) (markerEnd int, spaceCount int) {
 }
 
 func firstLineOfListItem(f *lint.File, li *ast.ListItem) int {
-	if li.Lines().Len() > 0 {
-		return f.LineOfOffset(li.Lines().At(0).Start)
-	}
 	for c := li.FirstChild(); c != nil; c = c.NextSibling() {
 		if line := blockFirstLine(f, c); line > 0 {
 			return line
