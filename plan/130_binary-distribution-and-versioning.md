@@ -252,33 +252,30 @@ the tag on every channel.
 
 ## Acceptance Criteria
 
-- [x] Pushing a `vX.Y.Z` tag publishes
-      `@mdsmith/cli@X.Y.Z` and the five
-      `@mdsmith/<platform>` subpackages on npm.
-- [x] The same tag publishes `mdsmith==X.Y.Z` wheels
-      for the five supported platform tags on PyPI.
-- [x] The same tag still produces the existing GitHub
-      release assets and `.vsix`.
-- [x] `npm i -g @mdsmith/cli && mdsmith version`
-      prints `mdsmith vX.Y.Z` on all five supported
-      platforms.
-- [x] `pip install mdsmith==X.Y.Z && mdsmith version`
-      and `uvx mdsmith@X.Y.Z version` print
-      `mdsmith vX.Y.Z` on the same five platforms.
+The criteria below split into two groups. The
+"verified at merge" criteria are checked off because
+the implementation, tests, and CI guards are present
+on `main` and pass locally. The "verified at first
+tag" criteria can only be confirmed after a real
+`vX.Y.Z` tag exercises the publish jobs against the
+live registries; they stay unchecked until that tag
+ships and the smoke-test job is green.
+
+Verified at merge:
+
 - [x] The `.vsix` from the `vscode` job has its
       internal `package.json` `version` equal to
-      `X.Y.Z`.
-- [x] After the tag job finishes, `jeduden.mdsmith`
-      `X.Y.Z` is listed on the Visual Studio
-      Marketplace and installs via
-      `code --install-extension jeduden.mdsmith`.
-- [x] The same version is listed on Open VSX and
-      installs in VSCodium via
-      `codium --install-extension jeduden.mdsmith`.
-- [x] The Marketplace, Open VSX, and GitHub release
-      `.vsix` have identical SHA-256 sums.
+      `X.Y.Z`. (`mdsmith-release stamp` runs before
+      `vsce package` in the `vscode` job; the
+      stamp/check tests in `internal/release/` cover
+      the rewrite path.)
 - [x] CI on `main` fails when any tracked manifest
-      has a version other than `0.0.0-dev`.
+      has a version other than `0.0.0-dev`. (The
+      `version-guard` job in
+      [ci.yml](../.github/workflows/ci.yml) runs
+      `mdsmith-release check`; `internal/release`
+      tests cover both the pinned and the drifted
+      cases.)
 - [x] The new `docs/guides/install.md` documents
       every channel above and is linked from the
       README and the catalog in
@@ -286,11 +283,34 @@ the tag on every channel.
 - [x] All tests pass: `go test ./...`
 - [x] `go tool golangci-lint run` reports no issues.
 
-Deferred to [plan/145](145_asdf-mise-registry-submissions.md)
-(out-of-repo registry submissions):
+Verified at first tag (publish-time gating only):
 
-- `mise use mdsmith@X.Y.Z && mdsmith version` prints
-  `mdsmith vX.Y.Z`.
-- `asdf plugin add mdsmith` then
-  `asdf install mdsmith X.Y.Z` prints
-  `mdsmith vX.Y.Z`.
+- [ ] Pushing a `vX.Y.Z` tag publishes
+      `@mdsmith/cli@X.Y.Z` and the five
+      `@mdsmith/<platform>` subpackages on npm.
+- [ ] The same tag publishes `mdsmith==X.Y.Z` wheels
+      for the five supported platform tags on PyPI.
+- [ ] The same tag still produces the existing GitHub
+      release assets and `.vsix`.
+- [ ] `npm i -g @mdsmith/cli && mdsmith version`
+      prints `mdsmith vX.Y.Z` on all five supported
+      platforms.
+- [ ] `pip install mdsmith==X.Y.Z && mdsmith version`
+      and `uvx mdsmith@X.Y.Z version` print
+      `mdsmith vX.Y.Z` on the same five platforms.
+- [ ] `mise use mdsmith@X.Y.Z && mdsmith version`
+      prints `mdsmith vX.Y.Z`.
+- [ ] `asdf plugin add mdsmith` then
+      `asdf install mdsmith X.Y.Z` prints
+      `mdsmith vX.Y.Z`. (Tracked separately in
+      [plan/145](145_asdf-mise-registry-submissions.md);
+      depends on the asdf-plugin repo landing.)
+- [ ] After the tag job finishes, `jeduden.mdsmith`
+      `X.Y.Z` is listed on the Visual Studio
+      Marketplace and installs via
+      `code --install-extension jeduden.mdsmith`.
+- [ ] The same version is listed on Open VSX and
+      installs in VSCodium via
+      `codium --install-extension jeduden.mdsmith`.
+- [ ] The Marketplace, Open VSX, and GitHub release
+      `.vsix` have identical SHA-256 sums.
