@@ -33,6 +33,16 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/all"
 )
 
+// testPollDeadline bounds the busy-wait loops that gate assertions on
+// a goroutine's outgoing LSP frame. It is deliberately generous: the
+// CI `test` job runs with -covermode=atomic coverage instrumentation
+// (~2-3x slower) on a shared runner alongside ~20 other parallel
+// jobs, so a 2s window occasionally elapsed before the watched
+// goroutine wrote its frame, producing a flake that never reproduced
+// locally. The loops still return the instant the condition is met,
+// so widening the ceiling costs nothing on the happy path.
+const testPollDeadline = 15 * time.Second
+
 // testHarness wires a Server to a pair of in-memory pipes plus a
 // dedicated reader goroutine that demultiplexes incoming frames so
 // tests can wait for specific notifications without racing on the
@@ -556,7 +566,7 @@ func TestHandleInitializedRunsConfigAndWatchers(t *testing.T) {
 
 	// fetchClientSettings ran in a goroutine. Poll briefly for its
 	// outgoing workspace/configuration request before asserting.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testPollDeadline)
 	for time.Now().Before(deadline) {
 		if strings.Contains(buf.String(), "workspace/configuration") {
 			return
@@ -875,7 +885,7 @@ func deliverPendingResponse(
 	t *testing.T, s *Server, result json.RawMessage, errResp *responseError,
 ) string {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testPollDeadline)
 	for time.Now().Before(deadline) {
 		s.pendingRespMu.Lock()
 		var key string
@@ -1160,7 +1170,7 @@ func TestScheduleLintImmediateCancelsPendingDebounce(t *testing.T) {
 	s.pendingMu.Unlock()
 	// Wait briefly for the immediate timer to fire and clear
 	// itself, then assert the pending map is empty.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testPollDeadline)
 	for time.Now().Before(deadline) {
 		s.pendingMu.Lock()
 		empty := len(s.pending) == 0
@@ -1613,7 +1623,7 @@ func TestHandleDidChangeConfigurationRelintsOpenDocs(t *testing.T) {
 
 	// Drive the goroutine: wait for the pending response slot to
 	// appear, then deliver a settings reply that keeps run=onType.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(testPollDeadline)
 	for time.Now().Before(deadline) {
 		s.pendingRespMu.Lock()
 		var key string
@@ -1632,7 +1642,7 @@ func TestHandleDidChangeConfigurationRelintsOpenDocs(t *testing.T) {
 
 	// The post-fetch re-lint runs synchronously inside the
 	// goroutine; poll for the resulting publishDiagnostics frame.
-	for time.Now().Before(deadline.Add(2 * time.Second)) {
+	for time.Now().Before(deadline.Add(testPollDeadline)) {
 		if strings.Contains(buf.String(), "MDS006") {
 			return
 		}
