@@ -1,7 +1,7 @@
 ---
 id: 180
 title: Descriptive link text rule
-status: "🔲"
+status: "✅"
 model: sonnet
 depends-on: [172]
 summary: >-
@@ -53,23 +53,23 @@ link *quality*, not link *style*, so it is distinct. It
 
 ## Tasks
 
-1. Scaffold `internal/rules/descriptivelinktext/`.
-2. Implement the AST walk and phrase comparison.
-3. Implement `rule.Configurable` (`banned`, replace-mode)
+1. ✅ Scaffold `internal/rules/descriptivelinktext/`.
+2. ✅ Implement the AST walk and phrase comparison.
+3. ✅ Implement `rule.Configurable` (`banned`, replace-mode)
    and `rule.Defaultable` returning `false`.
-4. Fixture tests under the provisional
+4. ✅ Fixture tests under the provisional
    `internal/rules/MDS063-*` directory.
-5. Rule README; regenerate the docs catalog and index.
-6. Add the MD059 row to the
+5. ✅ Rule README; regenerate the docs catalog and index.
+6. ✅ Add the MD059 row to the
    [linter comparison](../docs/background/markdown-linters.md).
 
 ## Acceptance Criteria
 
-- [ ] `[click here](x)` is flagged; `[the install
+- [x] `[click here](x)` is flagged; `[the install
       guide](x)` is clean.
-- [ ] Comparison is case- and whitespace-insensitive.
-- [ ] A custom `banned` list replaces the default.
-- [ ] Rule is disabled by default.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
-- [ ] `mdsmith check .` passes
+- [x] Comparison is case- and whitespace-insensitive.
+- [x] A custom `banned` list replaces the default.
+- [x] Rule is disabled by default.
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
+- [x] `mdsmith check .` passes

@@ -24,6 +24,7 @@ import (
 	_ "github.com/jeduden/mdsmith/internal/rules/catalog"                     // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/concisenessscoring"          // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/crossfilereferenceintegrity" // registers rule
+	_ "github.com/jeduden/mdsmith/internal/rules/descriptivelinktext"         // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/directorystructure"          // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/duplicatedcontent"           // registers rule
 	_ "github.com/jeduden/mdsmith/internal/rules/emphasisstyle"               // registers rule

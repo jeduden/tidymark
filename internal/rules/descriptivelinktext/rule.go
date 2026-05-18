@@ -1,0 +1,182 @@
+package descriptivelinktext
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
+	"github.com/jeduden/mdsmith/internal/rules/settings"
+	"github.com/yuin/goldmark/ast"
+)
+
+var defaultBanned = []string{"click here", "here", "link", "more"}
+
+func init() {
+	rule.Register(&Rule{Banned: append([]string(nil), defaultBanned...)})
+}
+
+// Rule flags links whose visible text is a non-descriptive phrase such as
+// "click here", "here", "link", or "more".
+type Rule struct {
+	Banned []string
+}
+
+// ID implements rule.Rule.
+func (r *Rule) ID() string { return "MDS063" }
+
+// Name implements rule.Rule.
+func (r *Rule) Name() string { return "descriptive-link-text" }
+
+// Category implements rule.Rule.
+func (r *Rule) Category() string { return "prose" }
+
+// EnabledByDefault implements rule.Defaultable. MDS063 is opt-in.
+func (r *Rule) EnabledByDefault() bool { return false }
+
+// ApplySettings implements rule.Configurable.
+// banned replaces (not appends to) the default phrase list.
+func (r *Rule) ApplySettings(s map[string]any) error {
+	for k, v := range s {
+		switch k {
+		case "banned":
+			ss, ok := settings.ToStringSlice(v)
+			if !ok {
+				return fmt.Errorf("descriptive-link-text: banned must be a list of strings, got %T", v)
+			}
+			r.Banned = ss
+		default:
+			return fmt.Errorf("descriptive-link-text: unknown setting %q", k)
+		}
+	}
+	return nil
+}
+
+// DefaultSettings implements rule.Configurable.
+func (r *Rule) DefaultSettings() map[string]any {
+	return map[string]any{
+		"banned": append([]string(nil), defaultBanned...),
+	}
+}
+
+// Check implements rule.Rule.
+func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
+	if len(r.Banned) == 0 {
+		return nil
+	}
+
+	bannedSet := make(map[string]bool, len(r.Banned))
+	for _, b := range r.Banned {
+		bannedSet[normalizeText(b)] = true
+	}
+
+	var diags []lint.Diagnostic
+	_ = ast.Walk(f.AST, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		link, ok := n.(*ast.Link)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+
+		if isOnlyImageChild(link) || isOnlyCodeSpanChild(link) {
+			return ast.WalkContinue, nil
+		}
+
+		text := collectLinkText(link, f.Source)
+		if bannedSet[normalizeText(text)] {
+			line := linkLine(link, f)
+			diags = append(diags, lint.Diagnostic{
+				File:     f.Path,
+				Line:     line,
+				Column:   1,
+				RuleID:   r.ID(),
+				RuleName: r.Name(),
+				Severity: lint.Warning,
+				Message:  fmt.Sprintf("link text %q is not descriptive", text),
+			})
+		}
+
+		return ast.WalkContinue, nil
+	})
+	return diags
+}
+
+// normalizeText trims, lowercases, and collapses internal whitespace.
+func normalizeText(s string) string {
+	return strings.ToLower(strings.Join(strings.Fields(s), " "))
+}
+
+// isOnlyImageChild reports whether link's sole child is an image node.
+func isOnlyImageChild(link *ast.Link) bool {
+	c := link.FirstChild()
+	return c != nil && c.NextSibling() == nil && c.Kind() == ast.KindImage
+}
+
+// isOnlyCodeSpanChild reports whether link's sole child is a code span.
+func isOnlyCodeSpanChild(link *ast.Link) bool {
+	c := link.FirstChild()
+	return c != nil && c.NextSibling() == nil && c.Kind() == ast.KindCodeSpan
+}
+
+// collectLinkText returns all plain text within the link node, including
+// text nested inside emphasis or other inline formatting.
+func collectLinkText(n ast.Node, source []byte) string {
+	var b strings.Builder
+	collectText(&b, n, source)
+	return b.String()
+}
+
+func collectText(b *strings.Builder, n ast.Node, source []byte) {
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if t, ok := c.(*ast.Text); ok {
+			b.Write(t.Segment.Value(source))
+		} else {
+			collectText(b, c, source)
+		}
+	}
+}
+
+// linkLine returns the 1-based source line number for the link.
+func linkLine(link *ast.Link, f *lint.File) int {
+	if line := firstTextLine(link, f); line > 0 {
+		return line
+	}
+	for p := link.Parent(); p != nil; p = p.Parent() {
+		if isInlineNode(p) {
+			continue
+		}
+		lines := p.Lines()
+		if lines != nil && lines.Len() > 0 {
+			return f.LineOfOffset(lines.At(0).Start)
+		}
+	}
+	return 1
+}
+
+func firstTextLine(n ast.Node, f *lint.File) int {
+	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
+		if t, ok := c.(*ast.Text); ok {
+			return f.LineOfOffset(t.Segment.Start)
+		}
+		if line := firstTextLine(c, f); line > 0 {
+			return line
+		}
+	}
+	return 0
+}
+
+func isInlineNode(n ast.Node) bool {
+	switch n.(type) {
+	case *ast.Text, *ast.String, *ast.CodeSpan, *ast.Emphasis,
+		*ast.Link, *ast.Image, *ast.AutoLink, *ast.RawHTML:
+		return true
+	}
+	return false
+}
+
+var (
+	_ rule.Configurable = (*Rule)(nil)
+	_ rule.Defaultable  = (*Rule)(nil)
+)

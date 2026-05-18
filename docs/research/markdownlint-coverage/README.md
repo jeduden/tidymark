@@ -88,7 +88,7 @@ remaining **17** are scheduled in plans 172 and 176-182.
 | MD052 reference-defined   | ref label set    | MDS054  | ✅          |
 | MD053 reference-needed    | unused defs      | MDS053  | ✅          |
 | MD054 link-image-style    | inline vs ref    | —       | 🔲 plan 172 |
-| MD059 descriptive-link    | "click here"     | —       | 🔲 plan 180 |
+| MD059 descriptive-link    | "click here"     | MDS063  | ✅          |
 
 ## Inline, emphasis, HTML
 
