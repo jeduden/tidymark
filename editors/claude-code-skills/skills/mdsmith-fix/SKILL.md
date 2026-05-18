@@ -59,9 +59,9 @@ given.
 4. If the command exits non-zero, surface the
    full stderr to the user.
 
-5. Report how many files were rewritten (parse
-   the last line of stdout, which reads
-   `N file(s) fixed`).
+5. Report the fix summary from the last line of
+   stderr, which reads:
+   `stats: checked=N fixed=N failures=N unfixed=N`.
 
 ## Notes
 
