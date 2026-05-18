@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/neurosnap/sentences/english"
 	"github.com/yuin/goldmark/ast"
@@ -142,18 +143,32 @@ func extractText(buf *strings.Builder, node ast.Node, source []byte) {
 	}
 }
 
+// IsSpace reports whether r is a Unicode space, with exactly the
+// result unicode.IsSpace gives but an inlinable ASCII fast path: for
+// r < utf8.RuneSelf the only spaces are ' ' and '\t'..'\r', so two
+// integer comparisons decide it and only genuine non-ASCII runes pay
+// for unicode.IsSpace's table lookup. It is called per rune of every
+// word of every file on the check hot path, where unicode.IsSpace
+// alone was ~5.5% of CPU (plan 175 profiling).
+func IsSpace(r rune) bool {
+	if r < utf8.RuneSelf {
+		return r == ' ' || ('\t' <= r && r <= '\r')
+	}
+	return unicode.IsSpace(r)
+}
+
 // CountWords counts whitespace-delimited words in text. It is exactly
 // len(strings.Fields(text)) — a word is a maximal run of non-space
-// runes, space being unicode.IsSpace — but counts in a single rune
-// scan instead of allocating the []string. CountWords is called per
-// sentence, per paragraph, per file; the slice strings.Fields built
-// only to be discarded was ~0.48 GB over the 600-file check gate
-// (plan 175 profiling).
+// runes, space being [IsSpace] (exactly unicode.IsSpace) — but counts
+// in a single rune scan instead of allocating the []string. CountWords
+// is called per sentence, per paragraph, per file; the slice
+// strings.Fields built only to be discarded was ~0.48 GB over the
+// 600-file check gate (plan 175 profiling).
 func CountWords(text string) int {
 	n := 0
 	inWord := false
 	for _, r := range text {
-		if unicode.IsSpace(r) {
+		if IsSpace(r) {
 			inWord = false
 			continue
 		}
@@ -178,7 +193,7 @@ func CountSentences(text string) int {
 		if r == '.' || r == '!' || r == '?' {
 			if i == len(runes)-1 {
 				count++
-			} else if unicode.IsSpace(runes[i+1]) {
+			} else if IsSpace(runes[i+1]) {
 				count++
 			}
 		}

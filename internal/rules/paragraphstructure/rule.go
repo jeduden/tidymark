@@ -3,7 +3,6 @@ package paragraphstructure
 import (
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/jeduden/mdsmith/internal/lint"
 	"github.com/jeduden/mdsmith/internal/mdtext"
@@ -122,7 +121,7 @@ func cheapBounds(s string) (sentUB, words int) {
 		if r == '.' || r == '!' || r == '?' {
 			punct++
 		}
-		if unicode.IsSpace(r) {
+		if mdtext.IsSpace(r) {
 			inWord = false
 		} else if !inWord {
 			inWord = true
