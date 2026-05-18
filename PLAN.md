@@ -89,7 +89,7 @@ footer: |
 | 160 | 🔳     | sonnet | [Claude Code plugin extensions — skills, agents, hooks](plan/160_claude-code-skills-agents-hooks.md)                                    |
 | 161 | ✅     | sonnet | [Expose rule maintainability patterns via CLI help and LSP](plan/161_rule-pattern-metadata.md)                                          |
 | 162 | ✅     | sonnet | [Split the overloaded `meta` rule category](plan/162_rule-category-cleanup.md)                                                          |
-| 163 | 🔲     |        | [Extract mdsmith Markdown parse/produce as a public Go library](plan/163_public-markdown-library.md)                                    |
+| 163 | ✅     |        | [Extract mdsmith Markdown parse/produce as a public Go library](plan/163_public-markdown-library.md)                                    |
 | 164 | ✅     |        | [GitHub-UI-triggered releases and a split website deploy](plan/164_github-ui-releases-and-split-website.md)                             |
 | 165 | ✅     | opus   | [Portable Markdown export (mdsmith export)](plan/165_portable-markdown-export.md)                                                       |
 | 166 | ✅     | opus   | [Schema-driven data extraction (mdsmith extract)](plan/166_schema-driven-data-extraction.md)                                            |
@@ -111,4 +111,5 @@ footer: |
 | 182 | 🔲     | sonnet | [Code block convention rules](plan/182_code-block-conventions.md)                                                                       |
 | 183 | ✅     | sonnet | [Skip DedupeDiagnostics via an audited rule.RepoScoped marker](plan/183_dedupe-diagnostics-repo-scoped-skip.md)                         |
 | 184 | ✅     | opus   | [Automate the cross-tool benchmark on merge to main and publish numbers to the assets branch](plan/184_release-benchmark-automation.md) |
+| 185 | 🔲     |        | [Expose extended-syntax parsers and the flavor model in pkg/markdown](plan/185_public-markdown-flavor-library.md)                       |
 <?/catalog?>
