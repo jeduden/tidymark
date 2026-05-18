@@ -21,9 +21,9 @@ is required.
 
 With `--heading`, `<old>` is the heading's current visible
 text. mdsmith rewrites the heading line. It also rewrites
-every workspace `](file.md#slug)` anchor and every
-`[label]: file.md#slug` ref-def whose target resolved to
-it. Same-file `(#slug)` references are included. A
+every workspace `[text](file.md#slug)` anchor link and
+every `[label]: file.md#slug` ref-def whose target resolved
+to it. Same-file `(#slug)` references are included. A
 duplicate-name disambiguator that shifts as a result is
 updated too.
 

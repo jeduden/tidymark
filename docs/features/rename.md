@@ -11,11 +11,11 @@ link: "/docs/reference/cli/lsp/"
 ---
 # Rename without breaking links
 
-Renaming a heading normally breaks every `](file.md#old-slug)`
-that pointed at it. The links still parse, so nothing
-complains until a reader hits a dead anchor — or until
-MDS027 flags it on the next lint pass, after the damage is
-committed.
+Renaming a heading normally breaks every
+`[text](file.md#old-slug)` link that pointed at it. The
+links still parse, so nothing complains until a reader hits
+a dead anchor — or until MDS027 flags it on the next lint
+pass, after the damage is committed.
 
 mdsmith renames the whole graph at once. Rename a heading
 and the editor rewrites the heading line plus every
