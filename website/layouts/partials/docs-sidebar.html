@@ -37,12 +37,17 @@
   {{ range $ordered }}
     <div class="docs-side-group">
       <a class="docs-side-title{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
-      {{ range .Pages.ByWeight }}
+      {{- /* .RegularPages, not .Pages: .Pages is the union of
+             .RegularPages and .Sections, so pairing .Pages with
+             the .Sections loop below would render every
+             subsection twice — once as a flat link, once as the
+             "›" sub-group header. */ -}}
+      {{ range .RegularPages.ByWeight }}
         <a class="docs-side-link{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
       {{ end }}
       {{ range .Sections.ByWeight }}
         <a class="docs-side-link docs-side-sub{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }} ›</a>
-        {{ range .Pages.ByWeight }}
+        {{ range .RegularPages.ByWeight }}
           <a class="docs-side-link docs-side-nested{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
         {{ end }}
       {{ end }}
