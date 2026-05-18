@@ -3,12 +3,13 @@ id: 185
 title: 'Expose extended-syntax parsers and the flavor model in pkg/markdown'
 status: "🔲"
 summary: >-
-  Promote the five custom goldmark
-  extensions and the flavor support model
-  into a public pkg/markdown/flavor
-  sub-package, take detection off
-  internal/lint, and retire the last two
-  hand-rolled goldmark configs.
+  Promote every custom goldmark parser
+  (the five extensions) and the flavor
+  support model into a public
+  pkg/markdown/flavor sub-package, take
+  detection off internal/lint, and retire
+  the last two hand-rolled goldmark
+  configs.
 model: ""
 depends-on: [163]
 ---
@@ -18,10 +19,10 @@ depends-on: [163]
 
 Give external Go callers one public
 surface for mdsmith's extended-syntax
-parsing. Cover the flavor extensions and
-feature detection. Stop duplicating the
-goldmark config and the flavor-support
-table outside
+parsing. Move every custom parser and
+the feature detection into it. Stop
+duplicating the goldmark config and the
+flavor-support table outside
 [pkg/markdown](../pkg/markdown).
 
 ## Context
@@ -53,6 +54,19 @@ the drift 163 removed from
   `validate_content.go`: a hand-rolled
   `goldmark.New()` with the table
   extension and the PI block.
+
+An exhaustive scan finds every custom
+goldmark parser. The markers are
+`ast.NewNodeKind`, an `Extend` method,
+and an `ASTTransformer`. Only two owners
+match. The PI block parser already lives
+in [pkg/markdown](../pkg/markdown); 163
+moved it. The five extensions under
+[internal/rules/markdownflavor/ext](../internal/rules/markdownflavor/ext)
+are the rest, and no others exist.
+Moving those five empties the tree of
+custom parsers outside the public
+package.
 
 Boundary facts shape the design:
 
@@ -99,12 +113,21 @@ sync-docs.
    does this document use, and which
    flavors accept them". Record the
    rejected flat layout.
-2. [ ] Move the five extensions and their
-   unit tests from
+2. [ ] Move every custom goldmark parser
+   into `pkg/markdown/flavor`. That is
+   all five extensions: superscript,
+   subscript, math block, inline math,
+   and abbreviation. The abbreviation
+   extension also registers an
+   `ASTTransformer`; move it whole. Move
+   their unit tests from
    [internal/rules/markdownflavor/ext](../internal/rules/markdownflavor/ext)
-   to `pkg/markdown/flavor`. They import
-   only goldmark, so no dependency
-   direction changes.
+   too. They import only goldmark, so no
+   dependency direction changes. The PI
+   parser already sits in
+   [pkg/markdown](../pkg/markdown) from
+   163, so this leaves no custom parser
+   outside the public package.
 3. [ ] Move the `Flavor` identity out of
    [internal/convention](../internal/convention).
    Move the `Feature` and `support`
@@ -168,6 +191,15 @@ sync-docs.
   [pkg/markdown](../pkg/markdown). No
   `goldmark.New(` exists under
   `internal/`.
+- [ ] No `ast.NewNodeKind`, goldmark
+  `Extend` method, or custom
+  `parser.BlockParser`,
+  `parser.InlineParser`, or
+  `ASTTransformer` exists under
+  `internal/` or `cmd/`. Every custom
+  parser lives in
+  [pkg/markdown](../pkg/markdown).
+  Verifies SRP and DIP.
 - [ ] [internal/convention](../internal/convention)
   and the rule define no own `Flavor` or
   `Feature` type. Both depend inward.
