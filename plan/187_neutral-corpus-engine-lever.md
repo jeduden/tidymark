@@ -60,18 +60,19 @@ are structural. Each is scoped work, not a one-line guard:
 
 ## Tasks
 
-1. [ ] Create this plan.
-2. [ ] Memoize `astutil.CollectSectionParagraphs` on the per-Check
+1. [x] Create this plan.
+2. [x] Memoize `astutil.CollectSectionParagraphs` on the per-Check
    `*lint.File` (the `File.Memo` primitive) and migrate the two hot
    default prose rules (MDS024 paragraph-structure,
    paragraph-readability) to consume it instead of each running
    their own `ast.Walk` + per-paragraph `ExtractPlainText`.
-   Behaviour-preserving (integration fixtures unchanged); the
-   foundation the multiplexed walk generalises. Honest measured
-   note: wall time on the neutral corpus is flat here because the
+   Behaviour-preserving: the full integration fixture suite,
+   `go test ./...`, and `mdsmith check .` are unchanged. This is
+   the foundation the multiplexed walk generalises. Honest
+   measured note: neutral-corpus wall time is flat here because the
    residual cost is intrinsic Punkt, not this duplicate walk — the
    value is the removed redundant CPU work and the shared seam, not
-   a neutral speedup.
+   a neutral speedup. The next two tasks hold the real levers.
 3. [ ] Prototype the multiplexed walk: a single `ast.Walk` driver
    that fans out to registered per-rule visitors, migrate a scoped
    batch of the default node-walking rules, and measure the
@@ -87,7 +88,7 @@ are structural. Each is scoped work, not a one-line guard:
 
 ## Acceptance Criteria
 
-- [ ] `astutil.CollectSectionParagraphs` runs once per File;
+- [x] `astutil.CollectSectionParagraphs` runs once per File;
       MDS024 and paragraph-readability share it (pinned by a
       reference-identity test); integration fixtures unchanged.
 - [ ] The multiplexed walk reduces `goldmark walkHelper`
