@@ -6,7 +6,7 @@ summary: >-
   solid-architecture skill (audit mode)
   appends here; blockers are also filed as
   plans.
-audit-from: 7464d27310f722d9bfe203dc66b11bde714d4dd8
+audit-from: b5a6d72302b6a258f4acdb812464d1990388420d
 ---
 # Architecture audit log
 
@@ -252,6 +252,26 @@ Worth a one-sentence package comment
 explaining why it is separate so
 future readers do not read it as a
 separate rule package.
+
+## Audit 2026-05-17 (range: 7464d273..b5a6d72)
+
+Covered: `internal/rename`, `internal/index`
+(relocated), `mdsmith deps`, `mdsmith export`.
+
+### 2026-05-17 tax
+
+`nonNegativeUTF16RuneLen` privately copied in
+three packages:
+
+- `internal/lsp/diagnostics.go:156`
+- `internal/rename/rename.go:532`
+- `cmd/mdsmith/rename.go:380`
+
+Fix: export `NonNegativeUTF16RuneLen` (plus
+`UTF16FromByteOffset` and `UTF16ToByteOffset`)
+from `internal/mdtext`. Remove the three private
+copies. See
+[plan/186](../../plan/186_arch-fix-utf16-centralize.md).
 
 ## Decision 2026-05-17 (plan/174)
 
