@@ -113,5 +113,5 @@ footer: |
 | 184 | ✅     | opus   | [Automate the cross-tool benchmark on merge to main and publish numbers to the assets branch](plan/184_release-benchmark-automation.md) |
 | 185 | 🔲     |        | [Expose extended-syntax parsers and the flavor model in pkg/markdown](plan/185_public-markdown-flavor-library.md)                       |
 | 186 | 🔲     | opus   | [Run-scoped read cache for catalog cross-host redundancy](plan/186_catalog-run-scoped-readcache.md)                                     |
-| 187 | 🔳     | opus   | [Neutral-corpus engine lever — shared AST walk and Punkt cost](plan/187_neutral-corpus-engine-lever.md)                                 |
+| 187 | ✅     | opus   | [Neutral-corpus engine lever — shared AST walk and Punkt cost](plan/187_neutral-corpus-engine-lever.md)                                 |
 <?/catalog?>
