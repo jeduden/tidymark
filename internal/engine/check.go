@@ -116,11 +116,14 @@ func checkRulesWithIntraFile(
 	return diags, errs
 }
 
-// classifyRules walks the rules list once, clones and configures each
-// enabled rule, and splits the result into per-rule slots. The slots
-// slice keeps every enabled rule in input order (so the final
-// concatenation is deterministic); the nodeCheckers slice is the
-// subset whose group will be filled by the shared walk.
+// classifyRules walks the rules list once, configures each enabled
+// rule via ConfigureRule (which clones and applies settings only
+// when cfg.Settings is non-nil and the rule is Configurable —
+// otherwise the worker's existing clone is reused as-is), and splits
+// the result into per-rule slots. The slots slice keeps every
+// enabled rule in input order (so the final concatenation is
+// deterministic); the nodeCheckers slice is the subset whose group
+// will be filled by the shared walk.
 func classifyRules(
 	rules []rule.Rule, effective map[string]config.RuleCfg,
 ) (slots []*ruleSlot, nodeCheckers []*ruleSlot, errs []error) {
