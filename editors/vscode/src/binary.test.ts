@@ -8,6 +8,15 @@
 // extension and the npm shim can never drift.
 
 import { describe, expect, mock, test } from "bun:test";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type CliShim, resolveBinary } from "./binary";
 
@@ -196,6 +205,51 @@ describe("cross-package platform matrix (drift guard)", () => {
         loadShim: () => canonicalShim,
       });
       expect(r).toBe(join(cliDir, "@mdsmith", target, "bin", exe));
+    }
+  });
+});
+
+describe("resolveBinary — production defaults (no injected seams)", () => {
+  // Exercises the real loadShim (require off disk), real fileExists,
+  // and real makeExecutable (chmod) against a temp dist/cli/ that
+  // carries the canonical shim verbatim — the same tree build.ts
+  // stages. Other tests inject all three seams, so this is the only
+  // coverage of loadShimFromDisk / chmodExecutable / the
+  // process.platform|arch fallbacks.
+  test("loads the bundled shim from disk and resolves the host binary", () => {
+    const host = canonicalShim.PLATFORM_PACKAGES[
+      `${process.platform}-${process.arch}`
+    ] as string | undefined;
+
+    const ext = mkdtempSync(join(tmpdir(), "mdsmith-bin-"));
+    try {
+      const dist = join(ext, "dist", "cli");
+      mkdirSync(dist, { recursive: true });
+      writeFileSync(
+        join(dist, "mdsmith.js"),
+        readFileSync(canonicalShimPath),
+      );
+
+      if (host) {
+        const exe = host.endsWith("win32-x64") ? "mdsmith.exe" : "mdsmith";
+        const binDir = join(dist, host, "bin");
+        mkdirSync(binDir, { recursive: true });
+        const binPath = join(binDir, exe);
+        writeFileSync(binPath, "#!/bin/sh\n");
+        chmodSync(binPath, 0o644);
+
+        // No deps: real require, real existsSync, real chmod, and
+        // the process.platform/arch fallbacks.
+        const r = resolveBinary("", ext);
+        expect(r).toBe(binPath);
+      } else {
+        // Unsupported host: loadShimFromDisk still runs, the shim
+        // throws, and we fall back to PATH (never "").
+        const r = resolveBinary("mdsmith", ext);
+        expect(r).toBe("mdsmith");
+      }
+    } finally {
+      rmSync(ext, { recursive: true, force: true });
     }
   });
 });
