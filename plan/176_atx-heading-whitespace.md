@@ -69,8 +69,13 @@ the heading's source position, not only the AST node.
 - [x] `#Heading` emits a missing-space diagnostic and
       fixes to `# Heading`.
 - [x] `#  Heading` fixes to `# Heading`.
-- [x] `# Heading #` extra-space and `#Heading#` cases are
-      detected and normalized.
+- [x] `# Heading #` (closing ATX marker preceded by whitespace) is flagged
+      and fixed to `# Heading`.
+- [x] `# Heading  #` (multiple spaces before closing marker) is flagged and
+      fixed to `# Heading`.
+- [x] `#Heading#`: MD018 fires (missing space after opening `#`); fixes to
+      `# Heading#`. Per CommonMark a trailing `#` without preceding whitespace
+      is content, not a closing marker, so MD020 is partial for this case.
 - [x] An indented heading is flagged and dedented.
 - [x] Code blocks and directive bodies are never flagged.
 - [x] All tests pass: `go test ./...`
