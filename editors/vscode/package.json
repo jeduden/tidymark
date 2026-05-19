@@ -5,6 +5,7 @@
   "version": "0.0.0-dev",
   "publisher": "jeduden",
   "license": "MIT",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
