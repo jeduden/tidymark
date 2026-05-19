@@ -115,4 +115,5 @@ footer: |
 | 186 | ✅     |        | [Centralize UTF-16 column helpers in internal/mdtext](plan/186_arch-fix-utf16-centralize.md)                                            |
 | 186 | 🔲     | opus   | [Run-scoped read cache for catalog cross-host redundancy](plan/186_catalog-run-scoped-readcache.md)                                     |
 | 187 | ✅     | opus   | [Neutral-corpus engine lever — shared AST walk and Punkt cost](plan/187_neutral-corpus-engine-lever.md)                                 |
+| 188 | 🔲     | opus   | [Regex-over-source rules — inventory and AST-resident replacements](plan/188_regex-vs-ast-inventory.md)                                 |
 <?/catalog?>
