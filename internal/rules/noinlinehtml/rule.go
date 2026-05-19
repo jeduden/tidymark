@@ -14,7 +14,12 @@ import (
 )
 
 func init() {
-	rule.Register(&Rule{})
+	// Register with AllowComments=true so that enabling the rule with
+	// the bare boolean form (`no-inline-html: true`) matches what
+	// DefaultSettings documents. ConfigureRule does not clone or apply
+	// settings when cfg.Settings is nil, so the registered instance
+	// must already reflect the documented default.
+	rule.Register(&Rule{AllowComments: true})
 }
 
 // Rule implements MDS041, flagging raw HTML in Markdown documents.
@@ -58,6 +63,9 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return fmt.Errorf("no-inline-html: allow must be a list of strings, got %T", v)
 			}
 			r.Allow = tags
+			// Allow changed; drop the cached lookup so cachedAllowSet
+			// rebuilds from the new slice on the next visit.
+			r.allowSetCache = nil
 		case "allow-comments":
 			b, ok := v.(bool)
 			if !ok {

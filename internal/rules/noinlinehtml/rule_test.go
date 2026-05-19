@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -248,4 +249,36 @@ func TestCachedAllowSet(t *testing.T) {
 	got := empty.cachedAllowSet()
 	require.NotNil(t, got, "empty Allow must still return a non-nil map")
 	assert.Empty(t, got)
+}
+
+// TestApplySettings_InvalidatesAllowSetCache pins that
+// ApplySettings drops the cached allow set when `allow` changes,
+// so a re-applied configuration does not serve stale keys built
+// from the previous Allow slice.
+func TestApplySettings_InvalidatesAllowSetCache(t *testing.T) {
+	r := &Rule{Allow: []string{"old-tag"}}
+	first := r.cachedAllowSet()
+	require.Contains(t, first, "old-tag")
+
+	err := r.ApplySettings(map[string]any{"allow": []any{"new-tag"}})
+	require.NoError(t, err)
+
+	rebuilt := r.cachedAllowSet()
+	assert.NotContains(t, rebuilt, "old-tag", "stale Allow keys must be dropped")
+	assert.Contains(t, rebuilt, "new-tag", "new Allow keys must appear")
+}
+
+// TestRegisteredDefault_AllowCommentsTrue pins that the
+// init()-registered rule instance carries AllowComments=true so
+// that enabling the rule via the bare boolean form
+// (`no-inline-html: true`) matches DefaultSettings's documented
+// allow-comments default. ConfigureRule short-circuits when
+// cfg.Settings is nil, so the registered instance is what runs.
+func TestRegisteredDefault_AllowCommentsTrue(t *testing.T) {
+	r := rule.ByID("MDS041")
+	require.NotNil(t, r, "MDS041 must be registered")
+	hr, ok := r.(*Rule)
+	require.True(t, ok)
+	assert.True(t, hr.AllowComments,
+		"registered MDS041 must have AllowComments=true to match DefaultSettings")
 }

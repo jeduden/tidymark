@@ -54,6 +54,9 @@ func (r *Rule) ApplySettings(s map[string]any) error {
 				return fmt.Errorf("descriptive-link-text: banned must be a list of strings, got %T", v)
 			}
 			r.Banned = ss
+			// Banned changed; drop the cached lookup so cachedBannedSet
+			// rebuilds from the new slice on the next visit.
+			r.bannedSet = nil
 		default:
 			return fmt.Errorf("descriptive-link-text: unknown setting %q", k)
 		}

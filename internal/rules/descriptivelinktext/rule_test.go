@@ -166,3 +166,20 @@ func TestCachedBannedSet(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Empty(t, got)
 }
+
+// TestApplySettings_InvalidatesBannedSetCache pins that
+// ApplySettings drops the cached banned set when `banned`
+// changes, so a re-applied configuration does not serve stale
+// keys built from the previous Banned slice.
+func TestApplySettings_InvalidatesBannedSetCache(t *testing.T) {
+	r := &Rule{Banned: []string{"old phrase"}}
+	first := r.cachedBannedSet()
+	require.Contains(t, first, "old phrase")
+
+	err := r.ApplySettings(map[string]any{"banned": []any{"new phrase"}})
+	require.NoError(t, err)
+
+	rebuilt := r.cachedBannedSet()
+	assert.NotContains(t, rebuilt, "old phrase", "stale Banned keys must be dropped")
+	assert.Contains(t, rebuilt, "new phrase", "new Banned keys must appear")
+}
