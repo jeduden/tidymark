@@ -35,11 +35,14 @@ const linkTitleTail = `(\s+"[^"]*")?`
 // `../MDS021-include/#section`) rather than an unpublished
 // `README.md`.
 //
-// A trailing linkTitleTail (group 3) absorbs an optional Markdown
-// link title so `[x](MDS…/README.md "t")` is rewritten with its
-// title kept rather than shipped as a dead path (audit gap G6).
+// The anchor capture excludes whitespace (`#[^)\s]*`, not
+// `#[^)]*`) so it stops at the space before a link title rather
+// than swallowing it; the trailing linkTitleTail (group 3) then
+// cleanly captures the title so `[x](MDS…/README.md "t")` (or
+// `…/README.md#sec "t"`) is rewritten with its title kept rather
+// than shipped as a dead path (audit gap G6).
 var ruleReadmeLink = regexp.MustCompile(
-	`\]\(((?:\.\./)?MDS[0-9A-Za-z._-]+)/README\.md(#[^)]*)?` +
+	`\]\(((?:\.\./)?MDS[0-9A-Za-z._-]+)/README\.md(#[^)\s]*)?` +
 		linkTitleTail + `\)`)
 
 // ruleRefDefLink matches a Markdown reference-style link definition
@@ -84,11 +87,13 @@ var repoPlanRefDef = regexp.MustCompile(`(?m)^(\[[^\]]+\]: )\.\./\.\./\.\./plan/
 // docs link to both forms. Group 2 captures an optional
 // `#anchor` so a deep-link into a rule README's heading
 // (e.g. `MDS020-required-structure/README.md#index-side-output`)
-// preserves the fragment after the slash. Group 3 is the optional
-// linkTitleTail so a titled link keeps its title (gap G6).
+// preserves the fragment after the slash. The anchor capture
+// excludes whitespace (`#[^)\s]*`) so a title is left for the
+// trailing linkTitleTail (group 3) to capture, rather than the
+// anchor swallowing `#sec "t"` as one blob (gap G6).
 var repoRuleLink = regexp.MustCompile(
 	`\]\((?:\.\./)+internal/rules/(MDS[0-9A-Za-z._-]+)/` +
-		`(?:README\.md)?(#[^)]*)?` + linkTitleTail + `\)`)
+		`(?:README\.md)?(#[^)\s]*)?` + linkTitleTail + `\)`)
 
 // repoRuleRefDef matches a reference-style link definition whose
 // target is a repo-relative internal/rules/ path. Multiline flag
@@ -192,11 +197,12 @@ var repoNonPublishedRefDef = regexp.MustCompile(
 //
 // Group 1 captures the path prefix (required: a bare
 // `index.md` link with no parent directory is ambiguous and
-// left alone); group 2 captures an optional `#anchor`; group 3
-// is the optional linkTitleTail so a titled directory link keeps
-// its title (gap G6).
+// left alone); group 2 captures an optional `#anchor` (whitespace
+// excluded so it stops before a title); group 3 is the optional
+// linkTitleTail so a titled directory link keeps its title — even
+// when it also carries a `#fragment` (gap G6).
 var indexMdLink = regexp.MustCompile(
-	`\]\(((?:[^)/]+/)+)index\.md((?:#[^)]*)?)` + linkTitleTail + `\)`)
+	`\]\(((?:[^)/]+/)+)index\.md((?:#[^)\s]*)?)` + linkTitleTail + `\)`)
 
 // ruleFixtureLink matches an inline link in a per-rule README
 // whose target is a fixture path under the rule's own directory:

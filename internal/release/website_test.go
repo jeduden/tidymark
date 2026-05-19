@@ -615,3 +615,37 @@ func TestRewriteRuleLinks_UntitledStillRewrites(t *testing.T) {
 		`[x](https://github.com/jeduden/mdsmith/blob/main/plan/107_no-reference-style.md)`,
 		"an untitled link must still rewrite exactly as before")
 }
+
+// A link that carries BOTH a `#fragment` and a title is the case
+// the anchor-capture tightening (`#[^)\s]*`, not `#[^)]*`) exists
+// for: the anchor must stop at the space so linkTitleTail keeps
+// the title in its own group and the rewritten destination has no
+// embedded space. These pin that anchor and title stay cleanly
+// separated across every regex that has both.
+
+func TestRewriteRuleLinks_AnchoredTitledRuleInlineAndRefDef(t *testing.T) {
+	in := "Deep: [MDS020](../../../internal/rules/" +
+		"MDS020-required-structure/README.md#sec \"Req\").\n\n" +
+		"[r]: ../../internal/rules/MDS020-required-structure/README.md#sec \"Req\"\n"
+	got := string(rewriteRuleLinks([]byte(in)))
+	assert.Contains(t, got, `[MDS020](/rules/mds020-required-structure/#sec "Req")`,
+		"anchored+titled rule link must keep both #fragment and title, no embedded space")
+	assert.Contains(t, got, `[r]: /rules/mds020-required-structure/#sec "Req"`,
+		"anchored+titled rule reference-def must keep both #fragment and title")
+}
+
+func TestRewriteRuleLinks_AnchoredTitledIndexMdLink(t *testing.T) {
+	got := string(rewriteRuleLinks(
+		[]byte(`See [d](development/index.md#x "Dev").` + "\n")))
+	assert.Contains(t, got, `[d](development/#x "Dev")`,
+		"anchored+titled index.md link must keep both #fragment and title")
+}
+
+func TestTransformRulePage_AnchoredTitledReadmeLink(t *testing.T) {
+	in := "Anchor: [MDS021 a](../MDS021-include/README.md#syntax \"Inc\").\n"
+	got := string(transformRulePage([]byte(in), "MDS001-line-length"))
+	assert.Contains(t, got, `[MDS021 a](../MDS021-include/#syntax "Inc")`,
+		"anchored+titled sibling README link must keep both #fragment and title")
+	assert.NotContains(t, got, "README.md",
+		"no unpublished README.md target may survive")
+}
