@@ -362,10 +362,8 @@ func TestEmptyBQLine_ParentHasPosition(t *testing.T) {
 	parent.Lines().Append(goldmarktext.NewSegment(0, 5)) // nodeFirstLine(parent) = 1
 	emptyBQ := goldmarkast.NewBlockquote()               // first child, no siblings
 	parent.AppendChild(parent, emptyBQ)
-	f := &lint.File{
-		Path:  "test.md",
-		Lines: bytes.Split(src, []byte("\n")),
-	}
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
 	assert.Equal(t, 1, emptyBQLine(f, emptyBQ))
 }
 
