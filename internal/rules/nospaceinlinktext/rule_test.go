@@ -86,6 +86,18 @@ func TestCheckImagesDisabled(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+// TestFixImagesDisabled_LeavesImageAltUntouched pins the
+// CheckImages=false branch on the Fix path (collectSpans): images
+// must be skipped so their alt text is not stripped of intentional
+// padding. The Check path is already covered by
+// TestCheckImagesDisabled; this exercises the same predicate in
+// the collectSpans loop used by Fix.
+func TestFixImagesDisabled_LeavesImageAltUntouched(t *testing.T) {
+	src := "# T\n\n![ alt ](img.png)\n"
+	result := fix(t, src, false)
+	assert.Equal(t, src, result, "Fix must leave image alt untouched when CheckImages=false")
+}
+
 func TestNewlineInLinkTextNotFlagged(t *testing.T) {
 	// Newline between words inside brackets must not be flagged.
 	diags := check(t, "# T\n\n[long text that\nwraps](url)\n", true)

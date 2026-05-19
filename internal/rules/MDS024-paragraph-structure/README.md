@@ -51,7 +51,7 @@ Punkt-segmented sentence. It is not a guess.
 A paragraph like "Dr. Smith met Mr. Jones at 3.14 p.m. on
 Jan. 5." is one sentence, not seven. Naive splitters
 disagree. Punkt is right. The rule reports what Punkt says.
-So `paragraph has too many sentences (5 > 6)` means five
+So `paragraph has too many sentences (8 > 6)` means eight,
 and `sentence too long (45 > 40 words): "..."` quotes the
 real over-long sentence.
 

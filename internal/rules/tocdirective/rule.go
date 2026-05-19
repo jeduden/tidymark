@@ -90,9 +90,9 @@ func (r *Rule) CheckNode(n ast.Node, entering bool, f *lint.File) []lint.Diagnos
 	if !entering {
 		return nil
 	}
-	if f == nil || f.AST == nil {
-		return nil
-	}
+	// The engine path never calls CheckNode with a nil File or AST,
+	// and rule.WalkNodes (the standalone Check path) short-circuits
+	// nil ASTs before invoking the walk. No duplicate guard here.
 	para, ok := n.(*ast.Paragraph)
 	if !ok {
 		return nil

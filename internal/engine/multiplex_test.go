@@ -211,7 +211,7 @@ var migratedRuleEquivalenceCorpus = []byte(strings.Join([]string{
 	"",
 	"A code span with `  spaces  ` inside.",
 	"",
-	"A heading with trailing period.",
+	"# A heading with trailing period.",
 	"",
 	"#### A jumped heading",
 	"",

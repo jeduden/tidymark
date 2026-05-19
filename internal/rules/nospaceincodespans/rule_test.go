@@ -31,6 +31,18 @@ func TestCheck_NoSpaces_NoDiagnostic(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+// TestCheck_EmptyCodeSpan_NoDiagnostic pins the empty-span guard:
+// goldmark accepts paired backticks with nothing between them as an
+// (empty) CodeSpan. The rule's span-bounds helper returns
+// last==first for these; CheckNode must short-circuit rather than
+// index into a zero-length slice. This pins the branch at
+// rule.go: `!ok2 || last == first`.
+func TestCheck_EmptyCodeSpan_NoDiagnostic(t *testing.T) {
+	f := newFile(t, "Use `` here.\n")
+	diags := (&Rule{}).Check(f)
+	assert.Empty(t, diags, "empty code span must produce no diagnostic")
+}
+
 func TestCheck_BalancedSingleSpace_NoDiagnostic(t *testing.T) {
 	// CommonMark trims one space from each side when both sides have one.
 	f := newFile(t, "Use ` x ` here.\n")
