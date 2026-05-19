@@ -992,31 +992,6 @@ func TestToLSPEmptyLineProducesZeroWidthRange(t *testing.T) {
 		"empty line should produce a zero-width range, not extend past the line")
 }
 
-func TestUtf16FromByteOffsetInvalidRunes(t *testing.T) {
-	t.Parallel()
-	// `string([]rune{0xD800, 'a'})` produces a UTF-8 sequence
-	// containing utf8.RuneError; the helper must keep counting and
-	// must not drop below zero even when utf16.RuneLen returns -1
-	// for the offending rune.
-	line := []byte(string([]rune{0xD800, 'a'}))
-	got := utf16FromByteOffset(line, len(line))
-	assert.Positive(t, got, "utf16FromByteOffset must stay non-negative on invalid runes")
-}
-
-// nonNegativeUTF16RuneLen exists to defend the running offset
-// total against a (currently impossible) negative utf16.RuneLen
-// return. Verify both branches: a normal BMP rune passes through
-// at width 1, and a surrogate code point (which utf16.RuneLen
-// reports as -1) clamps to 1.
-func TestNonNegativeUTF16RuneLen(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, 1, nonNegativeUTF16RuneLen('a'))
-	assert.Equal(t, 2, nonNegativeUTF16RuneLen('😀'))
-	// 0xD800 is a high-surrogate code point; utf16.RuneLen returns
-	// -1 for it and the helper clamps to 1.
-	assert.Equal(t, 1, nonNegativeUTF16RuneLen(rune(0xD800)))
-}
-
 func TestDispatchRawInvalidJSONRespondsWithParseError(t *testing.T) {
 	t.Parallel()
 	var buf safeBuffer
@@ -2002,24 +1977,6 @@ func TestSplitLines(t *testing.T) {
 		splitLines([]byte("a\nb\n")))
 	// CRLF endings strip per-line CR.
 	assert.Equal(t, [][]byte{[]byte("a"), []byte("b")}, splitLines([]byte("a\r\nb")))
-}
-
-func TestUtf16FromByteOffsetSurrogatePair(t *testing.T) {
-	t.Parallel()
-	// A non-BMP rune (\U0001F600 — 😀) is encoded as 4 UTF-8 bytes
-	// and 2 UTF-16 code units. The trailing 'x' is one of each.
-	line := []byte("😀x")
-	assert.Equal(t, 0, utf16FromByteOffset(line, 0))
-	assert.Equal(t, 2, utf16FromByteOffset(line, 4)) // after the emoji
-	assert.Equal(t, 3, utf16FromByteOffset(line, 5)) // after the 'x'
-	// Out-of-range byte offsets clamp to the line's UTF-16 length
-	// rather than overflowing.
-	assert.Equal(t, 3, utf16FromByteOffset(line, 999))
-}
-
-func TestUtf16FromByteOffsetClampsNegative(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, 0, utf16FromByteOffset([]byte("hello"), -1))
 }
 
 // TestToLSPMultiByteRuneBeforeColumn pins the byte-vs-rune fix for

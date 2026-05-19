@@ -111,22 +111,6 @@ func TestSplitLines(t *testing.T) {
 	assert.Equal(t, "b", string(got[1]))
 }
 
-func TestUTF16FromByteOffset(t *testing.T) {
-	assert.Equal(t, 0, utf16FromByteOffset([]byte("abc"), 0), "zero offset")
-	assert.Equal(t, 0, utf16FromByteOffset([]byte("abc"), -3), "negative clamps to 0")
-	assert.Equal(t, 3, utf16FromByteOffset([]byte("abc"), 99), "past end clamps to length")
-	// "𝄞" (U+1D11E) is one rune, two UTF-16 code units, four bytes.
-	assert.Equal(t, 2, utf16FromByteOffset([]byte("𝄞"), 4))
-}
-
-func TestNonNegativeUTF16RuneLen(t *testing.T) {
-	assert.Equal(t, 1, nonNegativeUTF16RuneLen('a'))
-	assert.Equal(t, 2, nonNegativeUTF16RuneLen('𝄞'))
-	// A lone surrogate is an invalid scalar: utf16.RuneLen returns
-	// -1, and the guard maps it to one unit.
-	assert.Equal(t, 1, nonNegativeUTF16RuneLen(rune(0xD800)))
-}
-
 func TestRefDefEditsInBody_SkipsNonMatchingAndOutOfRange(t *testing.T) {
 	// One real def for "a" and one for "other"; renaming "a" only
 	// touches the "a" def. Exercises the normLabel-mismatch skip.

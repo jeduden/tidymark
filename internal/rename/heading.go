@@ -314,8 +314,8 @@ func headingTextEdit(source []byte, line int, newName string) (Edit, bool) {
 	if !ok {
 		startByte, endByte = trimmedRange(row)
 	}
-	startCh := utf16FromByteOffset(row, startByte)
-	endCh := utf16FromByteOffset(row, endByte)
+	startCh := mdtext.UTF16FromByteOffset(row, startByte)
+	endCh := mdtext.UTF16FromByteOffset(row, endByte)
 	return Edit{
 		Range: Range{
 			Start: Position{Line: line - 1, Character: startCh},
@@ -459,8 +459,8 @@ func anchorEditForEdge(ws Workspace, e index.Edge, oldSlug, newSlug string) (str
 	if !ok {
 		return "", Edit{}, false
 	}
-	startCh := utf16FromByteOffset(row, startByte)
-	endCh := utf16FromByteOffset(row, endByte)
+	startCh := mdtext.UTF16FromByteOffset(row, startByte)
+	endCh := mdtext.UTF16FromByteOffset(row, endByte)
 	return key, Edit{
 		Range: Range{
 			Start: Position{Line: e.SourceLine - 1, Character: startCh},
@@ -675,8 +675,8 @@ func refDefDestEditForMatch(
 		hashIdx++
 	}
 	fragEnd := fragmentEnd(row, hashIdx+1, destEnd)
-	startCh := utf16FromByteOffset(row, hashIdx+1)
-	endCh := utf16FromByteOffset(row, fragEnd)
+	startCh := mdtext.UTF16FromByteOffset(row, hashIdx+1)
+	endCh := mdtext.UTF16FromByteOffset(row, fragEnd)
 	return Edit{
 		Range: Range{
 			Start: Position{Line: fileLine - 1, Character: startCh},

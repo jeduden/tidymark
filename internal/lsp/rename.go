@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/jeduden/mdsmith/internal/index"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/rename"
 	"github.com/yuin/goldmark/util"
 )
@@ -102,8 +103,8 @@ func headingPrepareRange(source []byte, line int, name string) (prepareRenameRes
 		// text against indented setext underlines.
 		startCol, endCol = trimmedRange(row)
 	}
-	startCh := utf16FromByteOffset(row, startCol)
-	endCh := utf16FromByteOffset(row, endCol)
+	startCh := mdtext.UTF16FromByteOffset(row, startCol)
+	endCh := mdtext.UTF16FromByteOffset(row, endCol)
 	return prepareRenameResult{
 		Range: Range{
 			Start: Position{Line: line - 1, Character: startCh},
@@ -227,8 +228,8 @@ func refDefPrepareRange(source []byte, line int, _ string) (prepareRenameResult,
 	if m == nil {
 		return prepareRenameResult{}, false
 	}
-	startCh := utf16FromByteOffset(row, m[0])
-	endCh := utf16FromByteOffset(row, m[1])
+	startCh := mdtext.UTF16FromByteOffset(row, m[0])
+	endCh := mdtext.UTF16FromByteOffset(row, m[1])
 	return prepareRenameResult{
 		Range: Range{
 			Start: Position{Line: line - 1, Character: startCh},
@@ -285,8 +286,8 @@ func refUsePrepareRange(source []byte, line, col int, label string) (prepareRena
 	if !ok {
 		return prepareRenameResult{}, false
 	}
-	startCh := utf16FromByteOffset(row, startByte)
-	endCh := utf16FromByteOffset(row, endByte)
+	startCh := mdtext.UTF16FromByteOffset(row, startByte)
+	endCh := mdtext.UTF16FromByteOffset(row, endByte)
 	return prepareRenameResult{
 		Range: Range{
 			Start: Position{Line: line - 1, Character: startCh},

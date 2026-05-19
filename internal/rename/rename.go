@@ -10,11 +10,10 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"unicode/utf16"
-	"unicode/utf8"
 
 	"github.com/jeduden/mdsmith/internal/index"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
@@ -248,8 +247,8 @@ func refDefEditsInBody(
 		}
 		row := lines[fileLine-1]
 		bracket := refDefBracketBytes(row)
-		startCh := utf16FromByteOffset(row, bracket[0])
-		endCh := utf16FromByteOffset(row, bracket[1])
+		startCh := mdtext.UTF16FromByteOffset(row, bracket[0])
+		endCh := mdtext.UTF16FromByteOffset(row, bracket[1])
 		out = append(out, Edit{
 			Range: Range{
 				Start: Position{Line: fileLine - 1, Character: startCh},
@@ -305,8 +304,8 @@ func refUseEdit(
 	endLine := bodyIdx.lineOfOffset(labelEnd) + fmOffset
 	startCol := labelStart - bodyIdx.lineStart(startLine-fmOffset)
 	endCol := labelEnd - bodyIdx.lineStart(endLine-fmOffset)
-	startCh := utf16FromByteOffset(lines[startLine-1], startCol)
-	endCh := utf16FromByteOffset(lines[endLine-1], endCol)
+	startCh := mdtext.UTF16FromByteOffset(lines[startLine-1], startCol)
+	endCh := mdtext.UTF16FromByteOffset(lines[endLine-1], endCol)
 	return Edit{
 		Range: Range{
 			Start: Position{Line: startLine - 1, Character: startCh},
@@ -502,36 +501,4 @@ func splitLines(source []byte) [][]byte {
 		}
 	}
 	return parts
-}
-
-// utf16FromByteOffset returns the UTF-16 code-unit offset for UTF-8
-// byte offset byteOff within line, clamped to
-// [0, utf16 length(line)]. Ported verbatim from the LSP server so
-// delegated renames produce identical wire coordinates.
-func utf16FromByteOffset(line []byte, byteOff int) int {
-	if byteOff <= 0 {
-		return 0
-	}
-	if byteOff > len(line) {
-		byteOff = len(line)
-	}
-	units := 0
-	for i := 0; i < byteOff; {
-		r, size := utf8.DecodeRune(line[i:])
-		units += nonNegativeUTF16RuneLen(r)
-		i += size
-	}
-	return units
-}
-
-// nonNegativeUTF16RuneLen wraps utf16.RuneLen so its negative
-// "invalid code point" return cannot decrement the running total.
-// utf8.DecodeRune maps invalid bytes to RuneError (width 1), so in
-// practice w is always >= 0; the guard is defensive against a future
-// stdlib change.
-func nonNegativeUTF16RuneLen(r rune) int {
-	if w := utf16.RuneLen(r); w >= 0 {
-		return w
-	}
-	return 1
 }

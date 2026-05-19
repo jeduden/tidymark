@@ -112,5 +112,5 @@ footer: |
 | 183 | ✅     | sonnet | [Skip DedupeDiagnostics via an audited rule.RepoScoped marker](plan/183_dedupe-diagnostics-repo-scoped-skip.md)                         |
 | 184 | ✅     | opus   | [Automate the cross-tool benchmark on merge to main and publish numbers to the assets branch](plan/184_release-benchmark-automation.md) |
 | 185 | 🔲     |        | [Expose extended-syntax parsers and the flavor model in pkg/markdown](plan/185_public-markdown-flavor-library.md)                       |
-| 186 | 🔲     |        | [Centralize UTF-16 column helpers in internal/mdtext](plan/186_arch-fix-utf16-centralize.md)                                            |
+| 186 | ✅     |        | [Centralize UTF-16 column helpers in internal/mdtext](plan/186_arch-fix-utf16-centralize.md)                                            |
 <?/catalog?>

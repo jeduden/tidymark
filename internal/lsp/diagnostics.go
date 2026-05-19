@@ -2,10 +2,10 @@ package lsp
 
 import (
 	"bytes"
-	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 )
 
 // toLSP converts an mdsmith diagnostic to the LSP wire shape.
@@ -25,7 +25,7 @@ import (
 // offset would misplace the squiggle by N-1 positions for every
 // preceding rune that takes N>1 bytes.
 //
-// Both startCol and endCol come from utf16FromByteOffset/utf16Length
+// Both startCol and endCol come from mdtext.UTF16FromByteOffset/utf16Length
 // on the same line, which clamps every input to [0, line's UTF-16
 // length], so endCol is always >= startCol — no end-before-start
 // guard is needed.
@@ -35,7 +35,7 @@ func toLSP(d lint.Diagnostic, lines [][]byte) Diagnostic {
 		startLine = 0
 	}
 	line := currentLineBytes(lines, d.Line)
-	startCol := utf16FromByteOffset(line, d.Column-1)
+	startCol := mdtext.UTF16FromByteOffset(line, d.Column-1)
 	endCol := utf16Length(line)
 	return Diagnostic{
 		Range: Range{
@@ -116,48 +116,11 @@ func currentLineBytes(lines [][]byte, n int) []byte {
 }
 
 // utf16Length returns the total UTF-16 code-unit length of line.
-// Equivalent to utf16FromByteOffset(line, len(line)) but spelled out
-// for readability at call sites that just want "end of line".
+// Equivalent to mdtext.UTF16FromByteOffset(line, len(line)) but
+// spelled out for readability at call sites that just want "end of
+// line".
 func utf16Length(line []byte) int {
-	return utf16FromByteOffset(line, len(line))
-}
-
-// utf16FromByteOffset returns the UTF-16 code-unit offset that
-// corresponds to UTF-8 byte offset `byteOff` within `line`. The
-// result is clamped to [0, utf16Length(line)] so callers cannot
-// receive a negative or past-end position even when given a
-// malformed mdsmith column. See nonNegativeUTF16RuneLen for the
-// width contract — every counted rune contributes >= 0 units, so
-// the running total never drops below zero on the wire.
-func utf16FromByteOffset(line []byte, byteOff int) int {
-	if byteOff <= 0 {
-		return 0
-	}
-	if byteOff > len(line) {
-		byteOff = len(line)
-	}
-	units := 0
-	for i := 0; i < byteOff; {
-		r, size := utf8.DecodeRune(line[i:])
-		units += nonNegativeUTF16RuneLen(r)
-		i += size
-	}
-	return units
-}
-
-// nonNegativeUTF16RuneLen wraps utf16.RuneLen so its negative
-// "invalid code point" return cannot decrement the caller's
-// running total. utf8.DecodeRune already maps invalid bytes to
-// RuneError (U+FFFD, width 1), so in practice w is always >= 0;
-// the guard is defensive against a future Go change that weakens
-// that invariant. A negative width means the rune is outside
-// [0, MaxRune] or is a surrogate, both of which are 1 UTF-16 unit
-// when serialized as RuneError.
-func nonNegativeUTF16RuneLen(r rune) int {
-	if w := utf16.RuneLen(r); w >= 0 {
-		return w
-	}
-	return 1
+	return mdtext.UTF16FromByteOffset(line, len(line))
 }
 
 // byteOffsetFromUTF16 maps a UTF-16 column position (LSP wire form)
@@ -165,11 +128,15 @@ func nonNegativeUTF16RuneLen(r rune) int {
 // clamped to [0, len(line)] so a malformed or past-end LSP position
 // stays within the slice.
 //
-// This is the inverse of utf16FromByteOffset. The navigation surface
-// uses it to convert `Position.Character` (UTF-16) to a byte column
-// before calling the Locator, which works in 1-based byte columns.
-// Without it, every cursor on a non-ASCII line would mis-locate by
-// the number of multi-byte runes between byte 0 and the cursor.
+// This is the inverse of mdtext.UTF16FromByteOffset. The navigation
+// surface uses it to convert `Position.Character` (UTF-16) to a byte
+// column before calling the Locator, which works in 1-based byte
+// columns. Without it, every cursor on a non-ASCII line would
+// mis-locate by the number of multi-byte runes between byte 0 and
+// the cursor. Distinct from mdtext.UTF16ToByteOffset: when utf16Off
+// lands inside a surrogate pair, this rounds down to the rune's
+// starting byte (LSP cursor semantics), whereas UTF16ToByteOffset
+// rounds up to the next codepoint boundary.
 func byteOffsetFromUTF16(line []byte, utf16Off int) int {
 	if utf16Off <= 0 {
 		return 0
@@ -177,7 +144,7 @@ func byteOffsetFromUTF16(line []byte, utf16Off int) int {
 	units := 0
 	for i := 0; i < len(line); {
 		r, size := utf8.DecodeRune(line[i:])
-		w := nonNegativeUTF16RuneLen(r)
+		w := mdtext.NonNegativeUTF16RuneLen(r)
 		if units+w > utf16Off {
 			return i
 		}

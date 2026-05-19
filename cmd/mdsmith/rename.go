@@ -8,13 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"unicode/utf16"
-	"unicode/utf8"
 
 	flag "github.com/spf13/pflag"
 
 	"github.com/jeduden/mdsmith/internal/index"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/rename"
 )
 
@@ -306,8 +305,8 @@ func applyEdits(src []byte, edits []rename.Edit) ([]byte, error) {
 		})
 		buf := append([]byte(nil), row...)
 		for _, e := range es {
-			s := utf16ToByteOffset(row, e.Range.Start.Character)
-			en := utf16ToByteOffset(row, e.Range.End.Character)
+			s := mdtext.UTF16ToByteOffset(row, e.Range.Start.Character)
+			en := mdtext.UTF16ToByteOffset(row, e.Range.End.Character)
 			if s < 0 || en < 0 || s > len(buf) || en > len(buf) || s > en {
 				return nil, fmt.Errorf("edit offset [%d,%d) out of range on line %d", s, en, line+1)
 			}
@@ -350,38 +349,6 @@ func joinLF(segs [][]byte) []byte {
 		out = append(out, s...)
 	}
 	return out
-}
-
-// utf16ToByteOffset returns the byte offset in row at the given
-// UTF-16 code-unit offset, the inverse of the engine's
-// byte→UTF-16 mapping. Offsets past the row's end clamp to len(row)
-// so a defensive guard upstream still sees an in-range value.
-func utf16ToByteOffset(row []byte, target int) int {
-	if target <= 0 {
-		return 0
-	}
-	units := 0
-	for i := 0; i < len(row); {
-		if units >= target {
-			return i
-		}
-		r, size := utf8.DecodeRune(row[i:])
-		units += nonNegativeUTF16RuneLen(r)
-		i += size
-	}
-	return len(row)
-}
-
-// nonNegativeUTF16RuneLen wraps utf16.RuneLen so its negative
-// "invalid code point" return (e.g. a lone surrogate) cannot
-// decrement the running UTF-16 unit count. utf8.DecodeRune maps
-// invalid bytes to RuneError (width 1), so in practice the guard is
-// defensive against an out-of-range rune reaching this path.
-func nonNegativeUTF16RuneLen(r rune) int {
-	if w := utf16.RuneLen(r); w >= 0 {
-		return w
-	}
-	return 1
 }
 
 // writeFilePreservingMode overwrites path with data, keeping the

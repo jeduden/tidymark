@@ -1,7 +1,7 @@
 ---
 id: 186
 title: Centralize UTF-16 column helpers in internal/mdtext
-status: 🔲
+status: ✅
 summary: >-
   Lift the triplicated nonNegativeUTF16RuneLen /
   utf16FromByteOffset helpers out of internal/lsp,
@@ -68,17 +68,17 @@ Remove the three private copies in
 
 ## Acceptance Criteria
 
-- [ ] `internal/mdtext` exports
+- [x] `internal/mdtext` exports
   `NonNegativeUTF16RuneLen`,
   `UTF16FromByteOffset`, and
   `UTF16ToByteOffset`, each with a
   dedicated unit test.
-- [ ] No private copy of
+- [x] No private copy of
   `nonNegativeUTF16RuneLen`,
   `utf16FromByteOffset`, or
   `utf16ToByteOffset` remains in
   `internal/lsp/`, `internal/rename/`,
   or `cmd/mdsmith/`.
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run`
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run`
   reports no issues.

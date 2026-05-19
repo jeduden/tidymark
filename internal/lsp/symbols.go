@@ -15,6 +15,7 @@ import (
 	"github.com/jeduden/mdsmith/internal/index"
 	"github.com/jeduden/mdsmith/internal/linkgraph"
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/mdtext"
 	"github.com/jeduden/mdsmith/internal/yamlutil"
 )
 
@@ -679,7 +680,7 @@ func rangeAt(line, col int, source []byte) Range {
 	startCh := 0
 	endCh := 0
 	if line-1 < len(lines) {
-		startCh = utf16FromByteOffset(lines[line-1], col-1)
+		startCh = mdtext.UTF16FromByteOffset(lines[line-1], col-1)
 		endCh = utf16Length(lines[line-1])
 	}
 	return Range{

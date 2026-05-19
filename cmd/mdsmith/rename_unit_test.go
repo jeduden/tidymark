@@ -237,26 +237,6 @@ func TestSplitKeepCRAndJoinLF(t *testing.T) {
 	assert.Equal(t, []byte("x\n"), joinLF(splitKeepCR([]byte("x\n"))))
 }
 
-func TestUtf16ToByteOffset(t *testing.T) {
-	assert.Equal(t, 0, utf16ToByteOffset([]byte("abc"), 0))
-	assert.Equal(t, 0, utf16ToByteOffset([]byte("abc"), -1))
-	assert.Equal(t, 2, utf16ToByteOffset([]byte("abc"), 2))
-	assert.Equal(t, 3, utf16ToByteOffset([]byte("abc"), 9)) // clamp past end
-	// "é" is one UTF-16 unit but two UTF-8 bytes; "𝄞" is a surrogate
-	// pair (two UTF-16 units, four bytes).
-	row := []byte("é𝄞z")
-	assert.Equal(t, 2, utf16ToByteOffset(row, 1)) // past "é"
-	assert.Equal(t, 6, utf16ToByteOffset(row, 3)) // past the surrogate pair
-}
-
-func TestNonNegativeUTF16RuneLen(t *testing.T) {
-	assert.Equal(t, 1, nonNegativeUTF16RuneLen('a'))
-	assert.Equal(t, 2, nonNegativeUTF16RuneLen('𝄞'))
-	// A lone surrogate is an invalid scalar: utf16.RuneLen returns
-	// -1, and the guard floors it at 1.
-	assert.Equal(t, 1, nonNegativeUTF16RuneLen(rune(0xD800)))
-}
-
 func TestRunRename_FlagParseError(t *testing.T) {
 	renameWorkspace(t)
 	// An unknown flag is a non-help parse error → exit 2.
