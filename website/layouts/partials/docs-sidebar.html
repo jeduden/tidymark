@@ -1,5 +1,9 @@
 {{ $current := .RelPermalink }}
-{{ $docs := .Site.GetPage "/docs" }}
+{{- /* The synced docs tree is mounted at the site root, so
+       there is no "/docs" section page. The doc groups are the
+       homepage's top-level sections; the "All docs" link points
+       at the homepage (the only index). */ -}}
+{{ $root := site.Home }}
 {{- /* Explicit narrative order for the docs groups: the
        sidebar reads as a user journey (why → how → look up →
        rule catalog → mental model → contribute) rather than
@@ -22,7 +26,7 @@
   <i data-lucide="chevron-down" width="16" height="16" aria-hidden="true"></i>
 </button>
 <nav class="docs-side-nav" id="docs-nav">
-{{ with $docs }}
+{{ with $root }}
   {{ $secs := .Sections }}
   {{ $ordered := slice }}
   {{ range $name := $order }}
@@ -37,12 +41,17 @@
   {{ range $ordered }}
     <div class="docs-side-group">
       <a class="docs-side-title{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
-      {{ range .Pages.ByWeight }}
+      {{- /* .RegularPages, not .Pages: .Pages is the union of
+             .RegularPages and .Sections, so pairing .Pages with
+             the .Sections loop below would render every
+             subsection twice — once as a flat link, once as the
+             "›" sub-group header. */ -}}
+      {{ range .RegularPages.ByWeight }}
         <a class="docs-side-link{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
       {{ end }}
       {{ range .Sections.ByWeight }}
         <a class="docs-side-link docs-side-sub{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }} ›</a>
-        {{ range .Pages.ByWeight }}
+        {{ range .RegularPages.ByWeight }}
           <a class="docs-side-link docs-side-nested{{ if eq .RelPermalink $current }} is-active{{ end }}" href="{{ .RelPermalink }}">{{ .Title }}</a>
         {{ end }}
       {{ end }}
