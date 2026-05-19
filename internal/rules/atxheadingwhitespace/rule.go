@@ -1,4 +1,4 @@
-package headingwhitespace
+package atxheadingwhitespace
 
 import (
 	"bytes"
