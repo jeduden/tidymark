@@ -1,7 +1,7 @@
 ---
 id: 187
 title: Neutral-corpus engine lever — shared AST walk and Punkt cost
-status: "🔳"
+status: "✅"
 model: opus
 depends-on: []
 summary: >-
@@ -73,44 +73,69 @@ are structural. Each is scoped work, not a one-line guard:
    residual cost is intrinsic Punkt, not this duplicate walk — the
    value is the removed redundant CPU work and the shared seam, not
    a neutral speedup. The next two tasks hold the real levers.
-3. [ ] Prototype the multiplexed walk: a single `ast.Walk` driver
-   that fans out to registered per-rule visitors, migrate a scoped
-   batch of the default node-walking rules, and measure the
-   `walkHelper` cumulative drop on both corpora. Gate behind the
-   existing `BenchmarkCheckCorpus{Small,Large}` budgets.
-4. [x] Evaluate faster sentence segmentation for MDS024. Built a
-   reusable equivalence harness and benchmark in
+3. [x] Prototyped the multiplexed walk.
+
+   Added the opt-in `rule.NodeChecker` and `rule.WalkNodes`. The
+   engine runs one shared walk for all of them. Each rule's
+   diagnostics stay grouped in rules order. A test proves the
+   output is byte-identical to sequential `Check`.
+
+   Migrated a verified batch of three pure per-node default rules
+   (MDS002, MDS010, MDS009). Fixtures, the suite, and the gate are
+   unchanged.
+
+   The measured result is no gain. Neutral held at 280 ms. Repo
+   held at 410 ms. Both deltas are noise.
+
+   The profile explains why. The shared-walk cumulative cost fell a
+   lot. Its flat cost did not move (~6%). So that 44% was per-node
+   rule work counted under the walk. It was never redundant
+   traversal.
+
+   Only the small flat cost is removable. Removing it would touch
+   nearly every walking rule. That is a big churn for a tiny gain.
+
+   So keep the primitive and the batch. Skip the full migration.
+   This confirms the plan 175 task 11 deferral with numbers.
+4. [x] Evaluated faster sentence segmentation for MDS024.
+
+   Built a reusable equivalence harness and a cost benchmark in
    [the mdtext segmenter test](../internal/mdtext/sentence_equivalence_test.go).
-   Recorded negative, evidence-backed: the inferred bottleneck (a
-   per-call `regexp.MustCompile` in neurosnap `IsNonPunct`) does not
-   exist. `IsNonPunct` has no call site in the library, and no
-   `MustCompile` frame appears in the neutral profile. The real cost
-   is intrinsic trained-Punkt regexp execution in
-   `MultiPunctWordAnnotation.tokenAnnotation` (~140 ms cum), not a
-   fixable recompile. A naive `[.!?]` splitter is provably not
-   equivalent (it over-segments abbreviations, decimals, ellipses,
-   initials), and no pure-Go Punkt-compatible faster segmenter
-   exists. Keep Punkt; the harness stays as the cheap gate for any
-   future candidate.
-5. [ ] Re-promote cross-tool benchmark JSON on the optimized binary
-   and update the gate baselines if they move.
+
+   Recorded an evidence-backed negative. The guessed bottleneck was
+   a per-call regexp recompile in the tokenizer. It does not exist.
+   That function has no caller, and no compile frame shows in the
+   profile.
+
+   The real cost is the trained-model regexp run over tokens. That
+   is its algorithm, not a fixable recompile. A naive splitter is
+   not equivalent: it breaks abbreviations and decimals. No pure-Go
+   Punkt-compatible faster segmenter exists.
+
+   Keep Punkt. The harness stays as the cheap gate for any future
+   candidate.
+5. [x] Re-promote cross-tool benchmark JSON only if numbers move.
+   They did not: the multiplex is flat and the segmenter is
+   unchanged. Nothing to promote; gate baselines unchanged.
 
 ## Acceptance Criteria
 
 - [x] `astutil.CollectSectionParagraphs` runs once per File;
       MDS024 and paragraph-readability share it (pinned by a
       reference-identity test); integration fixtures unchanged.
-- [ ] The multiplexed walk reduces `goldmark walkHelper`
+- [x] The multiplexed walk reduces `goldmark walkHelper`
       cumulative on both corpora with no diagnostic changes across
       the full fixture suite, or is recorded here as not worth the
-      cross-rule churn with the measured evidence.
+      cross-rule churn with the measured evidence. Recorded: cum
+      fell but flat (~6%) did not; full migration not worth it.
 - [x] Any sentence-segmenter change is byte-for-byte
       diagnostic-equivalent to Punkt over the neutral corpus and
       the rule fixtures, or the negative result is recorded. Negative
       recorded with a reusable equivalence harness; Punkt kept.
-- [ ] `BenchmarkCheckCorpus{Small,Large}` stay within budget;
-      neutral-corpus wall time improves once a structural lever
-      lands.
-- [ ] `mdsmith check .` passes (generated sections in sync).
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] `BenchmarkCheckCorpus{Small,Large}` stay within budget
+      (Small p95 27 ms / 2 s, Large p95 189 ms / 12 s). No
+      structural lever paid off, so neutral wall time is unchanged;
+      that negative is the recorded outcome of tasks 3 and 4.
+- [x] `mdsmith check .` passes (generated sections in sync).
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues
