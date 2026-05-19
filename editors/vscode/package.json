@@ -113,7 +113,7 @@
         "mdsmith.path": {
           "type": "string",
           "default": "mdsmith",
-          "description": "Path to the mdsmith binary. Defaults to the bundled binary in dist/bin/ when available (host platform only, typically linux-x64 from CI). Falls back to resolving 'mdsmith' against PATH if bundled binary unavailable or on non-host platforms. Set to an absolute path if you installed mdsmith elsewhere (e.g. /go/bin/mdsmith)."
+          "description": "Path to the mdsmith binary. Leave as the default and the extension runs the bundled binary for your platform (the .vsix ships one for every supported OS/arch and selects yours at startup). Falls back to resolving 'mdsmith' on PATH only if your platform was not bundled. Set an absolute path to override (e.g. /go/bin/mdsmith)."
         },
         "mdsmith.config": {
           "type": "string",
