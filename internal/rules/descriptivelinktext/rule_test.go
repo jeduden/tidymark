@@ -137,49 +137,44 @@ func TestSoftLineBreakInLinkText(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "not descriptive")
 }
 
-// TestCachedBannedSet pins the lazy memoization contract: the first
-// call builds the lookup map from r.Banned, subsequent calls return
-// the SAME map (reference identity, not equal-but-distinct copies).
-// Without this contract the shared-walk hot path would rebuild the
-// map per link node visited.
+// TestCachedBannedSet pins the per-Check memoization contract:
+// subsequent calls on the same *lint.File return the same cached
+// map (reference identity); a fresh *lint.File builds a separate
+// map. Memoising via File.Memo keeps the cache off the shared
+// rule instance (the LSP path reuses rule.All() across goroutines),
+// so this also functions as a regression guard against the
+// previous race-prone rule-level cache.
 func TestCachedBannedSet(t *testing.T) {
 	r := &Rule{Banned: []string{"Click Here", "MORE"}}
+	f, err := lint.NewFile("t.md", []byte("# t\n"))
+	require.NoError(t, err)
 
-	first := r.cachedBannedSet()
+	first := r.cachedBannedSet(f)
 	require.Equal(t, map[string]bool{"click here": true, "more": true}, first,
 		"lookup keys must be the normalised form of r.Banned")
 
-	// Maps are reference types; reflect.ValueOf.Pointer is the
-	// canonical way to compare the underlying map headers.
-	second := r.cachedBannedSet()
+	second := r.cachedBannedSet(f)
 	assert.Equal(t,
 		reflect.ValueOf(first).Pointer(),
 		reflect.ValueOf(second).Pointer(),
-		"subsequent calls must return the same cached map")
+		"subsequent calls on the same File must return the same cached map")
+
+	g, err := lint.NewFile("t.md", []byte("# t\n"))
+	require.NoError(t, err)
+	third := r.cachedBannedSet(g)
+	assert.NotEqual(t,
+		reflect.ValueOf(first).Pointer(),
+		reflect.ValueOf(third).Pointer(),
+		"a fresh File must build a separate cached map (memo is per-Check, not shared on the rule)")
 
 	// An empty Banned yields a non-nil empty map; CheckNode short-
 	// circuits on len(r.Banned)==0 before calling cachedBannedSet, so
 	// this branch is purely defensive — pin it so a future refactor
 	// cannot regress it to nil.
 	empty := &Rule{}
-	got := empty.cachedBannedSet()
+	h, err := lint.NewFile("t.md", []byte("# t\n"))
+	require.NoError(t, err)
+	got := empty.cachedBannedSet(h)
 	require.NotNil(t, got)
 	assert.Empty(t, got)
-}
-
-// TestApplySettings_InvalidatesBannedSetCache pins that
-// ApplySettings drops the cached banned set when `banned`
-// changes, so a re-applied configuration does not serve stale
-// keys built from the previous Banned slice.
-func TestApplySettings_InvalidatesBannedSetCache(t *testing.T) {
-	r := &Rule{Banned: []string{"old phrase"}}
-	first := r.cachedBannedSet()
-	require.Contains(t, first, "old phrase")
-
-	err := r.ApplySettings(map[string]any{"banned": []any{"new phrase"}})
-	require.NoError(t, err)
-
-	rebuilt := r.cachedBannedSet()
-	assert.NotContains(t, rebuilt, "old phrase", "stale Banned keys must be dropped")
-	assert.Contains(t, rebuilt, "new phrase", "new Banned keys must appear")
 }

@@ -223,49 +223,43 @@ func TestApplySettings_AllowCommentsBadType(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestCachedAllowSet pins the lazy memoization contract: the first
-// call builds the lookup map from r.Allow, subsequent calls return the
-// SAME map (reference identity, not equal-but-distinct copies).
-// Without this contract the shared-walk hot path would allocate a new
-// map per AST node visited.
+// TestCachedAllowSet pins the per-Check memoization contract:
+// subsequent calls on the same *lint.File return the same cached
+// map (reference identity); a fresh *lint.File builds a separate
+// map. Memoising via File.Memo keeps the cache off the shared
+// rule instance (the LSP path reuses rule.All() across goroutines),
+// so this also functions as a regression guard against the
+// previous race-prone rule-level cache.
 func TestCachedAllowSet(t *testing.T) {
 	r := &Rule{Allow: []string{"Span", "div", "STRONG"}}
+	f, err := lint.NewFile("t.md", []byte("# t\n"))
+	require.NoError(t, err)
 
-	first := r.cachedAllowSet()
+	first := r.cachedAllowSet(f)
 	require.Equal(t, map[string]bool{"span": true, "div": true, "strong": true}, first,
 		"lookup keys must be lowercase normalisations of r.Allow")
 
-	// Maps are reference types; reflect.ValueOf.Pointer is the
-	// canonical way to compare the underlying map headers.
-	second := r.cachedAllowSet()
+	second := r.cachedAllowSet(f)
 	assert.Equal(t,
 		reflect.ValueOf(first).Pointer(),
 		reflect.ValueOf(second).Pointer(),
-		"subsequent calls must return the same cached map")
+		"subsequent calls on the same File must return the same cached map")
 
-	// An empty Allow yields a non-nil empty map, so a nil check is
-	// usable as the "not yet built" sentinel.
+	g, err := lint.NewFile("t.md", []byte("# t\n"))
+	require.NoError(t, err)
+	third := r.cachedAllowSet(g)
+	assert.NotEqual(t,
+		reflect.ValueOf(first).Pointer(),
+		reflect.ValueOf(third).Pointer(),
+		"a fresh File must build a separate cached map (memo is per-Check, not shared on the rule)")
+
+	// An empty Allow yields a non-nil empty map.
 	empty := &Rule{}
-	got := empty.cachedAllowSet()
+	h, err := lint.NewFile("t.md", []byte("# t\n"))
+	require.NoError(t, err)
+	got := empty.cachedAllowSet(h)
 	require.NotNil(t, got, "empty Allow must still return a non-nil map")
 	assert.Empty(t, got)
-}
-
-// TestApplySettings_InvalidatesAllowSetCache pins that
-// ApplySettings drops the cached allow set when `allow` changes,
-// so a re-applied configuration does not serve stale keys built
-// from the previous Allow slice.
-func TestApplySettings_InvalidatesAllowSetCache(t *testing.T) {
-	r := &Rule{Allow: []string{"old-tag"}}
-	first := r.cachedAllowSet()
-	require.Contains(t, first, "old-tag")
-
-	err := r.ApplySettings(map[string]any{"allow": []any{"new-tag"}})
-	require.NoError(t, err)
-
-	rebuilt := r.cachedAllowSet()
-	assert.NotContains(t, rebuilt, "old-tag", "stale Allow keys must be dropped")
-	assert.Contains(t, rebuilt, "new-tag", "new Allow keys must appear")
 }
 
 // TestRegisteredDefault_AllowCommentsTrue pins that the

@@ -18,17 +18,16 @@ func init() {
 
 // Rule flags links whose visible text is a non-descriptive phrase such as
 // "click here", "here", "link", or "more".
+//
+// The lookup form of Banned is memoised on the per-Check *lint.File
+// via File.Memo (see cachedBannedSet) rather than on the rule
+// instance. Rule instances are shared across concurrent LSP calls
+// (cmd/mdsmith/lsp.go reuses rule.All(), and ConfigureRule does
+// not clone when cfg.Settings is nil), so any mutable state on the
+// rule itself would race; *lint.File is created fresh per Check
+// and File.Memo is sync.Map + sync.Once protected.
 type Rule struct {
 	Banned []string
-
-	// bannedSet is the lookup form of Banned. Built lazily on first
-	// CheckNode call to keep the cost off per-node hot paths under the
-	// multiplexed AST walk (was rebuilt per link node, which on
-	// link-heavy docs was an allocation per node). The rule clone is
-	// per-Check on the configured path and per-worker on the
-	// defaults-only path; in both cases Banned is immutable for the
-	// lifetime of this clone, so the cache stays correct.
-	bannedSet map[string]bool
 }
 
 // ID implements rule.Rule.
@@ -54,9 +53,6 @@ func (r *Rule) ApplySettings(s map[string]any) error {
 				return fmt.Errorf("descriptive-link-text: banned must be a list of strings, got %T", v)
 			}
 			r.Banned = ss
-			// Banned changed; drop the cached lookup so cachedBannedSet
-			// rebuilds from the new slice on the next visit.
-			r.bannedSet = nil
 		default:
 			return fmt.Errorf("descriptive-link-text: unknown setting %q", k)
 		}
@@ -96,7 +92,7 @@ func (r *Rule) CheckNode(n ast.Node, entering bool, f *lint.File) []lint.Diagnos
 	}
 
 	text := collectLinkText(link, f.Source)
-	if !r.cachedBannedSet()[normalizeText(text)] {
+	if !r.cachedBannedSet(f)[normalizeText(text)] {
 		return nil
 	}
 	line := linkLine(link, f)
@@ -111,17 +107,21 @@ func (r *Rule) CheckNode(n ast.Node, entering bool, f *lint.File) []lint.Diagnos
 	}}
 }
 
-// cachedBannedSet returns the lazily-built lookup form of r.Banned.
-// Built on first call within this rule-clone's lifetime so the
-// shared-walk hot path stops paying the construction cost per link.
-func (r *Rule) cachedBannedSet() map[string]bool {
-	if r.bannedSet == nil {
-		r.bannedSet = make(map[string]bool, len(r.Banned))
+// cachedBannedSet returns the lookup form of r.Banned, memoised on
+// the per-Check *lint.File. File.Memo is sync.Map + sync.Once
+// protected so the build runs at most once per File even under
+// the LSP's concurrent reader pattern, where the same rule
+// instance is shared across goroutines (config defaults set
+// cfg.Settings=nil, which makes ConfigureRule a no-op).
+func (r *Rule) cachedBannedSet(f *lint.File) map[string]bool {
+	v := f.Memo("MDS063.bannedSet", func() any {
+		m := make(map[string]bool, len(r.Banned))
 		for _, b := range r.Banned {
-			r.bannedSet[normalizeText(b)] = true
+			m[normalizeText(b)] = true
 		}
-	}
-	return r.bannedSet
+		return m
+	})
+	return v.(map[string]bool)
 }
 
 // normalizeText trims, lowercases, and collapses internal whitespace.

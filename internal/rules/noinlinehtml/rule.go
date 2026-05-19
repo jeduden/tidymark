@@ -23,18 +23,17 @@ func init() {
 }
 
 // Rule implements MDS041, flagging raw HTML in Markdown documents.
+//
+// The lookup form of Allow is memoised on the per-Check *lint.File
+// via File.Memo (see cachedAllowSet) rather than on the rule
+// instance. Rule instances are shared across concurrent LSP calls
+// (cmd/mdsmith/lsp.go reuses rule.All(), and ConfigureRule does
+// not clone when cfg.Settings is nil), so any mutable state on the
+// rule itself would race; *lint.File is created fresh per Check
+// and File.Memo is sync.Map + sync.Once protected.
 type Rule struct {
 	Allow         []string
 	AllowComments bool
-
-	// allowSetCache memoizes allowSet() for the lifetime of this
-	// rule instance. The instance is per-Check when ConfigureRule
-	// clones (cfg.Settings non-nil for a Configurable rule), and
-	// per-worker otherwise (defaults-only path reuses the runner's
-	// worker clone across files). Either way Allow is immutable for
-	// the cache's lifetime — ApplySettings drops the cache when it
-	// rewrites Allow — so the memoised map stays correct.
-	allowSetCache map[string]bool
 }
 
 // ID implements rule.Rule.
@@ -67,9 +66,6 @@ func (r *Rule) ApplySettings(settings map[string]any) error {
 				return fmt.Errorf("no-inline-html: allow must be a list of strings, got %T", v)
 			}
 			r.Allow = tags
-			// Allow changed; drop the cached lookup so cachedAllowSet
-			// rebuilds from the new slice on the next visit.
-			r.allowSetCache = nil
 		case "allow-comments":
 			b, ok := v.(bool)
 			if !ok {
@@ -108,13 +104,13 @@ func (r *Rule) CheckNode(n ast.Node, entering bool, f *lint.File) []lint.Diagnos
 		if i := bytes.IndexByte(raw, '<'); i >= 0 {
 			offset += i
 		}
-		if d, ok := r.checkRaw(f, r.cachedAllowSet(), raw, offset); ok {
+		if d, ok := r.checkRaw(f, r.cachedAllowSet(f), raw, offset); ok {
 			return []lint.Diagnostic{d}
 		}
 	case *ast.RawHTML:
 		seg := node.Segments.At(0)
 		raw := rawHTMLBytes(node, f.Source)
-		if d, ok := r.checkRaw(f, r.cachedAllowSet(), raw, seg.Start); ok {
+		if d, ok := r.checkRaw(f, r.cachedAllowSet(f), raw, seg.Start); ok {
 			return []lint.Diagnostic{d}
 		}
 	}
@@ -152,13 +148,15 @@ func (r *Rule) allowSet() map[string]bool {
 	return m
 }
 
-// cachedAllowSet returns the lazily-built lookup form of r.Allow.
-// Builds it on first call within this rule-clone's lifetime.
-func (r *Rule) cachedAllowSet() map[string]bool {
-	if r.allowSetCache == nil {
-		r.allowSetCache = r.allowSet()
-	}
-	return r.allowSetCache
+// cachedAllowSet returns the lookup form of r.Allow, memoised on
+// the per-Check *lint.File. File.Memo is sync.Map + sync.Once
+// protected so the build runs at most once per File even under
+// the LSP's concurrent reader pattern, where the same rule
+// instance is shared across goroutines (config defaults set
+// cfg.Settings=nil, which makes ConfigureRule a no-op).
+func (r *Rule) cachedAllowSet(f *lint.File) map[string]bool {
+	v := f.Memo("MDS041.allowSet", func() any { return r.allowSet() })
+	return v.(map[string]bool)
 }
 
 func (r *Rule) diag(f *lint.File, offset int, display string) lint.Diagnostic {
