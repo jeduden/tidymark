@@ -60,20 +60,10 @@ func (r *Rule) CheckNode(n ast.Node, entering bool, f *lint.File) []lint.Diagnos
 	var diags []lint.Diagnostic
 	for _, m := range matches {
 		offset := seg.Start + m[0]
-		line := f.LineOfOffset(offset)
-		// Compute column: find the start of this line.
-		lineStart := 0
-		for i := 0; i < offset && i < len(f.Source); i++ {
-			if f.Source[i] == '\n' {
-				lineStart = i + 1
-			}
-		}
-		col := offset - lineStart + 1
-
 		diags = append(diags, lint.Diagnostic{
 			File:     f.Path,
-			Line:     line,
-			Column:   col,
+			Line:     f.LineOfOffset(offset),
+			Column:   f.ColumnOfOffset(offset),
 			RuleID:   r.ID(),
 			RuleName: r.Name(),
 			Severity: lint.Warning,
