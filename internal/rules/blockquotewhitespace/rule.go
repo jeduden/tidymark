@@ -138,7 +138,14 @@ func (r *Rule) Fix(f *lint.File) []byte {
 			continue
 		}
 		fixedPrefix := reMultiSpace.ReplaceAll(prefix, []byte("> "))
-		lines[i] = string(fixedPrefix) + string(line[len(prefix):])
+		content := line[len(prefix):]
+		if len(content) == 0 {
+			// No content after the marker chain: trim trailing space so we don't
+			// introduce a trailing-whitespace violation that needs a second pass.
+			lines[i] = strings.TrimRight(string(fixedPrefix), " \t")
+		} else {
+			lines[i] = string(fixedPrefix) + string(content)
+		}
 	}
 	return []byte(strings.Join(lines, "\n"))
 }

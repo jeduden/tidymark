@@ -221,6 +221,25 @@ func TestFix_MD027_SkipsFencedCodeBlock(t *testing.T) {
 	assert.Equal(t, string(src), string(got))
 }
 
+func TestFix_MD027_MarkerOnlyLine_NoTrailingSpace(t *testing.T) {
+	// ">  " (no content after marker) must be fixed to ">" not "> " to
+	// avoid introducing trailing whitespace that would require another pass.
+	src := []byte(">  \n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	got := (&Rule{}).Fix(f)
+	assert.Equal(t, ">\n", string(got))
+}
+
+func TestFix_MD027_NestedMarkerOnlyLine_NoTrailingSpace(t *testing.T) {
+	// ">>  " (nested, no content) must be fixed to ">>" not ">> ".
+	src := []byte(">>  \n")
+	f, err := lint.NewFile("test.md", src)
+	require.NoError(t, err)
+	got := (&Rule{}).Fix(f)
+	assert.Equal(t, ">>\n", string(got))
+}
+
 func TestFix_MD028_NoAutoFix(t *testing.T) {
 	// MD028 violations are not auto-fixed.
 	src := []byte("> first\n\n> second\n")
