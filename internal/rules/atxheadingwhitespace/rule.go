@@ -56,11 +56,19 @@ func (r *Rule) checkLine(path string, lineNum int, line []byte) []lint.Diagnosti
 		return nil
 	}
 
+	after := rest[level:]
+
+	// A '#' run immediately followed by a digit is an issue/PR reference
+	// (#22, #288) embedded in prose, not a malformed ATX heading. Skip it
+	// to avoid false positives on soft-wrapped list-item continuations.
+	if len(after) > 0 && after[0] >= '0' && after[0] <= '9' {
+		return nil
+	}
+
 	if leading > 0 {
 		diags = append(diags, r.diag(path, lineNum, 1, "heading must start at column 1"))
 	}
 
-	after := rest[level:]
 	if len(bytes.TrimRight(after, " \t\r")) == 0 {
 		return diags
 	}

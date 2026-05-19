@@ -120,6 +120,25 @@ func TestCheck_ContentEndingWithHash(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
+// --- Check: issue/PR references (#22, #288) are not treated as headings ---
+
+func TestCheck_IssueReference(t *testing.T) {
+	// "#22 text" — # followed by digit is an issue/PR reference, not a heading.
+	diags := check(t, "# Title\n\n  #22 \"Mandatory headings\"\n")
+	assert.Empty(t, diags)
+}
+
+func TestCheck_IssueReferenceAtColumn1(t *testing.T) {
+	// Even at column 1, #22 is not treated as a heading.
+	diags := check(t, "# Title\n\n#288.** Some text\n")
+	assert.Empty(t, diags)
+}
+
+func TestFix_IssueReferenceUnchanged(t *testing.T) {
+	src := "# Title\n\n  #22 \"Mandatory headings\"\n"
+	assert.Equal(t, src, fix(t, src))
+}
+
 // --- Check: tab after # is flagged (normalise to single space) ---
 
 func TestCheck_TabAfterHash(t *testing.T) {
