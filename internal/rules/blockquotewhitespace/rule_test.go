@@ -270,6 +270,105 @@ func TestIsBlankLine(t *testing.T) {
 	})
 }
 
+func TestFirstBQLineFrom(t *testing.T) {
+	f, err := lint.NewFile("test.md", []byte("> a\ntext\n> b\n"))
+	require.NoError(t, err)
+	t.Run("finds_first_bq", func(t *testing.T) {
+		assert.Equal(t, 1, firstBQLineFrom(f, 1))
+	})
+	t.Run("finds_from_mid_file", func(t *testing.T) {
+		assert.Equal(t, 3, firstBQLineFrom(f, 2))
+	})
+	t.Run("returns_zero_when_not_found", func(t *testing.T) {
+		// fromLine past the last BQ line → no match → 0.
+		assert.Equal(t, 0, firstBQLineFrom(f, 4))
+	})
+}
+
+func TestFirstBQLineAfterGap(t *testing.T) {
+	t.Run("returns_zero_when_no_blank_in_file", func(t *testing.T) {
+		// Non-blank lines fill the whole file: no blank gap exists so the
+		// non-blank scan reaches EOF and the first guard fires.
+		f := &lint.File{
+			Path:  "test.md",
+			Lines: [][]byte{[]byte("> bq")},
+		}
+		assert.Equal(t, 0, firstBQLineAfterGap(f, 1))
+	})
+	t.Run("returns_zero_when_file_ends_in_blanks", func(t *testing.T) {
+		// Non-blank line then two blank lines at EOF: no BQ after the gap.
+		f, err := lint.NewFile("test.md", []byte("> bq\n\n\n"))
+		require.NoError(t, err)
+		assert.Equal(t, 0, firstBQLineAfterGap(f, 1))
+	})
+	t.Run("returns_zero_when_non_bq_after_gap", func(t *testing.T) {
+		// Content after the blank gap is plain text, not a BQ marker.
+		f, err := lint.NewFile("test.md", []byte("> bq\n\ntext\n"))
+		require.NoError(t, err)
+		assert.Equal(t, 0, firstBQLineAfterGap(f, 1))
+	})
+	t.Run("finds_bq_after_gap", func(t *testing.T) {
+		f, err := lint.NewFile("test.md", []byte("> bq1\n\n> bq2\n"))
+		require.NoError(t, err)
+		assert.Equal(t, 3, firstBQLineAfterGap(f, 1))
+	})
+}
+
+func TestEmptyBQLine_CannotDeterminePosition(t *testing.T) {
+	// Synthetic: two empty sibling blockquotes, but the source has no > markers,
+	// so firstBQLineFrom returns 0 and emptyBQLine cannot determine the position.
+	// This also exercises the second first==0 guard in checkBlankBetween.
+	src := []byte("no blockquotes here\n")
+	bq1 := goldmarkast.NewBlockquote()
+	bq2 := goldmarkast.NewBlockquote()
+	doc := goldmarkast.NewDocument()
+	doc.AppendChild(doc, bq1)
+	doc.AppendChild(doc, bq2)
+	f := &lint.File{
+		Path:   "test.md",
+		Source: src,
+		Lines:  bytes.Split(src, []byte("\n")),
+		AST:    doc,
+	}
+	assert.Empty(t, (&Rule{}).checkBlankBetween(f))
+}
+
+func TestEmptyBQLine_GapScanFails(t *testing.T) {
+	// Synthetic: positioned bq1 at line 1, empty bq2; source has no blank line
+	// between them, so firstBQLineAfterGap returns 0 and the violation is skipped.
+	src := []byte("> bq1\n> bq2\n")
+	bq1Para := goldmarkast.NewParagraph()
+	bq1Para.Lines().Append(goldmarktext.NewSegment(2, 6)) // line 1
+	bq1 := goldmarkast.NewBlockquote()
+	bq1.AppendChild(bq1, bq1Para)
+	bq2 := goldmarkast.NewBlockquote() // empty, no children
+	doc := goldmarkast.NewDocument()
+	doc.AppendChild(doc, bq1)
+	doc.AppendChild(doc, bq2)
+	f := &lint.File{
+		Path:   "test.md",
+		Source: src,
+		Lines:  bytes.Split(src, []byte("\n")),
+		AST:    doc,
+	}
+	assert.Empty(t, (&Rule{}).checkBlankBetween(f))
+}
+
+func TestEmptyBQLine_ParentHasPosition(t *testing.T) {
+	// n has no preceding siblings, but its parent node has a known position
+	// (line 1). emptyBQLine uses that as base and finds the BQ marker at line 1.
+	src := []byte("> bq\n")
+	parent := goldmarkast.NewParagraph()
+	parent.Lines().Append(goldmarktext.NewSegment(0, 5)) // nodeFirstLine(parent) = 1
+	emptyBQ := goldmarkast.NewBlockquote()               // first child, no siblings
+	parent.AppendChild(parent, emptyBQ)
+	f := &lint.File{
+		Path:  "test.md",
+		Lines: bytes.Split(src, []byte("\n")),
+	}
+	assert.Equal(t, 1, emptyBQLine(f, emptyBQ))
+}
+
 func TestNodeFirstLine(t *testing.T) {
 	f, err := lint.NewFile("test.md", []byte("line1\nline2\n"))
 	require.NoError(t, err)
