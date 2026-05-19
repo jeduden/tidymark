@@ -78,11 +78,20 @@ are structural. Each is scoped work, not a one-line guard:
    batch of the default node-walking rules, and measure the
    `walkHelper` cumulative drop on both corpora. Gate behind the
    existing `BenchmarkCheckCorpus{Small,Large}` budgets.
-4. [ ] Evaluate faster sentence segmentation for MDS024: build an
-   exhaustive equivalence harness (Punkt vs candidate over the
-   neutral corpus and the rule fixtures) and adopt a candidate only
-   if diagnostics are byte-for-byte identical; otherwise record the
-   negative result here and keep Punkt.
+4. [x] Evaluate faster sentence segmentation for MDS024. Built a
+   reusable equivalence harness and benchmark in
+   [the mdtext segmenter test](../internal/mdtext/sentence_equivalence_test.go).
+   Recorded negative, evidence-backed: the inferred bottleneck (a
+   per-call `regexp.MustCompile` in neurosnap `IsNonPunct`) does not
+   exist. `IsNonPunct` has no call site in the library, and no
+   `MustCompile` frame appears in the neutral profile. The real cost
+   is intrinsic trained-Punkt regexp execution in
+   `MultiPunctWordAnnotation.tokenAnnotation` (~140 ms cum), not a
+   fixable recompile. A naive `[.!?]` splitter is provably not
+   equivalent (it over-segments abbreviations, decimals, ellipses,
+   initials), and no pure-Go Punkt-compatible faster segmenter
+   exists. Keep Punkt; the harness stays as the cheap gate for any
+   future candidate.
 5. [ ] Re-promote cross-tool benchmark JSON on the optimized binary
    and update the gate baselines if they move.
 
@@ -95,9 +104,10 @@ are structural. Each is scoped work, not a one-line guard:
       cumulative on both corpora with no diagnostic changes across
       the full fixture suite, or is recorded here as not worth the
       cross-rule churn with the measured evidence.
-- [ ] Any sentence-segmenter change is byte-for-byte
+- [x] Any sentence-segmenter change is byte-for-byte
       diagnostic-equivalent to Punkt over the neutral corpus and
-      the rule fixtures, or the negative result is recorded.
+      the rule fixtures, or the negative result is recorded. Negative
+      recorded with a reusable equivalence harness; Punkt kept.
 - [ ] `BenchmarkCheckCorpus{Small,Large}` stay within budget;
       neutral-corpus wall time improves once a structural lever
       lands.
