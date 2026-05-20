@@ -29,7 +29,7 @@ type Violation struct {
 // SeparatorStyle picks how the separator row is rendered: SeparatorSpaced
 // writes `| --- | --- |` (the form spelled out by the GFM specification
 // example), SeparatorCompact writes `|---|---|`. The zero value is
-// SeparatorSpaced so a callers that build a Config{Pad: 1} without
+// SeparatorSpaced so a caller that builds a Config{Pad: 1} without
 // touching the style field gets the spec-leaning default.
 type Config struct {
 	Pad            int

@@ -8,6 +8,7 @@ import (
 	"testing/fstest"
 
 	"github.com/jeduden/mdsmith/internal/lint"
+	"github.com/jeduden/mdsmith/internal/rules/tablefmt"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -125,6 +126,68 @@ glob: "docs/*.md"
 header: |
   | Title | Description |
   |-------|-------------|
+row: "| [{title}]({filename}) | {description} |"
+?>
+| Title                            | Description        |
+| -------------------------------- | ------------------ |
+| [API Reference](docs/api.md)     | Complete API docs  |
+| [Getting Started](docs/guide.md) | How to get started |
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/api.md":   {Data: []byte("---\ntitle: API Reference\ndescription: Complete API docs\n---\n# API\n")},
+		"docs/guide.md": {Data: []byte("---\ntitle: Getting Started\ndescription: How to get started\n---\n# Guide\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestRendering_TableHonorsPublishedCompactStyle(t *testing.T) {
+	// When MDS025 (table-format) publishes a compact-separator config,
+	// catalog must generate its table with the same canonical so the
+	// MDS019/MDS025 fix loop converges instead of bouncing the body
+	// back and forth.
+	tablefmt.ResetPublishedConfig()
+	tablefmt.Publish(tablefmt.Config{Pad: 1, SeparatorStyle: tablefmt.SeparatorCompact})
+	t.Cleanup(tablefmt.ResetPublishedConfig)
+
+	src := `<?catalog
+glob: "docs/*.md"
+header: |
+  | Title | Description |
+  |-------|-------------|
+row: "| [{title}]({filename}) | {description} |"
+?>
+| Title                            | Description        |
+|----------------------------------|--------------------|
+| [API Reference](docs/api.md)     | Complete API docs  |
+| [Getting Started](docs/guide.md) | How to get started |
+<?/catalog?>
+`
+	mapFS := fstest.MapFS{
+		"docs/api.md":   {Data: []byte("---\ntitle: API Reference\ndescription: Complete API docs\n---\n# API\n")},
+		"docs/guide.md": {Data: []byte("---\ntitle: Getting Started\ndescription: How to get started\n---\n# Guide\n")},
+	}
+	f := newTestFile(t, "index.md", src, mapFS)
+	r := &Rule{}
+	diags := r.Check(f)
+	expectDiags(t, diags, 0)
+}
+
+func TestRendering_TableHonorsPublishedSpacedStyle(t *testing.T) {
+	// Round-trip the spaced case: republish spaced, then verify a body
+	// already in spaced form passes Check.
+	tablefmt.ResetPublishedConfig()
+	tablefmt.Publish(tablefmt.Config{Pad: 1, SeparatorStyle: tablefmt.SeparatorSpaced})
+	t.Cleanup(tablefmt.ResetPublishedConfig)
+
+	src := `<?catalog
+glob: "docs/*.md"
+header: |
+  | Title | Description |
+  | ----- | ----------- |
 row: "| [{title}]({filename}) | {description} |"
 ?>
 | Title                            | Description        |
