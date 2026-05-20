@@ -9,11 +9,9 @@ import (
 )
 
 // sbomRunner records every RunCommand invocation and optionally
-// returns err on the call at index errAt (-1 = never). Distinct
-// from fault_test.go's helpers: this one couples recording with
-// scriptable per-index failure so the SBOM pipeline's two-step
-// install + emit sequence can be inspected on both the happy path
-// and each failure point.
+// returns err on the call at index errAt (-1 = never). Lets the
+// SBOM tests inspect the exact `go run` argv without putting the
+// pinned cyclonedx-gomod build on PATH.
 type sbomRunner struct {
 	calls []sbomCall
 	errAt int
@@ -35,43 +33,32 @@ func (r *sbomRunner) RunCommand(dir, name string, args ...string) error {
 	return nil
 }
 
-func TestGenerateSBOM_Pipeline(t *testing.T) {
+func TestGenerateSBOM_InvokesGoRunPinned(t *testing.T) {
 	runner := &sbomRunner{errAt: -1}
 	tk := NewWithDeps(osFS{}, runner)
 
 	require.NoError(t, tk.GenerateSBOM("/repo", "sbom.cdx.json"))
-	require.Len(t, runner.calls, 2)
+	require.Len(t, runner.calls, 1, "GenerateSBOM must issue exactly one command")
 
-	assert.Equal(t, "go", runner.calls[0].name)
+	call := runner.calls[0]
+	assert.Equal(t, "go", call.name)
+	assert.Equal(t, "/repo", call.dir)
 	assert.Equal(t, []string{
-		"install",
+		"run",
 		"github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@" + cyclonedxGomodVersion,
-	}, runner.calls[0].args)
-	assert.Equal(t, "/repo", runner.calls[0].dir)
-
-	assert.Equal(t, "cyclonedx-gomod", runner.calls[1].name)
-	assert.Equal(t, []string{
 		"mod", "-licenses", "-json", "-output", "sbom.cdx.json",
-	}, runner.calls[1].args)
+	}, call.args)
 }
 
-func TestGenerateSBOM_InstallFailure(t *testing.T) {
-	runner := &sbomRunner{errAt: 0, err: errors.New("no network")}
+func TestGenerateSBOM_PropagatesGoRunFailure(t *testing.T) {
+	runner := &sbomRunner{errAt: 0, err: errors.New("network down")}
 	tk := NewWithDeps(osFS{}, runner)
 
 	err := tk.GenerateSBOM("/repo", "sbom.cdx.json")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "install cyclonedx-gomod")
-	assert.Len(t, runner.calls, 1, "second call must not run after install fails")
-}
-
-func TestGenerateSBOM_EmitFailure(t *testing.T) {
-	runner := &sbomRunner{errAt: 1, err: errors.New("scan failed")}
-	tk := NewWithDeps(osFS{}, runner)
-
-	err := tk.GenerateSBOM("/repo", "sbom.cdx.json")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "emit SBOM")
+	assert.Contains(t, err.Error(), "emit SBOM via cyclonedx-gomod")
+	assert.Contains(t, err.Error(), cyclonedxGomodVersion)
+	assert.ErrorIs(t, err, runner.err)
 }
 
 func TestGenerateSBOM_InputValidation(t *testing.T) {
@@ -79,4 +66,15 @@ func TestGenerateSBOM_InputValidation(t *testing.T) {
 
 	assert.ErrorContains(t, tk.GenerateSBOM("", "out.json"), "empty root")
 	assert.ErrorContains(t, tk.GenerateSBOM("/repo", ""), "empty out path")
+}
+
+// TestGenerateSBOM_PackageWrapper covers the package-level entry
+// point that constructs a default Toolkit. The real osRunner
+// would invoke `go run`, which is fine on a CI host with a Go
+// toolchain but expensive in unit tests, so we don't assert on
+// command success — only that the wrapper threads errors and
+// validates input the same way the Toolkit method does.
+func TestGenerateSBOM_PackageWrapper(t *testing.T) {
+	assert.ErrorContains(t, GenerateSBOM("", "out.json"), "empty root")
+	assert.ErrorContains(t, GenerateSBOM("/repo", ""), "empty out path")
 }
