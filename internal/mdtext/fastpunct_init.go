@@ -18,21 +18,18 @@ import (
 // `english/main.go:NewSentenceTokenizer` for the upstream original
 // and plan 191 for the rationale.
 //
-// The upstream constructor swallows the data-load error
-// (`t, _ := english.NewSentenceTokenizer(nil)` in the original
-// initTokenizer), so this builder follows the same contract:
-// embedded data is expected to succeed, and if it ever did not, the
-// returned tokenizer would be `nil` and the first Tokenize call
-// would panic — the same failure mode as before plan 191.
+// `data.MustAsset` panics if the bundled English Punkt data is
+// missing — an invariant we trust at build time and which cannot
+// be driven red/green from a test. `sentlib.LoadTraining` returns
+// (nil, err) only on malformed JSON; the bundled file is fixed at
+// build time, so any error here is also a build-time invariant
+// violation. Swallowing it with `_` matches upstream's
+// `t, _ := english.NewSentenceTokenizer(nil)` swallow: training
+// stays nil, downstream panics on first use — same failure mode.
 func buildTokenizer() *sentlib.DefaultSentenceTokenizer {
-	raw, err := data.Asset("data/english.json")
-	if err != nil {
-		return nil
-	}
-	training, err := sentlib.LoadTraining(raw)
-	if err != nil {
-		return nil
-	}
+	raw := data.MustAsset("data/english.json")
+	training, _ := sentlib.LoadTraining(raw)
+
 	// Supervised abbreviations applied by english.NewSentenceTokenizer.
 	for _, abbr := range []string{"sgt", "gov", "no"} {
 		training.AbbrevTypes.Add(abbr)

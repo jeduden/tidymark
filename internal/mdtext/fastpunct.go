@@ -84,6 +84,14 @@ func (a *fastMultiPunctWordAnnotation) tokenAnnotation(tokOne, tokTwo *sentences
 		return
 	}
 
+	// Dead branch in current upstream, kept for line-for-line
+	// fidelity. reInitial matches only `^[A-Za-z]\.$` — a single
+	// letter + period. Every such token fails all four disjuncts of
+	// the preceding gate, so the gate already returned. If upstream
+	// ever weakens that gate, this guard reactivates and the fast
+	// path stays equivalent. Behaviour is pinned by
+	// TestFastMultiPunctWordAnnotation_tokenAnnotation's
+	// `is_initial_branch_is_unreachable_in_current_upstream` subtest.
 	if a.IsInitial(tokOne) {
 		return
 	}
