@@ -205,8 +205,11 @@ Follows the [standard Go project layout][stdlayout]:
 
 - `cmd/mdsmith/` — main entry point.
 - `internal/` — private packages.
-- `internal/rules/<id>-<name>/` — rule code, README,
-  and good/bad fixtures.
+- `internal/rules/<rule-name>/` — rule code (e.g.
+  `paragraphstructure/`).
+- `internal/rules/MDS###-<rule-name>/` — rule README
+  and good/bad fixtures (e.g.
+  `MDS024-paragraph-structure/`).
 - `testdata/` — shared markdown fixtures.
 
 [stdlayout]: https://go.dev/doc/modules/layout
@@ -242,7 +245,8 @@ verify with `b.ReportAllocs()`. MDS024 and MDS029 are the standing exceptions.
 ### Test Fixtures
 
 Rule test fixtures live in
-`internal/rules/<id>-<name>/`. Each rule has `good/`
+`internal/rules/MDS###-<rule-name>/` (e.g.
+`MDS024-paragraph-structure/`). Each rule has `good/`
 and `bad/` examples (or `good.md` / `bad.md`).
 
 Good fixtures must pass **all default-enabled rules**
@@ -260,9 +264,9 @@ When adding or changing a rule, add both:
    and `assert` for checks; `Same`/`NotSame` for
    pointer identity.
 2. **Fixture tests** under
-   `internal/rules/<id>-<name>/` with YAML frontmatter
-   specifying expected diagnostics. Discovered
-   automatically by
+   `internal/rules/MDS###-<rule-name>/` with YAML
+   frontmatter specifying expected diagnostics.
+   Discovered automatically by
    `internal/integration/rules_test.go`.
 
 ### Config Merge Semantics
