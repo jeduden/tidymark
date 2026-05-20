@@ -43,7 +43,7 @@ intended direction.
 
 ## Acceptance Criteria
 
-- [ ] `grep '".*internal/engine"' internal/fix/`
+- [ ] `grep -r --include='*.go' '".*internal/engine"' internal/fix/`
   returns nothing.
 - [ ] A contract test guards the boundary.
 - [ ] `go build ./...` clean.
