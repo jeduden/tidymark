@@ -98,6 +98,29 @@ wrap: markdown
 
 <?/include?>
 
+### Good -- compact (opt-in)
+
+With `separator-style: compact` the same column widths apply; only the
+separator row collapses its padding spaces. The fixture below carries
+the setting in front matter so the integration tests exercise the
+compact path.
+
+<?include
+file: good/compact.md
+wrap: markdown
+?>
+
+```markdown
+# Formatted Compact Table
+
+| Name   | Description               |
+|--------|---------------------------|
+| foo    | A short one               |
+| barbaz | A longer description here |
+```
+
+<?/include?>
+
 ### Bad
 
 <?include
