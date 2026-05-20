@@ -222,6 +222,56 @@ func TestParseAlignments(t *testing.T) {
 	}
 }
 
+// --- separatorAlignments coverage ---
+
+func TestSeparatorAlignments_NoSeparatorReturnsNil(t *testing.T) {
+	// formatTable's guard requires a parsed separator row, but the
+	// helper is defensively coded to handle inputs without one. Pin
+	// the nil result so the call site (computeColWidths) keeps its
+	// len(aligns) check honest.
+	rows := []row{
+		{cells: []string{"a"}, isSeparator: false},
+		{cells: []string{"b"}, isSeparator: false},
+	}
+	assert.Nil(t, separatorAlignments(rows))
+}
+
+func TestSeparatorAlignments_ReturnsFirstSeparatorRowAlignments(t *testing.T) {
+	want := []align{alignLeft, alignCenter, alignRight}
+	rows := []row{
+		{cells: []string{"H", "H", "H"}, isSeparator: false},
+		{cells: []string{":---", ":---:", "---:"}, isSeparator: true, alignments: want},
+		{cells: []string{":---", "---", "---"}, isSeparator: true, alignments: []align{alignLeft, alignNone, alignNone}},
+	}
+	assert.Equal(t, want, separatorAlignments(rows),
+		"first separator row's alignments win")
+}
+
+// --- computeColWidths nil-aligns coverage ---
+
+func TestComputeColWidths_NilAlignsFallsBackToAlignNone(t *testing.T) {
+	// With aligns == nil every column should be treated as alignNone,
+	// so the floor is 3 (the alignment-agnostic minimum) regardless of
+	// cell content width.
+	rows := []row{
+		{cells: []string{"a", "bb"}, isSeparator: false},
+	}
+	widths := computeColWidths(rows, 2, nil, Config{Pad: 1})
+	assert.Equal(t, []int{3, 3}, widths)
+}
+
+func TestComputeColWidths_AlignsShorterThanNumCols_PadsWithAlignNone(t *testing.T) {
+	// A separator with fewer cells than the widest data row leaves the
+	// trailing columns without an explicit alignment; they default to
+	// alignNone (floor 3) instead of indexing past len(aligns).
+	rows := []row{
+		{cells: []string{"a", "b", "c"}, isSeparator: false},
+	}
+	widths := computeColWidths(rows, 3, []align{alignCenter}, Config{Pad: 1})
+	assert.Equal(t, []int{5, 3, 3}, widths,
+		"col 0 widened to 5 by center alignment; cols 1-2 fall back to alignNone")
+}
+
 // --- detectPrefix coverage ---
 
 func TestDetectPrefix_NoPrefix(t *testing.T) {
