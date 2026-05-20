@@ -48,20 +48,18 @@ With `lint-staged` and `husky`:
 }
 ```
 
-With a plain Git hook (`.husky/pre-commit`) — use NUL-delimited
-output so filenames with spaces survive, and exit cleanly when no
-Markdown is staged so neither tool falls back to a full-repo
+With a plain Git hook (`.husky/pre-commit`) — POSIX sh, NUL-
+delimited so filenames with spaces survive, and a no-op on
+an empty stage so neither tool falls back to a full-repo
 rewrite:
 
-```bash
-mapfile -d '' staged < <(
-  git diff --cached --name-only --diff-filter=ACMR -z -- '*.md'
-)
-[ ${#staged[@]} -eq 0 ] && exit 0
-mdsmith fix "${staged[@]}"
-git add "${staged[@]}"
-npx prettier --write "${staged[@]}"
-git add "${staged[@]}"
+```sh
+list=$(git diff --cached --name-only --diff-filter=ACMR -z -- '*.md')
+[ -z "$list" ] && exit 0
+printf '%s' "$list" | xargs -0 mdsmith fix --
+printf '%s' "$list" | xargs -0 git add --
+printf '%s' "$list" | xargs -0 npx prettier --write --
+printf '%s' "$list" | xargs -0 git add --
 ```
 
 ## CI
