@@ -35,8 +35,8 @@ install:
   - id: neovim
     label: "neovim"
     prompt: ":"
-    cmd: "lua vim.lsp.start"
-    args: "{cmd={'mdsmith','lsp'}}"
+    cmd: "lua vim.lsp.start({cmd={'mdsmith','lsp'}})"
+    args: ""
   - id: claude
     label: "claude code"
     prompt: "/"

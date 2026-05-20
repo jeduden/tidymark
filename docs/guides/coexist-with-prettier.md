@@ -10,16 +10,16 @@ summary: >-
 Prettier is a formatter. mdsmith is a linter that also
 auto-fixes the deterministic formatting it owns
 (whitespace, heading style, code fences, list indent,
-table alignment). The two tools have overlapping
-formatting scope. They coexist cleanly when one owns the
-final say on the whitespace pass.
+and table padding). Both tools can rewrite tables and
+list spacing, so coexistence works by giving one tool
+the final say — Prettier, run last.
 
 ## Who owns what
 
 | Concern                              | Owner    |
 |--------------------------------------|----------|
 | Final paragraph wrapping             | Prettier |
-| Table alignment                      | Prettier |
+| Final table alignment                | Prettier |
 | Trailing whitespace, hard tabs       | mdsmith  |
 | Heading style (atx vs. setext)       | mdsmith  |
 | Fenced-code style and language tag   | mdsmith  |

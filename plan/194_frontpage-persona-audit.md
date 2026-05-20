@@ -103,12 +103,16 @@ Group A — homepage framing:
 
 Group B — AI-guardrails feature reframing:
 
-7. [x] Rename the feature in
+7. [x] Rename the feature file
    [docs/features/ai-guardrails.md](../docs/features/size-and-readability.md)
-   from "Guardrails for AI-generated docs" to a neutral name (e.g.
-   "Size and readability limits"). Update the feature-grid blurb in
+   to a neutral name (e.g. "Size and readability limits"). Update
+   the feature-grid blurb in
    [docs/features/index.md](../docs/features/index.md) and the
-   front-matter `title` so the URL slug follows.
+   front-matter `title`. Hugo derives the URL from the content
+   path, so the old `/features/ai-guardrails/` URL stops resolving;
+   adding `aliases:` for redirect would need the feature kind
+   schema in `.mdsmith.yml` to permit the field — tracked as a
+   follow-up rather than landed here.
 8. [x] On the renamed feature page, state the **default state** of
    each rule (`MDS022`, `MDS023`, `MDS024`, `MDS028`, `MDS037`):
    which are on by default, which are opt-in, and the exact config
@@ -190,5 +194,5 @@ Group E — compliance answers one hop from homepage:
 - [x] MIT license badge is visible on the homepage without scrolling
 - [x] Hero speed claim links to a quantified number on
       [docs/features/performance.md](../docs/features/performance.md)
-- [ ] All tests pass: `go test ./...`
-- [ ] `go tool golangci-lint run` reports no issues
+- [x] All tests pass: `go test ./...`
+- [x] `go tool golangci-lint run` reports no issues

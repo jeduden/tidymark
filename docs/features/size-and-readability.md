@@ -5,7 +5,7 @@ summary: >-
   sentence count; flag verbatim copy-paste across files.
 icon: ruler
 link: "/guides/metrics-tradeoffs/"
-rules: ["MDS022", "MDS023", "MDS028"]
+rules: ["MDS022", "MDS023", "MDS024", "MDS028", "MDS037"]
 weight: 18
 ---
 # Size and readability limits
@@ -27,7 +27,7 @@ Three rules are **on by default**. Two are **opt-in**.
 | `MDS023` | `paragraph-readability` | on            | `max-index: 14.0` ARI, `min-words: 20`  |
 | `MDS024` | `paragraph-structure`   | opt-in        | `max-sentences: 6`, 40 words / sentence |
 | `MDS028` | `token-budget`          | on            | `max: 8000`, `mode: heuristic`          |
-| `MDS037` | `duplicated-content`    | opt-in        | n-gram match across files               |
+| `MDS037` | `duplicated-content`    | opt-in        | verbatim paragraph match (≥ 200 chars)  |
 
 Turn an opt-in rule on by naming it in `.mdsmith.yml`:
 
@@ -39,13 +39,16 @@ rules:
   duplicated-content: true
 ```
 
-Disable any of the defaults the same way:
+Disable all five at once — covers cases where a convention or kind
+turned on `paragraph-structure` or `duplicated-content`:
 
 ```yaml
 rules:
   max-file-length: false
   paragraph-readability: false
+  paragraph-structure: false
   token-budget: false
+  duplicated-content: false
 ```
 
 A bare `false` toggles `enabled` only. Inherited settings stay
@@ -57,9 +60,9 @@ thresholds.
 `MDS022` caps lines per file. `MDS023` scores paragraph reading grade
 using ARI. `MDS024` flags paragraphs with too many sentences or
 over-long sentences. `MDS028` estimates the token load of a file with
-either a fast heuristic or a tokenizer. `MDS037` flags n-gram-level
-duplication across files, so the same boilerplate is not pasted into
-many pages.
+either a fast heuristic or a tokenizer. `MDS037` hashes each
+normalized paragraph (default: ≥ 200 characters) and flags
+verbatim duplicates that appear in another file in the corpus.
 
 See the [metrics trade-offs guide](../guides/metrics-tradeoffs.md)
 for threshold guidance and the [rule directory](/rules/) for the full
