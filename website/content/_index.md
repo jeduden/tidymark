@@ -9,7 +9,7 @@ hero:
   lead: >-
     Fast checks for style, readability, structure, and cross-file integrity.
     One static Go binary, no runtime — [roughly 4× faster than Node
-    markdownlint on a 700-file corpus](/features/performance/). Auto-fix
+    markdownlint on a 700-file corpus](features/performance/). Auto-fix
     what fixes cleanly. Editor-grade diagnostics on every save.
 install:
   - id: go
