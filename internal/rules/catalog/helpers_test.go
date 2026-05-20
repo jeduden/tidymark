@@ -172,8 +172,8 @@ func TestIncludeTargetsOfAbs_BuildsAbsoluteTargets(t *testing.T) {
 
 // TestIncludeTargetsOfAbs_PathOutsideHostReturnsNil pins the
 // relToHost rejection branch: when the absolute file path escapes
-// hostAbsDir there is no fsys-relative form to read, so the build
-// closure returns nil.
+// hostAbsDir there is no fsys-relative form to read, so the call
+// returns nil without consulting the cache.
 func TestIncludeTargetsOfAbs_PathOutsideHostReturnsNil(t *testing.T) {
 	fsys := fstest.MapFS{
 		"a.md": &fstest.MapFile{Data: []byte("# A\n")},
@@ -184,6 +184,46 @@ func TestIncludeTargetsOfAbs_PathOutsideHostReturnsNil(t *testing.T) {
 	assert.Nil(t, got,
 		"absFilePath outside hostAbsDir must return nil — the read "+
 			"would otherwise escape the host's os.DirFS root")
+}
+
+// TestIncludeTargetsOfAbs_OutsideHostDoesNotPoisonCache pins the
+// correctness fix flagged in PR review: when host A reaches an
+// absFilePath that lies outside its own hostAbsDir, the host-relative
+// read failure must NOT be cached. Otherwise a later host B whose
+// hostAbsDir does contain the same absFilePath would see the cached
+// nil and silently skip parsing real include directives, producing
+// order-dependent false negatives in cycle detection.
+func TestIncludeTargetsOfAbs_OutsideHostDoesNotPoisonCache(t *testing.T) {
+	cache := lint.NewRunCache()
+
+	// Host A: hostAbsDir=/repo/a; the target lives at /repo/shared
+	// which is OUTSIDE host A's directory. relToHost rejects the
+	// translation, so includeTargetsOfAbs must return nil without
+	// touching the cache.
+	fsysA := fstest.MapFS{} // unused by the failing branch
+	cfA := &lint.File{Path: "/repo/a/host.md", FS: fsysA, RunCache: cache}
+	got := includeTargetsOfAbs(cfA, fsysA,
+		"/repo/a", "/repo/shared/foo.md", 1024)
+	require.Nil(t, got, "host A cannot read /repo/shared/foo.md "+
+		"via its fsys; the helper must return nil")
+
+	// Host B: hostAbsDir=/repo/shared; the SAME absolute target is
+	// reachable. If host A polluted the cache with a nil, host B's
+	// call would echo that nil and miss the include chain. Pin the
+	// fix by giving host B a real include chain and asserting the
+	// chain is parsed.
+	body := "<?include\nfile: target.md\n?>\nbody\n<?/include?>\n"
+	fsysB := fstest.MapFS{
+		"foo.md":    &fstest.MapFile{Data: []byte(body)},
+		"target.md": &fstest.MapFile{Data: []byte("# T\n")},
+	}
+	cfB := &lint.File{Path: "/repo/shared/host.md", FS: fsysB, RunCache: cache}
+	gotB := includeTargetsOfAbs(cfB, fsysB,
+		"/repo/shared", "/repo/shared/foo.md", 1024)
+	require.Len(t, gotB, 1, "host B must parse foo.md fresh; a "+
+		"cached nil from host A would silently skip the include "+
+		"and miss real cycles in cross-directory catalogs")
+	assert.Equal(t, "/repo/shared/target.md", gotB[0])
 }
 
 // TestScanIncludesForTargetAbs_DepthLimit pins the depth guard: an

@@ -1112,14 +1112,22 @@ func scanIncludeTargets(fsys fs.FS, filePath string, maxBytes int64) []string {
 // cf.RunCache (keyed by absFilePath) so two host files whose
 // catalogs both glob the file share one read. fsys is the host file's
 // f.FS; hostAbsDir is its absolute root.
+//
+// When absFilePath lies outside hostAbsDir the file is unreadable
+// through fsys regardless of its content, so we return nil WITHOUT
+// caching: a later host whose hostAbsDir does contain absFilePath
+// must be free to parse it fresh. Caching the host-relative
+// readability failure here would corrupt the run cache with an
+// order-dependent false negative (a real include chain would be
+// silently skipped by whichever host hits the entry second).
 func includeTargetsOfAbs(
 	cf *lint.File, fsys fs.FS, hostAbsDir, absFilePath string, maxBytes int64,
 ) []string {
+	fsRel, ok := relToHost(hostAbsDir, absFilePath)
+	if !ok {
+		return nil
+	}
 	return cf.RunCache.Includes(absFilePath, func() []string {
-		fsRel, ok := relToHost(hostAbsDir, absFilePath)
-		if !ok {
-			return nil
-		}
 		rels := scanIncludeTargets(fsys, fsRel, maxBytes)
 		if len(rels) == 0 {
 			return nil
