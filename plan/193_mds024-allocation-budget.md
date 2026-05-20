@@ -206,17 +206,28 @@ abbr-heavy fixture:
 
 ## Results
 
-Measured on the 4-vCPU sandbox after the
-`internal/punkt` rework (default build; the upstream
-build tag retains the baseline numbers).
+Fresh apples-to-apples measurement on the 4-vCPU
+sandbox (Intel Xeon @ 2.10 GHz). Both columns are
+runs taken in the same minute, on the same machine,
+varying only the build tag. Segmenter benchmarks
+report mean over 3 runs at 2 s each; corpus
+benchmarks report the median p95 over 5 single-shot
+runs (`-benchtime=1x` so each iteration walks the
+whole tree once).
 
-| Benchmark                       | Baseline (upstream tag) | After (default tag) | Δ                  |
-|---------------------------------|-------------------------|---------------------|--------------------|
-| BenchmarkRule_MDS024 (warm)     | n/a (gate added here)   | 7 allocs/op         | within budget      |
-| BenchmarkSplitSentences         | 593 allocs / 230 µs     | 22 allocs / 87 µs   | −96% / −62%        |
-| BenchmarkSplitSentences_Subset  | 1082 allocs / 358 µs    | 16 allocs / 96 µs   | −98.5% / −73%      |
-| BenchmarkCheckCorpusSmall (p95) | 33 ms                   | 41 ms               | flat (budget 2 s)  |
-| BenchmarkCheckCorpusLarge (p95) | 210 ms                  | 268 ms              | flat (budget 12 s) |
+| Benchmark                       | Upstream tag              | Default tag               | Δ             |
+|---------------------------------|---------------------------|---------------------------|---------------|
+| BenchmarkRule_MDS024 (warm)     | n/a (gate added here)     | 7 allocs / 79 µs          | within budget |
+| BenchmarkSplitSentences         | 593 allocs / 186 µs       | 22 allocs / 68 µs         | −96% / −63%   |
+| BenchmarkSplitSentences_Subset  | 1082 allocs / 266 µs      | 16 allocs / 77 µs         | −98.5% / −71% |
+| BenchmarkCheckCorpusSmall (p95) | 30 ms (28–31 across 5)    | 28 ms (26–32 across 5)    | flat (noise)  |
+| BenchmarkCheckCorpusLarge (p95) | 190 ms (182–195 across 3) | 195 ms (194–198 across 3) | flat (noise)  |
+
+`BenchmarkCheckCorpus*` does not exercise MDS024 (it
+is opt-in, `EnabledByDefault: false`), so the
+segmenter rework cannot affect it. The corpus rows
+above are recorded only to document that the
+rework did not introduce engine-wide overhead.
 
 The Rule.Check budget gate lives in
 [bench_test.go][gate]. It is build-tagged
