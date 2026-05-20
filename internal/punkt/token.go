@@ -3,6 +3,7 @@ package punkt
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 // Token is a tokenized word annotated by the Punkt pipeline. The
@@ -106,10 +107,13 @@ func isListNumber(tok string) bool {
 	if i == 0 {
 		return false
 	}
-	// `.?` — at most one arbitrary byte. Anything is fine; we just
-	// step past it if present.
+	// `.?` — at most one ANY-character. Go's regexp `.` matches a
+	// rune, not a byte, so decode one full rune to stay equivalent
+	// on multi-byte tokens like `"1世"` (regex matches; a byte step
+	// would leave the scanner mid-rune and diverge).
 	if i < n {
-		i++
+		_, sz := utf8.DecodeRuneInString(tok[i:])
+		i += sz
 	}
 	// `\)?` — optional `)`.
 	if i < n && tok[i] == ')' {

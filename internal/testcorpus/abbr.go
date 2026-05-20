@@ -5,6 +5,8 @@
 // multiple call sites benchmark the same bytes.
 package testcorpus
 
+import "strings"
+
 // AbbrHeavy is the abbreviation-heavy paragraph corpus that exercises
 // trained Punkt's third-pass MultiPunctWordAnnotation. Every paragraph
 // is built around period-rich tokens — initials, honorifics, dotted
@@ -49,10 +51,13 @@ func AbbrHeavyParagraph() string {
 }
 
 // joinWithSpace concatenates the elements of items with a single
-// space separator. Returns "" for nil/empty input. Allocation-clean
-// (single backing array sized exactly to the joined length —
-// sum(len(s) for s in items) bytes for the content plus len(items)-1
-// for the single-space separators).
+// space separator. Returns "" for nil/empty input.
+//
+// Uses strings.Builder with a pre-sized Grow so the joined result
+// lives in a single backing array — and strings.Builder.String()
+// hands that array back without a copy. Grow's argument matches the
+// final length exactly (sum(len(s) for s in items) plus
+// len(items)-1 for the single-space separators).
 func joinWithSpace(items []string) string {
 	if len(items) == 0 {
 		return ""
@@ -61,12 +66,13 @@ func joinWithSpace(items []string) string {
 	for _, s := range items {
 		n += len(s)
 	}
-	out := make([]byte, 0, n)
+	var b strings.Builder
+	b.Grow(n)
 	for i, s := range items {
 		if i > 0 {
-			out = append(out, ' ')
+			b.WriteByte(' ')
 		}
-		out = append(out, s...)
+		b.WriteString(s)
 	}
-	return string(out)
+	return b.String()
 }

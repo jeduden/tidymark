@@ -23,8 +23,10 @@ var (
 
 // scannerCorpus is the universe of inputs every is*-scanner is
 // checked against — combinations of letters, digits, periods, parens,
-// the underscore, plus separators that the scanners must reject. Held
-// at package scope so multiple tests share the same coverage. Each
+// the underscore, plus separators that the scanners must reject.
+// Multi-byte runes are included so the `.?` semantics of isListNumber
+// (regex `.` matches a rune, not a byte) stay pinned. Held at package
+// scope so multiple tests share the same coverage. Each
 // scanner-vs-regex test below asserts byte-for-byte equivalence on
 // every entry.
 var scannerCorpus = []string{
@@ -47,6 +49,9 @@ var scannerCorpus = []string{
 	`?`, `!`,
 	`.(`, `.[`, `.[abc`, `?[xyz`,
 	"中.文.", "中", "café.",
+	// Multi-byte tail cases for isListNumber `.?`. Regex `.`
+	// matches a rune; a byte-only scanner would diverge on these.
+	"1世", "12世", "1世)", "1世)abc",
 }
 
 func TestIsAlphaToken_MatchesRegex(t *testing.T) {

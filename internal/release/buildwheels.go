@@ -1,7 +1,9 @@
 package release
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -155,14 +157,24 @@ func (t *Toolkit) stagePythonTree(src, asset, exe string) (string, error) {
 	// Stage the root LICENSE alongside pyproject.toml so the wheel
 	// carries the MIT notice (and the embedded third-party notice
 	// for internal/punkt/). pyproject.toml's `license-files` setting
-	// points hatchling at this staged copy. Optional: if the repo
-	// has no LICENSE the copy is skipped, matching buildnpm's
-	// permissive handling.
-	if license, err := t.fs.ReadFile(filepath.Join(filepath.Dir(src), "LICENSE")); err == nil {
-		if err := t.fs.WriteFile(filepath.Join(stage, "LICENSE"), license, 0o644); err != nil {
+	// points hatchling at this staged copy. A missing LICENSE is
+	// tolerated (some repos legitimately have none), but any other
+	// I/O error must propagate — silently shipping a wheel without
+	// the required notice would be a license-compliance bug.
+	licensePath := filepath.Join(filepath.Dir(src), "LICENSE")
+	license, err := t.fs.ReadFile(licensePath)
+	switch {
+	case err == nil:
+		stagedLicense := filepath.Join(stage, "LICENSE")
+		if err := t.fs.WriteFile(stagedLicense, license, 0o644); err != nil {
 			_ = t.fs.RemoveAll(stage)
-			return "", err
+			return "", fmt.Errorf("stage LICENSE at %s: %w", stagedLicense, err)
 		}
+	case errors.Is(err, fs.ErrNotExist):
+		// No root LICENSE to stage; proceed.
+	default:
+		_ = t.fs.RemoveAll(stage)
+		return "", fmt.Errorf("read LICENSE %s: %w", licensePath, err)
 	}
 	binDir := filepath.Join(stage, "mdsmith", "_bin")
 	if err := t.fs.MkdirAll(binDir, 0o755); err != nil {
