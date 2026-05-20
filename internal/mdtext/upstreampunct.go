@@ -13,10 +13,12 @@ import (
 // `-tags mdtext_punkt_upstream` to fall back to the upstream code and
 // confirm that the fast-path output matches.
 //
-// The upstream constructor's data-load error is swallowed (same as
-// the original `t, _ := english.NewSentenceTokenizer(nil)` from
-// initTokenizer before plan 191) — see the comment in
-// fastpunct_init.go.
+// The upstream constructor's data-load error is swallowed to
+// preserve the original `t, _ := english.NewSentenceTokenizer(nil)`
+// shape this file is meant to verify against. The default build
+// (fastpunct_init.go) panics via mustLoadTraining instead — the
+// two paths differ on error handling, but the verification this
+// file backs is segmentation behaviour on valid input.
 func buildTokenizer() *sentlib.DefaultSentenceTokenizer {
 	t, _ := english.NewSentenceTokenizer(nil)
 	return t

@@ -127,9 +127,12 @@ mdsmith builds its own tokenizer with three annotators:
    abbreviation-heavy `BenchmarkSplitSentences_Subset` drops by
    at least 10% — if it does not, the lever was smaller than the
    profile suggested and the change is rejected.
-7. [x] If the change ships, document the fast-path annotator in
-   the MDS024 README under "How it works" so the optimization is
-   visible to anyone reading the rule docs.
+7. [x] If the change ships, capture the fast-path rationale,
+   the build-tag A/B verification path, and the measured
+   improvement in the Results section below so the optimization
+   stays discoverable to future readers. The MDS024 README
+   itself stays user-facing — implementation detail belongs
+   here, not in the rule docs.
 
 ## Results
 

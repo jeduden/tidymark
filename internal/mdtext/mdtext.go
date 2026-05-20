@@ -210,9 +210,13 @@ var (
 
 // initTokenizer constructs the package's lazy singleton. The actual
 // builder is supplied by the build-tagged files fastpunct_init.go
-// (default) or upstreampunct.go (tag mdtext_punkt_upstream) — the
-// only behavioural difference is which MultiPunctWordAnnotation is
-// installed in the third-pass abbreviation classifier. See plan 191.
+// (default) or upstreampunct.go (tag mdtext_punkt_upstream). The
+// two paths differ on (1) which MultiPunctWordAnnotation is
+// installed in the third-pass abbreviation classifier — the
+// optimization of plan 191 — and (2) error handling on a corrupt
+// training asset (default panics via mustLoadTraining; upstream
+// matches the original swallow). Segmentation behaviour on valid
+// input is identical and gated by sentence_equivalence_test.go.
 func initTokenizer() {
 	tokenizer = buildTokenizer()
 }
