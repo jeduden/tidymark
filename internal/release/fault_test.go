@@ -428,18 +428,19 @@ func TestReadJSONVersionRejectsManifestWithoutVersion(t *testing.T) {
 }
 
 func TestStagePythonTreeFailsOnCopyAsset(t *testing.T) {
-	// The asset's copyFile uses a ReadFile (the asset) followed
-	// by a WriteFile (under mdsmith/_bin/). copyDir for the
-	// staged tree consumes ReadFile #1 (and writes once, since
-	// the src has only pyproject.toml). Asset ReadFile is the
-	// 2nd ReadFile call.
+	// stagePythonTree's ReadFile order:
+	//   #1 — copyDir reads pyproject.toml (the only src entry).
+	//   #2 — root LICENSE; failure is swallowed (best-effort copy
+	//        for the vendored-MIT notice — see stagePythonTree).
+	//   #3 — the binary asset; failure must propagate.
+	// The injected fault targets ReadFile #3.
 	src := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(src, "pyproject.toml"),
 		[]byte("[project]\nname=\"x\"\n"), 0o644))
 	asset := filepath.Join(t.TempDir(), "asset")
 	require.NoError(t, os.WriteFile(asset, []byte("bin"), 0o755))
 	ff := newFakeFS()
-	ff.failOnReadFileCall = 2
+	ff.failOnReadFileCall = 3
 
 	stage, err := NewWithFS(ff).stagePythonTree(src, asset, "mdsmith")
 	if err == nil {

@@ -274,6 +274,24 @@ func TestTokenizeInto_EmptyText(t *testing.T) {
 	assert.Empty(t, got, "empty text must produce no tokens")
 }
 
+// TestTokenizeInto_FallbackTracksOriginalLength pins the
+// orig-tracking variant of the upstream `len(tokens) == 0` fallback.
+// If dst already has elements going in and this call emits zero new
+// tokens (whitespace-only text), the fallback must still fire and
+// append the single sentinel token — matching the "appends … to dst"
+// contract regardless of how much was already in dst.
+func TestTokenizeInto_FallbackTracksOriginalLength(t *testing.T) {
+	dst := []Token{{Tok: "pre-existing", Position: 1}}
+	got := TokenizeInto(dst, "   \t   ", false)
+	require.Lenf(t, got, 2,
+		"non-empty dst + whitespace-only text must still trigger the "+
+			"upstream fallback append; got %v", got)
+	assert.Equal(t, "pre-existing", got[0].Tok,
+		"the pre-existing token must be untouched")
+	assert.Equal(t, "   \t   ", got[1].Tok,
+		"the fallback must append the whole input as a single token")
+}
+
 // TestTokenize_TrailingMultiByteRuneMatchesUpstream pins the
 // matched behaviour between fork and upstream for an input that
 // ends in a multi-byte rune without trailing whitespace. The

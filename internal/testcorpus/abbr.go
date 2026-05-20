@@ -38,16 +38,29 @@ var AbbrHeavy = []string{
 // per-paragraph segmenter runs on it. The benchmark for the rule
 // uses this shape so the fixture is a single paragraph the rule
 // extracts from the AST, not the slice of independent strings.
+//
+// The join logic itself is in joinWithSpace so the empty-slice
+// branch can be tested without mutating the exported AbbrHeavy
+// variable. Mutating AbbrHeavy from a test would race with other
+// packages' parallel `go test ./...` runs (e.g. paragraph-structure's
+// alloc-budget gate consumes the same corpus).
 func AbbrHeavyParagraph() string {
-	if len(AbbrHeavy) == 0 {
+	return joinWithSpace(AbbrHeavy)
+}
+
+// joinWithSpace concatenates the elements of items with a single
+// space separator. Returns "" for nil/empty input. Allocation-clean
+// (single backing array sized exactly to the joined length).
+func joinWithSpace(items []string) string {
+	if len(items) == 0 {
 		return ""
 	}
 	n := 0
-	for _, s := range AbbrHeavy {
+	for _, s := range items {
 		n += len(s) + 1
 	}
 	out := make([]byte, 0, n)
-	for i, s := range AbbrHeavy {
+	for i, s := range items {
 		if i > 0 {
 			out = append(out, ' ')
 		}

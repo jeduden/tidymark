@@ -259,6 +259,63 @@ func TestCopyDirCopiesNestedTree(t *testing.T) {
 	}
 }
 
+// TestStagePythonTree_CopiesLicense pins the wheel-LICENSE shipping
+// contract added for the internal/punkt/ vendored MIT notice. The
+// root LICENSE must land at <stage>/LICENSE so hatchling's
+// `license-files = ["LICENSE"]` setting picks it up and writes it
+// into the wheel's `.dist-info/`. Without this copy, the wheel
+// would ship without the third-party MIT attribution the root
+// LICENSE carries — a license-compliance gap.
+func TestStagePythonTree_CopiesLicense(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "python")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "pyproject.toml"), []byte("[project]\nname=\"x\"\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(src, "mdsmith"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "mdsmith", "__init__.py"), []byte(""), 0o644))
+
+	const wantLicense = "MIT — vendored notice\n"
+	require.NoError(t, os.WriteFile(filepath.Join(root, "LICENSE"), []byte(wantLicense), 0o644))
+
+	asset := filepath.Join(root, "fake-binary")
+	require.NoError(t, os.WriteFile(asset, []byte("\x7fELF"), 0o755))
+
+	stage, err := New().stagePythonTree(src, asset, "mdsmith")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(stage) })
+
+	got, err := os.ReadFile(filepath.Join(stage, "LICENSE"))
+	require.NoError(t, err,
+		"stagePythonTree must copy <root>/LICENSE to <stage>/LICENSE "+
+			"so hatchling's license-files setting can ship it in the wheel")
+	assert.Equal(t, wantLicense, string(got),
+		"staged LICENSE must be byte-identical to the source")
+}
+
+// TestStagePythonTree_MissingLicenseIsOK matches buildnpm's
+// permissive behaviour: a repo without a root LICENSE still produces
+// a stage (the LICENSE copy is best-effort). The test guards against
+// a regression that would make stagePythonTree fail when the file is
+// absent.
+func TestStagePythonTree_MissingLicenseIsOK(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "python")
+	require.NoError(t, os.MkdirAll(src, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "pyproject.toml"), []byte("[project]\nname=\"x\"\n"), 0o644))
+
+	asset := filepath.Join(root, "fake-binary")
+	require.NoError(t, os.WriteFile(asset, []byte("\x7fELF"), 0o755))
+
+	stage, err := New().stagePythonTree(src, asset, "mdsmith")
+	require.NoError(t, err,
+		"stagePythonTree must not fail when the repo has no root LICENSE")
+	t.Cleanup(func() { _ = os.RemoveAll(stage) })
+
+	_, err = os.Stat(filepath.Join(stage, "LICENSE"))
+	assert.Truef(t, os.IsNotExist(err),
+		"no source LICENSE means no staged LICENSE; got err=%v", err)
+}
+
 // TestBuildWheelsLayout calls BuildWheels directly and asserts
 // (a) one wheel per platform tag, (b) the dist-info/WHEEL metadata
 // inside each wheel claims the matching platform tag instead of

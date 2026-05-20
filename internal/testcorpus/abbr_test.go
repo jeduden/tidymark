@@ -38,14 +38,23 @@ func TestAbbrHeavyParagraph_JoinsCorpus(t *testing.T) {
 		"AbbrHeavyParagraph must join entries with a single space")
 }
 
-// TestAbbrHeavyParagraph_EmptyCorpus is the explicit zero case: if
-// AbbrHeavy were ever emptied (someone removes every entry), the
-// joined paragraph must be empty too. Drives the corresponding
-// branch in AbbrHeavyParagraph red/green.
-func TestAbbrHeavyParagraph_EmptyCorpus(t *testing.T) {
-	saved := AbbrHeavy
-	t.Cleanup(func() { AbbrHeavy = saved })
-	AbbrHeavy = nil
-	assert.Equal(t, "", AbbrHeavyParagraph(),
-		"empty corpus must produce an empty paragraph")
+// TestJoinWithSpace_EmptyCorpus is the explicit zero case: an empty
+// slice must produce an empty paragraph. Tests joinWithSpace
+// directly so the exported AbbrHeavy variable is not mutated —
+// `go test ./...` runs packages in parallel, and other consumers of
+// AbbrHeavy (paragraph-structure's alloc-budget gate, mdtext's
+// abbr-heavy benchmark) read it concurrently.
+func TestJoinWithSpace_EmptyCorpus(t *testing.T) {
+	assert.Equal(t, "", joinWithSpace(nil),
+		"nil input must produce an empty paragraph")
+	assert.Equal(t, "", joinWithSpace([]string{}),
+		"empty slice must produce an empty paragraph")
+}
+
+// TestJoinWithSpace_SingleEntry pins the single-entry branch: no
+// leading or trailing space.
+func TestJoinWithSpace_SingleEntry(t *testing.T) {
+	assert.Equal(t, "lonely",
+		joinWithSpace([]string{"lonely"}),
+		"single-entry slice must not add a separator")
 }

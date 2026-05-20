@@ -152,6 +152,18 @@ func (t *Toolkit) stagePythonTree(src, asset, exe string) (string, error) {
 		_ = t.fs.RemoveAll(stage)
 		return "", fmt.Errorf("copy python tree: %w", err)
 	}
+	// Stage the root LICENSE alongside pyproject.toml so the wheel
+	// carries the MIT notice (and the embedded third-party notice
+	// for internal/punkt/). pyproject.toml's `license-files` setting
+	// points hatchling at this staged copy. Optional: if the repo
+	// has no LICENSE the copy is skipped, matching buildnpm's
+	// permissive handling.
+	if license, err := t.fs.ReadFile(filepath.Join(filepath.Dir(src), "LICENSE")); err == nil {
+		if err := t.fs.WriteFile(filepath.Join(stage, "LICENSE"), license, 0o644); err != nil {
+			_ = t.fs.RemoveAll(stage)
+			return "", err
+		}
+	}
 	binDir := filepath.Join(stage, "mdsmith", "_bin")
 	if err := t.fs.MkdirAll(binDir, 0o755); err != nil {
 		_ = t.fs.RemoveAll(stage)

@@ -94,12 +94,18 @@ func (c *tokenizerCursor) emitTok(
 // unicode.IsSpace, mark paragraph starts after a blank line, mark
 // line starts after a single newline. With onlyPeriodContext = false
 // the tokenizer emits every word; with true it emits only words near
-// a sentence-ending punctuation character.
+// a sentence-ending punctuation character. If this call emits zero
+// new tokens (whitespace-only text, or onlyPeriodContext filtering
+// every word), the upstream fallback fires and a single token equal
+// to the whole input is appended — checked against the call's
+// original len(dst), not zero, so the fallback also fires when the
+// caller passes an already-populated dst.
 func TokenizeInto(dst []Token, text string, onlyPeriodContext bool) []Token {
 	textLength := len(text)
 	if textLength == 0 {
 		return dst
 	}
+	orig := len(dst)
 	c := tokenizerCursor{}
 	for i, char := range text {
 		if !unicode.IsSpace(char) && i != textLength-1 {
@@ -112,7 +118,7 @@ func TokenizeInto(dst []Token, text string, onlyPeriodContext bool) []Token {
 		}
 		dst = c.emitTok(dst, text, cursor, onlyPeriodContext)
 	}
-	if len(dst) == 0 {
+	if len(dst) == orig {
 		dst = append(dst, Token{Tok: text, Position: textLength})
 	}
 	return dst
