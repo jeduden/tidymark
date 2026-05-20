@@ -222,6 +222,35 @@ func TestParseAlignments(t *testing.T) {
 	}
 }
 
+// --- ParseSeparatorStyle coverage ---
+
+func TestParseSeparatorStyle_Spaced(t *testing.T) {
+	got, err := ParseSeparatorStyle("spaced", "any-rule")
+	require.NoError(t, err)
+	assert.Equal(t, SeparatorSpaced, got)
+}
+
+func TestParseSeparatorStyle_Compact(t *testing.T) {
+	got, err := ParseSeparatorStyle("compact", "any-rule")
+	require.NoError(t, err)
+	assert.Equal(t, SeparatorCompact, got)
+}
+
+func TestParseSeparatorStyle_UnknownString_ErrorMentionsRuleAndValue(t *testing.T) {
+	_, err := ParseSeparatorStyle("wide", "catalog")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "catalog:")
+	assert.Contains(t, err.Error(), "\"wide\"")
+}
+
+func TestParseSeparatorStyle_NonString_ErrorMentionsTypeAndRule(t *testing.T) {
+	_, err := ParseSeparatorStyle(42, "table-format")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "table-format:")
+	assert.Contains(t, err.Error(), "must be a string")
+	assert.Contains(t, err.Error(), "int")
+}
+
 // --- separatorAlignments coverage ---
 
 func TestSeparatorAlignments_NoSeparatorReturnsNil(t *testing.T) {

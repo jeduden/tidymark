@@ -47,6 +47,26 @@ const (
 	SeparatorCompact
 )
 
+// ParseSeparatorStyle converts a config value (typically a YAML scalar)
+// to a SeparatorStyle, returning a rule-scoped error if v is not one
+// of the supported string forms. ruleName is the rule's config key
+// (e.g. "table-format", "catalog") and prefixes the error so multiple
+// rules can share this helper without losing diagnostic context.
+func ParseSeparatorStyle(v any, ruleName string) (SeparatorStyle, error) {
+	s, ok := v.(string)
+	if !ok {
+		return 0, fmt.Errorf("%s: separator-style must be a string, got %T", ruleName, v)
+	}
+	switch s {
+	case "spaced":
+		return SeparatorSpaced, nil
+	case "compact":
+		return SeparatorCompact, nil
+	default:
+		return 0, fmt.Errorf("%s: separator-style must be %q or %q, got %q", ruleName, "spaced", "compact", s)
+	}
+}
+
 // FormatString formats all markdown tables in s with the given padding
 // and returns the result. Padding less than 0 falls back to 1 (one space
 // of padding on each side of cell content). Uses the default spaced

@@ -159,7 +159,7 @@ func (r *Rule) ApplySettings(s map[string]any) error {
 			}
 			r.Pad = n
 		case "separator-style":
-			style, err := parseSeparatorStyle(v)
+			style, err := tablefmt.ParseSeparatorStyle(v, "catalog")
 			if err != nil {
 				return err
 			}
@@ -176,21 +176,6 @@ func (r *Rule) DefaultSettings() map[string]any {
 	return map[string]any{
 		"pad":             1,
 		"separator-style": "spaced",
-	}
-}
-
-func parseSeparatorStyle(v any) (tablefmt.SeparatorStyle, error) {
-	s, ok := v.(string)
-	if !ok {
-		return 0, fmt.Errorf("catalog: separator-style must be a string, got %T", v)
-	}
-	switch s {
-	case "spaced":
-		return tablefmt.SeparatorSpaced, nil
-	case "compact":
-		return tablefmt.SeparatorCompact, nil
-	default:
-		return 0, fmt.Errorf("catalog: separator-style must be \"spaced\" or \"compact\", got %q", s)
 	}
 }
 
