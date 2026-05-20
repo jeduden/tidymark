@@ -324,15 +324,13 @@ func TestExtend_RootLevelInheritsWhenChildHasNoSections(t *testing.T) {
 // --- MergeRawMap ---
 
 func TestMergeRawMap_NilInputs(t *testing.T) {
-	out, err := MergeRawMap(nil, nil)
-	require.NoError(t, err)
+	out := MergeRawMap(nil, nil)
 	assert.Nil(t, out)
 }
 
 func TestMergeRawMap_NilParentReturnsCloneOfChild(t *testing.T) {
 	child := map[string]any{"filename": "x.md"}
-	out, err := MergeRawMap(nil, child)
-	require.NoError(t, err)
+	out := MergeRawMap(nil, child)
 	assert.Equal(t, "x.md", out["filename"])
 	// Map values are references; verify out doesn't alias child by
 	// mutating out and confirming child is unchanged.
@@ -343,8 +341,7 @@ func TestMergeRawMap_NilParentReturnsCloneOfChild(t *testing.T) {
 
 func TestMergeRawMap_NilChildReturnsCloneOfParent(t *testing.T) {
 	parent := map[string]any{"filename": "x.md"}
-	out, err := MergeRawMap(parent, nil)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, nil)
 	assert.Equal(t, "x.md", out["filename"])
 	out["new-key"] = "new"
 	assert.NotContains(t, parent, "new-key",
@@ -354,8 +351,7 @@ func TestMergeRawMap_NilChildReturnsCloneOfParent(t *testing.T) {
 func TestMergeRawMap_FrontmatterChildAddsKey(t *testing.T) {
 	parent := map[string]any{"frontmatter": map[string]any{"id": "string"}}
 	child := map[string]any{"frontmatter": map[string]any{"status": `"ratified"`}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	assert.Equal(t, "string", fm["id"])
 	assert.Equal(t, `"ratified"`, fm["status"])
@@ -368,8 +364,7 @@ func TestMergeRawMap_FrontmatterSharedKeyUnifies(t *testing.T) {
 	child := map[string]any{"frontmatter": map[string]any{
 		"status": `"ratified"`,
 	}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	expr, ok := fm["status"].(string)
 	require.True(t, ok)
@@ -387,8 +382,7 @@ func TestMergeRawMap_FrontmatterSharedKeyUnifies(t *testing.T) {
 func TestMergeRawMap_FrontmatterConflictMergesWithoutError(t *testing.T) {
 	parent := map[string]any{"frontmatter": map[string]any{"x": "int"}}
 	child := map[string]any{"frontmatter": map[string]any{"x": "string"}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	assert.Contains(t, fm["x"], "&", "shared key joins via CUE conjunction")
 }
@@ -479,8 +473,7 @@ func TestMergeRawMap_SectionsChildReplaces(t *testing.T) {
 	child := map[string]any{"sections": []any{
 		map[string]any{"heading": "B"},
 	}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	secs := out["sections"].([]any)
 	require.Len(t, secs, 1)
 	assert.Equal(t, "B", secs[0].(map[string]any)["heading"])
@@ -491,8 +484,7 @@ func TestMergeRawMap_SectionsInheritWhenChildAbsent(t *testing.T) {
 		map[string]any{"heading": "A"},
 	}}
 	child := map[string]any{"filename": "x.md"}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	secs := out["sections"].([]any)
 	require.Len(t, secs, 1)
 	assert.Equal(t, "A", secs[0].(map[string]any)["heading"])
@@ -501,16 +493,14 @@ func TestMergeRawMap_SectionsInheritWhenChildAbsent(t *testing.T) {
 func TestMergeRawMap_FilenameChildOverrides(t *testing.T) {
 	parent := map[string]any{"filename": "p.md"}
 	child := map[string]any{"filename": "c.md"}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	assert.Equal(t, "c.md", out["filename"])
 }
 
 func TestMergeRawMap_FilenameInheritsFromParent(t *testing.T) {
 	parent := map[string]any{"filename": "p.md"}
 	child := map[string]any{"closed": true}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	assert.Equal(t, "p.md", out["filename"])
 }
 
@@ -520,8 +510,7 @@ func TestMergeRawMap_PreservesNonOverlappingKeys(t *testing.T) {
 		"cross-references": []any{map[string]any{"pattern": "p"}},
 	}
 	child := map[string]any{"closed": true}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	assert.NotNil(t, out["acronyms"])
 	assert.NotNil(t, out["cross-references"])
 	assert.True(t, out["closed"].(bool))
@@ -567,8 +556,7 @@ func TestCheckUnifiable_RejectsCompileError(t *testing.T) {
 func TestMergeRawMap_FrontmatterChildHasNoFrontmatterKey(t *testing.T) {
 	parent := map[string]any{"frontmatter": map[string]any{"a": "string"}}
 	child := map[string]any{"filename": "x.md"}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	assert.Equal(t, "string", fm["a"])
 }
@@ -580,8 +568,7 @@ func TestMergeRawMap_FrontmatterChildHasNoFrontmatterKey(t *testing.T) {
 func TestMergeRawMap_FrontmatterNonStringParentNormalises(t *testing.T) {
 	parent := map[string]any{"frontmatter": map[string]any{"x": 42}}
 	child := map[string]any{"frontmatter": map[string]any{"x": "string"}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	merged, ok := fm["x"].(string)
 	require.True(t, ok)
@@ -597,8 +584,7 @@ func TestMergeRawMap_FrontmatterNonStringParentNormalises(t *testing.T) {
 func TestMergeRawMap_FrontmatterIdenticalExprStaysVerbatim(t *testing.T) {
 	parent := map[string]any{"frontmatter": map[string]any{"x": `"open"`}}
 	child := map[string]any{"frontmatter": map[string]any{"x": `"open"`}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	assert.Equal(t, `"open"`, fm["x"], "identical expressions don't wrap in `&`")
 }
@@ -612,8 +598,7 @@ func TestMergeRawMap_FrontmatterIdenticalExprStaysVerbatim(t *testing.T) {
 func TestMergeRawMap_FrontmatterShortcutsExpandBeforeUnify(t *testing.T) {
 	parent := map[string]any{"frontmatter": map[string]any{"d": "date"}}
 	child := map[string]any{"frontmatter": map[string]any{"d": "nonEmpty"}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	merged, ok := fm["d"].(string)
 	require.True(t, ok)
@@ -628,8 +613,7 @@ func TestMergeRawMap_FrontmatterShortcutsExpandBeforeUnify(t *testing.T) {
 func TestMergeRawMap_FrontmatterShortcutChildOnlyExpands(t *testing.T) {
 	parent := map[string]any{}
 	child := map[string]any{"frontmatter": map[string]any{"d": "date"}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	expr, ok := fm["d"].(string)
 	require.True(t, ok)
@@ -643,8 +627,7 @@ func TestMergeRawMap_FrontmatterShortcutChildOnlyExpands(t *testing.T) {
 func TestMergeRawMap_FrontmatterParentShortcutExpands(t *testing.T) {
 	parent := map[string]any{"frontmatter": map[string]any{"d": "date"}}
 	child := map[string]any{"frontmatter": map[string]any{"x": "string"}}
-	out, err := MergeRawMap(parent, child)
-	require.NoError(t, err)
+	out := MergeRawMap(parent, child)
 	fm := out["frontmatter"].(map[string]any)
 	expr, ok := fm["d"].(string)
 	require.True(t, ok)

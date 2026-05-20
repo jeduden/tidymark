@@ -763,41 +763,49 @@ func newRootedFile(t *testing.T, root, path, source string) *lint.File {
 	return f
 }
 
-// TestFileSchemaDeclaresExtends_MissingFileReturnsFalse covers
-// the loadSchemaAt error branch: a schema path that fails to read
-// surfaces as `false` so the dispatch falls back to the legacy
-// parser, which reports the read failure with its existing
-// diagnostic.
-func TestFileSchemaDeclaresExtends_MissingFileReturnsFalse(t *testing.T) {
-	root := t.TempDir()
-	f := newRootedFile(t, root, "doc.md", "# Doc\n")
-	r := &Rule{}
-	assert.False(t, r.fileSchemaDeclaresExtends(f, "nonexistent.md"))
+// TestSchemaDataDeclaresExtends_DetectsExtends pins the happy
+// path: a proto.md with `extends:` in front matter triggers the
+// dispatch's compose-path re-route.
+func TestSchemaDataDeclaresExtends_DetectsExtends(t *testing.T) {
+	assert.True(t, schemaDataDeclaresExtends(
+		[]byte("---\nextends: base.md\n---\n# ?\n")))
 }
 
-// TestFileSchemaDeclaresExtends_NoFrontmatterReturnsFalse covers
+// TestSchemaDataDeclaresExtends_NoExtendsReturnsFalse covers the
+// common case: a schema without inheritance stays on the legacy
+// single-file path.
+func TestSchemaDataDeclaresExtends_NoExtendsReturnsFalse(t *testing.T) {
+	assert.False(t, schemaDataDeclaresExtends(
+		[]byte("---\nid: 'string'\n---\n# ?\n")))
+}
+
+// TestSchemaDataDeclaresExtends_NoFrontmatterReturnsFalse covers
 // the `prefix == nil` branch: a schema file with no front matter
 // has no `extends:` to report.
-func TestFileSchemaDeclaresExtends_NoFrontmatterReturnsFalse(t *testing.T) {
-	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "schema.md"),
-		[]byte("# ?\n"), 0o644))
-	f := newRootedFile(t, root, "doc.md", "# Doc\n")
-	r := &Rule{}
-	assert.False(t, r.fileSchemaDeclaresExtends(f, "schema.md"))
+func TestSchemaDataDeclaresExtends_NoFrontmatterReturnsFalse(t *testing.T) {
+	assert.False(t, schemaDataDeclaresExtends([]byte("# ?\n")))
 }
 
-// TestFileSchemaDeclaresExtends_InvalidYAMLReturnsFalse covers
+// TestSchemaDataDeclaresExtends_InvalidYAMLReturnsFalse covers
 // the YAML-decode error branch: a malformed front matter still
 // returns `false` so the legacy parser surfaces the syntax error
 // with its richer diagnostic.
-func TestFileSchemaDeclaresExtends_InvalidYAMLReturnsFalse(t *testing.T) {
+func TestSchemaDataDeclaresExtends_InvalidYAMLReturnsFalse(t *testing.T) {
+	assert.False(t, schemaDataDeclaresExtends(
+		[]byte("---\n: bad: yaml:\n---\n# ?\n")))
+}
+
+// TestDispatchSingleFileSchema_MissingFileReportsDiagnostic covers
+// the loadSchemaAt error path: a missing schema file surfaces as a
+// single MDS020 diagnostic anchored at line 1 of the document.
+func TestDispatchSingleFileSchema_MissingFileReportsDiagnostic(t *testing.T) {
 	root := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(root, "schema.md"),
-		[]byte("---\n: bad: yaml:\n---\n# ?\n"), 0o644))
 	f := newRootedFile(t, root, "doc.md", "# Doc\n")
 	r := &Rule{}
-	assert.False(t, r.fileSchemaDeclaresExtends(f, "schema.md"))
+	diags := r.dispatchSingleFileSchema(f, "nonexistent.md",
+		[]SchemaSource{{File: "nonexistent.md"}})
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message, "schema")
 }
 
 // TestCheck_FileSchemaWithExtendsRoutesThroughCompose pins the

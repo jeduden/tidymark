@@ -42,11 +42,7 @@ func ResolveKindInlineSchema(
 	}
 	merged := chain[0].raw
 	for _, c := range chain[1:] {
-		// MergeRawMap is structural-only after the plan-135 split:
-		// it always returns a nil error and we never reach the err
-		// branch from here, so the merge call doesn't propagate one.
-		next, _ := schema.MergeRawMap(merged, c.raw)
-		merged = next
+		merged = schema.MergeRawMap(merged, c.raw)
 	}
 	return merged, nil
 }

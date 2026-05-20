@@ -538,10 +538,7 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 			return append(diags, r.checkSingleInlineSchema(f, src.Inline)...)
 		}
 		if src.File != "" {
-			if r.fileSchemaDeclaresExtends(f, src.File) {
-				return append(diags, r.checkComposedSources(f, sources)...)
-			}
-			return append(diags, r.checkSingleFileSchema(f, src.File)...)
+			return append(diags, r.dispatchSingleFileSchema(f, src.File, sources)...)
 		}
 		return diags
 	}
@@ -549,20 +546,32 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	return append(diags, r.checkComposedSources(f, sources)...)
 }
 
-// fileSchemaDeclaresExtends peeks at a proto.md file's YAML front
-// matter for the reserved `extends:` key. The single-source
-// dispatch uses it to opt into the compose path so plan-135
-// inheritance flows through schema.ParseFile rather than the legacy
-// parser that would silently drop the parent.
-//
-// Failures to read or parse the schema return false — the legacy
+// dispatchSingleFileSchema loads the schema once, peeks at the
+// front matter for the reserved `extends:` key, and routes to the
+// legacy single-file path or the compose path accordingly. Loading
+// here avoids the double read the previous helper introduced: the
+// legacy path reuses the bytes via checkSingleFileSchemaFromData,
+// and the compose path re-loads through schema.ParseFile only when
+// extends actually applies.
+func (r *Rule) dispatchSingleFileSchema(
+	f *lint.File, schemaPath string, sources []SchemaSource,
+) []lint.Diagnostic {
+	data, schPath, err := r.loadSchemaAt(f, schemaPath)
+	if err != nil {
+		return []lint.Diagnostic{r.diag(f.Path, 1, err.Error())}
+	}
+	if schemaDataDeclaresExtends(data) {
+		return r.checkComposedSources(f, sources)
+	}
+	return r.checkSingleFileSchemaFromData(f, schemaPath, data, schPath)
+}
+
+// schemaDataDeclaresExtends reports whether the raw schema bytes
+// carry a reserved `extends:` key in their YAML front matter. A
+// parse failure or missing front matter returns false — the legacy
 // path then surfaces those errors via parseSchema with its
 // existing diagnostic shape.
-func (r *Rule) fileSchemaDeclaresExtends(f *lint.File, schemaPath string) bool {
-	data, _, err := r.loadSchemaAt(f, schemaPath)
-	if err != nil {
-		return false
-	}
+func schemaDataDeclaresExtends(data []byte) bool {
 	prefix, _ := lint.StripFrontMatter(data)
 	if prefix == nil {
 		return false
@@ -812,18 +821,14 @@ func (r *Rule) ComposedSchema(f *lint.File) (*schema.Schema, error) {
 	return r.composedSchemaForFix(f)
 }
 
-// checkSingleFileSchema retains the legacy proto.md heading-template
-// validation path. It supports {field} sync points in headings and
-// body content; these features are tied to the source body of the
-// schema markdown and have no inline counterpart.
-func (r *Rule) checkSingleFileSchema(f *lint.File, schemaPath string) []lint.Diagnostic {
+// checkSingleFileSchemaFromData runs the legacy validation with a
+// pre-loaded schema buffer. The Check dispatch reads the schema
+// once and routes the bytes here when extends is not declared, so
+// the common single-source path avoids a second read.
+func (r *Rule) checkSingleFileSchemaFromData(
+	f *lint.File, schemaPath string, schData []byte, schPath string,
+) []lint.Diagnostic {
 	var diags []lint.Diagnostic
-
-	schData, schPath, err := r.loadSchemaAt(f, schemaPath)
-	if err != nil {
-		return append(diags, r.diag(f.Path, 1, err.Error()))
-	}
-
 	sch, err := parseSchema(schData, schPath, f.MaxInputBytes)
 	if err != nil {
 		return append(diags, r.diag(f.Path, 1,

@@ -25,10 +25,12 @@ import (
 // Both inputs must be the inline-shape map produced by the YAML
 // loader; mutated copies are returned so the caller may further
 // merge or hand them to ParseInline without aliasing. A nil input is
-// treated as the empty map.
-func MergeRawMap(parent, child map[string]any) (map[string]any, error) {
+// treated as the empty map. The function does no CUE evaluation,
+// so it cannot fail — callers that want load-time conflict
+// detection run ValidateExtendedFrontmatter on the result.
+func MergeRawMap(parent, child map[string]any) map[string]any {
 	if parent == nil && child == nil {
-		return nil, nil
+		return nil
 	}
 	// Even single-input merges run through the frontmatter
 	// normaliser so a shortcut like `date` becomes its canonical
@@ -51,7 +53,7 @@ func MergeRawMap(parent, child map[string]any) (map[string]any, error) {
 			out[key] = v
 		}
 	}
-	return out, nil
+	return out
 }
 
 // mergeRawFrontmatter merges parent's and child's frontmatter maps
