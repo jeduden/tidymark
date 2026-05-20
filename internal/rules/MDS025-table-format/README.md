@@ -15,7 +15,7 @@ Tables must have consistent column widths and padding.
 ## Settings
 
 | Setting           | Type   | Default    | Description                                                                                       |
-| ----------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------- |
+|-------------------|--------|------------|---------------------------------------------------------------------------------------------------|
 | `pad`             | int    | `1`        | spaces on each side of cell content                                                               |
 | `separator-style` | string | `"spaced"` | `"spaced"` writes `\| --- \|` (the GFM-spec form); `"compact"` writes the dense `\|---\|` variant |
 
@@ -159,7 +159,7 @@ wrap: markdown
 ## Edge Cases
 
 | Scenario                       | Behavior                                           |
-| ------------------------------ | -------------------------------------------------- |
+|--------------------------------|----------------------------------------------------|
 | table inside blockquote        | `> ` prefix preserved on each line                 |
 | table inside list              | indentation prefix preserved                       |
 | table inside fenced code block | skipped, not checked or modified                   |

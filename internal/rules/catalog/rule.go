@@ -128,24 +128,16 @@ func (r *Rule) Generate(f *lint.File, filePath string, line int,
 	return content, nil
 }
 
-// tableFormatConfig reads the active MDS025 (table-format) settings.
-// Falls back to the default Config (pad=1, spaced separator) when the
-// rule is not registered or does not expose the expected accessors.
+// tableFormatConfig reads the active MDS025 (table-format) settings
+// the user configured. The engine clones rules before applying user
+// settings, so the rule registry's singleton still carries the init
+// defaults; reading those instead would format catalog tables one way
+// while MDS025's own fix pass reformatted them another. Consulting the
+// publish channel keeps both rules in lockstep. When nothing has been
+// published yet (a fresh registry, an unconfigured caller) the
+// fall-back is the singleton's defaults.
 func tableFormatConfig() tablefmt.Config {
-	cfg := tablefmt.Config{Pad: 1}
-	r := rule.ByID("MDS025")
-	if r == nil {
-		return cfg
-	}
-	if p, ok := r.(interface{ GetPad() int }); ok {
-		cfg.Pad = p.GetPad()
-	}
-	if s, ok := r.(interface {
-		GetSeparatorStyle() tablefmt.SeparatorStyle
-	}); ok {
-		cfg.SeparatorStyle = s.GetSeparatorStyle()
-	}
-	return cfg
+	return tablefmt.PublishedConfig()
 }
 
 // validateCatalogDirective validates parameters specific to the catalog directive.
