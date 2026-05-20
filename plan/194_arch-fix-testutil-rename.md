@@ -38,7 +38,7 @@ narrow scope.
 
 - [ ] `internal/testutil/` is gone.
 - [ ] `internal/testsymlink/` exists.
-- [ ] `grep -r 'internal/testutil'`
+- [ ] `grep -r --include='*.go' 'internal/testutil'`
   returns no results.
 - [ ] `go build ./...` clean.
 - [ ] `go test ./...` passes.
