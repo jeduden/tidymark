@@ -50,21 +50,21 @@ access to [PLAN.md](../PLAN.md), [internal/](../internal/),
 Convergent findings (number of personas that independently flagged the
 item):
 
-| #   | Friction                                                       | Hits | Anchor                                                                         |
-|-----|----------------------------------------------------------------|------|--------------------------------------------------------------------------------|
-| 1   | Hero summary reads as "AI tool"                                | 5/5  | [_index.md:3](../website/content/_index.md) "and AI-generated content"         |
-| 2   | "Guardrails for AI-generated docs" name implies AI-only        | 5/5  | [features/index.md:43-45](../docs/features/index.md)                           |
-| 3   | Claude Code install tab gets equal billing with go / npm / pip | 4/5  | [_index.md:34-38](../website/content/_index.md)                                |
-| 4   | Default state of guardrail rules is undisclosed                | 3/5  | [features/ai-guardrails.md](../docs/features/size-and-readability.md)          |
-| 5   | No markdownlint migration guide                                | 2/5  | [guides/](../docs/guides/) ships Hugo migration but no markdownlint on-ramp    |
-| 6   | No Vale / remark coexistence story                             | 1/5  | hero names markdownlint, never Vale                                            |
-| 7   | No prettier coexistence story                                  | 1/5  | [features/auto-fix.md](../docs/features/auto-fix.md) leaves the boundary fuzzy |
-| 8   | Neovim absent from install widget                              | 1/5  | tabs are go / npm / pip / vs-code / claude — no neovim                         |
-| 9   | Telemetry never affirmatively denied                           | 1/5  | no public page says "no telemetry, no analytics"                               |
-| 10  | SBOM not advertised in releases                                | 1/5  | [guides/install.md](../docs/guides/install.md) lists signature + provenance    |
-| 11  | Speed claim "faster than markdownlint" is not quantified       | 1/5  | [_index.md:11](../website/content/_index.md) — number lives only on perf page  |
-| 12  | License not visible from homepage                              | 1/5  | footer-only on most page templates                                             |
-| 13  | No "minimal mode" / "small repo" path                          | 1/5  | 16 feature cards, no Core vs. Scale split                                      |
+| #   | Friction                                                       | Hits | Anchor                                                                                    |
+|-----|----------------------------------------------------------------|------|-------------------------------------------------------------------------------------------|
+| 1   | Hero summary reads as "AI tool"                                | 5/5  | [_index.md:3](../website/content/_index.md) "and AI-generated content"                    |
+| 2   | "Guardrails for AI-generated docs" name implies AI-only        | 5/5  | [features/index.md:43-45](../docs/features/index.md)                                      |
+| 3   | Claude Code install tab gets equal billing with go / npm / pip | 4/5  | [_index.md:34-38](../website/content/_index.md)                                           |
+| 4   | Default state of guardrail rules is undisclosed                | 3/5  | [ai-guardrails.md, now size-and-readability.md](../docs/features/size-and-readability.md) |
+| 5   | No markdownlint migration guide                                | 2/5  | [guides/](../docs/guides/) ships Hugo migration but no markdownlint on-ramp               |
+| 6   | No Vale / remark coexistence story                             | 1/5  | hero names markdownlint, never Vale                                                       |
+| 7   | No prettier coexistence story                                  | 1/5  | [features/auto-fix.md](../docs/features/auto-fix.md) leaves the boundary fuzzy            |
+| 8   | Neovim absent from install widget                              | 1/5  | tabs are go / npm / pip / vs-code / claude — no neovim                                    |
+| 9   | Telemetry never affirmatively denied                           | 1/5  | no public page says "no telemetry, no analytics"                                          |
+| 10  | SBOM not advertised in releases                                | 1/5  | [guides/install.md](../docs/guides/install.md) lists signature + provenance               |
+| 11  | Speed claim "faster than markdownlint" is not quantified       | 1/5  | [_index.md:11](../website/content/_index.md) — number lives only on perf page             |
+| 12  | License not visible from homepage                              | 1/5  | footer-only on most page templates                                                        |
+| 13  | No "minimal mode" / "small repo" path                          | 1/5  | 16 feature cards, no Core vs. Scale split                                                 |
 
 A Pavel-shaped visitor also could not find a rules index at `/rules/`
 (the topnav advertises it conditionally and several feature cards list
