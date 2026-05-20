@@ -13,11 +13,30 @@ import (
 // A truncated or empty corpus would silently weaken benchmarks that
 // run "for each paragraph" because the loop body would never fire.
 func TestAbbrHeavy_NonEmpty(t *testing.T) {
-	require.NotEmpty(t, AbbrHeavy)
-	for i, s := range AbbrHeavy {
+	got := AbbrHeavy()
+	require.NotEmpty(t, got)
+	for i, s := range got {
 		assert.NotEmptyf(t, strings.TrimSpace(s),
-			"AbbrHeavy[%d] must not be empty", i)
+			"AbbrHeavy()[%d] must not be empty", i)
 	}
+}
+
+// TestAbbrHeavy_ReturnsFreshCopy pins the immutability contract.
+// AbbrHeavy must hand out a fresh slice on every call so a caller
+// that mutates its result cannot affect any other consumer running
+// in parallel.
+func TestAbbrHeavy_ReturnsFreshCopy(t *testing.T) {
+	a := AbbrHeavy()
+	b := AbbrHeavy()
+	require.NotEmpty(t, a)
+	// Different slice headers — different backing arrays. Mutating
+	// `a` must not affect `b`.
+	a[0] = "MUTATED"
+	assert.NotEqual(t, "MUTATED", b[0],
+		"two AbbrHeavy() calls must return independent slices")
+	// And the canonical fixture must be unchanged on the next call.
+	assert.NotEqual(t, "MUTATED", AbbrHeavy()[0],
+		"a caller's mutation must not leak into the package-level corpus")
 }
 
 // TestAbbrHeavyParagraph_JoinsCorpus pins the join contract: the
@@ -27,23 +46,20 @@ func TestAbbrHeavy_NonEmpty(t *testing.T) {
 // the fixture even though the function body is trivial.
 func TestAbbrHeavyParagraph_JoinsCorpus(t *testing.T) {
 	got := AbbrHeavyParagraph()
-	for _, s := range AbbrHeavy {
+	entries := AbbrHeavy()
+	for _, s := range entries {
 		assert.Containsf(t, got, s,
 			"AbbrHeavyParagraph must include corpus entry %q", s)
 	}
 	// Joined with a single space — not a newline (paragraph stays
 	// a single paragraph) and not multiple spaces.
-	want := strings.Join(AbbrHeavy, " ")
+	want := strings.Join(entries, " ")
 	assert.Equal(t, want, got,
 		"AbbrHeavyParagraph must join entries with a single space")
 }
 
 // TestJoinWithSpace_EmptyCorpus is the explicit zero case: an empty
-// slice must produce an empty paragraph. Tests joinWithSpace
-// directly so the exported AbbrHeavy variable is not mutated —
-// `go test ./...` runs packages in parallel, and other consumers of
-// AbbrHeavy (paragraph-structure's alloc-budget gate, mdtext's
-// abbr-heavy benchmark) read it concurrently.
+// slice must produce an empty paragraph.
 func TestJoinWithSpace_EmptyCorpus(t *testing.T) {
 	assert.Equal(t, "", joinWithSpace(nil),
 		"nil input must produce an empty paragraph")

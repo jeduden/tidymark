@@ -203,9 +203,14 @@ func BenchmarkSplitSentences(b *testing.B) {
 // with paragraph-structure's BenchmarkRule_MDS024 (plan 193
 // task 1) so both gates measure the same bytes.
 func BenchmarkSplitSentences_Subset(b *testing.B) {
+	// AbbrHeavy() copies once; the inner loop reads from the copy
+	// so the benchmark does not re-pay the corpus clone per
+	// iteration. SplitSentences is what the benchmark measures.
+	corpus := testcorpus.AbbrHeavy()
 	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for _, s := range testcorpus.AbbrHeavy {
+		for _, s := range corpus {
 			_ = mdtext.SplitSentences(s)
 		}
 	}

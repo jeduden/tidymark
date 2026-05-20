@@ -5,18 +5,22 @@
 // multiple call sites benchmark the same bytes.
 package testcorpus
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
-// AbbrHeavy is the abbreviation-heavy paragraph corpus that exercises
-// trained Punkt's third-pass MultiPunctWordAnnotation. Every paragraph
-// is built around period-rich tokens — initials, honorifics, dotted
-// abbreviations, decimals, version numbers — exactly the input shape
-// where the segmenter's per-token machinery is hottest. The corpus is
-// imported by both mdtext's BenchmarkSplitSentences_Subset and the
-// paragraph-structure rule's BenchmarkRule_MDS024 so both gates
-// measure the same dose of the hot frame. See plan 193 task 1 for the
-// rationale.
-var AbbrHeavy = []string{
+// abbrHeavy is the abbreviation-heavy paragraph corpus that
+// exercises trained Punkt's third-pass MultiPunctWordAnnotation.
+// Every paragraph is built around period-rich tokens — initials,
+// honorifics, dotted abbreviations, decimals, version numbers —
+// exactly the input shape where the segmenter's per-token machinery
+// is hottest. Kept unexported so the canonical bytes cannot be
+// mutated by callers (a slice assignment in one test would silently
+// skew every other consumer running in parallel). See plan 193
+// task 1 for the rationale and AbbrHeavy / AbbrHeavyParagraph for
+// the public read-only accessors.
+var abbrHeavy = []string{
 	"Dr. Smith met Mr. Jones at 3.14 p.m. on Jan. 5. " +
 		"Mrs. Lee then arrived at 4.30 p.m. with Ms. Park.",
 	"The U.S. and U.K. signed it at 10.30 a.m. " +
@@ -35,19 +39,25 @@ var AbbrHeavy = []string{
 		"Dr. Brown cited Jones et al., 2021, p. 22, sec. 4.5.",
 }
 
-// AbbrHeavyParagraph joins AbbrHeavy into one long Markdown
-// paragraph, matching how a real .md file looks when MDS024's
-// per-paragraph segmenter runs on it. The benchmark for the rule
-// uses this shape so the fixture is a single paragraph the rule
-// extracts from the AST, not the slice of independent strings.
+// AbbrHeavy returns a copy of the abbreviation-heavy paragraph
+// corpus. Each call allocates a fresh []string so callers cannot
+// mutate the canonical fixture; the strings themselves are
+// immutable in Go, so this fully isolates consumers from each other.
+// The corpus is imported by both mdtext's BenchmarkSplitSentences_Subset
+// and the paragraph-structure rule's BenchmarkRule_MDS024 so both
+// gates measure the same bytes — but with no shared mutable state.
+func AbbrHeavy() []string { return slices.Clone(abbrHeavy) }
+
+// AbbrHeavyParagraph joins the abbreviation-heavy corpus into one
+// long Markdown paragraph, matching how a real .md file looks when
+// MDS024's per-paragraph segmenter runs on it. The benchmark for the
+// rule uses this shape so the fixture is a single paragraph the
+// rule extracts from the AST, not the slice of independent strings.
 //
 // The join logic itself is in joinWithSpace so the empty-slice
-// branch can be tested without mutating the exported AbbrHeavy
-// variable. Mutating AbbrHeavy from a test would race with other
-// packages' parallel `go test ./...` runs (e.g. paragraph-structure's
-// alloc-budget gate consumes the same corpus).
+// branch can be tested without touching the package-level corpus.
 func AbbrHeavyParagraph() string {
-	return joinWithSpace(AbbrHeavy)
+	return joinWithSpace(abbrHeavy)
 }
 
 // joinWithSpace concatenates the elements of items with a single
