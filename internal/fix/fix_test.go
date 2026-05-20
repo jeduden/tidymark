@@ -1026,3 +1026,128 @@ func TestFix_MaxPassesBoundary(t *testing.T) {
 	const maxPasses = 10
 	assert.Equal(t, string(initial)+strings.Repeat("X", maxPasses), string(got))
 }
+
+// --- dry-run ---
+
+func TestFix_DryRun_LeavesFileUntouched(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "test.md")
+	original := []byte("# Hello  \nworld  \n")
+	require.NoError(t, os.WriteFile(mdFile, original, 0o644))
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"mock-trailing": {Enabled: true},
+		},
+	}
+	fixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
+		DryRun: true,
+	}
+
+	result := fixer.Fix([]string{mdFile})
+	require.Empty(t, result.Errors, "unexpected errors: %v", result.Errors)
+
+	// File on disk is byte-identical.
+	got, err := os.ReadFile(mdFile)
+	require.NoError(t, err)
+	assert.Equal(t, original, got, "dry-run must not modify the file")
+
+	// Nothing in Modified: nothing was written.
+	assert.Empty(t, result.Modified, "dry-run must not populate Modified")
+}
+
+func TestFix_DryRun_ReportsWouldFixCounts(t *testing.T) {
+	dir := t.TempDir()
+	mdFile := filepath.Join(dir, "test.md")
+	require.NoError(t, os.WriteFile(mdFile, []byte("# Hello  \nworld  \n"), 0o644))
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"mock-trailing": {Enabled: true},
+		},
+	}
+	fixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
+		DryRun: true,
+	}
+
+	result := fixer.Fix([]string{mdFile})
+	require.Empty(t, result.Errors, "unexpected errors: %v", result.Errors)
+
+	// Two trailing-spaces violations on two lines.
+	assert.Equal(t, 2, result.WouldFix, "expected 2 would-fix violations")
+	require.Len(t, result.WouldFixFiles, 1)
+	wf := result.WouldFixFiles[0]
+	assert.Equal(t, mdFile, wf.Path)
+	assert.Equal(t, 2, wf.Count)
+	require.Len(t, wf.Rules, 1)
+	assert.Equal(t, "MDS100", wf.Rules[0].RuleID)
+	assert.Equal(t, 2, wf.Rules[0].Count)
+}
+
+func TestFix_DryRun_MatchesRealFixCount(t *testing.T) {
+	// dry-run reports the same fix count a real run would apply.
+	dir := t.TempDir()
+	dryFile := filepath.Join(dir, "dry.md")
+	wetFile := filepath.Join(dir, "wet.md")
+	content := []byte("# Hello  \nworld  \nthird line  \n")
+	require.NoError(t, os.WriteFile(dryFile, content, 0o644))
+	require.NoError(t, os.WriteFile(wetFile, content, 0o644))
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"mock-trailing": {Enabled: true},
+		},
+	}
+
+	dryFixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
+		DryRun: true,
+	}
+	dryResult := dryFixer.Fix([]string{dryFile})
+
+	wetFixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
+	}
+	wetResult := wetFixer.Fix([]string{wetFile})
+
+	assert.Equal(t, wetResult.Failures, dryResult.Failures,
+		"failure counts must match between dry-run and real run")
+	assert.Equal(t, wetResult.Failures, dryResult.WouldFix,
+		"would-fix count must equal the real-run pre-fix violation count")
+
+	// Real run modified the file; dry run did not.
+	require.Len(t, wetResult.Modified, 1)
+	require.Empty(t, dryResult.Modified)
+
+	dryContent, err := os.ReadFile(dryFile)
+	require.NoError(t, err)
+	assert.Equal(t, content, dryContent, "dry-run must leave bytes identical")
+}
+
+func TestFix_DryRun_OmitsFilesWithNoFixes(t *testing.T) {
+	dir := t.TempDir()
+	cleanFile := filepath.Join(dir, "clean.md")
+	require.NoError(t, os.WriteFile(cleanFile, []byte("# Clean\n"), 0o644))
+
+	cfg := &config.Config{
+		Rules: map[string]config.RuleCfg{
+			"mock-trailing": {Enabled: true},
+		},
+	}
+	fixer := &Fixer{
+		Config: cfg,
+		Rules:  []rule.Rule{&mockFixableRule{id: "MDS100", name: "mock-trailing"}},
+		DryRun: true,
+	}
+
+	result := fixer.Fix([]string{cleanFile})
+	require.Empty(t, result.Errors)
+	assert.Equal(t, 0, result.WouldFix)
+	assert.Empty(t, result.WouldFixFiles, "clean files must not appear in WouldFixFiles")
+}
