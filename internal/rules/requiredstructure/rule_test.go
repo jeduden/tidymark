@@ -763,6 +763,29 @@ func newRootedFile(t *testing.T, root, path, source string) *lint.File {
 	return f
 }
 
+// TestCheck_FileSchemaWithExtendsRoutesThroughCompose pins the
+// PR-365 review fix (Copilot comment on rule.go:1064): a single
+// file source whose proto.md declares `extends:` must go through
+// the modern compose path so plan-135 inheritance applies. Without
+// this re-route the legacy parser would silently drop the parent's
+// frontmatter constraints.
+func TestCheck_FileSchemaWithExtendsRoutesThroughCompose(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "base.md"),
+		[]byte("---\nid: '=~\"^A-[0-9]+$\"'\n---\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "child.md"),
+		[]byte("---\nextends: base.md\n---\n"), 0o644))
+	f := newRootedFile(t, root, "doc.md",
+		"---\nid: \"WRONG\"\n---\n# Doc\n")
+	r := &Rule{
+		Schema:  "child.md",
+		Sources: []SchemaSource{{File: "child.md"}},
+	}
+	diags := r.Check(f)
+	require.NotEmpty(t, diags,
+		"document violating the parent's `id` regex should flag a diagnostic via the inherited constraint")
+}
+
 func TestCheck_PathPattern_Match(t *testing.T) {
 	root := t.TempDir()
 	f := newRootedFile(t, root, "plan/140_my-plan.md", "# My Plan\n")

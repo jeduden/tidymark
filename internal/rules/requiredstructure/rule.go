@@ -524,18 +524,56 @@ func (r *Rule) Check(f *lint.File) []lint.Diagnostic {
 	// heading- and body-sync features (`# {id}: {name}`, body lines
 	// under Meta-Information). Composition is irrelevant when only
 	// one source is configured.
+	//
+	// Exception: when the file source declares `extends:`, route
+	// through the multi-source compose path so plan-135 inheritance
+	// applies. The legacy parser does not implement extends; without
+	// this re-route the parent's constraints would silently drop.
+	// Body-sync still runs through the per-source bodySyncDiagnostics
+	// helper inside checkComposedSources, so the child's `{field}`
+	// template features survive the switch.
 	if len(sources) == 1 {
 		src := sources[0]
 		if src.Inline != nil {
 			return append(diags, r.checkSingleInlineSchema(f, src.Inline)...)
 		}
 		if src.File != "" {
+			if r.fileSchemaDeclaresExtends(f, src.File) {
+				return append(diags, r.checkComposedSources(f, sources)...)
+			}
 			return append(diags, r.checkSingleFileSchema(f, src.File)...)
 		}
 		return diags
 	}
 
 	return append(diags, r.checkComposedSources(f, sources)...)
+}
+
+// fileSchemaDeclaresExtends peeks at a proto.md file's YAML front
+// matter for the reserved `extends:` key. The single-source
+// dispatch uses it to opt into the compose path so plan-135
+// inheritance flows through schema.ParseFile rather than the legacy
+// parser that would silently drop the parent.
+//
+// Failures to read or parse the schema return false — the legacy
+// path then surfaces those errors via parseSchema with its
+// existing diagnostic shape.
+func (r *Rule) fileSchemaDeclaresExtends(f *lint.File, schemaPath string) bool {
+	data, _, err := r.loadSchemaAt(f, schemaPath)
+	if err != nil {
+		return false
+	}
+	prefix, _ := lint.StripFrontMatter(data)
+	if prefix == nil {
+		return false
+	}
+	yamlBytes := extractYAML(prefix)
+	var raw map[string]any
+	if err := yamlutil.UnmarshalSafe(yamlBytes, &raw); err != nil {
+		return false
+	}
+	_, ok := raw["extends"]
+	return ok
 }
 
 // effectiveSources returns the rule's sources list, falling back to

@@ -150,7 +150,7 @@ const extendsKindsCfg = `kinds:
     schema:
       frontmatter:
         id: '=~"^RFC-[0-9]{4}$"'
-        authors: '[...string]'
+        authors: '[...string] & [_, ...string]'
   rfc-ratified:
     extends: rfc-base
     schema:

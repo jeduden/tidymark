@@ -246,7 +246,7 @@ kinds:
     schema:
       frontmatter:
         id: '=~"^RFC-[0-9]{4}$"'
-        authors: '[...string]'
+        authors: '[...string] & [_, ...string]'
         created: date
 
   rfc-ratified:
@@ -331,7 +331,7 @@ rfc-ratified:
   extends-chain: rfc-ratified -> rfc-base
   rules: …
   effective-frontmatter:
-    authors: [...string]                                   # from rfc-base
+    authors: [...string] & [_, ...string]                  # from rfc-base
     created: =~"^\d{4}-\d{2}-\d{2}$"                       # from rfc-base
     id: =~"^RFC-[0-9]{4}$"                                 # from rfc-base
     ratified-on: =~"^\d{4}-\d{2}-\d{2}$"                   # from rfc-ratified
