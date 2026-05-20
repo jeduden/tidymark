@@ -28,7 +28,7 @@ rules:
     separator-style: spaced
 ```
 
-Opt into the dense legacy form:
+Opt into the dense compact form:
 
 ```yaml
 rules:

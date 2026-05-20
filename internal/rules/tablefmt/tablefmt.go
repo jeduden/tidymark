@@ -42,8 +42,8 @@ const (
 	// SeparatorSpaced writes `| --- | --- |`. Zero value so the
 	// default-constructed Config picks this layout.
 	SeparatorSpaced SeparatorStyle = iota
-	// SeparatorCompact writes `|---|---|`. The legacy mdsmith layout,
-	// kept for users who prefer a denser rendering.
+	// SeparatorCompact writes `|---|---|`. Dashes fill the cell area
+	// with no whitespace around them.
 	SeparatorCompact
 )
 

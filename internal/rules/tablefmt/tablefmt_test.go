@@ -486,7 +486,7 @@ func TestFormatString_DefaultSpacedSeparator(t *testing.T) {
 }
 
 func TestFormatStringWithConfig_CompactSeparator(t *testing.T) {
-	// Opt-in compact style still produces the legacy dense form.
+	// Opt-in compact style packs dashes flush against the pipes.
 	src := "| Field | Details |\n" +
 		"| ----- | ------- |\n" +
 		"| abc   | abc     |\n"
@@ -724,8 +724,7 @@ func TestWriteSeparatorRow_AlignmentIndicators(t *testing.T) {
 }
 
 func TestWriteSeparatorRow_CompactAlignmentIndicators(t *testing.T) {
-	// SeparatorCompact keeps the legacy flush-against-pipe colon
-	// placement.
+	// SeparatorCompact places alignment colons flush against the pipes.
 	src := "| Left | Center | Right |\n" +
 		"|:---|:---:|---:|\n" +
 		"| a | b | c |\n"
