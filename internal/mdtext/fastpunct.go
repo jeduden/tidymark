@@ -84,17 +84,16 @@ func (a *fastMultiPunctWordAnnotation) tokenAnnotation(tokOne, tokTwo *sentences
 		return
 	}
 
-	// Dead branch in current upstream, kept for line-for-line
-	// fidelity. reInitial matches only `^[A-Za-z]\.$` — a single
-	// letter + period. Every such token fails all four disjuncts of
-	// the preceding gate, so the gate already returned. If upstream
-	// ever weakens that gate, this guard reactivates and the fast
-	// path stays equivalent. Behaviour is pinned by
-	// TestFastMultiPunctWordAnnotation_tokenAnnotation's
-	// `is_initial_branch_is_unreachable_in_current_upstream` subtest.
-	if a.IsInitial(tokOne) {
-		return
-	}
+	// Upstream `english.MultiPunctWordAnnotation.tokenAnnotation`
+	// has an `if a.IsInitial(tokOne) { return }` guard here.
+	// `reInitial` matches `^[A-Za-z]\.$` only — single letter +
+	// period — and every such token fails the preceding gate
+	// (matchAbbrPattern is false, Tok != ".", HasUnreliableEndChars
+	// is false, IsCoordinatePartTwo is false). The guard is dead in
+	// current upstream, so we elide it: there is no input it would
+	// catch that the preceding gate has not already returned on. If
+	// upstream ever weakens that gate, the equivalence harness in
+	// sentence_equivalence_test.go fails on the next run.
 
 	tokOne.Abbr = true
 	tokOne.SentBreak = false

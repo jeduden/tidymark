@@ -153,22 +153,6 @@ var tokenAnnotationCases = []tokenAnnotationCase{
 			"must skip the body and leave both flags false",
 	},
 	{
-		// The IsInitial guard at fastpunct.go:95 is mirrored from
-		// upstream. It is unreachable in the current upstream
-		// because any single-letter+period token fails every
-		// disjunct of the preceding gate (matchAbbrPattern,
-		// Tok=='.', HasUnreliableEndChars, IsCoordinatePartTwo).
-		// Plan 191 keeps the branch for line-for-line fidelity; if
-		// upstream ever weakens that gate, this guard reactivates.
-		// We pin the observable behaviour: a single-letter+period
-		// token short-circuits before reaching the Abbr assignment.
-		name:   "is_initial_branch_is_unreachable_in_current_upstream",
-		tokOne: "A.",
-		tokTwo: "Smith",
-		note: "single-letter+period must short-circuit before the " +
-			"Abbr assignment in the current upstream",
-	},
-	{
 		name: "sent_starter_heuristic_sets_sentbreak",
 		setup: func(a *fastMultiPunctWordAnnotation) {
 			// Heuristic returns 1 when tokTwo is capitalized AND its
