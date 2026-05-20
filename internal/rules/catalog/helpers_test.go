@@ -525,3 +525,85 @@ func TestCheckCatalogIncludeCycle_EntryWithoutMatchPath(t *testing.T) {
 			"so legacy struct-literal callers still see the cycle")
 	assert.Contains(t, diags[0].Message, "cycle")
 }
+
+// TestAbsBaseDir_AbsolutePathShortCircuits pins strategy 1: an
+// absolute f.Path returns filepath.Dir directly without touching
+// the process CWD or f.RootDir.
+func TestAbsBaseDir_AbsolutePathShortCircuits(t *testing.T) {
+	f := &lint.File{Path: "/abs/repo/sub/host.md", RootDir: "/wrong/root"}
+	dir, ok := absBaseDir(f)
+	assert.True(t, ok)
+	assert.Equal(t, "/abs/repo/sub", dir,
+		"absolute f.Path must short-circuit; f.RootDir must be ignored "+
+			"when the file path is already absolute")
+}
+
+// TestAbsBaseDir_LSPShapeAnchorsAtRootDir pins strategy 2 — the
+// case the PR review surfaced. The LSP sets f.Path to a
+// workspace-relative path ("docs/host.md") and f.RootDir to the
+// workspace's absolute path ("/abs/workspace"); the helper must
+// anchor the base at RootDir + Dir(f.Path) so cache keys align
+// with the absolute doc.path the LSP's invalidate seam uses.
+//
+// Without this strategy the helper would fall through to
+// filepath.Abs("docs"), which anchors at the process CWD —
+// producing /cwd/docs while the invalidation arrives as
+// /abs/workspace/docs and the eviction silently misses.
+func TestAbsBaseDir_LSPShapeAnchorsAtRootDir(t *testing.T) {
+	f := &lint.File{Path: "docs/host.md", RootDir: "/abs/workspace"}
+	dir, ok := absBaseDir(f)
+	require.True(t, ok)
+	assert.Equal(t, "/abs/workspace/docs", dir,
+		"LSP-shaped File (workspace-relative Path + absolute RootDir) "+
+			"must anchor at RootDir so cache keys match the LSP's "+
+			"doc.path-based invalidation")
+}
+
+// TestAbsBaseDir_RelativePathNoRootDirFallsBackToCwd pins strategy
+// 3: when no RootDir is configured the helper uses the process
+// CWD, matching the legacy CLI behavior (and what os.DirFS opens
+// against for a relative path).
+func TestAbsBaseDir_RelativePathNoRootDirFallsBackToCwd(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	f := &lint.File{Path: "host.md"}
+	dir, ok := absBaseDir(f)
+	require.True(t, ok)
+	want, err := filepath.EvalSymlinks(cwd)
+	require.NoError(t, err)
+	got, err := filepath.EvalSymlinks(dir)
+	require.NoError(t, err)
+	assert.Equal(t, want, got,
+		"no RootDir + relative Path must anchor at CWD")
+}
+
+// TestAbsMatchedPath_LSPShapeAlignsWithDocPath is the end-to-end
+// invariant for the PR review: the cache key absMatchedPath
+// computes for a matched target inside the LSP's workspace must
+// exactly match the absolute path Server.invalidateCachedRead is
+// called with (== doc.path of an edited file). Otherwise a
+// didChange / didSave on the target evicts a non-existent entry
+// and the next runLint serves the stale cached body.
+func TestAbsMatchedPath_LSPShapeAlignsWithDocPath(t *testing.T) {
+	// LSP-shaped lint.File: workspace-relative Path, absolute
+	// RootDir, RootFS rooted at the workspace.
+	const workspace = "/abs/workspace"
+	f := &lint.File{
+		Path:    "docs/host.md",
+		RootDir: workspace,
+	}
+	res := localFSResolution(f, nil, nil)
+
+	// A target matched at "target.md" relative to res.fs (i.e.
+	// f.FS, anchored at /abs/workspace/docs).
+	abs, ok := absMatchedPath(res, "target.md")
+	require.True(t, ok)
+	// What the LSP would invalidate when the editor edits the
+	// same file: dirname of the host's absolute doc.path joined
+	// with the target's basename.
+	docPathAbsTarget := filepath.Join(workspace, "docs", "target.md")
+	assert.Equal(t, docPathAbsTarget, abs,
+		"absMatchedPath under the LSP shape must produce the same "+
+			"absolute path Server.invalidateCachedRead uses; a "+
+			"mismatch means edits silently fail to evict cached reads")
+}

@@ -507,16 +507,46 @@ func dotDotInPatterns(patterns []string) bool {
 // patterns contain no ".." segments, or as a fallback when the project
 // root is not configured.
 func localFSResolution(f *lint.File, includes, excludes []string) globResolution {
-	base := ""
-	if abs, err := filepath.Abs(filepath.Dir(f.Path)); err == nil {
-		base = abs
-	}
+	base, _ := absBaseDir(f)
 	return globResolution{
 		fs:            f.FS,
 		includes:      includes,
 		excludes:      excludes,
 		gitignoreBase: base,
 	}
+}
+
+// absBaseDir returns the absolute filesystem directory f.FS is rooted
+// at — i.e. the absolute equivalent of "where doublestar matches
+// resolve from for this file". Three resolution strategies, picked in
+// order:
+//
+//  1. f.Path is already absolute → use filepath.Dir(f.Path) directly.
+//  2. f.RootDir is set (the LSP path: doc paths arrive workspace-
+//     relative but the workspace root is configured, and f.FS is
+//     wired from the document's absolute directory) → anchor at
+//     RootDir + Dir(f.Path) so cache keys align with the absolute
+//     doc.path the LSP's Server.invalidateCachedRead uses.
+//  3. Otherwise → filepath.Abs(Dir(f.Path)), which falls back to the
+//     process CWD (matches the legacy CLI behavior).
+//
+// Without strategy 2 the LSP would key cache entries by /cwd/X.md
+// while invalidating by /workspace/X.md, so a didChange / didSave on
+// a target would silently miss the cached entry and stale catalog
+// bodies would persist.
+func absBaseDir(f *lint.File) (string, bool) {
+	dir := filepath.Dir(f.Path)
+	if filepath.IsAbs(dir) {
+		return filepath.Clean(dir), true
+	}
+	if f.RootDir != "" {
+		root, err := filepath.Abs(f.RootDir)
+		if err == nil {
+			return filepath.Clean(filepath.Join(root, dir)), true
+		}
+	}
+	abs, err := filepath.Abs(dir)
+	return filepath.Clean(abs), err == nil
 }
 
 // resolveBaseRel returns the project-root-relative directory glob patterns
@@ -1062,15 +1092,14 @@ func matchedIncludesCatalog(
 
 // hostAbsDir returns f.FS's absolute filesystem root — the directory
 // every fsys-relative path in this Check resolves against. Used to
-// translate matched paths into the run cache's absolute keys. The
-// bool tracks whether filepath.Abs returned an absolute path; the
-// caller falls back to the legacy relative scan when it could not.
-// (filepath.Abs only fails when os.Getwd does — effectively never in
-// process; the single-return form keeps statement coverage clean
-// rather than guarding a branch tests cannot drive.)
+// translate matched paths into the run cache's absolute keys. Wraps
+// absBaseDir so the LSP path (workspace-relative f.Path, absolute
+// f.RootDir) lands on the same /workspace/dir base the LSP's
+// Server.invalidateCachedRead uses; otherwise cache keys and
+// invalidation calls would target different absolute paths and
+// edits would not evict stale reads.
 func hostAbsDir(f *lint.File) (string, bool) {
-	abs, err := filepath.Abs(filepath.Dir(f.Path))
-	return filepath.Clean(abs), err == nil
+	return absBaseDir(f)
 }
 
 // fileIncludesTarget checks whether the file at filePath contains
