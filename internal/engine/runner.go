@@ -81,6 +81,15 @@ type Runner struct {
 	// shared cache lazily during rule execution.
 	gitignoreCache map[string]*lint.GitignoreMatcher
 	gitignoreMu    sync.Mutex
+	// RunCache is the engine-owned read cache shared by every File
+	// processed in one Run / RunSource pass. The catalog rule reads
+	// through it so a target globbed by N host catalogs is read once
+	// per run instead of N times. nil means "create a fresh cache
+	// for the next Run" (the CLI case where the corpus is immutable
+	// for one process). Callers with a long-lived process — the LSP
+	// — install a shared instance so it survives across runLint
+	// calls and call its Invalidate seam on document edits.
+	RunCache *lint.RunCache
 }
 
 // fileOutcome is one file's contribution to a run. Workers fill a
@@ -110,6 +119,15 @@ type Result struct {
 func (r *Runner) Run(paths []string) *Result {
 	res := &Result{}
 
+	// Resolve the run-scoped read cache for this single pass. A
+	// caller-supplied RunCache (the LSP installs one on Server, then
+	// invalidates entries on document events) survives across calls;
+	// an auto-created one stays local so a Runner re-used for a
+	// second Run starts fresh and cannot serve stale reads from the
+	// previous corpus. cache is threaded onto every File the per-file
+	// loop builds.
+	cache := r.runCacheForCall()
+
 	// Run config-target rules once against the config file before per-file
 	// markdown processing. These rules (e.g. recipe-safety / MDS040) validate
 	// the project config rather than individual Markdown files.
@@ -119,7 +137,7 @@ func (r *Runner) Run(paths []string) *Result {
 	res.FilesChecked = len(work)
 
 	sink := r.log()
-	for _, o := range r.runFiles(work) {
+	for _, o := range r.runFiles(work, cache) {
 		if len(o.log) > 0 && sink.W != nil {
 			_, _ = sink.W.Write(o.log)
 		}
@@ -220,13 +238,17 @@ func resolveIntraFileWorkers(setting, fileWorkers int) int {
 // outer worker count: when the file pool already saturates cores the
 // inner cap is 1 (no oversubscription); when only a handful of files
 // are linted, the inner cap grows to fill the gap.
-func (r *Runner) runFiles(work []string) []fileOutcome {
+//
+// cache is the run-scoped read cache resolved by the caller; every
+// File built by lintFile receives it so directives in different host
+// files share one read per target across the pass.
+func (r *Runner) runFiles(work []string, cache *lint.RunCache) []fileOutcome {
 	outcomes := make([]fileOutcome, len(work))
 	workers := ResolveWorkers(r.Concurrency, len(work))
 	intraCap := resolveIntraFileWorkers(r.IntraFileConcurrency, workers)
 	if workers <= 1 {
 		for i, path := range work {
-			outcomes[i] = r.lintFile(path, r.Rules, intraCap)
+			outcomes[i] = r.lintFile(path, r.Rules, intraCap, cache)
 		}
 		return outcomes
 	}
@@ -242,7 +264,7 @@ func (r *Runner) runFiles(work []string) []fileOutcome {
 				if i >= len(work) {
 					return
 				}
-				outcomes[i] = r.lintFile(work[i], rules, intraCap)
+				outcomes[i] = r.lintFile(work[i], rules, intraCap, cache)
 			}
 		}()
 	}
@@ -265,8 +287,10 @@ func cloneRules(rules []rule.Rule) []rule.Rule {
 // errors. It touches no shared Runner state except the mutex-guarded
 // gitignore cache. intraFileCap controls how many non-NodeChecker
 // rules run concurrently for this one file — see runFiles for how
-// the cap is computed from Runner.IntraFileConcurrency.
-func (r *Runner) lintFile(path string, rules []rule.Rule, intraFileCap int) (out fileOutcome) {
+// the cap is computed from Runner.IntraFileConcurrency. cache is
+// installed on the per-File so catalog/include rules share one
+// target read across every host file in this pass.
+func (r *Runner) lintFile(path string, rules []rule.Rule, intraFileCap int, cache *lint.RunCache) (out fileOutcome) {
 	// When verbose, log into a per-file buffer instead of the shared
 	// logger; Run flushes these in input order so concurrent workers
 	// don't interleave -v output. The named return + defer attaches
@@ -289,6 +313,7 @@ func (r *Runner) lintFile(path string, rules []rule.Rule, intraFileCap int) (out
 		return fileOutcome{errs: []error{fmt.Errorf("parsing %q: %w", path, err)}}
 	}
 	f.MaxInputBytes = r.MaxInputBytes
+	f.RunCache = cache
 	dir := filepath.Dir(path)
 	f.FS = os.DirFS(dir)
 	gitignoreDir := dir
@@ -420,6 +445,7 @@ func (r *Runner) RunSource(path string, source []byte) *Result {
 		return res
 	}
 	f.MaxInputBytes = r.MaxInputBytes
+	f.RunCache = r.runCacheForCall()
 	if r.SourceFS != nil {
 		f.FS = r.SourceFS
 	}
@@ -560,6 +586,20 @@ func (r *Runner) effectiveWithCategories(
 ) map[string]config.RuleCfg {
 	effective, categories, explicit := config.EffectiveAll(r.Config, path, fmKinds, fmFields)
 	return config.ApplyCategories(effective, categories, ruleCategoryLookup(r.Rules), explicit)
+}
+
+// runCacheForCall returns the run-scoped read cache to thread through
+// the next Run / RunSource pass. A caller-supplied r.RunCache (the
+// LSP installs one on Server and invalidates entries on document
+// events) is reused as-is. When nil, a fresh cache is built for this
+// call only and never stored on r — a Runner re-used for a second
+// Run starts clean and cannot serve stale reads from the previous
+// corpus.
+func (r *Runner) runCacheForCall() *lint.RunCache {
+	if r.RunCache != nil {
+		return r.RunCache
+	}
+	return lint.NewRunCache()
 }
 
 // cachedGitignore returns a GitignoreMatcher for the given directory,
