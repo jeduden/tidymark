@@ -1,4 +1,4 @@
-# Formatted Table
+# Style Mismatch
 
 | Name   | Description               |
 | ------ | ------------------------- |
